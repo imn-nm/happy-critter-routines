@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
 import ChildInterface from "./pages/ChildInterface";
+import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/setup" element={<ChildSetup />} />
           <Route path="/child/:childId" element={<ChildInterface />} />
+          <Route path="/tasks" element={<TaskManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

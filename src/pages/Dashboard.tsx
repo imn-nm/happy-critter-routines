@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ChildCard, { type Child } from "@/components/ChildCard";
 import TaskCard, { type Task } from "@/components/TaskCard";
-import { Calendar, Plus, Settings } from "lucide-react";
+import { Calendar, Plus, Settings, ListTodo } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // Mock data
@@ -97,6 +97,14 @@ const Dashboard = () => {
               <Plus className="w-4 h-4" />
               Add Child
             </Button>
+            <Button 
+              variant="gradientSecondary" 
+              size="sm"
+              onClick={() => navigate(`/tasks?childId=${selectedChild.id}`)}
+            >
+              <ListTodo className="w-4 h-4" />
+              Manage Tasks
+            </Button>
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
               <Settings className="w-4 h-4" />
             </Button>
@@ -146,13 +154,23 @@ const Dashboard = () => {
             <Card className="p-6 h-full">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold">{selectedChild.name}'s Schedule</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate(`/child/${selectedChild.id}`)}
-                >
-                  View Child Interface
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/tasks?childId=${selectedChild.id}`)}
+                  >
+                    <ListTodo className="w-4 h-4 mr-1" />
+                    Manage Tasks
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/child/${selectedChild.id}`)}
+                  >
+                    View Child Interface
+                  </Button>
+                </div>
               </div>
               
               <div className="space-y-4">
