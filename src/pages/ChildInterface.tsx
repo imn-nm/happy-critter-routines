@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PetAvatar from "@/components/PetAvatar";
 import TaskCard, { type Task } from "@/components/TaskCard";
 import CircularTimer from "@/components/CircularTimer";
-import { ArrowLeft, Coins, Star } from "lucide-react";
+import TimelineView from "@/components/TimelineView";
+import { ArrowLeft, Coins, Star, Calendar, Clock } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -188,74 +190,114 @@ const ChildInterface = () => {
           </Card>
         )}
 
-        {/* Next Two Upcoming Tasks */}
-        {nextTwoTasks.length > 0 && (
-          <Card className="p-6 bg-white/90 backdrop-blur">
-            <h3 className="font-semibold mb-4">Next Two Tasks</h3>
-            <div className="space-y-3">
-              {nextTwoTasks.map((task, index) => {
-                const adjustedDuration = task.type === 'flexible' && task.duration 
-                  ? Math.max(15, task.duration - Math.floor(flexibleReduction / nextTwoTasks.filter(t => t.type === 'flexible').length))
-                  : task.duration;
-                
-                return (
-                  <div key={task.id} className="relative">
-                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">{task.name}</h4>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          {adjustedDuration && (
-                            <span>
-                              {adjustedDuration !== task.duration && task.type === 'flexible' && (
-                                <span className="line-through mr-2">{task.duration}min</span>
-                              )}
-                              {adjustedDuration}min
-                              {adjustedDuration !== task.duration && task.type === 'flexible' && (
-                                <span className="text-warning ml-2">⚡ Reduced</span>
-                              )}
-                            </span>
-                          )}
-                          <span>{task.coins} coins</span>
-                        </div>
-                      </div>
-                      {task.type === "flexible" && (
-                        <div className="bg-accent text-white text-xs px-2 py-1 rounded">
-                          Flexible
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {flexibleReduction > 0 && (
-              <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg">
-                <p className="text-sm text-warning-foreground">
-                  <strong>⚡ Time Adjustment:</strong> Flexible tasks have been shortened due to expected overtime on scheduled tasks.
-                </p>
-              </div>
-            )}
-          </Card>
-        )}
+        {/* Tabs for different views */}
+        <Tabs defaultValue="current" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 bg-white/90 backdrop-blur">
+            <TabsTrigger value="current" className="gap-2">
+              <Clock className="w-4 h-4" />
+              Current
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Daily Schedule
+            </TabsTrigger>
+            <TabsTrigger value="upcoming" className="gap-2">
+              <Star className="w-4 h-4" />
+              Upcoming
+            </TabsTrigger>
+          </TabsList>
 
-        {/* No tasks state */}
-        {!activeTask && nextTwoTasks.length === 0 && (
-          <Card className="p-8 text-center bg-white/90 backdrop-blur">
-            <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold mb-2">All Done!</h2>
-            <p className="text-muted-foreground mb-4">
-              Great job {child.name}! You've completed all your tasks for today.
-            </p>
-            <div className="bg-gradient-success text-white p-4 rounded-lg">
-              <p className="font-semibold">Your pet is super happy!</p>
-              <p className="text-sm opacity-90">Keep up the amazing work tomorrow!</p>
-            </div>
-          </Card>
-        )}
+          <TabsContent value="current" className="space-y-6">
+            {/* Next Two Upcoming Tasks */}
+            {nextTwoTasks.length > 0 && (
+              <Card className="p-6 bg-white/90 backdrop-blur">
+                <h3 className="font-semibold mb-4">Next Two Tasks</h3>
+                <div className="space-y-3">
+                  {nextTwoTasks.map((task, index) => {
+                    const adjustedDuration = task.type === 'flexible' && task.duration 
+                      ? Math.max(15, task.duration - Math.floor(flexibleReduction / nextTwoTasks.filter(t => t.type === 'flexible').length))
+                      : task.duration;
+                    
+                    return (
+                      <div key={task.id} className="relative">
+                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">{task.name}</h4>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              {adjustedDuration && (
+                                <span>
+                                  {adjustedDuration !== task.duration && task.type === 'flexible' && (
+                                    <span className="line-through mr-2">{task.duration}min</span>
+                                  )}
+                                  {adjustedDuration}min
+                                  {adjustedDuration !== task.duration && task.type === 'flexible' && (
+                                    <span className="text-warning ml-2">⚡ Reduced</span>
+                                  )}
+                                </span>
+                              )}
+                              <span>{task.coins} coins</span>
+                            </div>
+                          </div>
+                          {task.type === "flexible" && (
+                            <div className="bg-accent text-white text-xs px-2 py-1 rounded">
+                              Flexible
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {flexibleReduction > 0 && (
+                  <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                    <p className="text-sm text-warning-foreground">
+                      <strong>⚡ Time Adjustment:</strong> Flexible tasks have been shortened due to expected overtime on scheduled tasks.
+                    </p>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* No tasks state */}
+            {!activeTask && nextTwoTasks.length === 0 && (
+              <Card className="p-8 text-center bg-white/90 backdrop-blur">
+                <div className="text-6xl mb-4">🎉</div>
+                <h2 className="text-2xl font-bold mb-2">All Done!</h2>
+                <p className="text-muted-foreground mb-4">
+                  Great job {child.name}! You've completed all your tasks for today.
+                </p>
+                <div className="bg-gradient-success text-white p-4 rounded-lg">
+                  <p className="font-semibold">Your pet is super happy!</p>
+                  <p className="text-sm opacity-90">Keep up the amazing work tomorrow!</p>
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="schedule" className="space-y-6">
+            <TimelineView child={child} />
+          </TabsContent>
+
+          <TabsContent value="upcoming" className="space-y-6">
+            <Card className="p-6 bg-white/90 backdrop-blur">
+              <h3 className="font-semibold mb-4">All Upcoming Tasks</h3>
+              <div className="space-y-3">
+                {upcomingTasks.map((task, index) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onComplete={() => handleCompleteTask(task.id)}
+                    showCompleteButton={false}
+                  />
+                ))}
+              </div>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Celebration Modal */}
         {showCelebration && (

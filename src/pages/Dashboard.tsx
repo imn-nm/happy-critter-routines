@@ -174,7 +174,7 @@ const Dashboard = () => {
                     <ChildCard
                       child={child}
                       isSelected={selectedChild?.id === child.id}
-                      onClick={setSelectedChild}
+                      onClick={() => navigate(`/child/${child.id}`)}
                     />
                     <div className="flex flex-col sm:flex-row gap-2">
                       <Button 
