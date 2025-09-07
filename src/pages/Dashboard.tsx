@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ChildCard, { type Child } from "@/components/ChildCard";
 import TaskCard, { type Task } from "@/components/TaskCard";
+import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { Calendar, Plus, Settings, ListTodo } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren } from "@/hooks/useChildren";
@@ -176,17 +177,20 @@ const Dashboard = () => {
                       isSelected={selectedChild?.id === child.id}
                       onClick={() => navigate(`/child/${child.id}`)}
                     />
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/tasks?childId=${child.id}`)}
-                        className="flex-1 text-xs sm:text-sm"
-                      >
-                        <ListTodo className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                        <span className="hidden sm:inline">Manage Tasks</span>
-                        <span className="sm:hidden">Tasks</span>
-                      </Button>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/tasks?childId=${child.id}`)}
+                          className="flex-1 text-xs sm:text-sm"
+                        >
+                          <ListTodo className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                          <span className="hidden sm:inline">Manage Tasks</span>
+                          <span className="sm:hidden">Tasks</span>
+                        </Button>
+                        <ChildProfileEdit child={child} />
+                      </div>
                       <div className="flex gap-2">
                         <Button 
                           variant="outline" 

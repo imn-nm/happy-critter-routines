@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Edit, Save, X } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Edit, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 
@@ -20,7 +21,7 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
     age: child.age?.toString() || "",
     petType: child.petType,
   });
-  const { updateChild } = useChildren();
+  const { updateChild, deleteChild } = useChildren();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +35,15 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
       setIsOpen(false);
     } catch (error) {
       console.error('Error updating child profile:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteChild(child.id);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Error deleting child profile:', error);
     }
   };
 
@@ -120,6 +130,39 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
+          </div>
+
+          {/* Delete Section */}
+          <div className="border-t pt-4 mt-4">
+            <p className="text-sm text-muted-foreground mb-3">
+              Danger Zone: This action cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="w-full">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete {child.name}'s Profile
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {child.name}'s Profile?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete {child.name}'s profile, 
+                    including all their tasks, progress, and rewards. Are you sure you want to continue?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Yes, Delete Profile
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </form>
       </DialogContent>

@@ -151,6 +151,31 @@ export const useChildren = () => {
     return updateChild(id, { petHappiness: happiness });
   };
 
+  const deleteChild = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('children')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setChildren(prev => prev.filter(child => child.id !== id));
+      toast({
+        title: "Success",
+        description: "Child profile has been deleted",
+      });
+    } catch (error) {
+      console.error('Error deleting child:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete child",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchChildren();
   }, []);
@@ -162,6 +187,7 @@ export const useChildren = () => {
     updateChild,
     updateChildCoins,
     updateChildHappiness,
+    deleteChild,
     refetch: fetchChildren,
   };
 };
