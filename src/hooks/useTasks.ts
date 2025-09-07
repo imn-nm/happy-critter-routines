@@ -188,23 +188,35 @@ export const useTasks = (childId?: string) => {
   };
 
   const reorderTasks = async (reorderedTasks: Task[]) => {
+    // Optimistically update UI immediately
+    const optimisticTasks = reorderedTasks.map((task, index) => ({
+      ...task,
+      sort_order: index,
+    }));
+    
+    setTasks(optimisticTasks);
+    
     try {
-      // Update each task's sort_order individually
-      for (let i = 0; i < reorderedTasks.length; i++) {
-        const { error } = await supabase
+      // Update each task's sort_order in the database
+      const updatePromises = reorderedTasks.map((task, index) => 
+        supabase
           .from('tasks')
-          .update({ sort_order: i })
-          .eq('id', reorderedTasks[i].id);
-        
-        if (error) throw error;
-      }
+          .update({ sort_order: index })
+          .eq('id', task.id)
+      );
       
-      setTasks(reorderedTasks.map((task, index) => ({
-        ...task,
-        sort_order: index,
-      })));
+      const results = await Promise.all(updatePromises);
+      
+      // Check if any updates failed
+      const failedUpdate = results.find(result => result.error);
+      if (failedUpdate?.error) throw failedUpdate.error;
+      
     } catch (error) {
       console.error('Error reordering tasks:', error);
+      
+      // Revert optimistic update on failure
+      fetchTasks();
+      
       toast({
         title: "Error",
         description: "Failed to reorder tasks",
