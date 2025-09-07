@@ -51,13 +51,13 @@ interface TimelineEvent {
 }
 
 const systemEvents: TimelineEvent[] = [
-  { id: 'wake', name: 'Wake up', time: '7:00', duration: 30, type: 'system', color: 'bg-gray-400' },
-  { id: 'breakfast', name: 'Breakfast', time: '7:30', duration: 30, type: 'system', color: 'bg-gray-400' },
-  { id: 'school', name: 'School', time: '8:00', duration: 420, type: 'system', color: 'bg-gray-400' }, // 7 hours
-  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 60, type: 'system', color: 'bg-gray-400' },
-  { id: 'snack', name: 'Snack', time: '15:30', duration: 30, type: 'system', color: 'bg-gray-400' },
-  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 60, type: 'system', color: 'bg-gray-400' },
-  { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 30, type: 'system', color: 'bg-gray-400' },
+  { id: 'wake', name: 'Wake up', time: '7:00', duration: 30, type: 'system', color: 'bg-amber-500' },
+  { id: 'breakfast', name: 'Breakfast', time: '7:30', duration: 30, type: 'system', color: 'bg-orange-500' },
+  { id: 'school', name: 'School', time: '8:30', duration: 390, type: 'system', color: 'bg-blue-600' }, // 6.5 hours (8:30-3:00)
+  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 45, type: 'system', color: 'bg-green-500' },
+  { id: 'snack', name: 'After School Snack', time: '15:30', duration: 20, type: 'system', color: 'bg-yellow-500' },
+  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 45, type: 'system', color: 'bg-red-500' },
+  { id: 'bedtime', name: 'Bedtime Routine', time: '20:00', duration: 60, type: 'system', color: 'bg-purple-500' },
 ];
 
 interface SortableTimelineEventProps {
@@ -84,8 +84,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: isDragging ? 'none' : transition,
+    transition: isDragging ? 'transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : transition,
     zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.9 : 1,
   };
 
   const formatTime = (timeStr: string) => {
@@ -123,10 +124,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
       ref={setNodeRef} 
       style={style} 
       className={cn(
-        "flex items-center gap-2 sm:gap-4 group transition-all duration-200",
-        isDragging && "opacity-60 scale-105 shadow-lg rotate-1",
-        isActive && "bg-primary/5 rounded-lg",
-        !isDragging && "hover:bg-muted/50"
+        "flex items-center gap-2 sm:gap-4 group transition-all duration-300 ease-out",
+        isDragging && "opacity-90 scale-[1.02] shadow-2xl rotate-1 bg-white/95 backdrop-blur-sm border border-primary/20",
+        isActive && "bg-primary/10 rounded-lg shadow-lg",
+        !isDragging && "hover:bg-muted/50 hover:shadow-md hover:scale-[1.01]",
+        isDraggable && "cursor-grab active:cursor-grabbing"
       )}
     >
       {/* Drag handle for draggable tasks only */}
@@ -429,9 +431,12 @@ const TimelineScheduleView = ({
               <div key={event.id} className="relative">
                 {/* Drop indicator line */}
                 {isBeingDraggedOver && !isActiveEvent && (
-                  <div className="absolute -top-2 left-0 right-0 z-10 flex justify-center">
-                    <div className="h-0.5 w-full bg-primary animate-pulse" />
-                    <div className="absolute -top-1 w-2 h-2 bg-primary rounded-full" />
+                  <div className="absolute -top-3 left-0 right-0 z-20 flex justify-center animate-fade-in">
+                    <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse shadow-lg" />
+                    <div className="absolute -top-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-primary rounded-full shadow-lg animate-bounce" />
+                    <div className="absolute -top-0.5 left-1/2 transform -translate-x-1/2 text-xs font-medium text-primary whitespace-nowrap">
+                      Drop here
+                    </div>
                   </div>
                 )}
                 
@@ -462,11 +467,11 @@ const TimelineScheduleView = ({
         
         {/* Final drop zone */}
         {activeId && (
-          <div className="relative mt-4">
-            <div className="h-0.5 w-full bg-primary/20 rounded-full" />
-            <div className="absolute -top-1 right-0 w-2 h-2 bg-primary/40 rounded-full animate-pulse" />
-            <div className="text-center mt-2 text-xs text-muted-foreground">
-              Drop here to schedule at end of day
+          <div className="relative mt-6 p-4 border-2 border-dashed border-primary/30 rounded-lg bg-primary/5 animate-fade-in">
+            <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/50 to-transparent rounded-full animate-pulse" />
+            <div className="absolute -top-2 right-4 w-3 h-3 bg-primary/60 rounded-full animate-bounce" />
+            <div className="text-center mt-3 text-sm text-primary font-medium animate-pulse">
+              📍 Drop here to schedule at end of day
             </div>
           </div>
         )}

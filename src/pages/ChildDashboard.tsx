@@ -58,12 +58,20 @@ const ChildDashboard = () => {
         const isSystemEvent = editingTask.id && !editingTask.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
         
         if (isSystemEvent) {
-          // For system events, just show a message that they can't be permanently modified
-          toast({
-            title: "System Event",
-            description: "System events like wake up time, meals, etc. cannot be permanently modified.",
-            variant: "default",
-          });
+          // For system events, allow only time adjustments
+          if (taskData.scheduled_time && taskData.scheduled_time !== editingTask.scheduled_time) {
+            toast({
+              title: "System Event Time Updated",
+              description: "System event time has been adjusted for this session only.",
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "System Event",
+              description: "System events can only have their time adjusted temporarily. Other changes are not saved.",
+              variant: "default",
+            });
+          }
         } else {
           // Regular task update
           await updateTask(editingTask.id, taskData);
