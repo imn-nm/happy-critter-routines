@@ -6,8 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ListTodo, Gift, Calendar } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import RewardsManagement from "@/components/RewardsManagement";
-import TaskManagement from "@/pages/TaskManagement";
-import TimelineView from "@/components/TimelineView";
+import TimelineScheduleView from "@/components/TimelineScheduleView";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -86,15 +85,11 @@ const ChildDashboard = () => {
         </Card>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="schedule" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="schedule" className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Daily Schedule
-            </TabsTrigger>
+        <Tabs defaultValue="tasks" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="tasks" className="flex items-center gap-2">
-              <ListTodo className="w-4 h-4" />
-              Task Management
+              <Calendar className="w-4 h-4" />
+              Schedule & Tasks
             </TabsTrigger>
             <TabsTrigger value="rewards" className="flex items-center gap-2">
               <Gift className="w-4 h-4" />
@@ -102,12 +97,8 @@ const ChildDashboard = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="schedule">
-            <TimelineView child={child} />
-          </TabsContent>
-
           <TabsContent value="tasks">
-            <TaskManagement />
+            <TimelineScheduleView child={child} />
           </TabsContent>
 
           <TabsContent value="rewards">
