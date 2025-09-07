@@ -266,13 +266,23 @@ const TimelineScheduleView = ({
   const dayTasks = getTasksForDay(selectedDay);
 
   // Separate fixed events (system + scheduled) from draggable tasks
-  const systemEventsOnly: TimelineEvent[] = systemEvents.map(event => ({ 
-    ...event, 
-    coins: undefined, 
-    task: undefined, 
-    isCompleted: false, 
-    isLate: false 
-  }));
+  // Filter out lunch when school is present (they overlap in time)
+  const systemEventsOnly: TimelineEvent[] = systemEvents
+    .filter(event => {
+      // If this is lunch and school is also in the events, exclude lunch
+      if (event.id === 'lunch') {
+        const hasSchool = systemEvents.some(e => e.id === 'school');
+        return !hasSchool;
+      }
+      return true;
+    })
+    .map(event => ({ 
+      ...event, 
+      coins: undefined, 
+      task: undefined, 
+      isCompleted: false, 
+      isLate: false 
+    }));
 
   const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => task.type === 'scheduled').map(task => ({
     id: task.id,
