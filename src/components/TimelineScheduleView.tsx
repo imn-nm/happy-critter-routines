@@ -439,49 +439,37 @@ const TimelineScheduleView = ({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="space-y-2 sm:space-y-4">
-          {allEvents.map((event, index) => {
-            const isDraggable = event.type === 'flexible' || event.type === 'regular';
-            const isBeingDraggedOver = overId === event.id && activeId !== event.id;
-            const isActiveEvent = activeId === event.id;
-            
-            return (
-              <div key={event.id} className="relative">
-                {/* Drop indicator line */}
-                {isBeingDraggedOver && !isActiveEvent && (
-                  <div className="absolute -top-3 left-0 right-0 z-20 flex justify-center animate-fade-in">
-                    <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse shadow-lg" />
-                    <div className="absolute -top-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-primary rounded-full shadow-lg animate-bounce" />
-                    <div className="absolute -top-0.5 left-1/2 transform -translate-x-1/2 text-xs font-medium text-primary whitespace-nowrap">
-                      Drop here
+        <SortableContext items={draggableEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2 sm:space-y-4">
+            {allEvents.map((event, index) => {
+              const isDraggable = event.type === 'flexible' || event.type === 'regular';
+              const isBeingDraggedOver = overId === event.id && activeId !== event.id;
+              const isActiveEvent = activeId === event.id;
+              
+              return (
+                <div key={event.id} className="relative">
+                  {/* Drop indicator line */}
+                  {isBeingDraggedOver && !isActiveEvent && (
+                    <div className="absolute -top-3 left-0 right-0 z-20 flex justify-center animate-fade-in">
+                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse shadow-lg" />
+                      <div className="absolute -top-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-primary rounded-full shadow-lg animate-bounce" />
+                      <div className="absolute -top-0.5 left-1/2 transform -translate-x-1/2 text-xs font-medium text-primary whitespace-nowrap">
+                        Drop here
+                      </div>
                     </div>
-                  </div>
-                )}
-                
-                {isDraggable ? (
-                  <SortableContext items={[event.id]} strategy={verticalListSortingStrategy}>
-                    <SortableTimelineEvent 
-                      event={event} 
-                      onEditTask={onEditTask} 
-                      onDeleteTask={onDeleteTask}
-                      isActive={isActiveEvent}
-                    />
-                  </SortableContext>
-                ) : (
-                  // Non-draggable events can still be drop targets
-                  <div id={event.id}>
-                    <SortableTimelineEvent 
-                      event={event} 
-                      onEditTask={onEditTask} 
-                      onDeleteTask={onDeleteTask}
-                      isActive={false}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                  
+                  <SortableTimelineEvent 
+                    event={event} 
+                    onEditTask={onEditTask} 
+                    onDeleteTask={onDeleteTask}
+                    isActive={isActiveEvent}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </SortableContext>
         
         {/* Final drop zone */}
         {activeId && (
