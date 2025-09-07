@@ -127,13 +127,7 @@ const TaskManagement = () => {
   };
 
   const handleTasksReorder = (reorderedTasks: Task[]) => {
-    // Get the type of the first task to determine which section we're reordering
-    if (reorderedTasks.length === 0) return;
-    
-    const taskType = reorderedTasks[0].type;
-    const otherTasks = tasks.filter(task => task.type !== taskType);
-    
-    setTasks([...otherTasks, ...reorderedTasks]);
+    setTasks(reorderedTasks);
   };
 
   const handleCancelForm = () => {
@@ -220,64 +214,23 @@ const TaskManagement = () => {
                 </div>
               </div>
 
-              {/* Task Type Sections */}
-              <div className="space-y-8">
-                {/* Scheduled Tasks */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Calendar className="w-5 h-5 text-primary" />
-                    <h3 className="text-lg font-semibold">Scheduled Tasks</h3>
-                    <span className="text-sm text-muted-foreground">({formatTaskCount('scheduled')})</span>
-                  </div>
-                  {getTasksByType('scheduled').length > 0 ? (
-                    <DragDropTaskList
-                      tasks={getTasksByType('scheduled')}
-                      onTasksReorder={handleTasksReorder}
-                      onEditTask={handleEditTask}
-                      onDeleteTask={handleDeleteTask}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-center py-4">No scheduled tasks yet</p>
-                  )}
+              {/* Unified Task Schedule */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Daily Schedule</h3>
+                  <span className="text-sm text-muted-foreground">Drag to reorder • Mix all task types</span>
                 </div>
-
-                {/* Regular Tasks */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Clock className="w-5 h-5 text-accent" />
-                    <h3 className="text-lg font-semibold">Regular Tasks</h3>
-                    <span className="text-sm text-muted-foreground">({formatTaskCount('regular')})</span>
-                  </div>
-                  {getTasksByType('regular').length > 0 ? (
-                    <DragDropTaskList
-                      tasks={getTasksByType('regular')}
-                      onTasksReorder={handleTasksReorder}
-                      onEditTask={handleEditTask}
-                      onDeleteTask={handleDeleteTask}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-center py-4">No regular tasks yet</p>
-                  )}
-                </div>
-
-                {/* Flexible Tasks */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-5 h-5 bg-success rounded text-white flex items-center justify-center text-xs">✓</div>
-                    <h3 className="text-lg font-semibold">Flexible Tasks</h3>
-                    <span className="text-sm text-muted-foreground">({formatTaskCount('flexible')})</span>
-                  </div>
-                  {getTasksByType('flexible').length > 0 ? (
-                    <DragDropTaskList
-                      tasks={getTasksByType('flexible')}
-                      onTasksReorder={handleTasksReorder}
-                      onEditTask={handleEditTask}
-                      onDeleteTask={handleDeleteTask}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-center py-4">No flexible tasks yet</p>
-                  )}
-                </div>
+                {tasks.length > 0 ? (
+                  <DragDropTaskList
+                    tasks={tasks}
+                    onTasksReorder={handleTasksReorder}
+                    onEditTask={handleEditTask}
+                    onDeleteTask={handleDeleteTask}
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">No tasks yet. Add some tasks to get started.</p>
+                )}
               </div>
 
               {/* Quick Add Section */}

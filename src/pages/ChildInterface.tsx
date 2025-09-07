@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import PetAvatar from "@/components/PetAvatar";
 import TaskCard, { type Task } from "@/components/TaskCard";
 import CircularTimer from "@/components/CircularTimer";
-import { ArrowLeft, Coins, Timer, Star } from "lucide-react";
+import { ArrowLeft, Coins, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ChildInterface = () => {
@@ -13,7 +13,6 @@ const ChildInterface = () => {
   const navigate = useNavigate();
   const [currentCoins, setCurrentCoins] = useState(45);
   const [petHappiness, setPetHappiness] = useState(85);
-  const [activeTaskTimer, setActiveTaskTimer] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
   // Mock child data
@@ -69,27 +68,6 @@ const ChildInterface = () => {
   const activeTask = tasks.find(task => task.isActive && !task.isCompleted);
   const upcomingTasks = tasks.filter(task => !task.isActive && !task.isCompleted).slice(0, 2);
 
-  // Timer effect
-  useEffect(() => {
-    if (activeTaskTimer && activeTaskTimer > 0) {
-      const timer = setTimeout(() => {
-        setActiveTaskTimer(activeTaskTimer - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [activeTaskTimer]);
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const handleCompleteTask = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -123,12 +101,6 @@ const ChildInterface = () => {
           ? { ...t, isCompleted: true, isActive: false }
           : { ...t, isActive: false }
       ));
-    }
-  };
-
-  const startTimer = () => {
-    if (activeTask?.duration) {
-      setActiveTaskTimer(activeTask.duration * 60); // Convert minutes to seconds
     }
   };
 
@@ -174,17 +146,13 @@ const ChildInterface = () => {
                 <h3 className="text-2xl font-bold mb-2">{activeTask.name}</h3>
                 
                 <div className="flex flex-col items-center gap-4 mb-4">
-                  {activeTaskTimer !== null && activeTask.duration ? (
+                  {activeTask.duration && (
                     <CircularTimer
                       totalSeconds={activeTask.duration * 60}
-                      remainingSeconds={activeTaskTimer}
+                      remainingSeconds={activeTask.duration * 60}
                       size="lg"
                       className="text-white"
                     />
-                  ) : activeTask.duration && (
-                    <div className="text-lg">
-                      Duration: {activeTask.duration} minutes
-                    </div>
                   )}
                   
                   <div className="flex items-center gap-2">
@@ -194,18 +162,7 @@ const ChildInterface = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 justify-center">
-                {activeTask.duration && activeTaskTimer === null && (
-                  <Button
-                    variant="gradientSecondary"
-                    size="lg"
-                    onClick={startTimer}
-                  >
-                    <Timer className="w-5 h-5 mr-2" />
-                    Start Timer
-                  </Button>
-                )}
-                
+              <div className="flex justify-center">
                 <Button
                   variant="success"
                   size="lg"

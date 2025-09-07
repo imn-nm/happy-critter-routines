@@ -136,16 +136,41 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
 
           {/* Duration */}
           <div>
-            <Label htmlFor="duration">Duration (minutes)</Label>
-            <Input
-              id="duration"
-              type="number"
-              min="1"
-              max="480"
-              value={formData.duration}
-              onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-              placeholder="30"
-            />
+            <Label htmlFor="duration">Duration</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={formData.duration ? Math.floor(parseInt(formData.duration) / 60).toString() : ""}
+                  onChange={(e) => {
+                    const hours = parseInt(e.target.value) || 0;
+                    const currentMinutes = formData.duration ? parseInt(formData.duration) % 60 : 0;
+                    const totalMinutes = hours * 60 + currentMinutes;
+                    setFormData({ ...formData, duration: totalMinutes > 0 ? totalMinutes.toString() : "" });
+                  }}
+                  placeholder="0"
+                />
+                <Label className="text-xs text-muted-foreground">Hours</Label>
+              </div>
+              <div>
+                <Input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={formData.duration ? (parseInt(formData.duration) % 60).toString() : ""}
+                  onChange={(e) => {
+                    const minutes = parseInt(e.target.value) || 0;
+                    const currentHours = formData.duration ? Math.floor(parseInt(formData.duration) / 60) : 0;
+                    const totalMinutes = currentHours * 60 + minutes;
+                    setFormData({ ...formData, duration: totalMinutes > 0 ? totalMinutes.toString() : "" });
+                  }}
+                  placeholder="0"
+                />
+                <Label className="text-xs text-muted-foreground">Minutes</Label>
+              </div>
+            </div>
           </div>
         </div>
 
