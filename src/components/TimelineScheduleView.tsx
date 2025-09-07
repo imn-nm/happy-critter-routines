@@ -154,6 +154,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
                   size="sm"
                   onClick={() => onEditTask(event.task)}
                   className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
+                  title="Edit task"
                 >
                   <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Button>
@@ -164,11 +165,17 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
                   size="sm"
                   onClick={() => onDeleteTask(event.task.id)}
                   className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
+                  title="Delete task"
                 >
                   <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Button>
               )}
             </div>
+          )}
+          {event.type === 'scheduled' && !event.task && (
+            <Badge variant="outline" className="text-xs">
+              Scheduled
+            </Badge>
           )}
         </div>
       </div>
@@ -213,20 +220,27 @@ const TimelineScheduleView = ({
   const dayTasks = getTasksForDay(selectedDay);
 
   // Separate fixed events (system + scheduled) from draggable tasks
-  const fixedEvents: TimelineEvent[] = [
-    ...systemEvents.map(event => ({ ...event, coins: undefined, task: undefined, isCompleted: false, isLate: false })),
-    ...dayTasks.filter(task => task.type === 'scheduled').map(task => ({
-      id: task.id,
-      name: task.name,
-      time: task.scheduled_time || '09:00',
-      type: task.type,
-      color: 'bg-gray-400',
-      task: task,
-      coins: task.coins,
-      isCompleted: task.isCompleted,
-      isLate: false,
-    }))
-  ];
+  const systemEventsOnly: TimelineEvent[] = systemEvents.map(event => ({ 
+    ...event, 
+    coins: undefined, 
+    task: undefined, 
+    isCompleted: false, 
+    isLate: false 
+  }));
+
+  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => task.type === 'scheduled').map(task => ({
+    id: task.id,
+    name: task.name,
+    time: task.scheduled_time || '09:00',
+    type: task.type,
+    color: 'bg-purple-500', // Different color to distinguish from system events
+    task: task,
+    coins: task.coins,
+    isCompleted: task.isCompleted,
+    isLate: false,
+  }));
+
+  const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
 
   // Draggable tasks (flexible and regular)
   const draggableTasks = dayTasks.filter(task => task.type === 'flexible' || task.type === 'regular');
