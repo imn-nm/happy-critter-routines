@@ -146,7 +146,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
               +20 min
             </Badge>
           )}
-          {event.task && (
+          {/* Show edit/delete buttons for all user-created tasks (scheduled, flexible, regular) */}
+          {(event.task || event.type === 'scheduled') && event.type !== 'system' && (
             <div className="flex items-center gap-1">
               {onEditTask && (
                 <Button
@@ -164,7 +165,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
                   variant="ghost"
                   size="sm"
                   onClick={() => onDeleteTask(event.task.id)}
-                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:w-8 sm:w-8 p-0 text-destructive hover:text-destructive"
                   title="Delete task"
                 >
                   <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -172,9 +173,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
               )}
             </div>
           )}
-          {event.type === 'scheduled' && !event.task && (
+          {event.type === 'system' && (
             <Badge variant="outline" className="text-xs">
-              Scheduled
+              System
             </Badge>
           )}
         </div>
