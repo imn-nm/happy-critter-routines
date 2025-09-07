@@ -3,9 +3,28 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { Child } from '@/hooks/useChildren';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { cn } from '@/lib/utils';
 
 interface TimelineScheduleViewProps {
   child: Child;
@@ -26,19 +45,123 @@ interface TimelineEvent {
 }
 
 const systemEvents: TimelineEvent[] = [
-  { id: 'wake', name: 'Wake up', time: '7:00', type: 'system', color: 'bg-blue-500' },
-  { id: 'breakfast', name: 'Breakfast', time: '7:30', type: 'system', color: 'bg-blue-500' },
-  { id: 'school', name: 'School', time: '8:00', type: 'system', color: 'bg-blue-500' },
-  { id: 'lunch', name: 'Lunch', time: '12:00', type: 'system', color: 'bg-blue-500' },
-  { id: 'snack', name: 'Snack', time: '15:30', type: 'system', color: 'bg-blue-500' },
-  { id: 'dinner', name: 'Dinner', time: '18:00', type: 'system', color: 'bg-blue-500' },
-  { id: 'bedtime', name: 'Bedtime', time: '20:30', type: 'system', color: 'bg-blue-500' },
+  { id: 'wake', name: 'Wake up', time: '7:00', type: 'system', color: 'bg-gray-400' },
+  { id: 'breakfast', name: 'Breakfast', time: '7:30', type: 'system', color: 'bg-gray-400' },
+  { id: 'school', name: 'School', time: '8:00', type: 'system', color: 'bg-gray-400' },
+  { id: 'lunch', name: 'Lunch', time: '12:00', type: 'system', color: 'bg-gray-400' },
+  { id: 'snack', name: 'Snack', time: '15:30', type: 'system', color: 'bg-gray-400' },
+  { id: 'dinner', name: 'Dinner', time: '18:00', type: 'system', color: 'bg-gray-400' },
+  { id: 'bedtime', name: 'Bedtime', time: '20:30', type: 'system', color: 'bg-gray-400' },
 ];
+
+interface SortableTimelineEventProps {
+  event: TimelineEvent;
+  onEditTask?: (task: any) => void;
+}
+
+const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: event.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes}${ampm}`;
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={cn(
+        "flex items-center gap-4 group",
+        isDragging && "opacity-50"
+      )}
+    >
+      {/* Drag handle for draggable tasks only */}
+      {(event.type === 'flexible' || event.type === 'regular') && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <GripVertical className="w-3 h-3" />
+        </div>
+      )}
+      
+      {/* Time */}
+      <div className={cn(
+        "text-sm font-mono text-muted-foreground w-20 text-right",
+        (event.type === 'flexible' || event.type === 'regular') ? "ml-0" : "ml-7"
+      )}>
+        {formatTime(event.time)}
+      </div>
+      
+      {/* Timeline bar */}
+      <div className={`w-1 h-12 rounded-full ${event.color}`} />
+      
+      {/* Event content */}
+      <div className="flex-1 flex items-center justify-between bg-background/50 rounded-lg p-3 border">
+        <div className="flex items-center gap-3">
+          <span className="font-medium">{event.name}</span>
+          {event.coins && (
+            <Badge variant="secondary" className="text-xs">
+              {event.coins} coins
+            </Badge>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {event.isLate && (
+            <Badge variant="destructive" className="text-xs">
+              Late
+            </Badge>
+          )}
+          {event.task && !event.isCompleted && (
+            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+              +20 min
+            </Badge>
+          )}
+          {event.task && onEditTask && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onEditTask(event.task)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
-  const { tasks, getTasksWithCompletionStatus } = useTasks(child.id);
+  const { tasks, getTasksWithCompletionStatus, reorderTasks } = useTasks(child.id);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -56,27 +179,56 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
 
   const dayTasks = getTasksForDay(selectedDay);
 
-  // Combine system events with user tasks
-  const allEvents: TimelineEvent[] = [
+  // Separate fixed events (system + scheduled) from draggable tasks
+  const fixedEvents: TimelineEvent[] = [
     ...systemEvents.map(event => ({ ...event, coins: undefined, task: undefined, isCompleted: false, isLate: false })),
-    ...dayTasks.map(task => ({
+    ...dayTasks.filter(task => task.type === 'scheduled').map(task => ({
       id: task.id,
       name: task.name,
       time: task.scheduled_time || '09:00',
       type: task.type,
-      color: task.type === 'scheduled' ? 'bg-blue-500' : 
-             task.type === 'regular' ? 'bg-blue-500' : 
-             'bg-yellow-500',
+      color: 'bg-gray-400',
       task: task,
       coins: task.coins,
       isCompleted: task.isCompleted,
       isLate: false,
     }))
-  ].sort((a, b) => {
+  ];
+
+  // Draggable tasks (flexible and regular)
+  const draggableTasks = dayTasks.filter(task => task.type === 'flexible' || task.type === 'regular');
+  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => ({
+    id: task.id,
+    name: task.name,
+    time: task.scheduled_time || '09:00',
+    type: task.type,
+    color: task.type === 'regular' ? 'bg-blue-500' : 'bg-yellow-500',
+    task: task,
+    coins: task.coins,
+    isCompleted: task.isCompleted,
+    isLate: false,
+  }));
+
+  // Combine and sort all events
+  const allEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents].sort((a, b) => {
     const timeA = a.time.split(':').map(Number);
     const timeB = b.time.split(':').map(Number);
     return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
   });
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
+      const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+        reorderTasks(reorderedTasks);
+      }
+    }
+  };
 
   const goToPreviousWeek = () => {
     setCurrentWeek(prev => addDays(prev, -7));
@@ -84,14 +236,6 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
 
   const goToNextWeek = () => {
     setCurrentWeek(prev => addDays(prev, 7));
-  };
-
-  const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'pm' : 'am';
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:${minutes}${ampm}`;
   };
 
   return (
@@ -127,54 +271,24 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
       </div>
 
       {/* Timeline */}
-      <div className="space-y-4">
-        {allEvents.map((event) => (
-          <div key={event.id} className="flex items-center gap-4 group">
-            {/* Time */}
-            <div className="text-sm font-mono text-muted-foreground w-20 text-right">
-              {formatTime(event.time)}
-            </div>
-            
-            {/* Timeline bar */}
-            <div className={`w-1 h-12 rounded-full ${event.color}`} />
-            
-            {/* Event content */}
-            <div className="flex-1 flex items-center justify-between bg-background/50 rounded-lg p-3 border">
-              <div className="flex items-center gap-3">
-                <span className="font-medium">{event.name}</span>
-                {event.coins && (
-                  <Badge variant="secondary" className="text-xs">
-                    {event.coins} coins
-                  </Badge>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {event.isLate && (
-                  <Badge variant="destructive" className="text-xs">
-                    Late
-                  </Badge>
-                )}
-                {event.task && !event.isCompleted && (
-                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                    +20 min
-                  </Badge>
-                )}
-                {event.task && onEditTask && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEditTask(event.task)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={draggableEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-4">
+            {allEvents.map((event) => {
+              // Render fixed events (system + scheduled) as non-draggable
+              if (event.type === 'system' || event.type === 'scheduled') {
+                return <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />;
+              }
+              // Render draggable events (flexible + regular) as sortable
+              return <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />;
+            })}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Add Task Button */}
       {onAddTask && (
