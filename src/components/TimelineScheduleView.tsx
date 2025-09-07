@@ -358,11 +358,15 @@ const TimelineScheduleView = ({
     const activeTask = draggableTasks.find(task => task.id === active.id);
     if (!activeTask) return;
 
+    console.log('Drag end - Active:', active.id, 'Over:', over.id);
+
     // Check if we're dropping on another draggable task (reorder)
     const overTask = draggableTasks.find(task => task.id === over.id);
     if (overTask && onReorderTasks) {
       const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
       const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
+      
+      console.log('Reordering tasks - Old index:', oldIndex, 'New index:', newIndex);
       
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
@@ -374,9 +378,24 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
-      // Place the task at the same time as the event we're dropping on
-      // This will make it appear right at that position in the timeline
-      onTaskTimeUpdate(activeTask.id, overEvent.time);
+      console.log('Dropping on event:', overEvent.name, 'at time:', overEvent.time);
+      
+      // Find the position of the event we're dropping on in the sorted timeline
+      const overEventIndex = allEvents.findIndex(event => event.id === over.id);
+      console.log('Event index in timeline:', overEventIndex);
+      
+      // Calculate time to place task just before this event
+      const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
+      const overStartMinutes = overHours * 60 + overMinutes;
+      
+      // Place task 5 minutes before the event to ensure proper ordering
+      const newStartMinutes = Math.max(0, overStartMinutes - 5);
+      const newHours = Math.floor(newStartMinutes / 60) % 24;
+      const newMins = newStartMinutes % 60;
+      const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
+      
+      console.log('Setting new time:', newTime);
+      onTaskTimeUpdate(activeTask.id, newTime);
     }
   };
 
