@@ -18,58 +18,79 @@ export type Database = {
         Row: {
           age: number | null
           bedtime: string | null
+          bedtime_days: string[] | null
+          breakfast_days: string[] | null
           breakfast_time: string | null
           created_at: string
           current_coins: number
+          dinner_days: string[] | null
           dinner_time: string | null
           id: string
+          lunch_days: string[] | null
           lunch_time: string | null
           name: string
           parent_id: string
           pet_happiness: number
           pet_type: string
+          school_days: string[] | null
           school_end_time: string | null
           school_start_time: string | null
+          snack_days: string[] | null
           snack_time: string | null
           updated_at: string
+          wake_days: string[] | null
           wake_time: string | null
         }
         Insert: {
           age?: number | null
           bedtime?: string | null
+          bedtime_days?: string[] | null
+          breakfast_days?: string[] | null
           breakfast_time?: string | null
           created_at?: string
           current_coins?: number
+          dinner_days?: string[] | null
           dinner_time?: string | null
           id?: string
+          lunch_days?: string[] | null
           lunch_time?: string | null
           name: string
           parent_id: string
           pet_happiness?: number
           pet_type: string
+          school_days?: string[] | null
           school_end_time?: string | null
           school_start_time?: string | null
+          snack_days?: string[] | null
           snack_time?: string | null
           updated_at?: string
+          wake_days?: string[] | null
           wake_time?: string | null
         }
         Update: {
           age?: number | null
           bedtime?: string | null
+          bedtime_days?: string[] | null
+          breakfast_days?: string[] | null
           breakfast_time?: string | null
           created_at?: string
           current_coins?: number
+          dinner_days?: string[] | null
           dinner_time?: string | null
           id?: string
+          lunch_days?: string[] | null
           lunch_time?: string | null
           name?: string
           parent_id?: string
           pet_happiness?: number
           pet_type?: string
+          school_days?: string[] | null
           school_end_time?: string | null
           school_start_time?: string | null
+          snack_days?: string[] | null
           snack_time?: string | null
           updated_at?: string
+          wake_days?: string[] | null
           wake_time?: string | null
         }
         Relationships: [

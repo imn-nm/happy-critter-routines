@@ -48,6 +48,7 @@ interface TimelineEvent {
   task?: any;
   isCompleted?: boolean;
   isLate?: boolean;
+  recurring_days?: string[];
 }
 
 const getSystemEvents = (child: Child): TimelineEvent[] => {
@@ -65,12 +66,60 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
   );
 
   return [
-    { id: 'wake', name: 'Wake up', time: child.wake_time || '07:00', duration: 30, type: 'system', color: 'bg-amber-500' },
-    { id: 'breakfast', name: 'Breakfast', time: child.breakfast_time || '07:30', duration: 30, type: 'system', color: 'bg-orange-500' },
-    { id: 'school', name: 'School', time: child.school_start_time || '08:30', duration: schoolDuration, type: 'system', color: 'bg-blue-600' },
-    { id: 'lunch', name: 'Lunch', time: child.lunch_time || '12:00', duration: 45, type: 'system', color: 'bg-green-500' },
-    { id: 'dinner', name: 'Dinner', time: child.dinner_time || '18:00', duration: 45, type: 'system', color: 'bg-red-500' },
-    { id: 'bedtime', name: 'Bedtime Routine', time: child.bedtime || '20:00', duration: 60, type: 'system', color: 'bg-purple-500' },
+    { 
+      id: 'wake', 
+      name: 'Wake up', 
+      time: child.wake_time || '07:00', 
+      duration: 30, 
+      type: 'system', 
+      color: 'bg-amber-500',
+      recurring_days: (child as any).wake_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
+    { 
+      id: 'breakfast', 
+      name: 'Breakfast', 
+      time: child.breakfast_time || '07:30', 
+      duration: 30, 
+      type: 'system', 
+      color: 'bg-orange-500',
+      recurring_days: (child as any).breakfast_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
+    { 
+      id: 'school', 
+      name: 'School', 
+      time: child.school_start_time || '08:30', 
+      duration: schoolDuration, 
+      type: 'system', 
+      color: 'bg-blue-600',
+      recurring_days: (child as any).school_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    },
+    { 
+      id: 'lunch', 
+      name: 'Lunch', 
+      time: child.lunch_time || '12:00', 
+      duration: 45, 
+      type: 'system', 
+      color: 'bg-green-500',
+      recurring_days: (child as any).lunch_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
+    { 
+      id: 'dinner', 
+      name: 'Dinner', 
+      time: child.dinner_time || '18:00', 
+      duration: 45, 
+      type: 'system', 
+      color: 'bg-red-500',
+      recurring_days: (child as any).dinner_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
+    { 
+      id: 'bedtime', 
+      name: 'Bedtime Routine', 
+      time: child.bedtime || '20:00', 
+      duration: 60, 
+      type: 'system', 
+      color: 'bg-purple-500',
+      recurring_days: (child as any).bedtime_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    },
   ];
 };
 
@@ -281,8 +330,12 @@ const TimelineScheduleView = ({
 
   const dayTasks = getTasksForDay(selectedDay);
 
-  // Get system events for this child
-  const systemEvents = getSystemEvents(child);
+  // Get system events for this child on the selected day
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const selectedDayName = dayNames[selectedDay.getDay()];
+  const systemEvents = getSystemEvents(child).filter(event => 
+    event.recurring_days && event.recurring_days.includes(selectedDayName)
+  );
   
   // Separate fixed events (system + scheduled) from draggable tasks
   // Filter out lunch when school is present (they overlap in time)
@@ -298,7 +351,16 @@ const TimelineScheduleView = ({
     .map(event => ({ 
       ...event, 
       coins: undefined, 
-      task: undefined, 
+      task: {
+        id: event.id,
+        name: event.name,
+        type: event.type,
+        scheduled_time: event.time,
+        duration: event.duration,
+        recurring_days: event.recurring_days || [],
+        is_recurring: true,
+        coins: 0
+      }, 
       isCompleted: false, 
       isLate: false 
     }));
@@ -358,15 +420,11 @@ const TimelineScheduleView = ({
     const activeTask = draggableTasks.find(task => task.id === active.id);
     if (!activeTask) return;
 
-    console.log('Drag end - Active:', active.id, 'Over:', over.id);
-
     // Check if we're dropping on another draggable task (reorder)
     const overTask = draggableTasks.find(task => task.id === over.id);
     if (overTask && onReorderTasks) {
       const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
       const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
-      
-      console.log('Reordering tasks - Old index:', oldIndex, 'New index:', newIndex);
       
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
@@ -378,24 +436,9 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
-      console.log('Dropping on event:', overEvent.name, 'at time:', overEvent.time);
-      
-      // Find the position of the event we're dropping on in the sorted timeline
-      const overEventIndex = allEvents.findIndex(event => event.id === over.id);
-      console.log('Event index in timeline:', overEventIndex);
-      
-      // Calculate time to place task just before this event
-      const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
-      const overStartMinutes = overHours * 60 + overMinutes;
-      
-      // Place task 5 minutes before the event to ensure proper ordering
-      const newStartMinutes = Math.max(0, overStartMinutes - 5);
-      const newHours = Math.floor(newStartMinutes / 60) % 24;
-      const newMins = newStartMinutes % 60;
-      const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-      
-      console.log('Setting new time:', newTime);
-      onTaskTimeUpdate(activeTask.id, newTime);
+      // Place the task at the same time as the event we're dropping on
+      // This will make it appear right at that position in the timeline
+      onTaskTimeUpdate(activeTask.id, overEvent.time);
     }
   };
 

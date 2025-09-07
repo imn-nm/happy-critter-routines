@@ -70,12 +70,32 @@ const ChildDashboard = () => {
             'bedtime': 'bedtime',
           };
           
-          const fieldName = timeFieldMap[editingTask.id];
-          if (fieldName && taskData.scheduled_time) {
-            await updateChild(child.id, { [fieldName]: taskData.scheduled_time });
+          const daysFieldMap = {
+            'wake': 'wake_days',
+            'breakfast': 'breakfast_days',
+            'school': 'school_days',
+            'lunch': 'lunch_days',
+            'snack': 'snack_days',
+            'dinner': 'dinner_days',
+            'bedtime': 'bedtime_days',
+          };
+          
+          const timeField = timeFieldMap[editingTask.id];
+          const daysField = daysFieldMap[editingTask.id];
+          
+          const updateData = {};
+          if (timeField && taskData.scheduled_time) {
+            updateData[timeField] = taskData.scheduled_time;
+          }
+          if (daysField && taskData.recurring_days) {
+            updateData[daysField] = taskData.recurring_days;
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            await updateChild(child.id, updateData);
             toast({
               title: "Schedule Updated",
-              description: `${editingTask.name} time has been updated to ${taskData.scheduled_time}.`,
+              description: `${editingTask.name} schedule has been updated.`,
             });
             refetch(); // Refresh to show updated schedule
           } else {
