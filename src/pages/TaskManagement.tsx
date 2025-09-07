@@ -48,6 +48,17 @@ const TaskManagement = () => {
   
   const tasksWithCompletion = getTasksWithCompletionStatus();
 
+  // Filter tasks for current day view
+  const getTasksForCurrentDay = () => {
+    const dayName = format(currentDate, 'EEEE').toLowerCase();
+    return tasksWithCompletion.filter(task => {
+      if (!task.is_recurring || !task.recurring_days) return true;
+      return task.recurring_days.includes(dayName);
+    });
+  };
+
+  const tasksForCurrentDay = getTasksForCurrentDay();
+
   const handleSaveTask = async (taskData: any) => {
     if (!selectedChild) return;
     
@@ -61,7 +72,6 @@ const TaskManagement = () => {
           child_id: selectedChild.id,
           sort_order: tasks.length,
           is_active: true,
-          is_recurring: false,
         });
       }
       setShowTaskForm(false);
@@ -233,15 +243,15 @@ const TaskManagement = () => {
                   <div>
                     {tasksLoading ? (
                       <p className="text-muted-foreground text-center py-8">Loading tasks...</p>
-                    ) : tasks.length > 0 ? (
+                    ) : tasksForCurrentDay.length > 0 ? (
                       <DragDropTaskList
-                        tasks={tasksWithCompletion}
+                        tasks={tasksForCurrentDay}
                         onTasksReorder={handleTasksReorder}
                         onEditTask={handleEditTask}
                         onDeleteTask={handleDeleteTask}
                       />
                     ) : (
-                      <p className="text-muted-foreground text-center py-8">No tasks yet. Add some tasks to get started.</p>
+                      <p className="text-muted-foreground text-center py-8">No tasks scheduled for {format(currentDate, 'EEEE, MMM d')}.</p>
                     )}
                   </div>
 
@@ -263,16 +273,17 @@ const TaskManagement = () => {
                           size="sm"
                           onClick={async () => {
                             try {
-                              await addTask({
-                                child_id: selectedChild.id,
-                                name: quickTask.name,
-                                type: quickTask.type,
-                                scheduled_time: quickTask.time,
-                                coins: quickTask.coins,
-                                sort_order: tasks.length,
-                                is_active: true,
-                                is_recurring: false,
-                              });
+                            await addTask({
+                              child_id: selectedChild.id,
+                              name: quickTask.name,
+                              type: quickTask.type,
+                              scheduled_time: quickTask.time,
+                              coins: quickTask.coins,
+                              sort_order: tasks.length,
+                              is_active: true,
+                              is_recurring: true,
+                              recurring_days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+                            });
                             } catch (error) {
                               console.error('Error adding quick task:', error);
                             }

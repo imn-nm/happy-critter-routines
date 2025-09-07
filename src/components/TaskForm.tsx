@@ -8,11 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { X, Save, Plus } from "lucide-react";
-import { type Task } from "./TaskCard";
+import { type Task } from "@/hooks/useTasks";
 
 interface TaskFormProps {
   task?: Task;
-  onSave: (task: Omit<Task, 'id'>) => void;
+  onSave: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => void;
   onCancel: () => void;
   isEdit?: boolean;
 }
@@ -21,12 +21,12 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
   const [formData, setFormData] = useState({
     name: task?.name || "",
     type: task?.type || "regular" as Task['type'],
-    scheduledTime: task?.scheduledTime || "",
+    scheduledTime: task?.scheduled_time || "",
     duration: task?.duration?.toString() || "",
     coins: task?.coins?.toString() || "5",
-    isRecurring: true,
-    description: "",
-    recurringDays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as string[],
+    isRecurring: task?.is_recurring ?? true,
+    description: task?.description || "",
+    recurringDays: task?.recurring_days || ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as string[],
   });
 
   const daysOfWeek = [
@@ -42,12 +42,18 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newTask: Omit<Task, 'id'> = {
+    const newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
+      child_id: task?.child_id || '',
       name: formData.name,
       type: formData.type,
-      scheduledTime: formData.scheduledTime || undefined,
+      scheduled_time: formData.scheduledTime || undefined,
       duration: formData.duration ? parseInt(formData.duration) : undefined,
       coins: parseInt(formData.coins),
+      is_recurring: formData.isRecurring,
+      recurring_days: formData.isRecurring ? formData.recurringDays : undefined,
+      description: formData.description || undefined,
+      sort_order: task?.sort_order || 0,
+      is_active: task?.is_active || true,
       isCompleted: false,
     };
 
@@ -205,7 +211,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
             <Switch
               id="recurring"
               checked={formData.isRecurring}
-              onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
+              onCheckedChange={(checked: boolean) => setFormData({ ...formData, isRecurring: checked })}
             />
           </div>
           

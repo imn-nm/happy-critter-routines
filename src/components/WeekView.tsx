@@ -50,14 +50,20 @@ const WeekView = ({ child, tasks, onTasksReorder, onEditTask, onDeleteTask }: We
 
       const dayDataMap = new Map<string, DayData>();
       
-      // Initialize all days with scheduled tasks
+      // Initialize all days with filtered scheduled tasks
       weekDays.forEach(day => {
+        const dayName = format(day, 'EEEE').toLowerCase();
+        const tasksForDay = (tasks || []).filter(task => {
+          if (!task.is_recurring || !task.recurring_days) return true;
+          return task.recurring_days.includes(dayName);
+        });
+        
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {
           date: day,
           completions: 0,
           coinsEarned: 0,
           tasksCompleted: [],
-          scheduledTasks: tasks || [],
+          scheduledTasks: tasksForDay,
         });
       });
 
