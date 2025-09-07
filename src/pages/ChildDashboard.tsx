@@ -54,11 +54,24 @@ const ChildDashboard = () => {
   const handleSaveTask = async (taskData) => {
     try {
       if (editingTask) {
-        await updateTask(editingTask.id, taskData);
-        toast({
-          title: "Task updated",
-          description: "Task has been updated successfully.",
-        });
+        // Check if this is a system event (has non-UUID ID)
+        const isSystemEvent = editingTask.id && !editingTask.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        
+        if (isSystemEvent) {
+          // For system events, just show a message that they can't be permanently modified
+          toast({
+            title: "System Event",
+            description: "System events like wake up time, meals, etc. cannot be permanently modified.",
+            variant: "default",
+          });
+        } else {
+          // Regular task update
+          await updateTask(editingTask.id, taskData);
+          toast({
+            title: "Task updated",
+            description: "Task has been updated successfully.",
+          });
+        }
       } else {
         await addTask({ ...taskData, child_id: childId });
         toast({
