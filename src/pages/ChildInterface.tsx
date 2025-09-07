@@ -6,54 +6,43 @@ import PetAvatar from "@/components/PetAvatar";
 import TaskCard, { type Task } from "@/components/TaskCard";
 import CircularTimer from "@/components/CircularTimer";
 import { ArrowLeft, Coins, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useChildren } from "@/hooks/useChildren";
+import { useTasks } from "@/hooks/useTasks";
+import { useTaskSessions } from "@/hooks/useTaskSessions";
+import { supabase } from "@/integrations/supabase/client";
 
 const ChildInterface = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const [currentCoins, setCurrentCoins] = useState(45);
-  const [petHappiness, setPetHappiness] = useState(85);
+  const { children, updateChildCoins, updateChildHappiness } = useChildren();
+  const { tasks, completeTask, updateTask, getTasksWithCompletionStatus } = useTasks(childId);
+  const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
+  
   const [showCelebration, setShowCelebration] = useState(false);
-
-  // Mock child data
-  const child = {
-    name: "Amira",
-    petType: "owl" as const,
-  };
-
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: "1",
-      name: "School",
-      type: "scheduled" as const,
-      scheduledTime: "8:00",
-      duration: 480,
-      coins: 10,
-      isCompleted: false,
-      isActive: true
-    },
-    {
-      id: "2",
-      name: "Shower",
-      type: "regular" as const,
-      scheduledTime: "16:30",
-      duration: 20,
-      coins: 5,
-      isCompleted: false
-    },
-    {
-      id: "3",
-      name: "Homework",
-      type: "flexible" as const,
-      duration: 60,
-      coins: 8,
-      isCompleted: false
-    }
-  ]);
+  
+  const child = children.find(c => c.id === childId);
+  const tasksWithCompletion = getTasksWithCompletionStatus();
+  
+  if (!child) {
+    return (
+      <div className="min-h-screen bg-gradient-primary p-4">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="text-white text-xl">Child not found</div>
+          <Button 
+            variant="accent" 
+            onClick={() => navigate("/dashboard")}
+            className="mt-4"
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate progress for happiness
-  const completedTasks = tasks.filter(task => task.isCompleted).length;
-  const totalTasks = tasks.length;
+  const completedTasks = tasksWithCompletion.filter(task => task.isCompleted).length;
+  const totalTasks = tasksWithCompletion.length;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   
   // Update pet happiness based on progress
@@ -65,42 +54,43 @@ const ChildInterface = () => {
     return 20;
   };
 
-  const activeTask = tasks.find(task => task.isActive && !task.isCompleted);
-  const upcomingTasks = tasks.filter(task => !task.isActive && !task.isCompleted).slice(0, 2);
+  const activeTask = tasksWithCompletion.find(task => task.is_active && !task.isCompleted);
+  const upcomingTasks = tasksWithCompletion.filter(task => !task.is_active && !task.isCompleted).slice(0, 2);
 
-  const handleCompleteTask = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
+  const handleCompleteTask = async (taskId: string) => {
+    const task = tasksWithCompletion.find(t => t.id === taskId);
     if (!task) return;
 
-    // Update task completion
-    setTasks(tasks.map(t => 
-      t.id === taskId 
-        ? { ...t, isCompleted: true, isActive: false }
-        : t
-    ));
+    try {
+      // Record task completion in database
+      await completeTask(taskId, task.coins, task.duration);
+      
+      // Update child's coins
+      await updateChildCoins(child.id, child.currentCoins + task.coins);
+      
+      // Update happiness
+      const newHappiness = calculateHappiness();
+      await updateChildHappiness(child.id, newHappiness);
 
-    // Award coins and increase happiness
-    setCurrentCoins(prev => prev + task.coins);
+      // Show celebration
+      setShowCelebration(true);
+      setTimeout(() => setShowCelebration(false), 3000);
 
-    // Show celebration
-    setShowCelebration(true);
-    setTimeout(() => setShowCelebration(false), 3000);
-
-    // Set next task as active if available
-    const remainingTasks = tasks.filter(t => !t.isCompleted && t.id !== taskId);
-    
-    // Prioritize regular and scheduled tasks over flexible tasks
-    const nextTask = remainingTasks.find(t => t.type === 'regular' || t.type === 'scheduled') ||
-                     remainingTasks.find(t => t.type === 'flexible');
-    
-    if (nextTask) {
-      setTasks(prevTasks => prevTasks.map(t => 
-        t.id === nextTask.id 
-          ? { ...t, isActive: true }
-          : t.id === taskId
-          ? { ...t, isCompleted: true, isActive: false }
-          : { ...t, isActive: false }
-      ));
+      // Set next task as active if available
+      const remainingTasks = tasksWithCompletion.filter(t => !t.isCompleted && t.id !== taskId);
+      
+      // Prioritize regular and scheduled tasks over flexible tasks
+      const nextTask = remainingTasks.find(t => t.type === 'regular' || t.type === 'scheduled') ||
+                       remainingTasks.find(t => t.type === 'flexible');
+      
+      if (nextTask) {
+        await updateTask(nextTask.id, { is_active: true });
+        
+        // Deactivate the current task
+        await updateTask(taskId, { is_active: false });
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
     }
   };
 
@@ -121,7 +111,7 @@ const ChildInterface = () => {
           
           <div className="flex items-center gap-2 text-white">
             <Coins className="w-5 h-5 text-warning" />
-            <span className="text-xl font-bold">{currentCoins}</span>
+            <span className="text-xl font-bold">{child.currentCoins}</span>
           </div>
         </div>
 

@@ -10,27 +10,25 @@ import { useNavigate } from "react-router-dom";
 const mockChildren: Child[] = [
   {
     id: "1",
+    parent_id: "mock-parent-1",
     name: "Amira", 
     age: 8,
     petType: "owl",
     currentCoins: 45,
     petHappiness: 85,
-    currentTask: {
-      name: "School",
-      timeLeft: "2hrs 20min"
-    }
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
     id: "2",
+    parent_id: "mock-parent-1",
     name: "Noora",
     age: 6,
     petType: "fox", 
     currentCoins: 23,
     petHappiness: 72,
-    currentTask: {
-      name: "Free Play",
-      timeLeft: "30min"
-    }
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   }
 ];
 
@@ -165,6 +163,16 @@ const Dashboard = () => {
                       >
                         <span className="hidden sm:inline">View Child Interface</span>
                         <span className="sm:hidden">View Interface</span>
+                      </Button>
+                      <Button 
+                        variant="gradientSecondary" 
+                        size="sm"
+                        onClick={() => navigate(`/reports/${child.id}`)}
+                        className="flex-1 text-xs sm:text-sm"
+                      >
+                        <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                        <span className="hidden sm:inline">Reports</span>
+                        <span className="sm:hidden">Reports</span>
                       </Button>
                     </div>
                   </div>

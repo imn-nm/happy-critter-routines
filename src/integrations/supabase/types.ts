@@ -14,7 +14,226 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      children: {
+        Row: {
+          age: number | null
+          created_at: string
+          current_coins: number
+          id: string
+          name: string
+          parent_id: string
+          pet_happiness: number
+          pet_type: string
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string
+          current_coins?: number
+          id?: string
+          name: string
+          parent_id: string
+          pet_happiness?: number
+          pet_type: string
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          created_at?: string
+          current_coins?: number
+          id?: string
+          name?: string
+          parent_id?: string
+          pet_happiness?: number
+          pet_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_completions: {
+        Row: {
+          child_id: string
+          coins_earned: number
+          completed_at: string
+          date: string
+          duration_spent: number | null
+          id: string
+          notes: string | null
+          task_id: string
+        }
+        Insert: {
+          child_id: string
+          coins_earned?: number
+          completed_at?: string
+          date?: string
+          duration_spent?: number | null
+          id?: string
+          notes?: string | null
+          task_id: string
+        }
+        Update: {
+          child_id?: string
+          coins_earned?: number
+          completed_at?: string
+          date?: string
+          duration_spent?: number | null
+          id?: string
+          notes?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_completions_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_completions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_sessions: {
+        Row: {
+          child_id: string
+          ended_at: string | null
+          id: string
+          is_active: boolean
+          started_at: string
+          task_id: string
+          total_duration: number | null
+        }
+        Insert: {
+          child_id: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          task_id: string
+          total_duration?: number | null
+        }
+        Update: {
+          child_id?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          task_id?: string
+          total_duration?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_sessions_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_sessions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          child_id: string
+          coins: number
+          created_at: string
+          description: string | null
+          duration: number | null
+          id: string
+          is_active: boolean
+          is_recurring: boolean
+          name: string
+          recurring_days: string[] | null
+          scheduled_time: string | null
+          sort_order: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          coins?: number
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean
+          is_recurring?: boolean
+          name: string
+          recurring_days?: string[] | null
+          scheduled_time?: string | null
+          sort_order?: number
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          coins?: number
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean
+          is_recurring?: boolean
+          name?: string
+          recurring_days?: string[] | null
+          scheduled_time?: string | null
+          sort_order?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

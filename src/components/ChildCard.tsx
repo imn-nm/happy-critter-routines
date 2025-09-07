@@ -2,19 +2,7 @@ import { Card } from "@/components/ui/card";
 import PetAvatar, { type PetType } from "./PetAvatar";
 import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export interface Child {
-  id: string;
-  name: string;
-  age: number;
-  petType: PetType;
-  currentCoins: number;
-  petHappiness: number;
-  currentTask?: {
-    name: string;
-    timeLeft?: string;
-  };
-}
+import { Child } from "@/hooks/useChildren";
 
 interface ChildCardProps {
   child: Child;
@@ -49,17 +37,11 @@ const ChildCard = ({ child, isSelected, onClick, className }: ChildCardProps) =>
           <span className="font-semibold">{child.currentCoins}</span>
         </div>
         
-        {child.currentTask && (
-          <div className="bg-gradient-primary text-white px-3 py-2 rounded-lg text-sm">
-            <p className="font-medium">{child.currentTask.name}</p>
-            {child.currentTask.timeLeft && (
-              <p className="text-xs opacity-90">{child.currentTask.timeLeft} left</p>
-            )}
-          </div>
-        )}
+        {/* Removed current task display for now since it's not in the database yet */}
       </div>
     </Card>
   );
 };
 
+export type { Child };
 export default ChildCard;

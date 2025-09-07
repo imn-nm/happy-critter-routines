@@ -13,19 +13,25 @@ import { cn } from "@/lib/utils";
 const mockChildren: Child[] = [
   {
     id: "1",
+    parent_id: "mock-parent-1",
     name: "Amira", 
     age: 8,
     petType: "owl",
     currentCoins: 45,
     petHappiness: 85,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
     id: "2",
+    parent_id: "mock-parent-1",
     name: "Noora",
     age: 6,
     petType: "fox", 
     currentCoins: 23,
     petHappiness: 72,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   }
 ];
 
