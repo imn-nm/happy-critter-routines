@@ -235,35 +235,39 @@ const TimelineScheduleView = ({
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
 
-    if (active.id !== over?.id && over) {
-      const activeTask = draggableTasks.find(task => task.id === active.id);
-      const overEvent = allEvents.find(event => event.id === over.id);
+    if (!over || active.id === over.id) return;
+
+    const activeTask = draggableTasks.find(task => task.id === active.id);
+    if (!activeTask) return;
+
+    // Check if we're dropping on another draggable task (reorder)
+    const overTask = draggableTasks.find(task => task.id === over.id);
+    if (overTask && onReorderTasks) {
+      const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
+      const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
       
-      if (activeTask && overEvent && onTaskTimeUpdate) {
-        // Calculate new time based on drop position
-        let newTime = overEvent.time;
-        
-        // If dropped on a system event, place it just before that event
-        if (overEvent.type === 'system') {
-          const [hours, minutes] = overEvent.time.split(':').map(Number);
-          const totalMinutes = hours * 60 + minutes - 30; // 30 minutes before
-          const newHours = Math.max(0, Math.floor(totalMinutes / 60));
-          const newMinutes = Math.max(0, totalMinutes % 60);
-          newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-        }
-        
-        // Update the task's scheduled time directly without opening form
-        onTaskTimeUpdate(activeTask.id, newTime);
-      } else {
-        // Handle reordering of tasks with same time
-        const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
-        const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
-        
-        if (oldIndex !== -1 && newIndex !== -1 && onReorderTasks) {
-          const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-          onReorderTasks(reorderedTasks);
-        }
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+        onReorderTasks(reorderedTasks);
       }
+      return;
+    }
+
+    // Check if we're dropping on a fixed event (time update)
+    const overEvent = allEvents.find(event => event.id === over.id);
+    if (overEvent && onTaskTimeUpdate) {
+      let newTime = overEvent.time;
+      
+      // If dropped on a system event, place it just before that event
+      if (overEvent.type === 'system') {
+        const [hours, minutes] = overEvent.time.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes - 30; // 30 minutes before
+        const newHours = Math.max(0, Math.floor(totalMinutes / 60));
+        const newMinutes = Math.max(0, totalMinutes % 60);
+        newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+      }
+      
+      onTaskTimeUpdate(activeTask.id, newTime);
     }
   };
 
@@ -313,13 +317,26 @@ const TimelineScheduleView = ({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={allEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
-            {allEvents.map((event) => (
-              <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />
-            ))}
-          </div>
-        </SortableContext>
+        <div className="space-y-4">
+          {allEvents.map((event) => {
+            const isDraggable = event.type === 'flexible' || event.type === 'regular';
+            
+            if (isDraggable) {
+              return (
+                <SortableContext key={event.id} items={[event.id]} strategy={verticalListSortingStrategy}>
+                  <SortableTimelineEvent event={event} onEditTask={onEditTask} />
+                </SortableContext>
+              );
+            } else {
+              // Non-draggable events can still be drop targets
+              return (
+                <div key={event.id} id={event.id}>
+                  <SortableTimelineEvent event={event} onEditTask={onEditTask} />
+                </div>
+              );
+            }
+          })}
+        </div>
       </DndContext>
 
       {/* Add Task Button */}
