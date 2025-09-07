@@ -175,40 +175,19 @@ const Dashboard = () => {
                     <ChildCard
                       child={child}
                       isSelected={selectedChild?.id === child.id}
-                      onClick={() => navigate(`/child/${child.id}`)}
+                      onClick={() => navigate(`/child-dashboard/${child.id}`)}
                     />
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/tasks?childId=${child.id}`)}
-                          className="flex-1 text-xs sm:text-sm"
-                        >
-                          <ListTodo className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                          <span className="hidden sm:inline">Manage Tasks</span>
-                          <span className="sm:hidden">Tasks</span>
-                        </Button>
                         <ChildProfileEdit child={child} />
-                      </div>
-                      <div className="flex gap-2">
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => navigate(`/child/${child.id}`)}
                           className="flex-1 text-xs sm:text-sm"
                         >
-                          <span className="hidden sm:inline">View Child Interface</span>
+                          <span className="hidden sm:inline">Child Interface</span>
                           <span className="sm:hidden">Interface</span>
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/child-reports?childId=${child.id}`)}
-                          className="flex-1 text-xs sm:text-sm"
-                        >
-                          <span className="hidden sm:inline">Reports & Rewards</span>
-                          <span className="sm:hidden">Reports</span>
                         </Button>
                       </div>
                     </div>

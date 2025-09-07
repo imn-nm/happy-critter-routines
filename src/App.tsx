@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
 import ChildInterface from "./pages/ChildInterface";
+import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import ChildReports from "./pages/ChildReports";
 import NotFound from "./pages/NotFound";
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/setup" element={<ChildSetup />} />
             <Route path="/child/:childId" element={<ChildInterface />} />
+            <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
             <Route path="/tasks" element={<TaskManagement />} />
             <Route path="/reports/:childId" element={<ChildReports />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
