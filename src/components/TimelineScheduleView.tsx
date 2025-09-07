@@ -374,35 +374,9 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
-      // Find the position of the event we're dropping on
-      const overEventIndex = allEvents.findIndex(event => event.id === over.id);
-      
-      // Check if there's a next event to place the task before
-      const nextEvent = allEvents[overEventIndex + 1];
-      
-      if (nextEvent) {
-        // Place the task 15 minutes before the next event
-        const [nextHours, nextMinutes] = nextEvent.time.split(':').map(Number);
-        const nextStartMinutes = nextHours * 60 + nextMinutes;
-        const newStartMinutes = Math.max(0, nextStartMinutes - 15);
-        
-        const newHours = Math.floor(newStartMinutes / 60) % 24;
-        const newMins = newStartMinutes % 60;
-        const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-        
-        onTaskTimeUpdate(activeTask.id, newTime);
-      } else {
-        // No next event, place after the current event
-        const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
-        const overStartMinutes = overHours * 60 + overMinutes;
-        const overEndMinutes = overStartMinutes + overEvent.duration;
-        
-        const newHours = Math.floor(overEndMinutes / 60) % 24;
-        const newMins = overEndMinutes % 60;
-        const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-        
-        onTaskTimeUpdate(activeTask.id, newTime);
-      }
+      // Place the task at the same time as the event we're dropping on
+      // This will make it appear right at that position in the timeline
+      onTaskTimeUpdate(activeTask.id, overEvent.time);
     }
   };
 
