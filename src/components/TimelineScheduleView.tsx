@@ -30,6 +30,7 @@ interface TimelineScheduleViewProps {
   child: Child;
   onAddTask?: () => void;
   onEditTask?: (task: any) => void;
+  onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
 }
 
 interface TimelineEvent {
@@ -156,7 +157,7 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
   );
 };
 
-const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineScheduleViewProps) => {
+const TimelineScheduleView = ({ child, onAddTask, onEditTask, onTaskTimeUpdate }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
   const { tasks, getTasksWithCompletionStatus, reorderTasks } = useTasks(child.id);
@@ -228,7 +229,7 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
       const activeTask = draggableTasks.find(task => task.id === active.id);
       const overEvent = allEvents.find(event => event.id === over.id);
       
-      if (activeTask && overEvent && onEditTask) {
+      if (activeTask && overEvent && onTaskTimeUpdate) {
         // Calculate new time based on drop position
         let newTime = overEvent.time;
         
@@ -241,13 +242,8 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
           newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
         }
         
-        // Update the task's scheduled time
-        const updatedTask = {
-          ...activeTask,
-          scheduled_time: newTime
-        };
-        
-        onEditTask(updatedTask);
+        // Update the task's scheduled time directly without opening form
+        onTaskTimeUpdate(activeTask.id, newTime);
       } else {
         // Handle reordering of tasks with same time
         const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);

@@ -199,6 +199,21 @@ const ChildDashboard = () => {
               child={child} 
               onAddTask={handleAddTask}
               onEditTask={handleEditTask}
+              onTaskTimeUpdate={async (taskId, newTime) => {
+                try {
+                  await updateTask(taskId, { scheduled_time: newTime });
+                  toast({
+                    title: "Task updated",
+                    description: "Task time has been updated successfully.",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to update task time. Please try again.",
+                    variant: "destructive",
+                  });
+                }
+              }}
             />
           </TabsContent>
 
