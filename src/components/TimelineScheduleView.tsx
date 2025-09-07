@@ -60,6 +60,8 @@ interface SortableTimelineEventProps {
 }
 
 const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps) => {
+  const isDraggable = event.type === 'flexible' || event.type === 'regular';
+  
   const {
     attributes,
     listeners,
@@ -67,7 +69,10 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: event.id });
+  } = useSortable({ 
+    id: event.id,
+    disabled: !isDraggable 
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -92,7 +97,7 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
       )}
     >
       {/* Drag handle for draggable tasks only */}
-      {(event.type === 'flexible' || event.type === 'regular') && (
+      {isDraggable && (
         <div
           {...attributes}
           {...listeners}
@@ -105,7 +110,7 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
       {/* Time */}
       <div className={cn(
         "text-sm font-mono text-muted-foreground w-20 text-right",
-        (event.type === 'flexible' || event.type === 'regular') ? "ml-0" : "ml-7"
+        !isDraggable ? "ml-7" : "ml-0"
       )}>
         {formatTime(event.time)}
       </div>
@@ -219,13 +224,39 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
-      const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
-      const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
+    if (active.id !== over?.id && over) {
+      const activeTask = draggableTasks.find(task => task.id === active.id);
+      const overEvent = allEvents.find(event => event.id === over.id);
       
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-        reorderTasks(reorderedTasks);
+      if (activeTask && overEvent && onEditTask) {
+        // Calculate new time based on drop position
+        let newTime = overEvent.time;
+        
+        // If dropped on a system event, place it just before that event
+        if (overEvent.type === 'system') {
+          const [hours, minutes] = overEvent.time.split(':').map(Number);
+          const totalMinutes = hours * 60 + minutes - 30; // 30 minutes before
+          const newHours = Math.max(0, Math.floor(totalMinutes / 60));
+          const newMinutes = Math.max(0, totalMinutes % 60);
+          newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+        }
+        
+        // Update the task's scheduled time
+        const updatedTask = {
+          ...activeTask,
+          scheduled_time: newTime
+        };
+        
+        onEditTask(updatedTask);
+      } else {
+        // Handle reordering of tasks with same time
+        const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
+        const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
+        
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+          reorderTasks(reorderedTasks);
+        }
       }
     }
   };
@@ -276,16 +307,11 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask }: TimelineSchedule
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={draggableEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={allEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-4">
-            {allEvents.map((event) => {
-              // Render fixed events (system + scheduled) as non-draggable
-              if (event.type === 'system' || event.type === 'scheduled') {
-                return <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />;
-              }
-              // Render draggable events (flexible + regular) as sortable
-              return <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />;
-            })}
+            {allEvents.map((event) => (
+              <SortableTimelineEvent key={event.id} event={event} onEditTask={onEditTask} />
+            ))}
           </div>
         </SortableContext>
       </DndContext>

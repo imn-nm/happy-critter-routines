@@ -3,16 +3,34 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ListTodo, Gift, Calendar } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ArrowLeft, ListTodo, Gift, Calendar, Plus, CalendarDays } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
+import { useTasks } from "@/hooks/useTasks";
+import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
+import TaskForm from "@/components/TaskForm";
+import WeekView from "@/components/WeekView";
+import MonthView from "@/components/MonthView";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
   const { children, loading } = useChildren();
   const [child, setChild] = useState(null);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const { toast } = useToast();
+
+  const { 
+    tasks, 
+    addTask, 
+    updateTask, 
+    deleteTask, 
+    reorderTasks, 
+    loading: tasksLoading 
+  } = useTasks(childId || '');
 
   useEffect(() => {
     if (children.length > 0 && childId) {
@@ -20,6 +38,70 @@ const ChildDashboard = () => {
       setChild(foundChild || null);
     }
   }, [children, childId]);
+
+  const handleAddTask = () => {
+    setEditingTask(null);
+    setShowTaskForm(true);
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setShowTaskForm(true);
+  };
+
+  const handleSaveTask = async (taskData) => {
+    try {
+      if (editingTask) {
+        await updateTask(editingTask.id, taskData);
+        toast({
+          title: "Task updated",
+          description: "Task has been updated successfully.",
+        });
+      } else {
+        await addTask({ ...taskData, child_id: childId });
+        toast({
+          title: "Task created",
+          description: "New task has been created successfully.",
+        });
+      }
+      setShowTaskForm(false);
+      setEditingTask(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save task. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await deleteTask(taskId);
+      toast({
+        title: "Task deleted",
+        description: "Task has been deleted successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete task. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTasksReorder = async (reorderedTasks) => {
+    try {
+      await reorderTasks(reorderedTasks);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reorder tasks. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -85,26 +167,77 @@ const ChildDashboard = () => {
         </Card>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="tasks" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="tasks" className="flex items-center gap-2">
+        <Tabs defaultValue="timeline" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="timeline" className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              Schedule & Tasks
+              Timeline
+            </TabsTrigger>
+            <TabsTrigger value="week" className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4" />
+              Week View
+            </TabsTrigger>
+            <TabsTrigger value="month" className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4" />
+              Month View
             </TabsTrigger>
             <TabsTrigger value="rewards" className="flex items-center gap-2">
               <Gift className="w-4 h-4" />
-              Rewards Management
+              Rewards
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="tasks">
-            <TimelineScheduleView child={child} />
+          <TabsContent value="timeline" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Daily Schedule</h3>
+              <Button onClick={handleAddTask} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Add Task
+              </Button>
+            </div>
+            <TimelineScheduleView 
+              child={child} 
+              onAddTask={handleAddTask}
+              onEditTask={handleEditTask}
+            />
+          </TabsContent>
+
+          <TabsContent value="week">
+            <WeekView 
+              child={child}
+              tasks={tasks}
+              onTasksReorder={handleTasksReorder}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+            />
+          </TabsContent>
+
+          <TabsContent value="month">
+            <MonthView 
+              child={child}
+              tasks={tasks}
+            />
           </TabsContent>
 
           <TabsContent value="rewards">
             <RewardsManagement child={child} />
           </TabsContent>
         </Tabs>
+
+        {/* Task Form Dialog */}
+        <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <TaskForm
+              task={editingTask}
+              onSave={handleSaveTask}
+              onCancel={() => {
+                setShowTaskForm(false);
+                setEditingTask(null);
+              }}
+              isEdit={!!editingTask}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
