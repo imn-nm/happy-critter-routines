@@ -64,9 +64,10 @@ interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string) => void;
+  isActive?: boolean;
 }
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = false }: SortableTimelineEventProps) => {
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   
   const {
@@ -83,7 +84,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? 'none' : transition,
+    zIndex: isDragging ? 50 : 'auto',
   };
 
   const formatTime = (timeStr: string) => {
@@ -121,8 +123,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
       ref={setNodeRef} 
       style={style} 
       className={cn(
-        "flex items-center gap-2 sm:gap-4 group",
-        isDragging && "opacity-50"
+        "flex items-center gap-2 sm:gap-4 group transition-all duration-200",
+        isDragging && "opacity-60 scale-105 shadow-lg rotate-1",
+        isActive && "bg-primary/5 rounded-lg",
+        !isDragging && "hover:bg-muted/50"
       )}
     >
       {/* Drag handle for draggable tasks only */}
@@ -130,7 +134,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          className={cn(
+            "cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-all duration-200 flex-shrink-0",
+            isDragging && "cursor-grabbing scale-110",
+            isActive && "text-primary"
+          )}
         >
           <GripVertical className="w-3 h-3" />
         </div>
@@ -227,9 +235,15 @@ const TimelineScheduleView = ({
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -297,8 +311,18 @@ const TimelineScheduleView = ({
     return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
   });
 
+  const handleDragStart = (event: any) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragOver = (event: any) => {
+    setOverId(event.over?.id || null);
+  };
+
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
+    setActiveId(null);
+    setOverId(null);
 
     if (!over || active.id === over.id) return;
 
@@ -381,28 +405,61 @@ const TimelineScheduleView = ({
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="space-y-2 sm:space-y-4">
-          {allEvents.map((event) => {
+          {allEvents.map((event, index) => {
             const isDraggable = event.type === 'flexible' || event.type === 'regular';
+            const isBeingDraggedOver = overId === event.id && activeId !== event.id;
+            const isActiveEvent = activeId === event.id;
             
-            if (isDraggable) {
-              return (
-                <SortableContext key={event.id} items={[event.id]} strategy={verticalListSortingStrategy}>
-                  <SortableTimelineEvent event={event} onEditTask={onEditTask} onDeleteTask={onDeleteTask} />
-                </SortableContext>
-              );
-            } else {
-              // Non-draggable events can still be drop targets
-              return (
-                <div key={event.id} id={event.id}>
-                  <SortableTimelineEvent event={event} onEditTask={onEditTask} onDeleteTask={onDeleteTask} />
-                </div>
-              );
-            }
+            return (
+              <div key={event.id} className="relative">
+                {/* Drop indicator line */}
+                {isBeingDraggedOver && !isActiveEvent && (
+                  <div className="absolute -top-2 left-0 right-0 z-10 flex justify-center">
+                    <div className="h-0.5 w-full bg-primary animate-pulse" />
+                    <div className="absolute -top-1 w-2 h-2 bg-primary rounded-full" />
+                  </div>
+                )}
+                
+                {isDraggable ? (
+                  <SortableContext items={[event.id]} strategy={verticalListSortingStrategy}>
+                    <SortableTimelineEvent 
+                      event={event} 
+                      onEditTask={onEditTask} 
+                      onDeleteTask={onDeleteTask}
+                      isActive={isActiveEvent}
+                    />
+                  </SortableContext>
+                ) : (
+                  // Non-draggable events can still be drop targets
+                  <div id={event.id}>
+                    <SortableTimelineEvent 
+                      event={event} 
+                      onEditTask={onEditTask} 
+                      onDeleteTask={onDeleteTask}
+                      isActive={false}
+                    />
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
+        
+        {/* Final drop zone */}
+        {activeId && (
+          <div className="relative mt-4">
+            <div className="h-0.5 w-full bg-primary/20 rounded-full" />
+            <div className="absolute -top-1 right-0 w-2 h-2 bg-primary/40 rounded-full animate-pulse" />
+            <div className="text-center mt-2 text-xs text-muted-foreground">
+              Drop here to schedule at end of day
+            </div>
+          </div>
+        )}
       </DndContext>
 
       {/* Add Task Button */}
