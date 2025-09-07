@@ -30,6 +30,7 @@ const ChildDashboard = () => {
     deleteTask, 
     reorderTasks, 
     refetch,
+    getTasksWithCompletionStatus,
     loading: tasksLoading 
   } = useTasks(childId || '');
 
@@ -197,9 +198,12 @@ const ChildDashboard = () => {
               </Button>
             </div>
             <TimelineScheduleView 
-              child={child} 
+              child={child}
+              tasks={tasks}
+              getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask}
               onEditTask={handleEditTask}
+              onReorderTasks={handleTasksReorder}
               onTaskTimeUpdate={async (taskId, newTime) => {
                 try {
                   await updateTask(taskId, { scheduled_time: newTime });

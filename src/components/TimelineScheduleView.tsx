@@ -28,9 +28,12 @@ import { cn } from '@/lib/utils';
 
 interface TimelineScheduleViewProps {
   child: Child;
+  tasks: any[];
+  getTasksWithCompletionStatus: () => any[];
   onAddTask?: () => void;
   onEditTask?: (task: any) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
+  onReorderTasks?: (tasks: any[]) => void;
 }
 
 interface TimelineEvent {
@@ -157,10 +160,17 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
   );
 };
 
-const TimelineScheduleView = ({ child, onAddTask, onEditTask, onTaskTimeUpdate }: TimelineScheduleViewProps) => {
+const TimelineScheduleView = ({ 
+  child, 
+  tasks, 
+  getTasksWithCompletionStatus, 
+  onAddTask, 
+  onEditTask, 
+  onTaskTimeUpdate,
+  onReorderTasks 
+}: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
-  const { tasks, getTasksWithCompletionStatus, reorderTasks } = useTasks(child.id);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -249,9 +259,9 @@ const TimelineScheduleView = ({ child, onAddTask, onEditTask, onTaskTimeUpdate }
         const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
         const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
         
-        if (oldIndex !== -1 && newIndex !== -1) {
+        if (oldIndex !== -1 && newIndex !== -1 && onReorderTasks) {
           const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-          reorderTasks(reorderedTasks);
+          onReorderTasks(reorderedTasks);
         }
       }
     }
