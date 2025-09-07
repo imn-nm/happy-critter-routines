@@ -109,9 +109,12 @@ export const useTasks = (childId?: string) => {
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     try {
+      // Filter out UI-only properties before sending to database
+      const { isCompleted, ...dbUpdates } = updates;
+      
       const { data, error } = await supabase
         .from('tasks')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select()
         .single();
