@@ -131,69 +131,71 @@ const ChildDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-4">
+    <div className="min-h-screen bg-gradient-primary p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => navigate("/dashboard")}
-            className="text-white hover:bg-white/20"
+            className="text-white hover:bg-white/20 h-8 w-8 sm:h-10 sm:w-10"
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-lg sm:text-2xl font-bold text-white truncate">
             {child.name}'s Dashboard
           </h1>
         </div>
 
         {/* Child Summary Card */}
-        <Card className="p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <Card className="p-3 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold">{child.name}</h2>
-              <p className="text-muted-foreground">Age: {child.age || 'Not specified'}</p>
+              <h2 className="text-lg sm:text-xl font-semibold">{child.name}</h2>
+              <p className="text-sm text-muted-foreground">Age: {child.age || 'Not specified'}</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 sm:gap-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Current Coins</p>
-                <p className="text-2xl font-bold text-warning">{child.currentCoins}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Current Coins</p>
+                <p className="text-xl sm:text-2xl font-bold text-warning">{child.currentCoins}</p>
               </div>
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Pet Happiness</p>
-                <p className="text-2xl font-bold text-success">{child.petHappiness}%</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Pet Happiness</p>
+                <p className="text-xl sm:text-2xl font-bold text-success">{child.petHappiness}%</p>
               </div>
             </div>
           </div>
         </Card>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="timeline" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="timeline" className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Timeline
+        <Tabs defaultValue="timeline" className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+            <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Timeline</span>
+              <span className="sm:hidden">Time</span>
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" />
-              Week View
+            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <CalendarDays className="w-3 h-3 sm:w-4 sm:h-4" />
+              Week
             </TabsTrigger>
-            <TabsTrigger value="month" className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" />
-              Month View
+            <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <CalendarDays className="w-3 h-3 sm:w-4 sm:h-4" />
+              Month
             </TabsTrigger>
-            <TabsTrigger value="rewards" className="flex items-center gap-2">
-              <Gift className="w-4 h-4" />
-              Rewards
+            <TabsTrigger value="rewards" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Gift className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Rewards</span>
+              <span className="sm:hidden">Gifts</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="timeline" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Daily Schedule</h3>
-              <Button onClick={handleAddTask} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
+          <TabsContent value="timeline" className="space-y-2 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
+              <h3 className="text-base sm:text-lg font-semibold">Daily Schedule</h3>
+              <Button onClick={handleAddTask} className="flex items-center gap-2 text-sm h-8 sm:h-10 w-full sm:w-auto">
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                 Add Task
               </Button>
             </div>
@@ -203,6 +205,7 @@ const ChildDashboard = () => {
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask}
               onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
               onReorderTasks={handleTasksReorder}
               onTaskTimeUpdate={async (taskId, newTime) => {
                 try {

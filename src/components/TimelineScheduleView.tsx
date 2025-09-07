@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { Child } from '@/hooks/useChildren';
 import {
@@ -32,6 +32,7 @@ interface TimelineScheduleViewProps {
   getTasksWithCompletionStatus: () => any[];
   onAddTask?: () => void;
   onEditTask?: (task: any) => void;
+  onDeleteTask?: (taskId: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
 }
@@ -61,9 +62,10 @@ const systemEvents: TimelineEvent[] = [
 interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
-const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTimelineEventProps) => {
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   
   const {
@@ -96,7 +98,7 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
       ref={setNodeRef} 
       style={style} 
       className={cn(
-        "flex items-center gap-4 group",
+        "flex items-center gap-2 sm:gap-4 group",
         isDragging && "opacity-50"
       )}
     >
@@ -105,7 +107,7 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
+          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
         >
           <GripVertical className="w-3 h-3" />
         </div>
@@ -113,27 +115,27 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
       
       {/* Time */}
       <div className={cn(
-        "text-sm font-mono text-muted-foreground w-20 text-right",
+        "text-xs sm:text-sm font-mono text-muted-foreground w-12 sm:w-20 text-right flex-shrink-0",
         !isDraggable ? "ml-7" : "ml-0"
       )}>
         {formatTime(event.time)}
       </div>
       
       {/* Timeline bar */}
-      <div className={`w-1 h-12 rounded-full ${event.color}`} />
+      <div className={`w-1 h-8 sm:h-12 rounded-full ${event.color} flex-shrink-0`} />
       
       {/* Event content */}
-      <div className="flex-1 flex items-center justify-between bg-background/50 rounded-lg p-3 border">
-        <div className="flex items-center gap-3">
-          <span className="font-medium">{event.name}</span>
+      <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-background/50 rounded-lg p-2 sm:p-3 border min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <span className="font-medium text-sm sm:text-base truncate">{event.name}</span>
           {event.coins && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs flex-shrink-0">
               {event.coins} coins
             </Badge>
           )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-0 flex-shrink-0">
           {event.isLate && (
             <Badge variant="destructive" className="text-xs">
               Late
@@ -144,15 +146,29 @@ const SortableTimelineEvent = ({ event, onEditTask }: SortableTimelineEventProps
               +20 min
             </Badge>
           )}
-          {event.task && onEditTask && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEditTask(event.task)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
+          {event.task && (
+            <div className="flex items-center gap-1">
+              {onEditTask && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEditTask(event.task)}
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
+                >
+                  <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                </Button>
+              )}
+              {onDeleteTask && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDeleteTask(event.task.id)}
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -166,6 +182,7 @@ const TimelineScheduleView = ({
   getTasksWithCompletionStatus, 
   onAddTask, 
   onEditTask, 
+  onDeleteTask,
   onTaskTimeUpdate,
   onReorderTasks 
 }: TimelineScheduleViewProps) => {
@@ -280,18 +297,18 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-3 sm:p-6">
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <Button variant="ghost" size="sm" onClick={goToPreviousWeek}>
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-8 w-8 p-0">
           <ChevronLeft className="w-4 h-4" />
         </Button>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5 sm:gap-1 overflow-x-auto">
           {weekDays.map((day, index) => (
             <button
               key={index}
               onClick={() => setSelectedDay(day)}
-              className={`flex flex-col items-center px-3 py-2 rounded-lg transition-colors ${
+              className={`flex flex-col items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors flex-shrink-0 ${
                 isSameDay(day, selectedDay)
                   ? 'bg-foreground text-background'
                   : 'hover:bg-muted'
@@ -300,13 +317,13 @@ const TimelineScheduleView = ({
               <span className="text-xs font-medium">
                 {format(day, 'EEE')}
               </span>
-              <span className="text-lg font-semibold">
+              <span className="text-sm sm:text-lg font-semibold">
                 {format(day, 'd')}
               </span>
             </button>
           ))}
         </div>
-        <Button variant="ghost" size="sm" onClick={goToNextWeek}>
+        <Button variant="ghost" size="sm" onClick={goToNextWeek} className="h-8 w-8 p-0">
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -317,21 +334,21 @@ const TimelineScheduleView = ({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-4">
           {allEvents.map((event) => {
             const isDraggable = event.type === 'flexible' || event.type === 'regular';
             
             if (isDraggable) {
               return (
                 <SortableContext key={event.id} items={[event.id]} strategy={verticalListSortingStrategy}>
-                  <SortableTimelineEvent event={event} onEditTask={onEditTask} />
+                  <SortableTimelineEvent event={event} onEditTask={onEditTask} onDeleteTask={onDeleteTask} />
                 </SortableContext>
               );
             } else {
               // Non-draggable events can still be drop targets
               return (
                 <div key={event.id} id={event.id}>
-                  <SortableTimelineEvent event={event} onEditTask={onEditTask} />
+                  <SortableTimelineEvent event={event} onEditTask={onEditTask} onDeleteTask={onDeleteTask} />
                 </div>
               );
             }
@@ -341,8 +358,8 @@ const TimelineScheduleView = ({
 
       {/* Add Task Button */}
       {onAddTask && (
-        <div className="mt-6 pt-6 border-t">
-          <Button onClick={onAddTask} className="w-full" variant="outline">
+        <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t">
+          <Button onClick={onAddTask} className="w-full text-sm sm:text-base h-8 sm:h-10" variant="outline">
             <Plus className="w-4 h-4 mr-2" />
             Add New Task
           </Button>
