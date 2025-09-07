@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
+import { Task } from '@/hooks/useTasks';
+import DragDropTaskList from '@/components/DragDropTaskList';
 
 interface WeekViewProps {
   child: Child;
+  tasks: Task[];
+  onTasksReorder: (tasks: Task[]) => void;
+  onEditTask: (task: Task) => void;
+  onDeleteTask: (taskId: string) => void;
 }
 
 interface DayData {
@@ -15,9 +21,10 @@ interface DayData {
   completions: number;
   coinsEarned: number;
   tasksCompleted: string[];
+  scheduledTasks: Task[];
 }
 
-const WeekView = ({ child }: WeekViewProps) => {
+const WeekView = ({ child, tasks, onTasksReorder, onEditTask, onDeleteTask }: WeekViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [weekData, setWeekData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,13 +50,14 @@ const WeekView = ({ child }: WeekViewProps) => {
 
       const dayDataMap = new Map<string, DayData>();
       
-      // Initialize all days
+      // Initialize all days with scheduled tasks
       weekDays.forEach(day => {
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {
           date: day,
           completions: 0,
           coinsEarned: 0,
           tasksCompleted: [],
+          scheduledTasks: tasks || [],
         });
       });
 
@@ -167,21 +175,22 @@ const WeekView = ({ child }: WeekViewProps) => {
         </Card>
       </div>
 
-      {/* Daily Breakdown */}
-      <div className="space-y-3">
+      {/* Daily Breakdown with Tasks */}
+      <div className="space-y-4">
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">Loading week data...</div>
         ) : (
           weekData.map((dayData) => (
             <Card 
               key={format(dayData.date, 'yyyy-MM-dd')} 
-              className={`p-4 ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary' : ''}`}
+              className={`p-6 ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary' : ''}`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="text-center min-w-[60px]">
-                    <p className="text-sm font-medium">{format(dayData.date, 'EEE')}</p>
-                    <p className="text-lg font-bold">{format(dayData.date, 'd')}</p>
+                  <div className="text-center min-w-[80px]">
+                    <p className="text-sm font-medium">{format(dayData.date, 'EEEE')}</p>
+                    <p className="text-2xl font-bold">{format(dayData.date, 'd')}</p>
+                    <p className="text-xs text-muted-foreground">{format(dayData.date, 'MMM')}</p>
                   </div>
                   
                   <div className="flex-1">
@@ -190,7 +199,10 @@ const WeekView = ({ child }: WeekViewProps) => {
                         {dayData.completions} tasks completed
                       </span>
                       <span className="text-sm font-medium text-warning">
-                        {dayData.coinsEarned} coins
+                        {dayData.coinsEarned} coins earned
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {dayData.scheduledTasks.length} scheduled tasks
                       </span>
                     </div>
                     
@@ -198,30 +210,29 @@ const WeekView = ({ child }: WeekViewProps) => {
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(dayData.completions / maxCompletions) * 100}%` }}
+                        style={{ width: dayData.scheduledTasks.length > 0 ? `${(dayData.completions / dayData.scheduledTasks.length) * 100}%` : '0%' }}
                       />
                     </div>
                   </div>
                 </div>
-                
-                {dayData.tasksCompleted.length > 0 && (
-                  <div className="text-right max-w-xs">
-                    <p className="text-xs text-muted-foreground mb-1">Tasks completed:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {dayData.tasksCompleted.slice(0, 3).map((taskName, index) => (
-                        <span key={index} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                          {taskName}
-                        </span>
-                      ))}
-                      {dayData.tasksCompleted.length > 3 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{dayData.tasksCompleted.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
+              
+              {/* Tasks for this day */}
+              {dayData.scheduledTasks.length > 0 ? (
+                <div>
+                  <h4 className="text-sm font-medium mb-3 text-muted-foreground">Daily Tasks</h4>
+                  <DragDropTaskList
+                    tasks={dayData.scheduledTasks}
+                    onTasksReorder={onTasksReorder}
+                    onEditTask={onEditTask}
+                    onDeleteTask={onDeleteTask}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  No tasks scheduled for this day
+                </div>
+              )}
             </Card>
           ))
         )}

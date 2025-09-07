@@ -108,11 +108,20 @@ const ChildReports = () => {
               </TabsList>
               
               <TabsContent value="week">
-                <WeekView child={selectedChild} />
+                <WeekView 
+                  child={selectedChild} 
+                  tasks={[]}
+                  onTasksReorder={() => {}}
+                  onEditTask={() => {}}
+                  onDeleteTask={() => {}}
+                />
               </TabsContent>
               
               <TabsContent value="month">
-                <MonthView child={selectedChild} />
+                <MonthView 
+                  child={selectedChild} 
+                  tasks={[]}
+                />
               </TabsContent>
             </Tabs>
           </div>

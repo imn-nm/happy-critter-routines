@@ -17,9 +17,22 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from "@/components/ui/button";
-import TaskCard, { type Task } from "@/components/TaskCard";
+import TaskCard from "@/components/TaskCard";
 import { Edit, Trash2, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Task } from "@/hooks/useTasks";
+
+// Convert from useTasks Task to TaskCard Task
+const convertToTaskCardTask = (task: Task): import("@/components/TaskCard").Task => ({
+  id: task.id,
+  name: task.name,
+  type: task.type,
+  scheduledTime: task.scheduled_time,
+  duration: task.duration,
+  coins: task.coins,
+  isCompleted: task.isCompleted || false,
+  isActive: task.is_active,
+});
 
 interface SortableTaskItemProps {
   task: Task;
@@ -42,6 +55,8 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
     transition,
   };
 
+  const taskCardTask = convertToTaskCardTask(task);
+
   return (
     <div 
       ref={setNodeRef} 
@@ -60,7 +75,7 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
       </div>
       
       <div className="flex-1">
-        <TaskCard task={task} />
+        <TaskCard task={taskCardTask} />
       </div>
       
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

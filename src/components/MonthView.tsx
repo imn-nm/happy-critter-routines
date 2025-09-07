@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, Award, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, TrendingUp, Award, Target, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
+import { Task } from '@/hooks/useTasks';
 
 interface MonthViewProps {
   child: Child;
+  tasks: Task[];
 }
 
 interface DayData {
@@ -15,9 +17,10 @@ interface DayData {
   completions: number;
   coinsEarned: number;
   isCurrentMonth: boolean;
+  scheduledTasks: Task[];
 }
 
-const MonthView = ({ child }: MonthViewProps) => {
+const MonthView = ({ child, tasks }: MonthViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthData, setMonthData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,13 +54,20 @@ const MonthView = ({ child }: MonthViewProps) => {
 
       const dayDataMap = new Map<string, DayData>();
       
-      // Initialize all calendar days
+      // Initialize all calendar days with scheduled tasks
       calendarDays.forEach(day => {
+        const dayTasks = tasks?.filter(task => {
+          // For this demo, show all tasks on all days
+          // In real implementation, you'd filter by recurring_days or specific dates
+          return task.is_active;
+        }) || [];
+        
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {
           date: day,
           completions: 0,
           coinsEarned: 0,
           isCurrentMonth: isSameMonth(day, currentMonth),
+          scheduledTasks: dayTasks,
         });
       });
 
@@ -97,12 +107,14 @@ const MonthView = ({ child }: MonthViewProps) => {
     const totalCoins = currentMonthData.reduce((sum, day) => sum + day.coinsEarned, 0);
     const activeDays = currentMonthData.filter(day => day.completions > 0).length;
     const daysInMonth = currentMonthData.length;
+    const totalScheduledTasks = currentMonthData.reduce((sum, day) => sum + day.scheduledTasks.length, 0);
     
     return {
       totalCompletions,
       totalCoins,
       activeDays,
       daysInMonth,
+      totalScheduledTasks,
       averagePerDay: totalCompletions / daysInMonth,
       consistencyRate: (activeDays / daysInMonth) * 100,
     };
@@ -151,7 +163,7 @@ const MonthView = ({ child }: MonthViewProps) => {
       </div>
 
       {/* Month Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />
@@ -167,6 +179,15 @@ const MonthView = ({ child }: MonthViewProps) => {
             <div>
               <p className="text-sm text-muted-foreground">Coins Earned</p>
               <p className="text-xl font-bold">{stats.totalCoins}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-info" />
+            <div>
+              <p className="text-sm text-muted-foreground">Scheduled</p>
+              <p className="text-xl font-bold">{stats.totalScheduledTasks}</p>
             </div>
           </div>
         </Card>
@@ -227,14 +248,23 @@ const MonthView = ({ child }: MonthViewProps) => {
                   )}
                 </div>
                 
-                {dayData.isCurrentMonth && dayData.completions > 0 && (
+                {dayData.isCurrentMonth && (
                   <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">
-                      {dayData.completions} task{dayData.completions !== 1 ? 's' : ''}
-                    </div>
-                    <div className="text-xs font-medium text-warning">
-                      {dayData.coinsEarned} coins
-                    </div>
+                    {dayData.scheduledTasks.length > 0 && (
+                      <div className="text-xs text-info">
+                        {dayData.scheduledTasks.length} scheduled
+                      </div>
+                    )}
+                    {dayData.completions > 0 && (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          {dayData.completions} completed
+                        </div>
+                        <div className="text-xs font-medium text-warning">
+                          {dayData.coinsEarned} coins
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

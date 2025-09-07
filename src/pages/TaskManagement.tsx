@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,135 +9,98 @@ import ChildCard, { type Child } from "@/components/ChildCard";
 import DragDropTaskList from "@/components/DragDropTaskList";
 import WeekView from "@/components/WeekView";
 import MonthView from "@/components/MonthView";
-import { ArrowLeft, Plus, Clock, Calendar, BarChart3, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Clock, Calendar, BarChart3, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format, addDays, subDays } from "date-fns";
+import { useChildren } from "@/hooks/useChildren";
+import { useTasks } from "@/hooks/useTasks";
 
-// Mock data - in real app this would come from database
-const mockChildren: Child[] = [
-  {
-    id: "1",
-    parent_id: "mock-parent-1",
-    name: "Amira", 
-    age: 8,
-    petType: "owl",
-    currentCoins: 45,
-    petHappiness: 85,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    parent_id: "mock-parent-1",
-    name: "Noora",
-    age: 6,
-    petType: "fox", 
-    currentCoins: 23,
-    petHappiness: 72,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-];
 
 const TaskManagement = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedChildId = searchParams.get('childId');
   
-  const [selectedChild, setSelectedChild] = useState<Child>(
-    mockChildren.find(c => c.id === preselectedChildId) || mockChildren[0]
-  );
+  const { children } = useChildren();
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
   const [currentView, setCurrentView] = useState<'tasks' | 'week' | 'month'>('tasks');
+  const [currentDate, setCurrentDate] = useState(new Date());
   
-  // Mock tasks for the selected child
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: "1",
-      name: "Wake up",
-      type: "regular",
-      scheduledTime: "7:00",
-      coins: 5,
-      isCompleted: false
-    },
-    {
-      id: "2", 
-      name: "School",
-      type: "scheduled",
-      scheduledTime: "8:00",
-      duration: 480,
-      coins: 10,
-      isCompleted: false
-    },
-    {
-      id: "3",
-      name: "Shower",
-      type: "regular", 
-      scheduledTime: "16:30",
-      duration: 20,
-      coins: 5,
-      isCompleted: false
-    },
-    {
-      id: "4",
-      name: "Homework",
-      type: "flexible",
-      scheduledTime: "17:00",
-      duration: 60,
-      coins: 8,
-      isCompleted: false
-    },
-    {
-      id: "5",
-      name: "Dinner",
-      type: "regular",
-      scheduledTime: "18:00",
-      duration: 30,
-      coins: 5,
-      isCompleted: false
-    },
-    {
-      id: "6",
-      name: "Bedtime routine",
-      type: "regular",
-      scheduledTime: "20:00",
-      duration: 30,
-      coins: 8,
-      isCompleted: false
+  // Set selected child when children load
+  React.useEffect(() => {
+    if (children.length > 0 && !selectedChild) {
+      const preselected = children.find(c => c.id === preselectedChildId);
+      setSelectedChild(preselected || children[0]);
     }
-  ]);
+  }, [children, preselectedChildId, selectedChild]);
+  
+  const { 
+    tasks, 
+    loading: tasksLoading, 
+    addTask, 
+    updateTask, 
+    deleteTask, 
+    reorderTasks,
+    getTasksWithCompletionStatus 
+  } = useTasks(selectedChild?.id);
+  
+  const tasksWithCompletion = getTasksWithCompletionStatus();
 
-  const handleSaveTask = (taskData: Omit<Task, 'id'>) => {
-    if (editingTask) {
-      // Edit existing task
-      setTasks(tasks.map(task => 
-        task.id === editingTask.id 
-          ? { ...taskData, id: editingTask.id }
-          : task
-      ));
-      setEditingTask(null);
-    } else {
-      // Add new task
-      const newTask: Task = {
-        ...taskData,
-        id: Date.now().toString()
-      };
-      setTasks([...tasks, newTask]);
+  const handleSaveTask = async (taskData: any) => {
+    if (!selectedChild) return;
+    
+    try {
+      if (editingTask) {
+        await updateTask(editingTask.id, taskData);
+        setEditingTask(null);
+      } else {
+        await addTask({
+          ...taskData,
+          child_id: selectedChild.id,
+          sort_order: tasks.length,
+          is_active: true,
+          is_recurring: false,
+        });
+      }
+      setShowTaskForm(false);
+    } catch (error) {
+      console.error('Error saving task:', error);
     }
-    setShowTaskForm(false);
   };
 
-  const handleEditTask = (task: Task) => {
+  const handleEditTask = (task: any) => {
     setEditingTask(task);
     setShowTaskForm(true);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter(task => task.id !== taskId));
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
   };
 
-  const handleTasksReorder = (reorderedTasks: Task[]) => {
-    setTasks(reorderedTasks);
+  const handleTasksReorder = async (reorderedTasks: any[]) => {
+    try {
+      await reorderTasks(reorderedTasks);
+    } catch (error) {
+      console.error('Error reordering tasks:', error);
+    }
+  };
+
+  const goToPreviousDay = () => {
+    setCurrentDate(prev => subDays(prev, 1));
+  };
+
+  const goToNextDay = () => {
+    setCurrentDate(prev => addDays(prev, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
   };
 
   const handleCancelForm = () => {
@@ -145,14 +108,13 @@ const TaskManagement = () => {
     setEditingTask(null);
   };
 
-  const getTasksByType = (type: Task['type']) => {
-    return tasks.filter(task => task.type === type);
-  };
-
-  const formatTaskCount = (type: Task['type']) => {
-    const count = getTasksByType(type).length;
-    return `${count} task${count !== 1 ? 's' : ''}`;
-  };
+  if (!selectedChild) {
+    return (
+      <div className="min-h-screen bg-gradient-primary p-4 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
 
   if (showTaskForm) {
     return (
@@ -202,7 +164,7 @@ const TaskManagement = () => {
           <div className="lg:col-span-1">
             <h2 className="text-white font-semibold mb-4">Select Child</h2>
             <div className="space-y-3">
-              {mockChildren.map((child) => (
+              {children.map((child) => (
                 <ChildCard
                   key={child.id}
                   child={child}
@@ -241,16 +203,39 @@ const TaskManagement = () => {
                     </div>
                   </div>
 
-                  {/* Unified Task Schedule */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
+                  {/* Day Navigation */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-primary" />
                       <h3 className="text-lg font-semibold">Daily Schedule</h3>
                       <span className="text-sm text-muted-foreground">Drag to reorder • Mix all task types</span>
                     </div>
-                    {tasks.length > 0 ? (
+                    
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={goToPreviousDay}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToToday}
+                        className="text-sm min-w-[120px]"
+                      >
+                        {format(currentDate, 'MMM d, yyyy')}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={goToNextDay}>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Unified Task Schedule */}
+                  <div>
+                    {tasksLoading ? (
+                      <p className="text-muted-foreground text-center py-8">Loading tasks...</p>
+                    ) : tasks.length > 0 ? (
                       <DragDropTaskList
-                        tasks={tasks}
+                        tasks={tasksWithCompletion}
                         onTasksReorder={handleTasksReorder}
                         onEditTask={handleEditTask}
                         onDeleteTask={handleDeleteTask}
@@ -276,16 +261,21 @@ const TaskManagement = () => {
                           key={quickTask.name}
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            const newTask: Task = {
-                              id: Date.now().toString(),
-                              name: quickTask.name,
-                              type: quickTask.type,
-                              scheduledTime: quickTask.time,
-                              coins: quickTask.coins,
-                              isCompleted: false,
-                            };
-                            setTasks([...tasks, newTask]);
+                          onClick={async () => {
+                            try {
+                              await addTask({
+                                child_id: selectedChild.id,
+                                name: quickTask.name,
+                                type: quickTask.type,
+                                scheduled_time: quickTask.time,
+                                coins: quickTask.coins,
+                                sort_order: tasks.length,
+                                is_active: true,
+                                is_recurring: false,
+                              });
+                            } catch (error) {
+                              console.error('Error adding quick task:', error);
+                            }
                           }}
                           className="text-xs justify-start"
                         >
@@ -299,11 +289,20 @@ const TaskManagement = () => {
               </TabsContent>
               
               <TabsContent value="week">
-                <WeekView child={selectedChild} />
+                <WeekView 
+                  child={selectedChild} 
+                  tasks={tasks}
+                  onTasksReorder={handleTasksReorder}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                />
               </TabsContent>
               
               <TabsContent value="month">
-                <MonthView child={selectedChild} />
+                <MonthView 
+                  child={selectedChild} 
+                  tasks={tasks}
+                />
               </TabsContent>
             </Tabs>
           </div>
