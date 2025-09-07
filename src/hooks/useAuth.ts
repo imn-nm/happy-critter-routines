@@ -25,6 +25,7 @@ export const useAuth = () => {
           email: testEmail,
           password: testPassword,
           options: {
+            emailRedirectTo: `${window.location.origin}/`,
             data: {
               full_name: 'Test Parent',
             }
@@ -32,12 +33,30 @@ export const useAuth = () => {
         });
 
         if (signUpError) throw signUpError;
+        
+        // For development, show message about email confirmation
+        if (signUpData.user && !signUpData.session) {
+          toast({
+            title: "Account Created - Email Confirmation Required",
+            description: "Please disable email confirmation in Supabase settings for development, or check your email to confirm.",
+            variant: "destructive",
+          });
+          return null;
+        }
+        
         data = signUpData;
         
         toast({
           title: "Account Created",
           description: "Development account created successfully!",
         });
+      } else if (error && error.message.includes('Email not confirmed')) {
+        toast({
+          title: "Email Not Confirmed",
+          description: "Please disable 'Confirm email' in your Supabase Auth settings for development.",
+          variant: "destructive",
+        });
+        return null;
       } else if (error) {
         throw error;
       }
@@ -48,7 +67,7 @@ export const useAuth = () => {
       console.error('Auth error:', error);
       toast({
         title: "Authentication Error",
-        description: "Failed to authenticate. Please try again.",
+        description: "Failed to authenticate. Please check Supabase settings.",
         variant: "destructive",
       });
       throw error;
@@ -72,7 +91,12 @@ export const useAuth = () => {
       
       // If no user, auto-login for development
       if (!session?.user) {
-        signInAnonymously().finally(() => setLoading(false));
+        signInAnonymously().catch(() => {
+          // Don't retry automatically, let user see the error message
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
       }
     });
 
