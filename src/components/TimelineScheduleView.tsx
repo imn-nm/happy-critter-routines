@@ -41,6 +41,7 @@ interface TimelineEvent {
   id: string;
   name: string;
   time: string;
+  duration: number; // in minutes
   type: string;
   color: string;
   coins?: number;
@@ -50,13 +51,13 @@ interface TimelineEvent {
 }
 
 const systemEvents: TimelineEvent[] = [
-  { id: 'wake', name: 'Wake up', time: '7:00', type: 'system', color: 'bg-gray-400' },
-  { id: 'breakfast', name: 'Breakfast', time: '7:30', type: 'system', color: 'bg-gray-400' },
-  { id: 'school', name: 'School', time: '8:00', type: 'system', color: 'bg-gray-400' },
-  { id: 'lunch', name: 'Lunch', time: '12:00', type: 'system', color: 'bg-gray-400' },
-  { id: 'snack', name: 'Snack', time: '15:30', type: 'system', color: 'bg-gray-400' },
-  { id: 'dinner', name: 'Dinner', time: '18:00', type: 'system', color: 'bg-gray-400' },
-  { id: 'bedtime', name: 'Bedtime', time: '20:30', type: 'system', color: 'bg-gray-400' },
+  { id: 'wake', name: 'Wake up', time: '7:00', duration: 30, type: 'system', color: 'bg-gray-400' },
+  { id: 'breakfast', name: 'Breakfast', time: '7:30', duration: 30, type: 'system', color: 'bg-gray-400' },
+  { id: 'school', name: 'School', time: '8:00', duration: 420, type: 'system', color: 'bg-gray-400' }, // 7 hours
+  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 60, type: 'system', color: 'bg-gray-400' },
+  { id: 'snack', name: 'Snack', time: '15:30', duration: 30, type: 'system', color: 'bg-gray-400' },
+  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 60, type: 'system', color: 'bg-gray-400' },
+  { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 30, type: 'system', color: 'bg-gray-400' },
 ];
 
 interface SortableTimelineEventProps {
@@ -93,6 +94,28 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
     return `${displayHour}:${minutes}${ampm}`;
   };
 
+  const calculateEndTime = (startTime: string, durationMinutes: number) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + durationMinutes;
+    const endHours = Math.floor(endMinutes / 60) % 24;
+    const endMins = endMinutes % 60;
+    const endTimeStr = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+    return formatTime(endTimeStr);
+  };
+
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes}min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (remainingMinutes === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h ${remainingMinutes}min`;
+  };
+
   return (
     <div 
       ref={setNodeRef} 
@@ -113,21 +136,30 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
         </div>
       )}
       
-      {/* Time */}
+      {/* Time Range */}
       <div className={cn(
-        "text-xs sm:text-sm font-mono text-muted-foreground w-12 sm:w-20 text-right flex-shrink-0",
+        "text-xs font-mono text-muted-foreground w-16 sm:w-24 text-right flex-shrink-0 flex flex-col",
         !isDraggable ? "ml-7" : "ml-0"
       )}>
-        {formatTime(event.time)}
+        <span className="font-medium">{formatTime(event.time)}</span>
+        <span className="text-xs opacity-75">{calculateEndTime(event.time, event.duration)}</span>
       </div>
       
-      {/* Timeline bar */}
-      <div className={`w-1 h-8 sm:h-12 rounded-full ${event.color} flex-shrink-0`} />
+      {/* Timeline bar with duration */}
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className={`w-1 h-8 sm:h-12 rounded-full ${event.color}`} />
+        {event.duration > 30 && (
+          <div className={`w-0.5 h-4 sm:h-6 ${event.color} opacity-50 -mt-1`} />
+        )}
+      </div>
       
       {/* Event content */}
       <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-background/50 rounded-lg p-2 sm:p-3 border min-w-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <span className="font-medium text-sm sm:text-base truncate">{event.name}</span>
+          <Badge variant="outline" className="text-xs flex-shrink-0">
+            {formatDuration(event.duration)}
+          </Badge>
           {event.coins && (
             <Badge variant="secondary" className="text-xs flex-shrink-0">
               {event.coins} coins
@@ -232,6 +264,7 @@ const TimelineScheduleView = ({
     id: task.id,
     name: task.name,
     time: task.scheduled_time || '09:00',
+    duration: task.duration || 60, // Default 1 hour if not specified
     type: task.type,
     color: 'bg-purple-500', // Different color to distinguish from system events
     task: task,
@@ -248,6 +281,7 @@ const TimelineScheduleView = ({
     id: task.id,
     name: task.name,
     time: task.scheduled_time || '09:00',
+    duration: task.duration || 30, // Default 30 minutes if not specified
     type: task.type,
     color: task.type === 'regular' ? 'bg-blue-500' : 'bg-yellow-500',
     task: task,
@@ -289,14 +323,15 @@ const TimelineScheduleView = ({
     if (overEvent && onTaskTimeUpdate) {
       let newTime = overEvent.time;
       
-      // If dropped on a system event, place it just before that event
-      if (overEvent.type === 'system') {
-        const [hours, minutes] = overEvent.time.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes - 30; // 30 minutes before
-        const newHours = Math.max(0, Math.floor(totalMinutes / 60));
-        const newMinutes = Math.max(0, totalMinutes % 60);
-        newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-      }
+      // Calculate the end time of the event we're dropping on
+      const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
+      const overStartMinutes = overHours * 60 + overMinutes;
+      const overEndMinutes = overStartMinutes + overEvent.duration;
+      
+      // Place the task to start after the event ends
+      const newHours = Math.floor(overEndMinutes / 60) % 24;
+      const newMins = overEndMinutes % 60;
+      newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
       
       onTaskTimeUpdate(activeTask.id, newTime);
     }
