@@ -227,6 +227,12 @@ const ChildDashboard = () => {
         {/* Task Form Dialog */}
         <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sr-only">
+              <h2 id="dialog-title">{editingTask ? "Edit Task" : "Add New Task"}</h2>
+              <p id="dialog-description">
+                {editingTask ? "Edit the task details below" : "Fill in the form below to create a new task"}
+              </p>
+            </div>
             <TaskForm
               task={editingTask}
               onSave={handleSaveTask}

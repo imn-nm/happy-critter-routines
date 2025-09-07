@@ -54,7 +54,6 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
       description: formData.description || undefined,
       sort_order: task?.sort_order || 0,
       is_active: task?.is_active || true,
-      isCompleted: false,
     };
 
     onSave(newTask);
