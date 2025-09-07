@@ -111,9 +111,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="space-y-6">
             {/* Upcoming Events */}
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -132,69 +132,45 @@ const Dashboard = () => {
                 ))}
               </div>
             </Card>
+          </div>
 
-            {/* Children Cards */}
+          {/* Right Column - Children Cards */}
+          <div className="space-y-6">
             <div>
               <h2 className="text-white font-semibold mb-4">Your Children</h2>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {mockChildren.map((child) => (
-                  <ChildCard
-                    key={child.id}
-                    child={child}
-                    isSelected={selectedChild.id === child.id}
-                    onClick={setSelectedChild}
-                  />
+                  <div key={child.id} className="space-y-3">
+                    <ChildCard
+                      child={child}
+                      isSelected={selectedChild.id === child.id}
+                      onClick={setSelectedChild}
+                    />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/tasks?childId=${child.id}`)}
+                        className="flex-1 text-xs sm:text-sm"
+                      >
+                        <ListTodo className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                        <span className="hidden sm:inline">Manage Tasks</span>
+                        <span className="sm:hidden">Tasks</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/child/${child.id}`)}
+                        className="flex-1 text-xs sm:text-sm"
+                      >
+                        <span className="hidden sm:inline">View Child Interface</span>
+                        <span className="sm:hidden">View Interface</span>
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* Right Column - Selected Child's Schedule */}
-          <div className="lg:col-span-2">
-            <Card className="p-6 h-full">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">{selectedChild.name}'s Schedule</h2>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate(`/tasks?childId=${selectedChild.id}`)}
-                  >
-                    <ListTodo className="w-4 h-4 mr-1" />
-                    Manage Tasks
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate(`/child/${selectedChild.id}`)}
-                  >
-                    View Child Interface
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {mockTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    className="hover:shadow-md"
-                  />
-                ))}
-              </div>
-              
-              {/* Progress Summary */}
-              <div className="mt-8 p-4 bg-gradient-secondary rounded-lg text-white">
-                <h3 className="font-semibold mb-2">Today's Progress</h3>
-                <div className="flex justify-between items-center">
-                  <span>Tasks completed: 1/4</span>
-                  <span>Coins earned: 5</span>
-                </div>
-                <div className="w-full bg-white/20 rounded-full h-2 mt-2">
-                  <div className="bg-white h-full rounded-full w-1/4" />
-                </div>
-              </div>
-            </Card>
           </div>
         </div>
       </div>

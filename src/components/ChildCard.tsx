@@ -42,7 +42,6 @@ const ChildCard = ({ child, isSelected, onClick, className }: ChildCardProps) =>
         
         <div>
           <h3 className="font-bold text-lg">{child.name}</h3>
-          <p className="text-muted-foreground text-sm">Age {child.age}</p>
         </div>
         
         <div className="flex items-center gap-2 text-warning">

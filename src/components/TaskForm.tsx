@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { X, Save, Plus } from "lucide-react";
 import { type Task } from "./TaskCard";
 
@@ -25,7 +26,18 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
     coins: task?.coins?.toString() || "5",
     isRecurring: true,
     description: "",
+    recurringDays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as string[],
   });
+
+  const daysOfWeek = [
+    { id: "monday", label: "Mon" },
+    { id: "tuesday", label: "Tue" },
+    { id: "wednesday", label: "Wed" },
+    { id: "thursday", label: "Thu" },
+    { id: "friday", label: "Fri" },
+    { id: "saturday", label: "Sat" },
+    { id: "sunday", label: "Sun" },
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +160,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="0">0 coins - No reward</SelectItem>
               <SelectItem value="2">2 coins - Simple task</SelectItem>
               <SelectItem value="5">5 coins - Regular task</SelectItem>
               <SelectItem value="8">8 coins - Important task</SelectItem>
@@ -158,16 +171,50 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
         </div>
 
         {/* Recurring Toggle */}
-        <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-          <div>
-            <Label htmlFor="recurring" className="font-medium">Daily Recurring Task</Label>
-            <p className="text-sm text-muted-foreground">Task repeats every day</p>
+        <div className="p-4 bg-muted/30 rounded-lg space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="recurring" className="font-medium">Recurring Task</Label>
+              <p className="text-sm text-muted-foreground">Task repeats on selected days</p>
+            </div>
+            <Switch
+              id="recurring"
+              checked={formData.isRecurring}
+              onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
+            />
           </div>
-          <Switch
-            id="recurring"
-            checked={formData.isRecurring}
-            onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
-          />
+          
+          {formData.isRecurring && (
+            <div>
+              <Label className="text-sm font-medium">Repeat on days:</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {daysOfWeek.map((day) => (
+                  <div key={day.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={day.id}
+                      checked={formData.recurringDays.includes(day.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setFormData({
+                            ...formData,
+                            recurringDays: [...formData.recurringDays, day.id],
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            recurringDays: formData.recurringDays.filter((d) => d !== day.id),
+                          });
+                        }
+                      }}
+                    />
+                    <Label htmlFor={day.id} className="text-sm font-normal">
+                      {day.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Description */}

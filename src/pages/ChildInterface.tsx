@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import PetAvatar from "@/components/PetAvatar";
 import TaskCard, { type Task } from "@/components/TaskCard";
+import CircularTimer from "@/components/CircularTimer";
 import { ArrowLeft, Coins, Timer, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,20 @@ const ChildInterface = () => {
     }
   ]);
 
+  // Calculate progress for happiness
+  const completedTasks = tasks.filter(task => task.isCompleted).length;
+  const totalTasks = tasks.length;
+  const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  
+  // Update pet happiness based on progress
+  const calculateHappiness = () => {
+    if (progressPercent >= 80) return 95;
+    if (progressPercent >= 60) return 75; 
+    if (progressPercent >= 40) return 55;
+    if (progressPercent >= 20) return 35;
+    return 20;
+  };
+
   const activeTask = tasks.find(task => task.isActive && !task.isCompleted);
   const upcomingTasks = tasks.filter(task => !task.isActive && !task.isCompleted).slice(0, 2);
 
@@ -88,19 +103,25 @@ const ChildInterface = () => {
 
     // Award coins and increase happiness
     setCurrentCoins(prev => prev + task.coins);
-    setPetHappiness(prev => Math.min(100, prev + 10));
 
     // Show celebration
     setShowCelebration(true);
     setTimeout(() => setShowCelebration(false), 3000);
 
     // Set next task as active if available
-    const currentIndex = tasks.findIndex(t => t.id === taskId);
-    if (currentIndex < tasks.length - 1) {
-      setTasks(prevTasks => prevTasks.map((t, index) => 
-        index === currentIndex + 1 
+    const remainingTasks = tasks.filter(t => !t.isCompleted && t.id !== taskId);
+    
+    // Prioritize regular and scheduled tasks over flexible tasks
+    const nextTask = remainingTasks.find(t => t.type === 'regular' || t.type === 'scheduled') ||
+                     remainingTasks.find(t => t.type === 'flexible');
+    
+    if (nextTask) {
+      setTasks(prevTasks => prevTasks.map(t => 
+        t.id === nextTask.id 
           ? { ...t, isActive: true }
-          : t
+          : t.id === taskId
+          ? { ...t, isCompleted: true, isActive: false }
+          : { ...t, isActive: false }
       ));
     }
   };
@@ -136,7 +157,7 @@ const ChildInterface = () => {
         <div className="text-center mb-8">
           <PetAvatar 
             petType={child.petType} 
-            happiness={petHappiness} 
+            happiness={calculateHappiness()} 
             size="xl"
             className="mx-auto mb-4"
           />
@@ -152,19 +173,24 @@ const ChildInterface = () => {
               <div className="bg-gradient-primary text-white p-6 rounded-lg mb-4">
                 <h3 className="text-2xl font-bold mb-2">{activeTask.name}</h3>
                 
-                {activeTaskTimer !== null ? (
-                  <div className="text-4xl font-mono font-bold mb-4">
-                    {formatTime(activeTaskTimer)}
+                <div className="flex flex-col items-center gap-4 mb-4">
+                  {activeTaskTimer !== null && activeTask.duration ? (
+                    <CircularTimer
+                      totalSeconds={activeTask.duration * 60}
+                      remainingSeconds={activeTaskTimer}
+                      size="lg"
+                      className="text-white"
+                    />
+                  ) : activeTask.duration && (
+                    <div className="text-lg">
+                      Duration: {activeTask.duration} minutes
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    <Coins className="w-5 h-5 text-warning" />
+                    <span className="text-lg font-semibold">{activeTask.coins} coins</span>
                   </div>
-                ) : activeTask.duration && (
-                  <div className="text-lg mb-4">
-                    Duration: {activeTask.duration} minutes
-                  </div>
-                )}
-                
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <Coins className="w-5 h-5 text-warning" />
-                  <span className="text-lg font-semibold">{activeTask.coins} coins</span>
                 </div>
               </div>
 
@@ -200,11 +226,17 @@ const ChildInterface = () => {
             <h3 className="font-semibold mb-4">Coming Up Next</h3>
             <div className="space-y-3">
               {upcomingTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  className="bg-muted/30"
-                />
+                <div key={task.id} className="relative">
+                  <TaskCard
+                    task={task}
+                    className="bg-muted/30"
+                  />
+                  {task.type === "flexible" && (
+                    <div className="absolute top-2 right-2 bg-accent text-white text-xs px-2 py-1 rounded">
+                      Nice-to-have
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </Card>

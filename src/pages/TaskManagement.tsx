@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import TaskCard, { type Task } from "@/components/TaskCard";
+import { type Task } from "@/components/TaskCard";
 import TaskForm from "@/components/TaskForm";
 import ChildCard, { type Child } from "@/components/ChildCard";
-import { ArrowLeft, Plus, Edit, Trash2, Clock, Calendar } from "lucide-react";
+import DragDropTaskList from "@/components/DragDropTaskList";
+import { ArrowLeft, Plus, Clock, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Mock data - in real app this would come from database
@@ -125,6 +126,16 @@ const TaskManagement = () => {
     setTasks(tasks.filter(task => task.id !== taskId));
   };
 
+  const handleTasksReorder = (reorderedTasks: Task[]) => {
+    // Get the type of the first task to determine which section we're reordering
+    if (reorderedTasks.length === 0) return;
+    
+    const taskType = reorderedTasks[0].type;
+    const otherTasks = tasks.filter(task => task.type !== taskType);
+    
+    setTasks([...otherTasks, ...reorderedTasks]);
+  };
+
   const handleCancelForm = () => {
     setShowTaskForm(false);
     setEditingTask(null);
@@ -218,34 +229,16 @@ const TaskManagement = () => {
                     <h3 className="text-lg font-semibold">Scheduled Tasks</h3>
                     <span className="text-sm text-muted-foreground">({formatTaskCount('scheduled')})</span>
                   </div>
-                  <div className="space-y-3">
-                    {getTasksByType('scheduled').map((task) => (
-                      <div key={task.id} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <TaskCard task={task} />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleEditTask(task)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDeleteTask(task.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {getTasksByType('scheduled').length === 0 && (
-                      <p className="text-muted-foreground text-center py-4">No scheduled tasks yet</p>
-                    )}
-                  </div>
+                  {getTasksByType('scheduled').length > 0 ? (
+                    <DragDropTaskList
+                      tasks={getTasksByType('scheduled')}
+                      onTasksReorder={handleTasksReorder}
+                      onEditTask={handleEditTask}
+                      onDeleteTask={handleDeleteTask}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No scheduled tasks yet</p>
+                  )}
                 </div>
 
                 {/* Regular Tasks */}
@@ -255,34 +248,16 @@ const TaskManagement = () => {
                     <h3 className="text-lg font-semibold">Regular Tasks</h3>
                     <span className="text-sm text-muted-foreground">({formatTaskCount('regular')})</span>
                   </div>
-                  <div className="space-y-3">
-                    {getTasksByType('regular').map((task) => (
-                      <div key={task.id} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <TaskCard task={task} />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleEditTask(task)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDeleteTask(task.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {getTasksByType('regular').length === 0 && (
-                      <p className="text-muted-foreground text-center py-4">No regular tasks yet</p>
-                    )}
-                  </div>
+                  {getTasksByType('regular').length > 0 ? (
+                    <DragDropTaskList
+                      tasks={getTasksByType('regular')}
+                      onTasksReorder={handleTasksReorder}
+                      onEditTask={handleEditTask}
+                      onDeleteTask={handleDeleteTask}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No regular tasks yet</p>
+                  )}
                 </div>
 
                 {/* Flexible Tasks */}
@@ -292,34 +267,16 @@ const TaskManagement = () => {
                     <h3 className="text-lg font-semibold">Flexible Tasks</h3>
                     <span className="text-sm text-muted-foreground">({formatTaskCount('flexible')})</span>
                   </div>
-                  <div className="space-y-3">
-                    {getTasksByType('flexible').map((task) => (
-                      <div key={task.id} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <TaskCard task={task} />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleEditTask(task)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDeleteTask(task.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {getTasksByType('flexible').length === 0 && (
-                      <p className="text-muted-foreground text-center py-4">No flexible tasks yet</p>
-                    )}
-                  </div>
+                  {getTasksByType('flexible').length > 0 ? (
+                    <DragDropTaskList
+                      tasks={getTasksByType('flexible')}
+                      onTasksReorder={handleTasksReorder}
+                      onEditTask={handleEditTask}
+                      onDeleteTask={handleDeleteTask}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No flexible tasks yet</p>
+                  )}
                 </div>
               </div>
 
