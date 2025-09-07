@@ -12,6 +12,15 @@ export interface Child {
   petHappiness: number;
   created_at: string;
   updated_at: string;
+  // Schedule times
+  wake_time?: string;
+  breakfast_time?: string;
+  school_start_time?: string;
+  lunch_time?: string;
+  school_end_time?: string;
+  snack_time?: string;
+  dinner_time?: string;
+  bedtime?: string;
 }
 
 export const useChildren = () => {
@@ -34,6 +43,14 @@ export const useChildren = () => {
         petType: child.pet_type as 'owl' | 'fox' | 'penguin',
         currentCoins: child.current_coins,
         petHappiness: child.pet_happiness,
+        wake_time: child.wake_time,
+        breakfast_time: child.breakfast_time,
+        school_start_time: child.school_start_time,
+        lunch_time: child.lunch_time,
+        school_end_time: child.school_end_time,
+        snack_time: child.snack_time,
+        dinner_time: child.dinner_time,
+        bedtime: child.bedtime,
       }));
       
       setChildren(mappedData);
@@ -78,6 +95,14 @@ export const useChildren = () => {
         petType: data.pet_type as 'owl' | 'fox' | 'penguin',
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
+        wake_time: data.wake_time,
+        breakfast_time: data.breakfast_time,
+        school_start_time: data.school_start_time,
+        lunch_time: data.lunch_time,
+        school_end_time: data.school_end_time,
+        snack_time: data.snack_time,
+        dinner_time: data.dinner_time,
+        bedtime: data.bedtime,
       };
       
       setChildren(prev => [...prev, mappedChild]);
@@ -106,6 +131,14 @@ export const useChildren = () => {
         pet_type: updates.petType,
         current_coins: updates.currentCoins,
         pet_happiness: updates.petHappiness,
+        wake_time: updates.wake_time,
+        breakfast_time: updates.breakfast_time,
+        school_start_time: updates.school_start_time,
+        lunch_time: updates.lunch_time,
+        school_end_time: updates.school_end_time,
+        snack_time: updates.snack_time,
+        dinner_time: updates.dinner_time,
+        bedtime: updates.bedtime,
       };
       
       // Remove the interface properties that don't exist in database
@@ -128,6 +161,14 @@ export const useChildren = () => {
         petType: data.pet_type as 'owl' | 'fox' | 'penguin',
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
+        wake_time: data.wake_time,
+        breakfast_time: data.breakfast_time,
+        school_start_time: data.school_start_time,
+        lunch_time: data.lunch_time,
+        school_end_time: data.school_end_time,
+        snack_time: data.snack_time,
+        dinner_time: data.dinner_time,
+        bedtime: data.bedtime,
       };
       
       setChildren(prev => prev.map(child => child.id === id ? mappedChild : child));

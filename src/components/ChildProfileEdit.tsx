@@ -20,6 +20,14 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
     name: child.name,
     age: child.age?.toString() || "",
     petType: child.petType,
+    wake_time: child.wake_time || "07:00",
+    breakfast_time: child.breakfast_time || "07:30",
+    school_start_time: child.school_start_time || "08:30",
+    lunch_time: child.lunch_time || "12:00",
+    school_end_time: child.school_end_time || "15:00",
+    snack_time: child.snack_time || "15:30",
+    dinner_time: child.dinner_time || "18:00",
+    bedtime: child.bedtime || "20:00",
   });
   const { updateChild, deleteChild } = useChildren();
 
@@ -31,6 +39,14 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
         petType: formData.petType,
+        wake_time: formData.wake_time,
+        breakfast_time: formData.breakfast_time,
+        school_start_time: formData.school_start_time,
+        lunch_time: formData.lunch_time,
+        school_end_time: formData.school_end_time,
+        snack_time: formData.snack_time,
+        dinner_time: formData.dinner_time,
+        bedtime: formData.bedtime,
       });
       setIsOpen(false);
     } catch (error) {
@@ -114,6 +130,103 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                 <SelectItem value="penguin">Penguin - Friendly and social</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Schedule Times */}
+          <div className="space-y-4 border-t pt-4">
+            <h4 className="font-medium text-sm">Daily Schedule</h4>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="wake_time" className="text-xs">Wake Up</Label>
+                <Input
+                  id="wake_time"
+                  type="time"
+                  value={formData.wake_time}
+                  onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="breakfast_time" className="text-xs">Breakfast</Label>
+                <Input
+                  id="breakfast_time"
+                  type="time"
+                  value={formData.breakfast_time}
+                  onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="school_start_time" className="text-xs">School Start</Label>
+                <Input
+                  id="school_start_time"
+                  type="time"
+                  value={formData.school_start_time}
+                  onChange={(e) => setFormData({ ...formData, school_start_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="school_end_time" className="text-xs">School End</Label>
+                <Input
+                  id="school_end_time"
+                  type="time"
+                  value={formData.school_end_time}
+                  onChange={(e) => setFormData({ ...formData, school_end_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="lunch_time" className="text-xs">Lunch</Label>
+                <Input
+                  id="lunch_time"
+                  type="time"
+                  value={formData.lunch_time}
+                  onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="snack_time" className="text-xs">Snack Time</Label>
+                <Input
+                  id="snack_time"
+                  type="time"
+                  value={formData.snack_time}
+                  onChange={(e) => setFormData({ ...formData, snack_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="dinner_time" className="text-xs">Dinner</Label>
+                <Input
+                  id="dinner_time"
+                  type="time"
+                  value={formData.dinner_time}
+                  onChange={(e) => setFormData({ ...formData, dinner_time: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bedtime" className="text-xs">Bedtime</Label>
+                <Input
+                  id="bedtime"
+                  type="time"
+                  value={formData.bedtime}
+                  onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}

@@ -50,15 +50,30 @@ interface TimelineEvent {
   isLate?: boolean;
 }
 
-const systemEvents: TimelineEvent[] = [
-  { id: 'wake', name: 'Wake up', time: '7:00', duration: 30, type: 'system', color: 'bg-amber-500' },
-  { id: 'breakfast', name: 'Breakfast', time: '7:30', duration: 30, type: 'system', color: 'bg-orange-500' },
-  { id: 'school', name: 'School', time: '8:30', duration: 390, type: 'system', color: 'bg-blue-600' }, // 6.5 hours (8:30-3:00)
-  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 45, type: 'system', color: 'bg-green-500' },
-  { id: 'snack', name: 'After School Snack', time: '15:30', duration: 20, type: 'system', color: 'bg-yellow-500' },
-  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 45, type: 'system', color: 'bg-red-500' },
-  { id: 'bedtime', name: 'Bedtime Routine', time: '20:00', duration: 60, type: 'system', color: 'bg-purple-500' },
-];
+const getSystemEvents = (child: Child): TimelineEvent[] => {
+  const calculateSchoolDuration = (startTime: string, endTime: string) => {
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+    return Math.max(endTotalMinutes - startTotalMinutes, 60); // Minimum 1 hour
+  };
+
+  const schoolDuration = calculateSchoolDuration(
+    child.school_start_time || '08:30', 
+    child.school_end_time || '15:00'
+  );
+
+  return [
+    { id: 'wake', name: 'Wake up', time: child.wake_time || '07:00', duration: 30, type: 'system', color: 'bg-amber-500' },
+    { id: 'breakfast', name: 'Breakfast', time: child.breakfast_time || '07:30', duration: 30, type: 'system', color: 'bg-orange-500' },
+    { id: 'school', name: 'School', time: child.school_start_time || '08:30', duration: schoolDuration, type: 'system', color: 'bg-blue-600' },
+    { id: 'lunch', name: 'Lunch', time: child.lunch_time || '12:00', duration: 45, type: 'system', color: 'bg-green-500' },
+    { id: 'snack', name: 'After School Snack', time: child.snack_time || '15:30', duration: 20, type: 'system', color: 'bg-yellow-500' },
+    { id: 'dinner', name: 'Dinner', time: child.dinner_time || '18:00', duration: 45, type: 'system', color: 'bg-red-500' },
+    { id: 'bedtime', name: 'Bedtime Routine', time: child.bedtime || '20:00', duration: 60, type: 'system', color: 'bg-purple-500' },
+  ];
+};
 
 interface SortableTimelineEventProps {
   event: TimelineEvent;
@@ -267,6 +282,9 @@ const TimelineScheduleView = ({
 
   const dayTasks = getTasksForDay(selectedDay);
 
+  // Get system events for this child
+  const systemEvents = getSystemEvents(child);
+  
   // Separate fixed events (system + scheduled) from draggable tasks
   // Filter out lunch when school is present (they overlap in time)
   const systemEventsOnly: TimelineEvent[] = systemEvents

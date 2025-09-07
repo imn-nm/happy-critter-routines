@@ -17,36 +17,60 @@ export type Database = {
       children: {
         Row: {
           age: number | null
+          bedtime: string | null
+          breakfast_time: string | null
           created_at: string
           current_coins: number
+          dinner_time: string | null
           id: string
+          lunch_time: string | null
           name: string
           parent_id: string
           pet_happiness: number
           pet_type: string
+          school_end_time: string | null
+          school_start_time: string | null
+          snack_time: string | null
           updated_at: string
+          wake_time: string | null
         }
         Insert: {
           age?: number | null
+          bedtime?: string | null
+          breakfast_time?: string | null
           created_at?: string
           current_coins?: number
+          dinner_time?: string | null
           id?: string
+          lunch_time?: string | null
           name: string
           parent_id: string
           pet_happiness?: number
           pet_type: string
+          school_end_time?: string | null
+          school_start_time?: string | null
+          snack_time?: string | null
           updated_at?: string
+          wake_time?: string | null
         }
         Update: {
           age?: number | null
+          bedtime?: string | null
+          breakfast_time?: string | null
           created_at?: string
           current_coins?: number
+          dinner_time?: string | null
           id?: string
+          lunch_time?: string | null
           name?: string
           parent_id?: string
           pet_happiness?: number
           pet_type?: string
+          school_end_time?: string | null
+          school_start_time?: string | null
+          snack_time?: string | null
           updated_at?: string
+          wake_time?: string | null
         }
         Relationships: [
           {
