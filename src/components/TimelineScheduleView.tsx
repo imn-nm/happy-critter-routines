@@ -146,38 +146,37 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask }: SortableTime
               +20 min
             </Badge>
           )}
-          {/* Show edit/delete buttons for all user-created tasks (scheduled, flexible, regular) */}
-          {(event.task || event.type === 'scheduled') && event.type !== 'system' && (
-            <div className="flex items-center gap-1">
-              {onEditTask && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditTask(event.task)}
-                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
-                  title="Edit task"
-                >
-                  <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                </Button>
-              )}
-              {onDeleteTask && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDeleteTask(event.task.id)}
-                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:w-8 sm:w-8 p-0 text-destructive hover:text-destructive"
-                  title="Delete task"
-                >
-                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                </Button>
-              )}
-            </div>
-          )}
-          {event.type === 'system' && (
-            <Badge variant="outline" className="text-xs">
-              System
-            </Badge>
-          )}
+          {/* Show edit/delete buttons for all events */}
+          <div className="flex items-center gap-1">
+            {onEditTask && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEditTask(event.task || { 
+                  id: event.id, 
+                  name: event.name, 
+                  scheduled_time: event.time, 
+                  type: event.type,
+                  coins: event.coins || 0
+                })}
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
+                title="Edit task"
+              >
+                <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+              </Button>
+            )}
+            {onDeleteTask && event.task && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDeleteTask(event.task.id)}
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
+                title="Delete task"
+              >
+                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
