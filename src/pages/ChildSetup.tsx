@@ -7,22 +7,25 @@ import PetAvatar, { type PetType } from "@/components/PetAvatar";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useChildren } from "@/hooks/useChildren";
+import { useToast } from "@/hooks/use-toast";
 
 const petTypes: { type: PetType; name: string }[] = [
   { type: "owl", name: "Wise Owl" },
   { type: "fox", name: "Clever Fox" },
   { type: "penguin", name: "Happy Penguin" },
-  { type: "bunny", name: "Cuddly Bunny" },
-  { type: "panda", name: "Gentle Panda" },
 ];
 
 const ChildSetup = () => {
   const navigate = useNavigate();
+  const { addChild } = useChildren();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     age: "",
-    petType: "owl" as PetType,
+    petType: "owl" as 'owl' | 'fox' | 'penguin',
     wakeTime: "07:00",
     sleepTime: "20:00",
     breakfastTime: "07:30",
@@ -38,10 +41,37 @@ const ChildSetup = () => {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleFinish = () => {
-    // In a real app, save the child data
-    console.log("Creating child:", formData);
-    navigate("/dashboard");
+  const handleFinish = async () => {
+    setIsLoading(true);
+    try {
+      // Convert form data to match database structure
+      const childData = {
+        name: formData.name,
+        age: parseInt(formData.age),
+        petType: formData.petType as 'owl' | 'fox' | 'penguin',
+        currentCoins: 0,
+        petHappiness: 50,
+      };
+      
+      console.log("Creating child:", formData);
+      await addChild(childData);
+      
+      toast({
+        title: "Success!",
+        description: `${formData.name} has been added successfully!`,
+      });
+      
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Error creating child:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create child profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isStepValid = () => {
@@ -126,7 +156,7 @@ const ChildSetup = () => {
                           ? "bg-primary/10 ring-2 ring-primary"
                           : "bg-muted/50 hover:bg-muted"
                       )}
-                      onClick={() => setFormData({ ...formData, petType: pet.type })}
+                      onClick={() => setFormData({ ...formData, petType: pet.type as 'owl' | 'fox' | 'penguin' })}
                     >
                       <PetAvatar petType={pet.type} happiness={85} size="md" className="mx-auto mb-2" />
                       <p className="text-sm font-medium text-center">{pet.name}</p>
@@ -252,11 +282,11 @@ const ChildSetup = () => {
             <Button
               variant="gradient"
               onClick={step === 3 ? handleFinish : handleNext}
-              disabled={!isStepValid()}
+              disabled={!isStepValid() || isLoading}
               className="flex items-center gap-2"
             >
-              {step === 3 ? "Create Profile" : "Next"}
-              {step < 3 && <ChevronRight className="w-4 h-4" />}
+              {isLoading ? "Creating..." : step === 3 ? "Create Profile" : "Next"}
+              {step < 3 && !isLoading && <ChevronRight className="w-4 h-4" />}
             </Button>
           </div>
         </Card>

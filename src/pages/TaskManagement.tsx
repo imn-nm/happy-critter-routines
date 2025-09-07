@@ -2,11 +2,14 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Task } from "@/components/TaskCard";
 import TaskForm from "@/components/TaskForm";
 import ChildCard, { type Child } from "@/components/ChildCard";
 import DragDropTaskList from "@/components/DragDropTaskList";
-import { ArrowLeft, Plus, Clock, Calendar } from "lucide-react";
+import WeekView from "@/components/WeekView";
+import MonthView from "@/components/MonthView";
+import { ArrowLeft, Plus, Clock, Calendar, BarChart3, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Mock data - in real app this would come from database
@@ -45,6 +48,7 @@ const TaskManagement = () => {
   );
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [currentView, setCurrentView] = useState<'tasks' | 'week' | 'month'>('tasks');
   
   // Mock tasks for the selected child
   const [tasks, setTasks] = useState<Task[]>([
@@ -210,71 +214,98 @@ const TaskManagement = () => {
             </div>
           </div>
 
-          {/* Main Task Management Area */}
+          {/* Main Content */}
           <div className="lg:col-span-3">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">{selectedChild.name}'s Tasks</h2>
-                <div className="text-sm text-muted-foreground">
-                  {tasks.length} total tasks
-                </div>
-              </div>
+            <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as 'tasks' | 'week' | 'month')}>
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="tasks" className="flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  Manage Tasks
+                </TabsTrigger>
+                <TabsTrigger value="week" className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Week View
+                </TabsTrigger>
+                <TabsTrigger value="month" className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Month View
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="tasks">
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold">{selectedChild.name}'s Tasks</h2>
+                    <div className="text-sm text-muted-foreground">
+                      {tasks.length} total tasks
+                    </div>
+                  </div>
 
-              {/* Unified Task Schedule */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold">Daily Schedule</h3>
-                  <span className="text-sm text-muted-foreground">Drag to reorder • Mix all task types</span>
-                </div>
-                {tasks.length > 0 ? (
-                  <DragDropTaskList
-                    tasks={tasks}
-                    onTasksReorder={handleTasksReorder}
-                    onEditTask={handleEditTask}
-                    onDeleteTask={handleDeleteTask}
-                  />
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No tasks yet. Add some tasks to get started.</p>
-                )}
-              </div>
+                  {/* Unified Task Schedule */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Calendar className="w-5 h-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Daily Schedule</h3>
+                      <span className="text-sm text-muted-foreground">Drag to reorder • Mix all task types</span>
+                    </div>
+                    {tasks.length > 0 ? (
+                      <DragDropTaskList
+                        tasks={tasks}
+                        onTasksReorder={handleTasksReorder}
+                        onEditTask={handleEditTask}
+                        onDeleteTask={handleDeleteTask}
+                      />
+                    ) : (
+                      <p className="text-muted-foreground text-center py-8">No tasks yet. Add some tasks to get started.</p>
+                    )}
+                  </div>
 
-              {/* Quick Add Section */}
-              <div className="mt-8 p-4 bg-muted/30 rounded-lg">
-                <h4 className="font-medium mb-3">Quick Add Common Tasks</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {[
-                    { name: "Brush teeth", type: "regular" as const, coins: 5, time: "07:15" },
-                    { name: "Make bed", type: "regular" as const, coins: 5, time: "07:30" },
-                    { name: "Eat breakfast", type: "regular" as const, coins: 5, time: "08:00" },
-                    { name: "Do homework", type: "flexible" as const, coins: 8 },
-                    { name: "Clean room", type: "flexible" as const, coins: 10 },
-                    { name: "Read book", type: "flexible" as const, coins: 8 },
-                  ].map((quickTask) => (
-                    <Button
-                      key={quickTask.name}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTask: Task = {
-                          id: Date.now().toString(),
-                          name: quickTask.name,
-                          type: quickTask.type,
-                          scheduledTime: quickTask.time,
-                          coins: quickTask.coins,
-                          isCompleted: false,
-                        };
-                        setTasks([...tasks, newTask]);
-                      }}
-                      className="text-xs justify-start"
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      {quickTask.name}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </Card>
+                  {/* Quick Add Section */}
+                  <div className="mt-8 p-4 bg-muted/30 rounded-lg">
+                    <h4 className="font-medium mb-3">Quick Add Common Tasks</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {[
+                        { name: "Brush teeth", type: "regular" as const, coins: 5, time: "07:15" },
+                        { name: "Make bed", type: "regular" as const, coins: 5, time: "07:30" },
+                        { name: "Eat breakfast", type: "regular" as const, coins: 5, time: "08:00" },
+                        { name: "Do homework", type: "flexible" as const, coins: 8 },
+                        { name: "Clean room", type: "flexible" as const, coins: 10 },
+                        { name: "Read book", type: "flexible" as const, coins: 8 },
+                      ].map((quickTask) => (
+                        <Button
+                          key={quickTask.name}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newTask: Task = {
+                              id: Date.now().toString(),
+                              name: quickTask.name,
+                              type: quickTask.type,
+                              scheduledTime: quickTask.time,
+                              coins: quickTask.coins,
+                              isCompleted: false,
+                            };
+                            setTasks([...tasks, newTask]);
+                          }}
+                          className="text-xs justify-start"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          {quickTask.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              </TabsContent>
+              
+              <TabsContent value="week">
+                <WeekView child={selectedChild} />
+              </TabsContent>
+              
+              <TabsContent value="month">
+                <MonthView child={selectedChild} />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
