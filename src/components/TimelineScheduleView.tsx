@@ -69,7 +69,6 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
     { id: 'breakfast', name: 'Breakfast', time: child.breakfast_time || '07:30', duration: 30, type: 'system', color: 'bg-orange-500' },
     { id: 'school', name: 'School', time: child.school_start_time || '08:30', duration: schoolDuration, type: 'system', color: 'bg-blue-600' },
     { id: 'lunch', name: 'Lunch', time: child.lunch_time || '12:00', duration: 45, type: 'system', color: 'bg-green-500' },
-    { id: 'snack', name: 'After School Snack', time: child.snack_time || '15:30', duration: 20, type: 'system', color: 'bg-yellow-500' },
     { id: 'dinner', name: 'Dinner', time: child.dinner_time || '18:00', duration: 45, type: 'system', color: 'bg-red-500' },
     { id: 'bedtime', name: 'Bedtime Routine', time: child.bedtime || '20:00', duration: 60, type: 'system', color: 'bg-purple-500' },
   ];
@@ -375,19 +374,35 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
-      let newTime = overEvent.time;
+      // Find the position of the event we're dropping on
+      const overEventIndex = allEvents.findIndex(event => event.id === over.id);
       
-      // Calculate the end time of the event we're dropping on
-      const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
-      const overStartMinutes = overHours * 60 + overMinutes;
-      const overEndMinutes = overStartMinutes + overEvent.duration;
+      // Check if there's a next event to place the task before
+      const nextEvent = allEvents[overEventIndex + 1];
       
-      // Place the task to start after the event ends
-      const newHours = Math.floor(overEndMinutes / 60) % 24;
-      const newMins = overEndMinutes % 60;
-      newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-      
-      onTaskTimeUpdate(activeTask.id, newTime);
+      if (nextEvent) {
+        // Place the task 15 minutes before the next event
+        const [nextHours, nextMinutes] = nextEvent.time.split(':').map(Number);
+        const nextStartMinutes = nextHours * 60 + nextMinutes;
+        const newStartMinutes = Math.max(0, nextStartMinutes - 15);
+        
+        const newHours = Math.floor(newStartMinutes / 60) % 24;
+        const newMins = newStartMinutes % 60;
+        const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
+        
+        onTaskTimeUpdate(activeTask.id, newTime);
+      } else {
+        // No next event, place after the current event
+        const [overHours, overMinutes] = overEvent.time.split(':').map(Number);
+        const overStartMinutes = overHours * 60 + overMinutes;
+        const overEndMinutes = overStartMinutes + overEvent.duration;
+        
+        const newHours = Math.floor(overEndMinutes / 60) % 24;
+        const newMins = overEndMinutes % 60;
+        const newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
+        
+        onTaskTimeUpdate(activeTask.id, newTime);
+      }
     }
   };
 
