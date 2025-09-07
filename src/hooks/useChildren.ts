@@ -54,15 +54,19 @@ export const useChildren = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Map interface properties to database columns
+      const dbData = {
+        name: childData.name,
+        age: childData.age,
+        parent_id: user.id,
+        pet_type: childData.petType,
+        current_coins: childData.currentCoins,
+        pet_happiness: childData.petHappiness,
+      };
+
       const { data, error } = await supabase
         .from('children')
-        .insert([{ 
-          ...childData, 
-          parent_id: user.id,
-          pet_type: childData.petType,
-          current_coins: childData.currentCoins,
-          pet_happiness: childData.petHappiness,
-        }])
+        .insert([dbData])
         .select()
         .single();
 
