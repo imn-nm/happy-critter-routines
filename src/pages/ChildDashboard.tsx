@@ -29,6 +29,7 @@ const ChildDashboard = () => {
     updateTask, 
     deleteTask, 
     reorderTasks, 
+    refetch,
     loading: tasksLoading 
   } = useTasks(childId || '');
 
@@ -202,6 +203,7 @@ const ChildDashboard = () => {
               onTaskTimeUpdate={async (taskId, newTime) => {
                 try {
                   await updateTask(taskId, { scheduled_time: newTime });
+                  refetch(); // Refresh the tasks to show updated times
                   toast({
                     title: "Task updated",
                     description: "Task time has been updated successfully.",
