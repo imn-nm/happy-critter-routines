@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ListTodo, Gift } from "lucide-react";
+import { ArrowLeft, ListTodo, Gift, Calendar } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import RewardsManagement from "@/components/RewardsManagement";
 import TaskManagement from "@/pages/TaskManagement";
+import TimelineView from "@/components/TimelineView";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -85,8 +86,12 @@ const ChildDashboard = () => {
         </Card>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="tasks" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="schedule" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="schedule" className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Daily Schedule
+            </TabsTrigger>
             <TabsTrigger value="tasks" className="flex items-center gap-2">
               <ListTodo className="w-4 h-4" />
               Task Management
@@ -96,6 +101,10 @@ const ChildDashboard = () => {
               Rewards Management
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="schedule">
+            <TimelineView child={child} />
+          </TabsContent>
 
           <TabsContent value="tasks">
             <TaskManagement />
