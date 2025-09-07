@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface CircularTimerProps {
@@ -5,9 +6,19 @@ interface CircularTimerProps {
   remainingSeconds: number;
   size?: "sm" | "md" | "lg";
   className?: string;
+  isRunning?: boolean;
+  onComplete?: () => void;
 }
 
-const CircularTimer = ({ totalSeconds, remainingSeconds, size = "md", className }: CircularTimerProps) => {
+const CircularTimer = ({ 
+  totalSeconds, 
+  remainingSeconds: initialRemainingSeconds, 
+  size = "md", 
+  className,
+  isRunning = false,
+  onComplete
+}: CircularTimerProps) => {
+  const [remainingSeconds, setRemainingSeconds] = useState(initialRemainingSeconds);
   const progress = totalSeconds > 0 ? (totalSeconds - remainingSeconds) / totalSeconds : 0;
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference * (1 - progress);
@@ -17,6 +28,28 @@ const CircularTimer = ({ totalSeconds, remainingSeconds, size = "md", className 
     md: "w-24 h-24", 
     lg: "w-32 h-32"
   };
+
+  // Timer effect
+  useEffect(() => {
+    if (!isRunning || remainingSeconds <= 0) return;
+
+    const interval = setInterval(() => {
+      setRemainingSeconds(prev => {
+        if (prev <= 1) {
+          onComplete?.();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRunning, remainingSeconds, onComplete]);
+
+  // Reset timer when initial value changes
+  useEffect(() => {
+    setRemainingSeconds(initialRemainingSeconds);
+  }, [initialRemainingSeconds]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);

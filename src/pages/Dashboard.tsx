@@ -187,15 +187,26 @@ const Dashboard = () => {
                         <span className="hidden sm:inline">Manage Tasks</span>
                         <span className="sm:hidden">Tasks</span>
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/child/${child.id}`)}
-                        className="flex-1 text-xs sm:text-sm"
-                      >
-                        <span className="hidden sm:inline">View Child Interface</span>
-                        <span className="sm:hidden">View Interface</span>
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/child/${child.id}`)}
+                          className="flex-1 text-xs sm:text-sm"
+                        >
+                          <span className="hidden sm:inline">View Child Interface</span>
+                          <span className="sm:hidden">Interface</span>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/child-reports?childId=${child.id}`)}
+                          className="flex-1 text-xs sm:text-sm"
+                        >
+                          <span className="hidden sm:inline">Reports & Rewards</span>
+                          <span className="sm:hidden">Reports</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}

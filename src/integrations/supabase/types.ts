@@ -82,6 +82,69 @@ export type Database = {
         }
         Relationships: []
       }
+      reward_purchases: {
+        Row: {
+          child_id: string
+          coins_spent: number
+          id: string
+          purchased_at: string
+          reward_id: string
+          status: string
+        }
+        Insert: {
+          child_id: string
+          coins_spent?: number
+          id?: string
+          purchased_at?: string
+          reward_id: string
+          status?: string
+        }
+        Update: {
+          child_id?: string
+          coins_spent?: number
+          id?: string
+          purchased_at?: string
+          reward_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      rewards: {
+        Row: {
+          child_id: string
+          cost: number
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       task_completions: {
         Row: {
           child_id: string

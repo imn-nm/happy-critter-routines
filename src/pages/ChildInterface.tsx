@@ -55,7 +55,23 @@ const ChildInterface = () => {
   };
 
   const activeTask = tasksWithCompletion.find(task => task.is_active && !task.isCompleted);
-  const upcomingTasks = tasksWithCompletion.filter(task => !task.is_active && !task.isCompleted).slice(0, 2);
+  const upcomingTasks = tasksWithCompletion.filter(task => !task.is_active && !task.isCompleted).slice(0, 3);
+  
+  // Get next 2 upcoming tasks (excluding the active task)
+  const nextTwoTasks = upcomingTasks.slice(0, 2);
+  
+  // Calculate total expected duration vs actual duration for flexible task adjustment
+  const calculateFlexibleTaskAdjustment = () => {
+    const scheduledTasks = tasksWithCompletion.filter(task => task.type === 'scheduled' || task.type === 'regular');
+    const totalExpectedDuration = scheduledTasks.reduce((sum, task) => sum + (task.duration || 0), 0);
+    
+    // For demo purposes, assume 10% overtime on scheduled/regular tasks
+    const estimatedOvertime = totalExpectedDuration * 0.1;
+    
+    return Math.max(0, estimatedOvertime);
+  };
+  
+  const flexibleReduction = calculateFlexibleTaskAdjustment();
 
   const handleCompleteTask = async (taskId: string) => {
     const task = tasksWithCompletion.find(t => t.id === taskId);
@@ -142,6 +158,11 @@ const ChildInterface = () => {
                       remainingSeconds={activeTask.duration * 60}
                       size="lg"
                       className="text-white"
+                      isRunning={true}
+                      onComplete={() => {
+                        // Auto complete task when timer ends
+                        handleCompleteTask(activeTask.id);
+                      }}
                     />
                   )}
                   
@@ -167,30 +188,62 @@ const ChildInterface = () => {
           </Card>
         )}
 
-        {/* Upcoming Tasks */}
-        {upcomingTasks.length > 0 && (
+        {/* Next Two Upcoming Tasks */}
+        {nextTwoTasks.length > 0 && (
           <Card className="p-6 bg-white/90 backdrop-blur">
-            <h3 className="font-semibold mb-4">Coming Up Next</h3>
+            <h3 className="font-semibold mb-4">Next Two Tasks</h3>
             <div className="space-y-3">
-              {upcomingTasks.map((task) => (
-                <div key={task.id} className="relative">
-                  <TaskCard
-                    task={task}
-                    className="bg-muted/30"
-                  />
-                  {task.type === "flexible" && (
-                    <div className="absolute top-2 right-2 bg-accent text-white text-xs px-2 py-1 rounded">
-                      Nice-to-have
+              {nextTwoTasks.map((task, index) => {
+                const adjustedDuration = task.type === 'flexible' && task.duration 
+                  ? Math.max(15, task.duration - Math.floor(flexibleReduction / nextTwoTasks.filter(t => t.type === 'flexible').length))
+                  : task.duration;
+                
+                return (
+                  <div key={task.id} className="relative">
+                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">{task.name}</h4>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          {adjustedDuration && (
+                            <span>
+                              {adjustedDuration !== task.duration && task.type === 'flexible' && (
+                                <span className="line-through mr-2">{task.duration}min</span>
+                              )}
+                              {adjustedDuration}min
+                              {adjustedDuration !== task.duration && task.type === 'flexible' && (
+                                <span className="text-warning ml-2">⚡ Reduced</span>
+                              )}
+                            </span>
+                          )}
+                          <span>{task.coins} coins</span>
+                        </div>
+                      </div>
+                      {task.type === "flexible" && (
+                        <div className="bg-accent text-white text-xs px-2 py-1 rounded">
+                          Flexible
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
+            
+            {flexibleReduction > 0 && (
+              <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                <p className="text-sm text-warning-foreground">
+                  <strong>⚡ Time Adjustment:</strong> Flexible tasks have been shortened due to expected overtime on scheduled tasks.
+                </p>
+              </div>
+            )}
           </Card>
         )}
 
         {/* No tasks state */}
-        {!activeTask && upcomingTasks.length === 0 && (
+        {!activeTask && nextTwoTasks.length === 0 && (
           <Card className="p-8 text-center bg-white/90 backdrop-blur">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-2xl font-bold mb-2">All Done!</h2>

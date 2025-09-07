@@ -1,0 +1,282 @@
+import { useState, useEffect } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Clock, Plus, Calendar, Coffee, Utensils, Moon, Sun } from 'lucide-react';
+import { Child } from '@/hooks/useChildren';
+import { Task, useTasks } from '@/hooks/useTasks';
+import { format, addMinutes, parse } from 'date-fns';
+
+interface TimelineViewProps {
+  child: Child;
+}
+
+interface TimelineItem {
+  id: string;
+  name: string;
+  time: string;
+  duration: number;
+  type: 'scheduled' | 'regular' | 'flexible' | 'system';
+  coins?: number;
+  isFixed?: boolean;
+}
+
+const systemTasks: TimelineItem[] = [
+  { id: 'wake', name: 'Wake Up', time: '07:00', duration: 0, type: 'system', isFixed: true },
+  { id: 'breakfast', name: 'Breakfast', time: '07:30', duration: 30, type: 'system', isFixed: true },
+  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 45, type: 'system', isFixed: true },
+  { id: 'snack', name: 'Afternoon Snack', time: '15:30', duration: 15, type: 'system', isFixed: true },
+  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 60, type: 'system', isFixed: true },
+  { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 0, type: 'system', isFixed: true },
+];
+
+const SortableTimelineItem = ({ item, onTimeChange }: { 
+  item: TimelineItem; 
+  onTimeChange: (id: string, newTime: string) => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled: item.isFixed });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const getIcon = (type: string, name: string) => {
+    if (name.toLowerCase().includes('wake') || name.toLowerCase().includes('morning')) return <Sun className="w-4 h-4" />;
+    if (name.toLowerCase().includes('sleep') || name.toLowerCase().includes('bed')) return <Moon className="w-4 h-4" />;
+    if (name.toLowerCase().includes('breakfast') || name.toLowerCase().includes('lunch') || name.toLowerCase().includes('dinner')) return <Utensils className="w-4 h-4" />;
+    if (name.toLowerCase().includes('snack')) return <Coffee className="w-4 h-4" />;
+    return <Clock className="w-4 h-4" />;
+  };
+
+  const getBorderColor = (type: string) => {
+    switch (type) {
+      case 'scheduled': return 'border-l-blue-500';
+      case 'regular': return 'border-l-green-500';
+      case 'flexible': return 'border-l-yellow-500';
+      case 'system': return 'border-l-gray-400';
+      default: return 'border-l-gray-300';
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-4 p-3 bg-background rounded-lg border-l-4 ${getBorderColor(item.type)} ${
+        !item.isFixed ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+      }`}
+      {...attributes}
+      {...(item.isFixed ? {} : listeners)}
+    >
+      {/* Time */}
+      <div className="text-sm font-mono w-16 text-muted-foreground">
+        {item.time}
+      </div>
+      
+      {/* Icon */}
+      <div className={`p-2 rounded-full ${
+        item.type === 'system' ? 'bg-muted' : 
+        item.type === 'scheduled' ? 'bg-blue-100' :
+        item.type === 'regular' ? 'bg-green-100' : 'bg-yellow-100'
+      }`}>
+        {getIcon(item.type, item.name)}
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium">{item.name}</h4>
+          {item.coins && (
+            <span className="text-sm text-warning font-medium">{item.coins} coins</span>
+          )}
+        </div>
+        
+        {item.duration > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Duration: {Math.floor(item.duration / 60)}h {item.duration % 60}m
+          </p>
+        )}
+        
+        <div className="flex items-center gap-2 mt-1">
+          <div className={`text-xs px-2 py-1 rounded-full ${
+            item.type === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+            item.type === 'regular' ? 'bg-green-100 text-green-800' :
+            item.type === 'flexible' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {item.type === 'system' ? 'Fixed' : item.type}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TimelineView = ({ child }: TimelineViewProps) => {
+  const { tasks, updateTask } = useTasks(child.id);
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  useEffect(() => {
+    // Convert tasks to timeline items and merge with system tasks
+    const taskItems: TimelineItem[] = tasks
+      .filter(task => task.is_active)
+      .map(task => ({
+        id: task.id,
+        name: task.name,
+        time: task.scheduled_time || '09:00',
+        duration: task.duration || 30,
+        type: task.type,
+        coins: task.coins,
+        isFixed: task.type === 'scheduled',
+      }));
+
+    // Merge and sort all items by time
+    const allItems = [...systemTasks, ...taskItems].sort((a, b) => {
+      const timeA = parse(a.time, 'HH:mm', new Date()).getTime();
+      const timeB = parse(b.time, 'HH:mm', new Date()).getTime();
+      return timeA - timeB;
+    });
+
+    setTimelineItems(allItems);
+  }, [tasks]);
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = timelineItems.findIndex(item => item.id === active.id);
+      const newIndex = timelineItems.findIndex(item => item.id === over.id);
+      
+      // Only allow reordering of non-fixed items
+      const draggedItem = timelineItems[oldIndex];
+      if (draggedItem.isFixed) return;
+
+      const newItems = arrayMove(timelineItems, oldIndex, newIndex);
+      
+      // Recalculate times based on new order
+      const updatedItems = recalculateTimes(newItems);
+      setTimelineItems(updatedItems);
+      
+      // Update the task in database if it's not a system task
+      if (draggedItem.type !== 'system') {
+        const newTime = updatedItems.find(item => item.id === active.id)?.time;
+        if (newTime) {
+          await updateTask(active.id, { scheduled_time: newTime });
+        }
+      }
+    }
+  };
+
+  const recalculateTimes = (items: TimelineItem[]): TimelineItem[] => {
+    const result = [...items];
+    let currentTime = parse('07:00', 'HH:mm', new Date());
+    
+    for (let i = 0; i < result.length; i++) {
+      const item = result[i];
+      
+      if (item.isFixed) {
+        // Fixed items keep their original time
+        currentTime = parse(item.time, 'HH:mm', new Date());
+      } else {
+        // Flexible items get assigned to the next available slot
+        result[i] = {
+          ...item,
+          time: format(currentTime, 'HH:mm'),
+        };
+      }
+      
+      // Move to next available time slot
+      currentTime = addMinutes(currentTime, item.duration || 30);
+    }
+    
+    return result;
+  };
+
+  const handleTimeChange = (id: string, newTime: string) => {
+    setTimelineItems(prev => 
+      prev.map(item => 
+        item.id === id ? { ...item, time: newTime } : item
+      )
+    );
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-primary" />
+          <h3 className="text-xl font-semibold">Daily Schedule - {child.name}</h3>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 mb-6 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-blue-500 rounded"></div>
+          <span>Scheduled (fixed time)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-green-500 rounded"></div>
+          <span>Regular (can move)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+          <span>Flexible (can move)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-gray-400 rounded"></div>
+          <span>System (fixed)</span>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="space-y-3">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={timelineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
+            {timelineItems.map((item) => (
+              <SortableTimelineItem
+                key={item.id}
+                item={item}
+                onTimeChange={handleTimeChange}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      </div>
+
+      {/* Instructions */}
+      <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+        <p className="text-sm text-muted-foreground">
+          <strong>How to use:</strong> Drag and drop flexible and regular tasks to reorder them. 
+          Scheduled tasks and system events (meals, bedtime) stay at their fixed times. 
+          The timeline automatically adjusts task times when you reorder them.
+        </p>
+      </div>
+    </Card>
+  );
+};
+
+export default TimelineView;
