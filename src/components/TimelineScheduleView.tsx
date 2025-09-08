@@ -233,7 +233,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
           <Badge variant="outline" className="text-xs flex-shrink-0">
             {formatDuration(event.duration)}
           </Badge>
-          {event.coins && (
+          {event.coins && event.coins > 0 && (
             <Badge variant="secondary" className="text-xs flex-shrink-0">
               {event.coins} coins
             </Badge>
@@ -467,12 +467,12 @@ const TimelineScheduleView = ({
               // First task gets a default time if no time set
               return { ...task, scheduled_time: task.scheduled_time || '09:00' };
             } else {
-              // Subsequent tasks are scheduled 10 minutes after the previous task ends
+              // Subsequent tasks are scheduled right after the previous task ends (no padding)
               const prevTask = reorderedTasks[index - 1];
               const prevEndTime = calculateTimeWithBuffer(
                 prevTask.scheduled_time || '09:00', 
                 prevTask.duration || 30, 
-                10
+                0  // No padding between tasks
               );
               return { ...task, scheduled_time: prevEndTime };
             }
@@ -585,34 +585,37 @@ const TimelineScheduleView = ({
               
               return (
                 <div key={event.id} className="relative">
-                  {/* Placeholder tile above when dropping before this item */}
+                  {/* Enhanced placeholder tile above when dropping before this item */}
                   {shouldShowSpacingAbove && (
-                    <div className="animate-fade-in transition-all duration-300 ease-out mb-2 sm:mb-4">
+                    <div className="animate-fade-in transition-all duration-200 ease-out mb-2 sm:mb-4">
                       <div className="flex items-center gap-2 sm:gap-4 group">
                         {/* Drag handle placeholder */}
-                        <div className="p-1 text-muted-foreground/30 flex-shrink-0">
+                        <div className="p-1 text-primary/60 flex-shrink-0 animate-pulse">
                           <GripVertical className="w-3 h-3" />
                         </div>
                         
                         {/* Time placeholder */}
-                        <div className="text-xs font-mono text-muted-foreground/50 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col">
-                          <span className="font-medium">--:--</span>
-                          <span className="text-xs opacity-75">--:--</span>
+                        <div className="text-xs font-mono text-primary/60 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col animate-pulse">
+                          <span className="font-medium">••:••</span>
+                          <span className="text-xs opacity-75">••:••</span>
                         </div>
                         
                         {/* Timeline bar placeholder */}
                         <div className="flex flex-col items-center flex-shrink-0">
-                          <div className="w-1 h-8 sm:h-12 rounded-full bg-muted-foreground/20" />
+                          <div className="w-1 h-8 sm:h-12 rounded-full bg-primary/40 animate-pulse" />
                         </div>
                         
-                        {/* Tile content placeholder */}
-                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-muted/30 border-2 border-dashed border-primary/40 rounded-lg p-2 sm:p-3 min-w-0 animate-pulse">
+                        {/* Tile content placeholder - enhanced visual */}
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-primary/5 border-2 border-dashed border-primary/60 rounded-lg p-2 sm:p-3 min-w-0 shadow-lg">
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <div className="w-20 h-4 bg-muted-foreground/20 rounded" />
-                            <div className="w-12 h-5 bg-muted-foreground/20 rounded" />
+                            <div className="w-24 h-4 bg-primary/30 rounded animate-pulse" />
+                            <div className="w-16 h-5 bg-primary/20 rounded animate-pulse" />
                           </div>
-                          <div className="text-xs text-primary/60 font-medium mt-1 sm:mt-0">
-                            Drop here
+                          <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                            <div className="text-xs text-primary font-semibold animate-pulse">
+                              Drop here
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -635,34 +638,37 @@ const TimelineScheduleView = ({
                     />
                   </div>
 
-                  {/* Placeholder tile below when dropping after this item */}
+                  {/* Enhanced placeholder tile below when dropping after this item */}
                   {shouldShowSpacingBelow && (
-                    <div className="animate-fade-in transition-all duration-300 ease-out mt-2 sm:mt-4">
+                    <div className="animate-fade-in transition-all duration-200 ease-out mt-2 sm:mt-4">
                       <div className="flex items-center gap-2 sm:gap-4 group">
                         {/* Drag handle placeholder */}
-                        <div className="p-1 text-muted-foreground/30 flex-shrink-0">
+                        <div className="p-1 text-primary/60 flex-shrink-0 animate-pulse">
                           <GripVertical className="w-3 h-3" />
                         </div>
                         
                         {/* Time placeholder */}
-                        <div className="text-xs font-mono text-muted-foreground/50 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col">
-                          <span className="font-medium">--:--</span>
-                          <span className="text-xs opacity-75">--:--</span>
+                        <div className="text-xs font-mono text-primary/60 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col animate-pulse">
+                          <span className="font-medium">••:••</span>
+                          <span className="text-xs opacity-75">••:••</span>
                         </div>
                         
                         {/* Timeline bar placeholder */}
                         <div className="flex flex-col items-center flex-shrink-0">
-                          <div className="w-1 h-8 sm:h-12 rounded-full bg-muted-foreground/20" />
+                          <div className="w-1 h-8 sm:h-12 rounded-full bg-primary/40 animate-pulse" />
                         </div>
                         
-                        {/* Tile content placeholder */}
-                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-muted/30 border-2 border-dashed border-primary/40 rounded-lg p-2 sm:p-3 min-w-0 animate-pulse">
+                        {/* Tile content placeholder - enhanced visual */}
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-primary/5 border-2 border-dashed border-primary/60 rounded-lg p-2 sm:p-3 min-w-0 shadow-lg">
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <div className="w-20 h-4 bg-muted-foreground/20 rounded" />
-                            <div className="w-12 h-5 bg-muted-foreground/20 rounded" />
+                            <div className="w-24 h-4 bg-primary/30 rounded animate-pulse" />
+                            <div className="w-16 h-5 bg-primary/20 rounded animate-pulse" />
                           </div>
-                          <div className="text-xs text-primary/60 font-medium mt-1 sm:mt-0">
-                            Drop here
+                          <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                            <div className="text-xs text-primary font-semibold animate-pulse">
+                              Drop here
+                            </div>
                           </div>
                         </div>
                       </div>
