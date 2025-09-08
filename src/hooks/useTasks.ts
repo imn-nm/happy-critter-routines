@@ -112,6 +112,11 @@ export const useTasks = (childId?: string) => {
       // Filter out UI-only properties before sending to database
       const { isCompleted, ...dbUpdates } = updates;
       
+      // Optimistically update UI first
+      setTasks(prev => prev.map(task => 
+        task.id === id ? { ...task, ...updates } : task
+      ));
+      
       const { data, error } = await supabase
         .from('tasks')
         .update(dbUpdates)
@@ -121,10 +126,13 @@ export const useTasks = (childId?: string) => {
 
       if (error) throw error;
       
+      // Update with server response
       setTasks(prev => prev.map(task => task.id === id ? data as Task : task));
       return data;
     } catch (error) {
       console.error('Error updating task:', error);
+      // Revert optimistic update on failure
+      fetchTasks();
       toast({
         title: "Error",
         description: "Failed to update task",
@@ -136,6 +144,9 @@ export const useTasks = (childId?: string) => {
 
   const deleteTask = async (id: string) => {
     try {
+      // Optimistically update UI first
+      setTasks(prev => prev.filter(task => task.id !== id));
+      
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -143,13 +154,14 @@ export const useTasks = (childId?: string) => {
 
       if (error) throw error;
       
-      setTasks(prev => prev.filter(task => task.id !== id));
       toast({
         title: "Success",
         description: "Task has been deleted",
       });
     } catch (error) {
       console.error('Error deleting task:', error);
+      // Revert optimistic update on failure
+      fetchTasks();
       toast({
         title: "Error",
         description: "Failed to delete task",
@@ -250,7 +262,15 @@ export const useTasks = (childId?: string) => {
           },
           (payload) => {
             console.log('Real-time task change:', payload);
-            fetchTasks(); // Refetch tasks when changes occur
+            // Only refetch if the change wasn't made by this client
+            // This prevents redundant fetches after optimistic updates
+            if (payload.eventType === 'DELETE') {
+              setTasks(prev => prev.filter(task => task.id !== payload.old?.id));
+            } else if (payload.eventType === 'INSERT') {
+              fetchTasks();
+            } else if (payload.eventType === 'UPDATE') {
+              fetchTasks();
+            }
           }
         )
         .subscribe();
