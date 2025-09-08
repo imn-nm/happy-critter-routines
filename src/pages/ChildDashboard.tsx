@@ -266,6 +266,8 @@ const ChildDashboard = () => {
                 try {
                   await updateTask(taskId, { scheduled_time: newTime });
                   console.log('Task updated successfully');
+                  // Force immediate refetch to ensure UI updates
+                  await refetch();
                   toast({
                     title: "Task updated",
                     description: "Task time has been updated successfully.",

@@ -399,11 +399,13 @@ const TimelineScheduleView = ({
     isLate: false,
   }));
 
-  // Combine and sort all events
+  // Combine and sort all events by time
   const allEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents].sort((a, b) => {
     const timeA = a.time.split(':').map(Number);
     const timeB = b.time.split(':').map(Number);
-    return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
+    const minutesA = timeA[0] * 60 + timeA[1];
+    const minutesB = timeB[0] * 60 + timeB[1];
+    return minutesA - minutesB;
   });
 
   const handleDragStart = (event: any) => {
