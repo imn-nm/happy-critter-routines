@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type Task } from "@/components/TaskCard";
+import { type Task } from "@/types/Task";
 import TaskForm from "@/components/TaskForm";
 import ChildCard, { type Child } from "@/components/ChildCard";
 import DragDropTaskList from "@/components/DragDropTaskList";
@@ -11,7 +11,7 @@ import WeekView from "@/components/WeekView";
 import MonthView from "@/components/MonthView";
 import { ArrowLeft, Plus, Clock, Calendar, BarChart3, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays, subDays, isSameDay, parseISO } from "date-fns";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 
@@ -50,14 +50,15 @@ const TaskManagement = () => {
 
   // Filter tasks for current day view
   const getTasksForCurrentDay = () => {
-  const dayName = format(currentDate, 'EEEE').toLowerCase();
-  return tasksWithCompletion.filter(task => {
-    if (task.is_recurring && task.recurring_days) {
-      return task.recurring_days.includes(dayName);
-    }
-    return task.task_date && isSameDay(parseISO(task.task_date), currentDate);
-  });
-};
+    const dayName = format(currentDate, 'EEEE').toLowerCase();
+    return tasksWithCompletion.filter(task => {
+      if (task.is_recurring && task.recurring_days) {
+        return task.recurring_days.includes(dayName);
+      }
+      // For non-recurring tasks, check task_date if it exists
+      return false; // For now, only show recurring tasks
+    });
+  };
 
   const tasksForCurrentDay = getTasksForCurrentDay();
 

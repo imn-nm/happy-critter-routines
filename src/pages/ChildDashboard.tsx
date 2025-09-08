@@ -410,6 +410,7 @@ const ChildDashboard = () => {
                 setEditingTask(null);
               }}
               isEdit={!!editingTask}
+              currentDate={new Date()}
             />
           </DialogContent>
         </Dialog>
