@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PetAvatar from "@/components/PetAvatar";
 import NextTaskTimer from "@/components/NextTaskTimer";
 import CircularTimer from "@/components/CircularTimer";
-import TimelineView from "@/components/TimelineView";
+import UpcomingEvents from "@/components/UpcomingEvents";
 import { ArrowLeft, Coins, Star, Calendar, Clock } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -24,6 +24,46 @@ const ChildInterface = () => {
   
   const child = children.find(c => c.id === childId);
   const tasksWithCompletion = getTasksWithCompletionStatus();
+
+  // Real-time data updates
+  useEffect(() => {
+    if (!childId) return;
+
+    // Set up real-time listener for child data changes
+    const childChannel = supabase
+      .channel('child-interface-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'children',
+          filter: `id=eq.${childId}`,
+        },
+        () => {
+          // The useChildren hook will automatically refetch data
+          console.log('Child data updated in real-time');
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `child_id=eq.${childId}`,
+        },
+        () => {
+          // The useTasks hook will automatically refetch data
+          console.log('Tasks updated in real-time');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(childChannel);
+    };
+  }, [childId]);
   
   if (!child) {
     return (
@@ -197,9 +237,9 @@ const ChildInterface = () => {
               <Clock className="w-4 h-4" />
               Current
             </TabsTrigger>
-            <TabsTrigger value="schedule" className="gap-2">
+            <TabsTrigger value="upcoming" className="gap-2">
               <Calendar className="w-4 h-4" />
-              Daily Schedule
+              Upcoming Events
             </TabsTrigger>
           </TabsList>
 
@@ -237,11 +277,8 @@ const ChildInterface = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="schedule" className="space-y-6">
-            <Card className="p-4 bg-white/90 backdrop-blur">
-              <h3 className="font-semibold mb-4 text-center">Daily Schedule</h3>
-              <TimelineView child={child} simple={true} />
-            </Card>
+          <TabsContent value="upcoming" className="space-y-6">
+            <UpcomingEvents child={child} tasks={tasksWithCompletion} />
           </TabsContent>
         </Tabs>
 
