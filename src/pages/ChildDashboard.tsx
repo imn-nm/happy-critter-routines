@@ -259,7 +259,38 @@ const ChildDashboard = () => {
               onAddTask={handleAddTask}
               onEditTask={handleEditTask}
               onDeleteTask={handleDeleteTask}
-              onReorderTasks={handleTasksReorder}
+              onReorderTasks={async (reorderedTasks) => {
+                console.log('Handling task reorder with updated times:', reorderedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
+                
+                try {
+                  // Update each task with its new time and sort order
+                  const updatePromises = reorderedTasks.map((task, index) => {
+                    console.log(`Updating task ${task.name} to time ${task.scheduled_time} and order ${index}`);
+                    return updateTask(task.id, { 
+                      scheduled_time: task.scheduled_time,
+                      sort_order: index 
+                    });
+                  });
+                  
+                  await Promise.all(updatePromises);
+                  console.log('All tasks updated successfully');
+                  
+                  // Force refetch to update UI
+                  await refetch();
+                  
+                  toast({
+                    title: "Tasks reordered",
+                    description: "Task schedule has been updated to prevent overlaps.",
+                  });
+                } catch (error) {
+                  console.error('Failed to reorder tasks:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to reorder tasks. Please try again.",
+                    variant: "destructive",
+                  });
+                }
+              }}
               onTaskTimeUpdate={async (taskId, newTime) => {
                 console.log('Drag drop: updating task', taskId, 'to time', newTime);
                 

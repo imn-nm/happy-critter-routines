@@ -464,11 +464,11 @@ const TimelineScheduleView = ({
           // Calculate new times for reordered tasks to prevent overlaps
           const updatedTasks = reorderedTasks.map((task, index) => {
             if (index === 0) {
-              // First task gets a default time if no time set
+              // First task keeps its current time or gets a default
               return { ...task, scheduled_time: task.scheduled_time || '09:00' };
             } else {
-              // Subsequent tasks are scheduled right after the previous task ends (no padding)
-              const prevTask = reorderedTasks[index - 1];
+              // Subsequent tasks are scheduled right after the previous task ends
+              const prevTask = updatedTasks[index - 1]; // Use the already updated previous task
               const prevEndTime = calculateTimeWithBuffer(
                 prevTask.scheduled_time || '09:00', 
                 prevTask.duration || 30, 
@@ -480,14 +480,7 @@ const TimelineScheduleView = ({
           
           console.log('Updated tasks with new times:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
           
-          // Update each task with new time
-          updatedTasks.forEach((task, index) => {
-            if (task.scheduled_time !== draggableTasks.find(t => t.id === task.id)?.scheduled_time) {
-              console.log(`Updating task ${task.name} time to ${task.scheduled_time}`);
-              onTaskTimeUpdate?.(task.id, task.scheduled_time);
-            }
-          });
-          
+          // Call the reorder handler with all updated tasks
           onReorderTasks(updatedTasks);
         }
         return;
