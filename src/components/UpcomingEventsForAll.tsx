@@ -59,6 +59,7 @@ const UpcomingEventsForAll = () => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const hasRecurringDays = task.recurring_days && task.recurring_days.length > 0;
       const isScheduledTask = task.type === 'scheduled';
+      console.log(`Task ${task.name} (${task.child_id}): scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, type=${task.type}, passes filter=${hasScheduledTime && hasRecurringDays && isScheduledTask}`);
       return hasScheduledTime && hasRecurringDays && isScheduledTask;
     });
 
@@ -210,7 +211,7 @@ const UpcomingEventsForAll = () => {
                     {Math.floor(event.duration / 60)}h {event.duration % 60}m
                   </span>
                 )}
-                {event.coins && event.coins > 0 && (
+                {typeof event.coins === 'number' && event.coins > 0 && (
                   <span className="text-xs text-warning font-medium">
                     {event.coins} coins
                   </span>
