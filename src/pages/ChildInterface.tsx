@@ -115,7 +115,7 @@ const ChildInterface = () => {
     return pstDate;
   };
 
-  // Get system events from child schedule
+  // Get system events from child schedule - only include if configured for today
   const getSystemEvents = () => {
     if (!child) return [];
     
@@ -123,8 +123,8 @@ const ChildInterface = () => {
     
     const systemEvents = [];
     
-    // Wake Up
-    if (child.wake_time && child.wake_days?.includes(currentDay)) {
+    // Wake Up - only if time is set and today is included
+    if (child.wake_time && child.wake_time !== '07:00:00' && child.wake_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'wake-up',
         name: 'Wake Up',
@@ -137,8 +137,8 @@ const ChildInterface = () => {
       });
     }
     
-    // Breakfast
-    if (child.breakfast_time && child.breakfast_days?.includes(currentDay)) {
+    // Breakfast - only if time is set and today is included
+    if (child.breakfast_time && child.breakfast_time !== '07:30:00' && child.breakfast_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'breakfast',
         name: 'Breakfast',
@@ -151,8 +151,8 @@ const ChildInterface = () => {
       });
     }
     
-    // School
-    if (child.school_start_time && child.school_days?.includes(currentDay)) {
+    // School - only if time is set and today is included
+    if (child.school_start_time && child.school_start_time !== '08:30:00' && child.school_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'school',
         name: 'School',
@@ -165,8 +165,8 @@ const ChildInterface = () => {
       });
     }
     
-    // Lunch
-    if (child.lunch_time && child.lunch_days?.includes(currentDay)) {
+    // Lunch - only if time is set and today is included  
+    if (child.lunch_time && child.lunch_time !== '12:00:00' && child.lunch_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'lunch',
         name: 'Lunch',
@@ -179,8 +179,8 @@ const ChildInterface = () => {
       });
     }
     
-    // Dinner
-    if (child.dinner_time && child.dinner_days?.includes(currentDay)) {
+    // Dinner - only if time is set and today is included
+    if (child.dinner_time && child.dinner_time !== '18:00:00' && child.dinner_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'dinner',
         name: 'Dinner',
@@ -193,8 +193,8 @@ const ChildInterface = () => {
       });
     }
     
-    // Bedtime
-    if (child.bedtime && child.bedtime_days?.includes(currentDay)) {
+    // Bedtime - only if time is set and today is included
+    if (child.bedtime && child.bedtime !== '20:00:00' && child.bedtime_days?.includes(currentDay)) {
       systemEvents.push({
         id: 'bedtime',
         name: 'Bedtime',
@@ -273,8 +273,8 @@ const ChildInterface = () => {
 
   const activeTask = getCurrentTask();
   
-  // Get next 2 upcoming tasks (excluding the active task and tasks that have passed)
-  const getUpcomingTasks = () => {
+  // Get complete today's schedule
+  const getTodaysSchedule = () => {
     const currentTime = getCurrentTimePST();
     const currentTimeString = currentTime.toTimeString().slice(0, 5);
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -284,31 +284,38 @@ const ChildInterface = () => {
     const regularTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
-      const isFutureTask = task.scheduled_time && task.scheduled_time > currentTimeString;
       
-      console.log(`Upcoming task ${task.name}: hasScheduledTime=${hasScheduledTime}, isScheduledForToday=${isScheduledForToday}, isFutureTask=${isFutureTask}, scheduled_time=${task.scheduled_time}, currentTime=${currentTimeString}`);
-      
-      return !task.isCompleted && 
-             task.id !== activeTask?.id &&
-             hasScheduledTime &&
-             isScheduledForToday &&
-             isFutureTask; // Only future tasks
+      return hasScheduledTime && isScheduledForToday;
     });
     
-    // Combine and filter system events for future tasks
-    const allUpcomingTasks = [...systemEvents, ...regularTasks].filter(task => {
-      const isFutureTask = task.scheduled_time && task.scheduled_time > currentTimeString;
-      return task.id !== activeTask?.id && isFutureTask;
-    }).sort((a, b) => {
+    // Combine all tasks and sort by time
+    const allTasks = [...systemEvents, ...regularTasks].sort((a, b) => {
       const timeA = a.scheduled_time || '00:00';
       const timeB = b.scheduled_time || '00:00';
       return timeA.localeCompare(timeB);
     });
     
-    return allUpcomingTasks.slice(0, 2);
+    return allTasks;
+  };
+
+  // Get next 2 upcoming tasks (excluding the active task and tasks that have passed)
+  const getUpcomingTasks = () => {
+    const currentTime = getCurrentTimePST();
+    const currentTimeString = currentTime.toTimeString().slice(0, 5);
+    
+    const todaysSchedule = getTodaysSchedule();
+    
+    // Filter for future tasks only
+    const upcomingTasks = todaysSchedule.filter(task => {
+      const isFutureTask = task.scheduled_time && task.scheduled_time > currentTimeString;
+      return task.id !== activeTask?.id && isFutureTask && !task.isCompleted;
+    });
+    
+    return upcomingTasks.slice(0, 2);
   };
 
   const upcomingTasks = getUpcomingTasks();
+  const todaysSchedule = getTodaysSchedule();
 
   // Calculate remaining time for active task
   const getActiveTaskRemainingTime = () => {
@@ -462,7 +469,7 @@ const ChildInterface = () => {
             </TabsTrigger>
             <TabsTrigger value="upcoming" className="gap-2">
               <Calendar className="w-4 h-4" />
-              Upcoming Events
+              Today's Schedule
             </TabsTrigger>
           </TabsList>
 
@@ -501,7 +508,28 @@ const ChildInterface = () => {
           </TabsContent>
 
           <TabsContent value="upcoming" className="space-y-6">
-            <UpcomingEvents child={child} tasks={tasksWithCompletion} />
+            <div className="space-y-4">
+              <h3 className="font-semibold text-white text-center">Today's Complete Schedule</h3>
+              <div className="grid gap-4">
+                {todaysSchedule.map((task, index) => (
+                  <NextTaskTimer
+                    key={task.id}
+                    task={task}
+                    index={index}
+                    onComplete={handleCompleteTask}
+                  />
+                ))}
+              </div>
+              {todaysSchedule.length === 0 && (
+                <Card className="p-8 text-center bg-white/90 backdrop-blur">
+                  <div className="text-4xl mb-4">📅</div>
+                  <h3 className="text-xl font-bold mb-2">No Schedule Today</h3>
+                  <p className="text-muted-foreground">
+                    No tasks or events are scheduled for today.
+                  </p>
+                </Card>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
 

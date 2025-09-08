@@ -49,14 +49,14 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
         {task.scheduled_time && (
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Clock className="w-4 h-4" />
-            <span>Scheduled: {formatTime(task.scheduled_time)}</span>
+            <span>{formatTime(task.scheduled_time)}</span>
           </div>
         )}
 
         {/* Duration Display */}
         {task.duration && (
           <div className="text-sm text-muted-foreground">
-            Duration: {Math.floor(task.duration / 60)}h {task.duration % 60}m
+            {Math.floor(task.duration / 60)}h {task.duration % 60}m
           </div>
         )}
 
