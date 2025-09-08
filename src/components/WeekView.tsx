@@ -50,12 +50,16 @@ const WeekView = ({ child, tasks, onTasksReorder, onEditTask, onDeleteTask }: We
 
       const dayDataMap = new Map<string, DayData>();
       
-      // Initialize all days with filtered scheduled tasks
+      // Initialize all days with all tasks for that day
       weekDays.forEach(day => {
         const dayName = format(day, 'EEEE').toLowerCase();
         const tasksForDay = (tasks || []).filter(task => {
-          if (!task.is_recurring || !task.recurring_days) return true;
-          return task.recurring_days.includes(dayName);
+          // Show all tasks: one-time tasks for today, and recurring tasks for this day
+          if (task.is_recurring && task.recurring_days) {
+            return task.recurring_days.includes(dayName);
+          }
+          // For non-recurring tasks, show them every day or based on created date
+          return true;
         });
         
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {

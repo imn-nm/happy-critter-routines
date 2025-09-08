@@ -12,6 +12,7 @@ import { format, addMinutes, parse } from 'date-fns';
 
 interface TimelineViewProps {
   child: Child;
+  simple?: boolean;
 }
 
 interface TimelineItem {
@@ -33,9 +34,10 @@ const systemTasks: TimelineItem[] = [
   { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 0, type: 'system', isFixed: true },
 ];
 
-const SortableTimelineItem = ({ item, onTimeChange }: { 
+const SortableTimelineItem = ({ item, onTimeChange, simple = false }: { 
   item: TimelineItem; 
   onTimeChange: (id: string, newTime: string) => void;
+  simple?: boolean;
 }) => {
   const {
     attributes,
@@ -44,7 +46,7 @@ const SortableTimelineItem = ({ item, onTimeChange }: {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: item.isFixed });
+  } = useSortable({ id: item.id, disabled: item.isFixed || simple });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -75,10 +77,10 @@ const SortableTimelineItem = ({ item, onTimeChange }: {
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-4 p-3 bg-background rounded-lg border-l-4 ${getBorderColor(item.type)} ${
-        !item.isFixed ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+        !item.isFixed && !simple ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
       }`}
       {...attributes}
-      {...(item.isFixed ? {} : listeners)}
+      {...(item.isFixed || simple ? {} : listeners)}
     >
       {/* Time */}
       <div className="text-sm font-mono w-16 text-muted-foreground">
@@ -103,28 +105,30 @@ const SortableTimelineItem = ({ item, onTimeChange }: {
           )}
         </div>
         
-        {item.duration > 0 && (
+        {!simple && item.duration > 0 && (
           <p className="text-xs text-muted-foreground">
             Duration: {Math.floor(item.duration / 60)}h {item.duration % 60}m
           </p>
         )}
         
-        <div className="flex items-center gap-2 mt-1">
-          <div className={`text-xs px-2 py-1 rounded-full ${
-            item.type === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-            item.type === 'regular' ? 'bg-green-100 text-green-800' :
-            item.type === 'flexible' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-gray-100 text-gray-800'
-          }`}>
-            {item.type === 'system' ? 'Fixed' : item.type}
+        {!simple && (
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`text-xs px-2 py-1 rounded-full ${
+              item.type === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+              item.type === 'regular' ? 'bg-green-100 text-green-800' :
+              item.type === 'flexible' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {item.type === 'system' ? 'Fixed' : item.type}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-const TimelineView = ({ child }: TimelineViewProps) => {
+const TimelineView = ({ child, simple = false }: TimelineViewProps) => {
   const { tasks, updateTask } = useTasks(child.id);
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   
@@ -228,53 +232,71 @@ const TimelineView = ({ child }: TimelineViewProps) => {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 mb-6 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span>Scheduled (fixed time)</span>
+      {/* Legend - only show in full mode */}
+      {!simple && (
+        <div className="flex flex-wrap gap-4 mb-6 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded"></div>
+            <span>Scheduled (fixed time)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded"></div>
+            <span>Regular (can move)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+            <span>Flexible (can move)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-gray-400 rounded"></div>
+            <span>System (fixed)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded"></div>
-          <span>Regular (can move)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-          <span>Flexible (can move)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-gray-400 rounded"></div>
-          <span>System (fixed)</span>
-        </div>
-      </div>
+      )}
 
       {/* Timeline */}
       <div className="space-y-3">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={timelineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
-            {timelineItems.map((item) => (
-              <SortableTimelineItem
-                key={item.id}
-                item={item}
-                onTimeChange={handleTimeChange}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+        {simple ? (
+          // Simple mode - no drag and drop
+          timelineItems.map((item) => (
+            <SortableTimelineItem
+              key={item.id}
+              item={item}
+              onTimeChange={handleTimeChange}
+              simple={true}
+            />
+          ))
+        ) : (
+          // Full mode - with drag and drop
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={timelineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
+              {timelineItems.map((item) => (
+                <SortableTimelineItem
+                  key={item.id}
+                  item={item}
+                  onTimeChange={handleTimeChange}
+                  simple={false}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
 
-      {/* Instructions */}
-      <div className="mt-6 p-4 bg-muted/30 rounded-lg">
-        <p className="text-sm text-muted-foreground">
-          <strong>How to use:</strong> Drag and drop flexible and regular tasks to reorder them. 
-          Scheduled tasks and system events (meals, bedtime) stay at their fixed times. 
-          The timeline automatically adjusts task times when you reorder them.
-        </p>
-      </div>
+      {/* Instructions - only show in full mode */}
+      {!simple && (
+        <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            <strong>How to use:</strong> Drag and drop flexible and regular tasks to reorder them. 
+            Scheduled tasks and system events (meals, bedtime) stay at their fixed times. 
+            The timeline automatically adjusts task times when you reorder them.
+          </p>
+        </div>
+      )}
     </Card>
   );
 };

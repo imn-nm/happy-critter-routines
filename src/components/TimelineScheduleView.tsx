@@ -71,7 +71,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'Wake up', 
       time: child.wake_time || '07:00', 
       duration: 30, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-amber-500',
       recurring_days: (child as any).wake_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
@@ -80,7 +80,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'Breakfast', 
       time: child.breakfast_time || '07:30', 
       duration: 30, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-orange-500',
       recurring_days: (child as any).breakfast_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
@@ -89,7 +89,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'School', 
       time: child.school_start_time || '08:30', 
       duration: schoolDuration, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-blue-600',
       recurring_days: (child as any).school_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
     },
@@ -98,7 +98,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'Lunch', 
       time: child.lunch_time || '12:00', 
       duration: 45, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-green-500',
       recurring_days: (child as any).lunch_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
@@ -107,7 +107,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'Dinner', 
       time: child.dinner_time || '18:00', 
       duration: 45, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-red-500',
       recurring_days: (child as any).dinner_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
@@ -116,7 +116,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       name: 'Bedtime Routine', 
       time: child.bedtime || '20:00', 
       duration: 60, 
-      type: 'system', 
+      type: 'scheduled', 
       color: 'bg-purple-500',
       recurring_days: (child as any).bedtime_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
@@ -265,7 +265,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
                 <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
               </Button>
             )}
-            {onDeleteTask && event.task && (
+            {onDeleteTask && event.task && event.task.id && event.task.id.length > 10 && (
               <Button
                 variant="ghost"
                 size="sm"
