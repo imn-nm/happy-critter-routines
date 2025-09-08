@@ -125,24 +125,64 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Scheduled Time */}
-          <div>
-            <Label htmlFor="scheduledTime">
-              {formData.type === 'flexible' ? 'Suggested Time (Optional)' : 'Scheduled Time'}
-            </Label>
-            <Input
-              id="scheduledTime"
-              type="time"
-              value={formData.scheduledTime}
-              onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-            />
+        {/* Conditional fields based on task type */}
+        {formData.type === 'scheduled' ? (
+          // Scheduled tasks show start/end time
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="scheduledTime">Start Time *</Label>
+              <Input
+                id="scheduledTime"
+                type="time"
+                value={formData.scheduledTime}
+                onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="duration">Duration *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="12"
+                    value={formData.duration ? Math.floor(parseInt(formData.duration) / 60).toString() : ""}
+                    onChange={(e) => {
+                      const hours = parseInt(e.target.value) || 0;
+                      const currentMinutes = formData.duration ? parseInt(formData.duration) % 60 : 0;
+                      const totalMinutes = hours * 60 + currentMinutes;
+                      setFormData({ ...formData, duration: totalMinutes > 0 ? totalMinutes.toString() : "" });
+                    }}
+                    placeholder="0"
+                  />
+                  <Label className="text-xs text-muted-foreground">Hours</Label>
+                </div>
+                <div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={formData.duration ? (parseInt(formData.duration) % 60).toString() : ""}
+                    onChange={(e) => {
+                      const minutes = parseInt(e.target.value) || 0;
+                      const currentHours = formData.duration ? Math.floor(parseInt(formData.duration) / 60) : 0;
+                      const totalMinutes = currentHours * 60 + minutes;
+                      setFormData({ ...formData, duration: totalMinutes > 0 ? totalMinutes.toString() : "" });
+                    }}
+                    placeholder="0"
+                    required
+                  />
+                  <Label className="text-xs text-muted-foreground">Minutes</Label>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Duration */}
+        ) : (
+          // Regular and Flexible tasks only show duration
           <div>
-            <Label htmlFor="duration">Duration</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label htmlFor="duration">Duration *</Label>
+            <div className="grid grid-cols-2 gap-2 max-w-sm">
               <div>
                 <Input
                   type="number"
@@ -172,12 +212,19 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
                     setFormData({ ...formData, duration: totalMinutes > 0 ? totalMinutes.toString() : "" });
                   }}
                   placeholder="0"
+                  required
                 />
                 <Label className="text-xs text-muted-foreground">Minutes</Label>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formData.type === 'flexible' 
+                ? 'How long does this task usually take?' 
+                : 'Estimated time needed for this routine task'
+              }
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Coins Reward */}
         <div>
