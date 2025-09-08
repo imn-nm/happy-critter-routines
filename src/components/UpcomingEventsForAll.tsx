@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Calendar, BookOpen, Gamepad2, Target } from 'lucide-react';
 import { Child, useChildren } from '@/hooks/useChildren';
-import { useTasks, Task } from '@/hooks/useTasks';
+import { Task } from '@/hooks/useTasks';
+import { supabase } from '@/integrations/supabase/client';
 import { format, parse, addDays, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 
 interface UpcomingEvent {
@@ -20,12 +21,33 @@ interface UpcomingEvent {
 
 const UpcomingEventsForAll = () => {
   const { children } = useChildren();
-  
-  // Get all tasks for all children
-  const childrenWithTasks = children.map(child => {
-    const { tasks } = useTasks(child.id);
-    return { child, tasks };
-  });
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch all tasks for all children
+  useEffect(() => {
+    const fetchAllTasks = async () => {
+      if (children.length === 0) return;
+      
+      try {
+        const childIds = children.map(c => c.id);
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .in('child_id', childIds)
+          .order('sort_order', { ascending: true });
+
+        if (error) throw error;
+        setAllTasks((data || []) as Task[]);
+      } catch (error) {
+        console.error('Error fetching all tasks:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllTasks();
+  }, [children]);
   
   const allUpcomingEvents = useMemo(() => {
     const events: UpcomingEvent[] = [];
@@ -33,47 +55,48 @@ const UpcomingEventsForAll = () => {
     const twoWeeksFromNow = addDays(now, 14);
     const currentTime = format(now, 'HH:mm');
     
-    childrenWithTasks.forEach(({ child, tasks }) => {
-      // Filter for scheduled tasks only (excluding system events)
-      const scheduledTasks = tasks.filter(task => 
-        task.scheduled_time && 
-        (task.type === 'scheduled' || task.type === 'regular' || task.type === 'flexible')
-      );
+    // Filter for scheduled tasks only (excluding system events)
+    const scheduledTasks = allTasks.filter(task => 
+      task.scheduled_time && 
+      (task.type === 'scheduled' || task.type === 'regular' || task.type === 'flexible')
+    );
 
-      scheduledTasks.forEach(task => {
-        if (!task.scheduled_time || !task.recurring_days?.length) return;
+    scheduledTasks.forEach(task => {
+      if (!task.scheduled_time || !task.recurring_days?.length) return;
 
-        // Generate events for the next 2 weeks
-        for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
-          const eventDate = addDays(now, dayOffset);
-          const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
+      const child = children.find(c => c.id === task.child_id);
+      if (!child) return;
+
+      // Generate events for the next 2 weeks
+      for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
+        const eventDate = addDays(now, dayOffset);
+        const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
+        
+        // Check if task is scheduled for this day
+        if (task.recurring_days.includes(dayOfWeek)) {
+          const eventDateTime = parse(task.scheduled_time, 'HH:mm', eventDate);
           
-          // Check if task is scheduled for this day
-          if (task.recurring_days.includes(dayOfWeek)) {
-            const eventDateTime = parse(task.scheduled_time, 'HH:mm', eventDate);
-            
-            // Only include future events (not past events from today)
-            if (dayOffset === 0 && task.scheduled_time <= currentTime) {
-              continue; // Skip past events from today
-            }
-            
-            // Only include events within the next 2 weeks
-            if (isAfter(eventDateTime, now) && isBefore(eventDateTime, twoWeeksFromNow)) {
-              events.push({
-                id: `${task.id}-${dayOffset}`,
-                name: task.name,
-                time: task.scheduled_time,
-                date: eventDate,
-                duration: task.duration,
-                type: task.type,
-                coins: task.coins,
-                childName: child.name,
-                childId: child.id,
-              });
-            }
+          // Only include future events (not past events from today)
+          if (dayOffset === 0 && task.scheduled_time <= currentTime) {
+            continue; // Skip past events from today
+          }
+          
+          // Only include events within the next 2 weeks
+          if (isAfter(eventDateTime, now) && isBefore(eventDateTime, twoWeeksFromNow)) {
+            events.push({
+              id: `${task.id}-${dayOffset}`,
+              name: task.name,
+              time: task.scheduled_time,
+              date: eventDate,
+              duration: task.duration,
+              type: task.type,
+              coins: task.coins,
+              childName: child.name,
+              childId: child.id,
+            });
           }
         }
-      });
+      }
     });
 
     // Sort by date and time, take the next 5 events
@@ -84,7 +107,7 @@ const UpcomingEventsForAll = () => {
         return dateTimeA - dateTimeB;
       })
       .slice(0, 5);
-  }, [childrenWithTasks]);
+  }, [allTasks, children]);
 
   const getIcon = (type: string, name: string) => {
     if (name.toLowerCase().includes('study') || name.toLowerCase().includes('homework')) return <BookOpen className="w-4 h-4" />;
