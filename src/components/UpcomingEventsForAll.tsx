@@ -184,14 +184,14 @@ const UpcomingEventsForAll = () => {
             
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
+                <div className="flex items-center gap-2 min-w-0">
                   <h4 className="font-medium truncate">{event.name}</h4>
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-xs shrink-0">
                     {event.childName}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
                   <span className="text-muted-foreground">
                     {formatDate(event.date)}
                   </span>
@@ -210,7 +210,7 @@ const UpcomingEventsForAll = () => {
                     {Math.floor(event.duration / 60)}h {event.duration % 60}m
                   </span>
                 )}
-                {event.coins && (
+                {event.coins && event.coins > 0 && (
                   <span className="text-xs text-warning font-medium">
                     {event.coins} coins
                   </span>
