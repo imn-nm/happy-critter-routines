@@ -186,6 +186,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
     <div 
       ref={setNodeRef} 
       style={style} 
+      {...(isDraggable ? attributes : {})}
+      {...(isDraggable ? listeners : {})}
       className={cn(
         "flex items-center gap-2 sm:gap-4 group transition-all duration-300 ease-out",
         isDragging && "opacity-90 scale-[1.02] shadow-2xl rotate-1 bg-white/95 backdrop-blur-sm border border-primary/20",
@@ -194,14 +196,12 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
         isDraggable && "cursor-grab active:cursor-grabbing"
       )}
     >
-      {/* Drag handle for draggable tasks only */}
+      {/* Visual indicator for draggable tasks */}
       {isDraggable && (
         <div
-          {...attributes}
-          {...listeners}
           className={cn(
-            "cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-all duration-200 flex-shrink-0",
-            isDragging && "cursor-grabbing scale-110",
+            "p-1 text-muted-foreground transition-all duration-200 flex-shrink-0",
+            isDragging && "scale-110",
             isActive && "text-primary"
           )}
         >
@@ -244,11 +244,6 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
           {event.isLate && (
             <Badge variant="destructive" className="text-xs">
               Late
-            </Badge>
-          )}
-          {event.task && !event.isCompleted && (
-            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-              +20 min
             </Badge>
           )}
           {/* Show edit/delete buttons for all events */}
@@ -380,7 +375,7 @@ const TimelineScheduleView = ({
     time: task.scheduled_time || '09:00',
     duration: task.duration || 60, // Default 1 hour if not specified
     type: task.type,
-    color: 'bg-purple-500', // Different color to distinguish from system events
+    color: 'bg-purple-600', // Purple for scheduled tasks
     task: task,
     coins: task.coins,
     isCompleted: task.isCompleted,
@@ -397,7 +392,7 @@ const TimelineScheduleView = ({
     time: task.scheduled_time || '09:00',
     duration: task.duration || 30, // Default 30 minutes if not specified
     type: task.type,
-    color: task.type === 'regular' ? 'bg-blue-500' : 'bg-yellow-500',
+    color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500', // Blue for regular, amber for flexible
     task: task,
     coins: task.coins,
     isCompleted: task.isCompleted,
