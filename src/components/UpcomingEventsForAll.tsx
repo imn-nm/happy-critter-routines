@@ -52,20 +52,21 @@ const UpcomingEventsForAll = () => {
   const allUpcomingEvents = useMemo(() => {
     const events: UpcomingEvent[] = [];
     const now = new Date();
-    const twoWeeksFromNow = addDays(now, 14);
     const currentTime = format(now, 'HH:mm');
     
-    // Filter for scheduled tasks only (excluding system events)
-    const scheduledTasks = allTasks.filter(task => 
-      task.scheduled_time && 
-      (task.type === 'scheduled' || task.type === 'regular' || task.type === 'flexible')
-    );
+    // Filter for tasks with scheduled times
+    const scheduledTasks = allTasks.filter(task => {
+      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
+      const hasRecurringDays = task.recurring_days && task.recurring_days.length > 0;
+      return hasScheduledTime && hasRecurringDays;
+    });
 
     scheduledTasks.forEach(task => {
-      if (!task.scheduled_time || !task.recurring_days?.length) return;
-
       const child = children.find(c => c.id === task.child_id);
       if (!child) return;
+
+      // Format the time properly - remove seconds if present (18:00:00 -> 18:00)
+      const taskTime = task.scheduled_time!.slice(0, 5);
 
       // Generate events for the next 2 weeks
       for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
@@ -73,20 +74,16 @@ const UpcomingEventsForAll = () => {
         const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
         
         // Check if task is scheduled for this day
-        if (task.recurring_days.includes(dayOfWeek)) {
-          const eventDateTime = parse(task.scheduled_time, 'HH:mm', eventDate);
+        if (task.recurring_days?.includes(dayOfWeek)) {
+          // For today, only include future events
+          const isToday = dayOffset === 0;
+          const isPastTimeToday = isToday && taskTime <= currentTime;
           
-          // Only include future events (not past events from today)
-          if (dayOffset === 0 && task.scheduled_time <= currentTime) {
-            continue; // Skip past events from today
-          }
-          
-          // Only include events within the next 2 weeks
-          if (isAfter(eventDateTime, now) && isBefore(eventDateTime, twoWeeksFromNow)) {
+          if (!isPastTimeToday) {
             events.push({
               id: `${task.id}-${dayOffset}`,
               name: task.name,
-              time: task.scheduled_time,
+              time: taskTime,
               date: eventDate,
               duration: task.duration,
               type: task.type,
