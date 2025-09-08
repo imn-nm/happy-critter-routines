@@ -303,6 +303,15 @@ const TimelineScheduleView = ({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
+  const calculateTimeWithBuffer = (startTime: string, durationMinutes: number, bufferMinutes: number = 20) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + durationMinutes + bufferMinutes;
+    const endHours = Math.floor(endMinutes / 60) % 24;
+    const endMins = endMinutes % 60;
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -436,9 +445,19 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
-      // Place the task at the same time as the event we're dropping on
-      // This will make it appear right at that position in the timeline
-      onTaskTimeUpdate(activeTask.id, overEvent.time);
+      const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
+      const isSystemEvent = systemEventIds.includes(overEvent.id);
+      
+      let newTime: string;
+      if (isSystemEvent) {
+        // For system events, place the task 20 minutes after the event ends
+        newTime = calculateTimeWithBuffer(overEvent.time, overEvent.duration, 20);
+      } else {
+        // For other events, place at the same time
+        newTime = overEvent.time;
+      }
+      
+      onTaskTimeUpdate(activeTask.id, newTime);
     }
   };
 
