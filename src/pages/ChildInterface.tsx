@@ -126,14 +126,16 @@ const ChildInterface = () => {
     // Filter tasks based on type and schedule
     const availableTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const isScheduledForToday = task.recurring_days?.includes(currentDay) || 
-                                  (!task.recurring_days && task.type === 'regular'); // Regular tasks without recurring days run daily
+      const isScheduledForToday = task.recurring_days?.includes(currentDay);
       const isNotCompleted = !task.isCompleted;
       
-      console.log(`Task ${task.name}: type=${task.type}, scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, isScheduledForToday=${isScheduledForToday}, isNotCompleted=${isNotCompleted}`);
+      console.log(`Task ${task.name}: type=${task.type}, scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, isScheduledForToday=${isScheduledForToday}, isNotCompleted=${isNotCompleted}, hasScheduledTime=${hasScheduledTime}`);
       
-      // Only include tasks that have scheduled times and are scheduled for today
-      return isNotCompleted && hasScheduledTime && isScheduledForToday;
+      // Include all tasks (scheduled, regular, flexible) that have scheduled times and are scheduled for today
+      const result = isNotCompleted && hasScheduledTime && isScheduledForToday;
+      console.log(`Task ${task.name} final filter result: ${result}`);
+      
+      return result;
     });
 
     // Sort by scheduled time
@@ -180,9 +182,10 @@ const ChildInterface = () => {
 
     return tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const isScheduledForToday = task.recurring_days?.includes(currentDay) || 
-                                  (!task.recurring_days && task.type === 'regular'); // Regular tasks without recurring days run daily
-      const isFutureTask = task.scheduled_time > currentTimeString;
+      const isScheduledForToday = task.recurring_days?.includes(currentDay);
+      const isFutureTask = task.scheduled_time && task.scheduled_time > currentTimeString;
+      
+      console.log(`Upcoming task ${task.name}: hasScheduledTime=${hasScheduledTime}, isScheduledForToday=${isScheduledForToday}, isFutureTask=${isFutureTask}, scheduled_time=${task.scheduled_time}, currentTime=${currentTimeString}`);
       
       return !task.isCompleted && 
              task.id !== activeTask?.id &&
