@@ -54,13 +54,16 @@ const UpcomingEventsForAll = () => {
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
     
-    // Filter for tasks that have scheduled times (scheduled and regular with times)
+    // Filter for scheduled tasks only (exclude regular and flexible, and system tasks)
     const scheduledTasks = allTasks.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const hasRecurringDays = task.recurring_days && task.recurring_days.length > 0;
-      const isValidType = task.type === 'scheduled' || task.type === 'regular';
-      console.log(`Task ${task.name} (${task.child_id}): scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, type=${task.type}, passes filter=${hasScheduledTime && hasRecurringDays && isValidType}`);
-      return hasScheduledTime && hasRecurringDays && isValidType;
+      const isScheduledTask = task.type === 'scheduled';
+      // Exclude system tasks (wake, breakfast, school, lunch, dinner, bedtime)
+      const systemTasks = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
+      const isNotSystemTask = !systemTasks.some(sysTask => task.name.toLowerCase().includes(sysTask.toLowerCase()));
+      console.log(`Task ${task.name} (${task.child_id}): scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, type=${task.type}, isNotSystemTask=${isNotSystemTask}, passes filter=${hasScheduledTime && hasRecurringDays && isScheduledTask && isNotSystemTask}`);
+      return hasScheduledTime && hasRecurringDays && isScheduledTask && isNotSystemTask;
     });
 
     scheduledTasks.forEach(task => {
