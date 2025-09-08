@@ -125,6 +125,13 @@ export const useChildren = () => {
 
   const updateChild = async (id: string, updates: Partial<Child>) => {
     try {
+      console.log('Updating child with:', { id, updates });
+      
+      // Optimistically update UI first
+      setChildren(prev => prev.map(child => 
+        child.id === id ? { ...child, ...updates } : child
+      ));
+
       // Map interface format to database format
       const dbUpdates = {
         ...updates,
@@ -155,6 +162,8 @@ export const useChildren = () => {
 
       if (error) throw error;
       
+      console.log('Child updated successfully:', data);
+      
       // Map database format to interface format
       const mappedChild = {
         ...data,
@@ -171,10 +180,13 @@ export const useChildren = () => {
         bedtime: data.bedtime,
       };
       
+      // Update with server response to ensure consistency
       setChildren(prev => prev.map(child => child.id === id ? mappedChild : child));
       return mappedChild;
     } catch (error) {
       console.error('Error updating child:', error);
+      // Revert optimistic update on failure
+      fetchChildren();
       toast({
         title: "Error",
         description: "Failed to update child",
@@ -219,6 +231,48 @@ export const useChildren = () => {
 
   useEffect(() => {
     fetchChildren();
+    
+    // Set up real-time subscription for children changes
+    const childrenChannel = supabase
+      .channel('children-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'children'
+        },
+        (payload) => {
+          console.log('Real-time child change:', payload);
+          if (payload.eventType === 'UPDATE') {
+            // Map database format to interface format for real-time updates
+            const mappedChild = {
+              ...payload.new,
+              petType: payload.new.pet_type as 'owl' | 'fox' | 'penguin',
+              currentCoins: payload.new.current_coins,
+              petHappiness: payload.new.pet_happiness,
+            };
+            setChildren(prev => prev.map(child => 
+              child.id === payload.new?.id ? mappedChild as Child : child
+            ));
+          } else if (payload.eventType === 'INSERT') {
+            const mappedChild = {
+              ...payload.new,
+              petType: payload.new.pet_type as 'owl' | 'fox' | 'penguin',
+              currentCoins: payload.new.current_coins,
+              petHappiness: payload.new.pet_happiness,
+            };
+            setChildren(prev => [...prev, mappedChild as Child]);
+          } else if (payload.eventType === 'DELETE') {
+            setChildren(prev => prev.filter(child => child.id !== payload.old?.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(childrenChannel);
+    };
   }, []);
 
   return {

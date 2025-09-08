@@ -59,6 +59,8 @@ const ChildDashboard = () => {
         const isSystemEvent = editingTask.id && !editingTask.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
         
         if (isSystemEvent) {
+          console.log('Editing system event:', editingTask.id, 'with data:', taskData);
+          
           // For system events, update the child's schedule
           const timeFieldMap = {
             'wake': 'wake_time',
@@ -105,13 +107,17 @@ const ChildDashboard = () => {
             updateData[durationField] = taskData.duration;
           }
           
+          console.log('System event update data:', updateData);
+          
           if (Object.keys(updateData).length > 0) {
-            await updateChild(child.id, updateData);
+            const updatedChild = await updateChild(child.id, updateData);
+            console.log('Child updated with system event changes:', updatedChild);
             toast({
               title: "Schedule Updated",
               description: `${editingTask.name} schedule has been updated.`,
             });
-            refetch(); // Refresh to show updated schedule
+            // Force refetch to ensure UI is updated
+            refetch();
           } else {
             toast({
               title: "System Event Updated",
