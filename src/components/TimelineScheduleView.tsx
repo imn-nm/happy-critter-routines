@@ -416,17 +416,25 @@ const TimelineScheduleView = ({
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
+    console.log('Drag ended:', { activeId: active?.id, overId: over?.id });
     setActiveId(null);
     setOverId(null);
 
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      console.log('No valid drop target or dropping on self');
+      return;
+    }
 
     const activeTask = draggableTasks.find(task => task.id === active.id);
-    if (!activeTask) return;
+    if (!activeTask) {
+      console.log('Active task not found:', active.id);
+      return;
+    }
 
     // Check if we're dropping on another draggable task (reorder)
     const overTask = draggableTasks.find(task => task.id === over.id);
     if (overTask && onReorderTasks) {
+      console.log('Reordering tasks');
       const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
       const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
       
@@ -440,6 +448,7 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a fixed event (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent && onTaskTimeUpdate) {
+      console.log('Dropping on event:', overEvent);
       const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
       const isSystemEvent = systemEventIds.includes(overEvent.id);
       
@@ -447,11 +456,14 @@ const TimelineScheduleView = ({
       if (isSystemEvent) {
         // For system events, place the task 20 minutes after the event ends
         newTime = calculateTimeWithBuffer(overEvent.time, overEvent.duration, 20);
+        console.log('System event detected, new time with buffer:', newTime);
       } else {
         // For other events, place at the same time
         newTime = overEvent.time;
+        console.log('Regular event, new time:', newTime);
       }
       
+      console.log('Calling onTaskTimeUpdate with:', activeTask.id, newTime);
       onTaskTimeUpdate(activeTask.id, newTime);
     }
   };

@@ -236,6 +236,28 @@ export const useTasks = (childId?: string) => {
     if (childId) {
       fetchTasks();
       fetchTodayCompletions();
+      
+      // Set up real-time subscription for tasks
+      const tasksChannel = supabase
+        .channel('tasks-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tasks',
+            filter: `child_id=eq.${childId}`
+          },
+          (payload) => {
+            console.log('Real-time task change:', payload);
+            fetchTasks(); // Refetch tasks when changes occur
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(tasksChannel);
+      };
     }
   }, [childId]);
 

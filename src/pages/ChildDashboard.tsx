@@ -261,14 +261,17 @@ const ChildDashboard = () => {
               onDeleteTask={handleDeleteTask}
               onReorderTasks={handleTasksReorder}
               onTaskTimeUpdate={async (taskId, newTime) => {
+                console.log('Drag drop: updating task', taskId, 'to time', newTime);
+                
                 try {
                   await updateTask(taskId, { scheduled_time: newTime });
-                  refetch(); // Refresh the tasks to show updated times
+                  console.log('Task updated successfully');
                   toast({
                     title: "Task updated",
                     description: "Task time has been updated successfully.",
                   });
                 } catch (error) {
+                  console.error('Failed to update task:', error);
                   toast({
                     title: "Error",
                     description: "Failed to update task time. Please try again.",
