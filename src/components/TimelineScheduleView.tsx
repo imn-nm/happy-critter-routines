@@ -297,6 +297,7 @@ const TimelineScheduleView = ({
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
   const calculateTimeWithBuffer = (startTime: string, durationMinutes: number, bufferMinutes: number = 20) => {
     const [hours, minutes] = startTime.split(':').map(Number);
@@ -413,7 +414,20 @@ const TimelineScheduleView = ({
   };
 
   const handleDragOver = (event: any) => {
-    setOverId(event.over?.id || null);
+    const overId = event.over?.id || null;
+    setOverId(overId);
+    
+    // Determine drop position based on mouse position relative to the target element
+    if (overId && event.over?.rect) {
+      const rect = event.over.rect;
+      const mouseY = event.activatorEvent?.clientY || 0;
+      const elementCenterY = rect.top + rect.height / 2;
+      
+      // If mouse is in upper half, drop before; lower half, drop after
+      setDropPosition(mouseY < elementCenterY ? 'before' : 'after');
+    } else {
+      setDropPosition(null);
+    }
   };
 
   const handleDragEnd = (event: any) => {
@@ -421,6 +435,7 @@ const TimelineScheduleView = ({
     console.log('Drag ended:', { activeId: active?.id, overId: over?.id });
     setActiveId(null);
     setOverId(null);
+    setDropPosition(null);
 
     if (!over || active.id === over.id) {
       console.log('No valid drop target or dropping on self');
@@ -530,25 +545,52 @@ const TimelineScheduleView = ({
               const isBeingDraggedOver = overId === event.id && activeId !== event.id;
               const isActiveEvent = activeId === event.id;
               
+              // Check if we should show spacing above this item
+              const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
+              // Check if we should show spacing below this item  
+              const shouldShowSpacingBelow = activeId && overId === event.id && dropPosition === 'after' && !isActiveEvent;
+              
               return (
                 <div key={event.id} className="relative">
-                  {/* Drop indicator line */}
-                  {isBeingDraggedOver && !isActiveEvent && (
-                    <div className="absolute -top-3 left-0 right-0 z-20 flex justify-center animate-fade-in">
-                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse shadow-lg" />
-                      <div className="absolute -top-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-primary rounded-full shadow-lg animate-bounce" />
-                      <div className="absolute -top-0.5 left-1/2 transform -translate-x-1/2 text-xs font-medium text-primary whitespace-nowrap">
-                        Drop here
+                  {/* Spacing above when dropping before this item */}
+                  {shouldShowSpacingAbove && (
+                    <div className="h-16 animate-fade-in transition-all duration-300 ease-out">
+                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-pulse shadow-lg mb-2" />
+                      <div className="flex items-center justify-center">
+                        <div className="px-3 py-1 bg-primary/10 border border-primary/30 rounded-full text-xs font-medium text-primary animate-bounce">
+                          📍 Drop here
+                        </div>
                       </div>
                     </div>
                   )}
                   
-                  <SortableTimelineEvent 
-                    event={event} 
-                    onEditTask={onEditTask} 
-                    onDeleteTask={onDeleteTask}
-                    isActive={isActiveEvent}
-                  />
+                  <div className={cn(
+                    "transition-all duration-300 ease-out",
+                    // Add smooth margin transitions when making space
+                    shouldShowSpacingAbove && "mt-4",
+                    shouldShowSpacingBelow && "mb-4",
+                    // Subtle lift effect when space is being made around this item
+                    (shouldShowSpacingAbove || shouldShowSpacingBelow) && "transform translate-y-0 scale-[1.02] shadow-lg"
+                  )}>
+                    <SortableTimelineEvent 
+                      event={event} 
+                      onEditTask={onEditTask} 
+                      onDeleteTask={onDeleteTask}
+                      isActive={isActiveEvent}
+                    />
+                  </div>
+
+                  {/* Spacing below when dropping after this item */}
+                  {shouldShowSpacingBelow && (
+                    <div className="h-16 animate-fade-in transition-all duration-300 ease-out">
+                      <div className="flex items-center justify-center mb-2">
+                        <div className="px-3 py-1 bg-primary/10 border border-primary/30 rounded-full text-xs font-medium text-primary animate-bounce">
+                          📍 Drop here
+                        </div>
+                      </div>
+                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-pulse shadow-lg" />
+                    </div>
+                  )}
                 </div>
               );
             })}
