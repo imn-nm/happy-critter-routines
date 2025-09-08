@@ -26,17 +26,22 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
     const events: UpcomingEvent[] = [];
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
+    const currentDay = format(now, 'EEEE').toLowerCase();
 
     // Add system events from child data
     const systemEvents = [
-      { id: 'wake', name: 'Wake Up', time: child.wake_time, duration: (child as any).wake_duration || 0, type: 'system' as const },
-      { id: 'breakfast', name: 'Breakfast', time: child.breakfast_time, duration: (child as any).breakfast_duration || 30, type: 'system' as const },
-      { id: 'school-start', name: 'School Starts', time: child.school_start_time, duration: 0, type: 'system' as const },
-      { id: 'school-end', name: 'School Ends', time: child.school_end_time, duration: 0, type: 'system' as const },
-      { id: 'lunch', name: 'Lunch', time: child.lunch_time, duration: (child as any).lunch_duration || 45, type: 'system' as const },
-      { id: 'dinner', name: 'Dinner', time: child.dinner_time, duration: (child as any).dinner_duration || 60, type: 'system' as const },
-      { id: 'bedtime', name: 'Bedtime', time: child.bedtime, duration: (child as any).bedtime_duration || 0, type: 'system' as const },
-    ].filter(event => event.time && event.time.trim() !== '');
+      { id: 'wake', name: 'Wake Up', time: child.wake_time, duration: (child as any).wake_duration || 0, type: 'system' as const, recurring_days: (child as any).wake_days || [] },
+      { id: 'breakfast', name: 'Breakfast', time: child.breakfast_time, duration: (child as any).breakfast_duration || 30, type: 'system' as const, recurring_days: (child as any).breakfast_days || [] },
+      { id: 'school-start', name: 'School Starts', time: child.school_start_time, duration: 0, type: 'system' as const, recurring_days: (child as any).school_days || [] },
+      { id: 'school-end', name: 'School Ends', time: child.school_end_time, duration: 0, type: 'system' as const, recurring_days: (child as any).school_days || [] },
+      { id: 'lunch', name: 'Lunch', time: child.lunch_time, duration: (child as any).lunch_duration || 45, type: 'system' as const, recurring_days: (child as any).lunch_days || [] },
+      { id: 'dinner', name: 'Dinner', time: child.dinner_time, duration: (child as any).dinner_duration || 60, type: 'system' as const, recurring_days: (child as any).dinner_days || [] },
+      { id: 'bedtime', name: 'Bedtime', time: child.bedtime, duration: (child as any).bedtime_duration || 0, type: 'system' as const, recurring_days: (child as any).bedtime_days || [] },
+    ].filter(event => 
+      event.time && 
+      event.time.trim() !== '' && 
+      event.recurring_days.includes(currentDay)
+    );
 
     // Add system events to the list
     systemEvents.forEach(event => {
@@ -45,11 +50,15 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
       }
     });
 
-    // Add scheduled and active tasks
+    // Add scheduled and active tasks that are scheduled for today
     tasks.forEach(task => {
       if (task.scheduled_time && !task.isCompleted) {
         const taskTime = task.scheduled_time;
-        if (isAfter(parse(taskTime, 'HH:mm', now), parse(currentTime, 'HH:mm', now))) {
+        const taskRecurringDays = task.recurring_days || [];
+        
+        // Check if task is scheduled for today and is in the future
+        if ((taskRecurringDays.length === 0 || taskRecurringDays.includes(currentDay)) && 
+            isAfter(parse(taskTime, 'HH:mm', now), parse(currentTime, 'HH:mm', now))) {
           events.push({
             id: task.id,
             name: task.name,

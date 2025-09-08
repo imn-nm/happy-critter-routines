@@ -2,81 +2,11 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ChildCard, { type Child } from "@/components/ChildCard";
-import TaskCard, { type Task } from "@/components/TaskCard";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
-import { Calendar, Plus, Settings, ListTodo } from "lucide-react";
+import UpcomingEventsForAll from "@/components/UpcomingEventsForAll";
+import { Plus, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren } from "@/hooks/useChildren";
-
-// Mock data
-const mockChildren: Child[] = [
-  {
-    id: "1",
-    parent_id: "mock-parent-1",
-    name: "Amira", 
-    age: 8,
-    petType: "owl",
-    currentCoins: 45,
-    petHappiness: 85,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    parent_id: "mock-parent-1",
-    name: "Noora",
-    age: 6,
-    petType: "fox", 
-    currentCoins: 23,
-    petHappiness: 72,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-];
-
-const mockTasks: Task[] = [
-  {
-    id: "1",
-    name: "Wake up",
-    type: "regular",
-    scheduledTime: "7:00",
-    coins: 5,
-    isCompleted: true
-  },
-  {
-    id: "2", 
-    name: "School",
-    type: "scheduled",
-    scheduledTime: "8:00",
-    duration: 480,
-    coins: 10,
-    isCompleted: false,
-    isActive: true
-  },
-  {
-    id: "3",
-    name: "Shower",
-    type: "regular", 
-    scheduledTime: "16:30",
-    duration: 20,
-    coins: 5,
-    isCompleted: false
-  },
-  {
-    id: "4",
-    name: "Homework",
-    type: "flexible",
-    scheduledTime: "17:00",
-    duration: 60,
-    coins: 8,
-    isCompleted: false
-  }
-];
-
-const mockEvents = [
-  { id: "1", name: "Soccer Practice", time: "4:00 PM", child: "Amira" },
-  { id: "2", name: "Parent-teacher conference", time: "3:30 PM", child: "Amira" }
-];
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -146,23 +76,7 @@ const Dashboard = () => {
           {/* Left Column */}
           <div className="space-y-6">
             {/* Upcoming Events */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar className="w-5 h-5 text-primary" />
-                <h2 className="font-semibold">Today's Events</h2>
-              </div>
-              <div className="space-y-3">
-                {mockEvents.map((event) => (
-                  <div key={event.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">{event.name}</p>
-                      <p className="text-xs text-muted-foreground">{event.child}</p>
-                    </div>
-                    <span className="text-sm text-primary font-medium">{event.time}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            <UpcomingEventsForAll />
           </div>
 
           {/* Right Column - Children Cards */}

@@ -253,7 +253,7 @@ const ChildInterface = () => {
                     <NextTaskTimer
                       key={task.id}
                       task={task}
-                      index={index}
+                      index={index + 1}
                       onComplete={handleCompleteTask}
                     />
                   ))}
