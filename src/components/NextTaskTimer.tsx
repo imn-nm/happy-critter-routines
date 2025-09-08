@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Coins, CheckCircle } from 'lucide-react';
-import CircularTimer from '@/components/CircularTimer';
+import { Coins, CheckCircle, Clock } from 'lucide-react';
 
 interface NextTaskTimerProps {
   task: {
@@ -17,9 +16,6 @@ interface NextTaskTimerProps {
 }
 
 const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
-  const [isActive, setIsActive] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState((task.duration || 30) * 60);
-
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');
@@ -27,16 +23,6 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
     const ampm = hour >= 12 ? 'pm' : 'am';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
     return `${displayHour}:${minutes}${ampm}`;
-  };
-
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleStartTimer = () => {
-    setIsActive(true);
   };
 
   const handleComplete = () => {
@@ -61,35 +47,16 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
 
         {/* Time Display */}
         {task.scheduled_time && (
-          <p className="text-sm text-muted-foreground">
-            Scheduled: {formatTime(task.scheduled_time)}
-          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span>Scheduled: {formatTime(task.scheduled_time)}</span>
+          </div>
         )}
 
-        {/* Timer */}
-        {isActive ? (
-          <div className="space-y-4">
-            <CircularTimer
-              totalSeconds={timeRemaining}
-              remainingSeconds={timeRemaining}
-              size="md"
-              isRunning={true}
-              onComplete={handleComplete}
-            />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-2xl font-mono">
-              {formatTimer(timeRemaining)}
-            </div>
-            <Button
-              onClick={handleStartTimer}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              Start Timer
-            </Button>
+        {/* Duration Display */}
+        {task.duration && (
+          <div className="text-sm text-muted-foreground">
+            Duration: {Math.floor(task.duration / 60)}h {task.duration % 60}m
           </div>
         )}
 

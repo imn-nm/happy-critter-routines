@@ -100,10 +100,8 @@ const ChildInterface = () => {
   const getCurrentTimePST = () => {
     const now = new Date();
     // Convert to PST (UTC-8, or UTC-7 during DST)
-    const pstOffset = -8 * 60; // PST is UTC-8
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const pstTime = new Date(utc + (pstOffset * 60000));
-    return pstTime;
+    const pstDate = new Date(now.toLocaleString("en-US", {timeZone: "America/Los_Angeles"}));
+    return pstDate;
   };
 
   // Determine current task based on schedule and current PST time
@@ -126,39 +124,66 @@ const ChildInterface = () => {
       return timeA.localeCompare(timeB);
     });
 
-    // Find the current task (the one that should be active right now)
+    // Find the current task based on time ranges
+    let currentTask = null;
+    
     for (let i = 0; i < availableTasks.length; i++) {
       const task = availableTasks[i];
       const taskTime = task.scheduled_time || '';
       
-      // If this is the last task or the current time is between this task and the next
-      if (i === availableTasks.length - 1) {
-        // If current time is past this task's time, it's the current task
-        if (currentTimeString >= taskTime) {
-          return task;
-        }
-      } else {
-        const nextTask = availableTasks[i + 1];
-        const nextTaskTime = nextTask.scheduled_time || '';
-        
-        // If current time is between this task and next task
-        if (currentTimeString >= taskTime && currentTimeString < nextTaskTime) {
-          return task;
-        }
+      // Calculate task end time
+      const taskDurationMinutes = task.duration || 30;
+      const [taskHours, taskMinutes] = taskTime.split(':').map(Number);
+      const taskStartDate = new Date(currentTime);
+      taskStartDate.setHours(taskHours, taskMinutes, 0, 0);
+      
+      const taskEndDate = new Date(taskStartDate.getTime() + taskDurationMinutes * 60000);
+      const taskEndString = taskEndDate.toTimeString().slice(0, 5);
+      
+      // Check if current time is within this task's time window
+      if (currentTimeString >= taskTime && currentTimeString < taskEndString) {
+        currentTask = task;
+        break;
       }
     }
 
-    // If no scheduled task matches, return the first non-completed task
-    return tasksWithCompletion.find(task => !task.isCompleted);
+    // If no task is currently in progress, return null (no active task)
+    return currentTask;
   };
 
   const activeTask = getCurrentTask();
   
-  // Get next 2 upcoming tasks (excluding the active task)
-  const upcomingTasks = tasksWithCompletion.filter(task => 
-    !task.isCompleted && 
-    task.id !== activeTask?.id
-  ).slice(0, 2);
+  // Get next 2 upcoming tasks (excluding the active task and tasks that have passed)
+  const getUpcomingTasks = () => {
+    const currentTime = getCurrentTimePST();
+    const currentTimeString = currentTime.toTimeString().slice(0, 5);
+    const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+    return tasksWithCompletion.filter(task => 
+      !task.isCompleted && 
+      task.id !== activeTask?.id &&
+      task.scheduled_time &&
+      (task.recurring_days?.length === 0 || task.recurring_days?.includes(currentDay)) &&
+      task.scheduled_time > currentTimeString // Only future tasks
+    ).slice(0, 2);
+  };
+
+  const upcomingTasks = getUpcomingTasks();
+
+  // Calculate remaining time for active task
+  const getActiveTaskRemainingTime = () => {
+    if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
+    
+    const currentTime = getCurrentTimePST();
+    const [taskHours, taskMinutes] = activeTask.scheduled_time.split(':').map(Number);
+    const taskStartDate = new Date(currentTime);
+    taskStartDate.setHours(taskHours, taskMinutes, 0, 0);
+    
+    const taskEndDate = new Date(taskStartDate.getTime() + activeTask.duration * 60000);
+    const timeDiff = taskEndDate.getTime() - currentTime.getTime();
+    
+    return Math.max(0, Math.floor(timeDiff / 1000)); // Return seconds remaining
+  };
   
   // Calculate total expected duration vs actual duration for flexible task adjustment
   const calculateFlexibleTaskAdjustment = () => {
@@ -255,7 +280,7 @@ const ChildInterface = () => {
                   {activeTask.duration && (
                     <CircularTimer
                       totalSeconds={activeTask.duration * 60}
-                      remainingSeconds={activeTask.duration * 60}
+                      remainingSeconds={getActiveTaskRemainingTime()}
                       size="lg"
                       className="text-white"
                       isRunning={true}
