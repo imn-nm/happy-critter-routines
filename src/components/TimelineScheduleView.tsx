@@ -60,7 +60,8 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
     return Math.max(endTotalMinutes - startTotalMinutes, 60); // Minimum 1 hour
   };
 
-  const schoolDuration = calculateSchoolDuration(
+  // Use stored duration or fallback to calculated/default value
+  const schoolDuration = (child as any).school_duration || calculateSchoolDuration(
     child.school_start_time || '08:30', 
     child.school_end_time || '15:00'
   );
@@ -70,7 +71,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       id: 'wake', 
       name: 'Wake up', 
       time: child.wake_time || '07:00', 
-      duration: 30, 
+      duration: (child as any).wake_duration || 30, 
       type: 'scheduled', 
       color: 'bg-amber-500',
       recurring_days: (child as any).wake_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -79,7 +80,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       id: 'breakfast', 
       name: 'Breakfast', 
       time: child.breakfast_time || '07:30', 
-      duration: 30, 
+      duration: (child as any).breakfast_duration || 30, 
       type: 'scheduled', 
       color: 'bg-orange-500',
       recurring_days: (child as any).breakfast_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -97,16 +98,25 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       id: 'lunch', 
       name: 'Lunch', 
       time: child.lunch_time || '12:00', 
-      duration: 45, 
+      duration: (child as any).lunch_duration || 45, 
       type: 'scheduled', 
       color: 'bg-green-500',
       recurring_days: (child as any).lunch_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
     { 
+      id: 'snack', 
+      name: 'Snack', 
+      time: child.snack_time || '15:30', 
+      duration: (child as any).snack_duration || 15, 
+      type: 'scheduled', 
+      color: 'bg-yellow-500',
+      recurring_days: (child as any).snack_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    },
+    { 
       id: 'dinner', 
       name: 'Dinner', 
       time: child.dinner_time || '18:00', 
-      duration: 45, 
+      duration: (child as any).dinner_duration || 45, 
       type: 'scheduled', 
       color: 'bg-red-500',
       recurring_days: (child as any).dinner_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -115,7 +125,7 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       id: 'bedtime', 
       name: 'Bedtime Routine', 
       time: child.bedtime || '20:00', 
-      duration: 60, 
+      duration: (child as any).bedtime_duration || 60, 
       type: 'scheduled', 
       color: 'bg-purple-500',
       recurring_days: (child as any).bedtime_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']

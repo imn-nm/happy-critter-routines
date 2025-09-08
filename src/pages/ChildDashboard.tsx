@@ -80,8 +80,19 @@ const ChildDashboard = () => {
             'bedtime': 'bedtime_days',
           };
           
+          const durationFieldMap = {
+            'wake': 'wake_duration',
+            'breakfast': 'breakfast_duration',
+            'school': 'school_duration',
+            'lunch': 'lunch_duration',
+            'snack': 'snack_duration',
+            'dinner': 'dinner_duration',
+            'bedtime': 'bedtime_duration',
+          };
+          
           const timeField = timeFieldMap[editingTask.id];
           const daysField = daysFieldMap[editingTask.id];
+          const durationField = durationFieldMap[editingTask.id];
           
           const updateData = {};
           if (timeField && taskData.scheduled_time) {
@@ -89,6 +100,9 @@ const ChildDashboard = () => {
           }
           if (daysField && taskData.recurring_days) {
             updateData[daysField] = taskData.recurring_days;
+          }
+          if (durationField && taskData.duration) {
+            updateData[durationField] = taskData.duration;
           }
           
           if (Object.keys(updateData).length > 0) {
