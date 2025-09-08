@@ -552,13 +552,35 @@ const TimelineScheduleView = ({
               
               return (
                 <div key={event.id} className="relative">
-                  {/* Spacing above when dropping before this item */}
+                  {/* Placeholder tile above when dropping before this item */}
                   {shouldShowSpacingAbove && (
-                    <div className="h-16 animate-fade-in transition-all duration-300 ease-out">
-                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-pulse shadow-lg mb-2" />
-                      <div className="flex items-center justify-center">
-                        <div className="px-3 py-1 bg-primary/10 border border-primary/30 rounded-full text-xs font-medium text-primary animate-bounce">
-                          📍 Drop here
+                    <div className="animate-fade-in transition-all duration-300 ease-out mb-2 sm:mb-4">
+                      <div className="flex items-center gap-2 sm:gap-4 group">
+                        {/* Drag handle placeholder */}
+                        <div className="p-1 text-muted-foreground/30 flex-shrink-0">
+                          <GripVertical className="w-3 h-3" />
+                        </div>
+                        
+                        {/* Time placeholder */}
+                        <div className="text-xs font-mono text-muted-foreground/50 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col">
+                          <span className="font-medium">--:--</span>
+                          <span className="text-xs opacity-75">--:--</span>
+                        </div>
+                        
+                        {/* Timeline bar placeholder */}
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div className="w-1 h-8 sm:h-12 rounded-full bg-muted-foreground/20" />
+                        </div>
+                        
+                        {/* Tile content placeholder */}
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-muted/30 border-2 border-dashed border-primary/40 rounded-lg p-2 sm:p-3 min-w-0 animate-pulse">
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                            <div className="w-20 h-4 bg-muted-foreground/20 rounded" />
+                            <div className="w-12 h-5 bg-muted-foreground/20 rounded" />
+                          </div>
+                          <div className="text-xs text-primary/60 font-medium mt-1 sm:mt-0">
+                            Drop here
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -580,15 +602,37 @@ const TimelineScheduleView = ({
                     />
                   </div>
 
-                  {/* Spacing below when dropping after this item */}
+                  {/* Placeholder tile below when dropping after this item */}
                   {shouldShowSpacingBelow && (
-                    <div className="h-16 animate-fade-in transition-all duration-300 ease-out">
-                      <div className="flex items-center justify-center mb-2">
-                        <div className="px-3 py-1 bg-primary/10 border border-primary/30 rounded-full text-xs font-medium text-primary animate-bounce">
-                          📍 Drop here
+                    <div className="animate-fade-in transition-all duration-300 ease-out mt-2 sm:mt-4">
+                      <div className="flex items-center gap-2 sm:gap-4 group">
+                        {/* Drag handle placeholder */}
+                        <div className="p-1 text-muted-foreground/30 flex-shrink-0">
+                          <GripVertical className="w-3 h-3" />
+                        </div>
+                        
+                        {/* Time placeholder */}
+                        <div className="text-xs font-mono text-muted-foreground/50 w-16 sm:w-24 text-right flex-shrink-0 flex flex-col">
+                          <span className="font-medium">--:--</span>
+                          <span className="text-xs opacity-75">--:--</span>
+                        </div>
+                        
+                        {/* Timeline bar placeholder */}
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div className="w-1 h-8 sm:h-12 rounded-full bg-muted-foreground/20" />
+                        </div>
+                        
+                        {/* Tile content placeholder */}
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-muted/30 border-2 border-dashed border-primary/40 rounded-lg p-2 sm:p-3 min-w-0 animate-pulse">
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                            <div className="w-20 h-4 bg-muted-foreground/20 rounded" />
+                            <div className="w-12 h-5 bg-muted-foreground/20 rounded" />
+                          </div>
+                          <div className="text-xs text-primary/60 font-medium mt-1 sm:mt-0">
+                            Drop here
+                          </div>
                         </div>
                       </div>
-                      <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full animate-pulse shadow-lg" />
                     </div>
                   )}
                 </div>
