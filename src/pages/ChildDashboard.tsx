@@ -260,23 +260,31 @@ const ChildDashboard = () => {
               onEditTask={handleEditTask}
               onDeleteTask={handleDeleteTask}
               onReorderTasks={async (reorderedTasks) => {
-                console.log('Handling task reorder with updated times:', reorderedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
+                console.log('=== CHILD DASHBOARD REORDER HANDLER START ===');
+                console.log('Received reorderedTasks:', reorderedTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
                 
                 try {
                   // Update each task with its new time and sort order
                   const updatePromises = reorderedTasks.map((task, index) => {
-                    console.log(`Updating task ${task.name} to time ${task.scheduled_time} and order ${index}`);
+                    console.log(`Preparing to update task ${task.name}:`, { 
+                      id: task.id, 
+                      newTime: task.scheduled_time, 
+                      newSortOrder: index 
+                    });
                     return updateTask(task.id, { 
                       scheduled_time: task.scheduled_time,
                       sort_order: index 
                     });
                   });
                   
+                  console.log('Executing Promise.all for task updates...');
                   await Promise.all(updatePromises);
                   console.log('All tasks updated successfully');
                   
                   // Force refetch to update UI
+                  console.log('Forcing refetch...');
                   await refetch();
+                  console.log('Refetch complete');
                   
                   toast({
                     title: "Tasks reordered",
@@ -285,11 +293,12 @@ const ChildDashboard = () => {
                 } catch (error) {
                   console.error('Failed to reorder tasks:', error);
                   toast({
-                    title: "Error",
+                    title: "Error", 
                     description: "Failed to reorder tasks. Please try again.",
                     variant: "destructive",
                   });
                 }
+                console.log('=== CHILD DASHBOARD REORDER HANDLER END ===');
               }}
               onTaskTimeUpdate={async (taskId, newTime) => {
                 console.log('Drag drop: updating task', taskId, 'to time', newTime);

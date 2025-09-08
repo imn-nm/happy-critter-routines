@@ -432,13 +432,14 @@ const TimelineScheduleView = ({
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
+    console.log('=== DRAG END START ===');
     console.log('Drag ended:', { activeId: active?.id, overId: over?.id, activeTask: draggableTasks.find(t => t.id === active.id)?.name });
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
 
     if (!over || active.id === over.id) {
-      console.log('No valid drop target or dropping on self');
+      console.log('No valid drop target or dropping on self - exiting');
       return;
     }
 
@@ -451,15 +452,23 @@ const TimelineScheduleView = ({
     // Check if we're dropping on a system event or scheduled task (time update)
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent) {
+      console.log('Found over event:', overEvent.name, 'type:', overEvent.type);
+      
       // If dropping on a draggable task, this is reordering
       const overDraggableTask = draggableTasks.find(task => task.id === over.id);
       if (overDraggableTask && onReorderTasks) {
+        console.log('=== REORDERING LOGIC START ===');
         console.log('Reordering tasks - dropping on draggable task:', overEvent.name);
+        console.log('Current draggable tasks order:', draggableTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
+        
         const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
         const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
         
+        console.log('Indexes:', { oldIndex, newIndex });
+        
         if (oldIndex !== -1 && newIndex !== -1) {
           const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+          console.log('After arrayMove:', reorderedTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
           
           // Calculate new times for reordered tasks to prevent overlaps
           const updatedTasks = reorderedTasks.map((task, index) => {
@@ -478,9 +487,11 @@ const TimelineScheduleView = ({
             }
           });
           
+          console.log('=== CALCULATED NEW TIMES ===');
           console.log('Updated tasks with new times:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
           
           // Call the reorder handler with all updated tasks
+          console.log('Calling onReorderTasks with updated tasks');
           onReorderTasks(updatedTasks);
         }
         return;
