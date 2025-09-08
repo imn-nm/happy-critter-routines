@@ -38,9 +38,24 @@ const ChildDashboard = () => {
   useEffect(() => {
     if (children.length > 0 && childId) {
       const foundChild = children.find(c => c.id === childId);
+      console.log('ChildDashboard: Setting child state to:', foundChild);
       setChild(foundChild || null);
     }
   }, [children, childId]);
+
+  // Additional effect to force re-render when child data changes
+  useEffect(() => {
+    if (child && children.length > 0) {
+      const updatedChild = children.find(c => c.id === child.id);
+      if (updatedChild && JSON.stringify(updatedChild) !== JSON.stringify(child)) {
+        console.log('ChildDashboard: Child data changed, updating:', {
+          old: child,
+          new: updatedChild
+        });
+        setChild(updatedChild);
+      }
+    }
+  }, [children, child]);
 
   const handleAddTask = () => {
     setEditingTask(null);

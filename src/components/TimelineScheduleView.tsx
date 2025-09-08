@@ -66,6 +66,16 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
     child.school_end_time || '15:00'
   );
 
+  console.log('getSystemEvents called with child durations:', {
+    wake_duration: (child as any).wake_duration,
+    breakfast_duration: (child as any).breakfast_duration,
+    school_duration: schoolDuration,
+    lunch_duration: (child as any).lunch_duration,
+    snack_duration: (child as any).snack_duration,
+    dinner_duration: (child as any).dinner_duration,
+    bedtime_duration: (child as any).bedtime_duration,
+  });
+
   return [
     { 
       id: 'wake', 
