@@ -20,17 +20,17 @@ import { Button } from "@/components/ui/button";
 import TaskCard from "@/components/TaskCard";
 import { Edit, Trash2, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Task } from "@/hooks/useTasks";
+import { Task } from "@/types/Task";
 
-// Convert from useTasks Task to TaskCard Task
-const convertToTaskCardTask = (task: Task): import("@/components/TaskCard").Task => ({
+// Convert from Task to TaskCard format
+const convertToTaskCardTask = (task: Task) => ({
   id: task.id,
   name: task.name,
   type: task.type,
   scheduledTime: task.scheduled_time,
   duration: task.duration,
   coins: task.coins,
-  isCompleted: task.isCompleted || false,
+  isCompleted: false, // Will be handled by parent component
   isActive: task.is_active,
 });
 

@@ -38,6 +38,7 @@ export interface Child {
 
 export const useChildren = () => {
   const [children, setChildren] = useState<Child[]>([]);
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -294,6 +295,8 @@ export const useChildren = () => {
 
   return {
     children,
+    selectedChild,
+    setSelectedChild,
     loading,
     addChild,
     updateChild,

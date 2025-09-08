@@ -33,8 +33,9 @@ const TaskManagement = () => {
       if (task.is_recurring && task.recurring_days) {
         return task.recurring_days.includes(dayName);
       }
-      // For non-recurring tasks, check if the task date matches the current date
-      return task.task_date && isSameDay(parseISO(task.task_date), currentDate);
+      // For non-recurring tasks, return all active tasks for now
+      // (you may want to add date filtering logic here based on your needs)
+      return task.is_active;
     });
   };
 
