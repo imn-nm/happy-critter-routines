@@ -25,7 +25,6 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
     school_start_time: child.school_start_time || "08:30",
     lunch_time: child.lunch_time || "12:00",
     school_end_time: child.school_end_time || "15:00",
-    snack_time: child.snack_time || "15:30",
     dinner_time: child.dinner_time || "18:00",
     bedtime: child.bedtime || "20:00",
   });
@@ -44,7 +43,6 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
         school_start_time: formData.school_start_time,
         lunch_time: formData.lunch_time,
         school_end_time: formData.school_end_time,
-        snack_time: formData.snack_time,
         dinner_time: formData.dinner_time,
         bedtime: formData.bedtime,
       });
@@ -190,16 +188,6 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   type="time"
                   value={formData.lunch_time}
                   onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="snack_time" className="text-xs">Snack Time</Label>
-                <Input
-                  id="snack_time"
-                  type="time"
-                  value={formData.snack_time}
-                  onChange={(e) => setFormData({ ...formData, snack_time: e.target.value })}
                   className="text-sm"
                 />
               </div>

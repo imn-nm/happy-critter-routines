@@ -29,7 +29,6 @@ const systemTasks: TimelineItem[] = [
   { id: 'wake', name: 'Wake Up', time: '07:00', duration: 0, type: 'system', isFixed: true },
   { id: 'breakfast', name: 'Breakfast', time: '07:30', duration: 30, type: 'system', isFixed: true },
   { id: 'lunch', name: 'Lunch', time: '12:00', duration: 45, type: 'system', isFixed: true },
-  { id: 'snack', name: 'Afternoon Snack', time: '15:30', duration: 15, type: 'system', isFixed: true },
   { id: 'dinner', name: 'Dinner', time: '18:00', duration: 60, type: 'system', isFixed: true },
   { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 0, type: 'system', isFixed: true },
 ];

@@ -34,7 +34,6 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
       { id: 'school-start', name: 'School Starts', time: child.school_start_time, duration: 0, type: 'system' as const },
       { id: 'school-end', name: 'School Ends', time: child.school_end_time, duration: 0, type: 'system' as const },
       { id: 'lunch', name: 'Lunch', time: child.lunch_time, duration: (child as any).lunch_duration || 45, type: 'system' as const },
-      { id: 'snack', name: 'Afternoon Snack', time: child.snack_time, duration: (child as any).snack_duration || 15, type: 'system' as const },
       { id: 'dinner', name: 'Dinner', time: child.dinner_time, duration: (child as any).dinner_duration || 60, type: 'system' as const },
       { id: 'bedtime', name: 'Bedtime', time: child.bedtime, duration: (child as any).bedtime_duration || 0, type: 'system' as const },
     ].filter(event => event.time && event.time.trim() !== '');

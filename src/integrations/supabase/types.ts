@@ -40,9 +40,6 @@ export type Database = {
           school_duration: number | null
           school_end_time: string | null
           school_start_time: string | null
-          snack_days: string[] | null
-          snack_duration: number | null
-          snack_time: string | null
           updated_at: string
           wake_days: string[] | null
           wake_duration: number | null
@@ -73,9 +70,6 @@ export type Database = {
           school_duration?: number | null
           school_end_time?: string | null
           school_start_time?: string | null
-          snack_days?: string[] | null
-          snack_duration?: number | null
-          snack_time?: string | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null
@@ -106,9 +100,6 @@ export type Database = {
           school_duration?: number | null
           school_end_time?: string | null
           school_start_time?: string | null
-          snack_days?: string[] | null
-          snack_duration?: number | null
-          snack_time?: string | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null

@@ -18,7 +18,6 @@ export interface Child {
   school_start_time?: string;
   lunch_time?: string;
   school_end_time?: string;
-  snack_time?: string;
   dinner_time?: string;
   bedtime?: string;
 }
@@ -48,7 +47,6 @@ export const useChildren = () => {
         school_start_time: child.school_start_time,
         lunch_time: child.lunch_time,
         school_end_time: child.school_end_time,
-        snack_time: child.snack_time,
         dinner_time: child.dinner_time,
         bedtime: child.bedtime,
       }));
@@ -100,7 +98,6 @@ export const useChildren = () => {
         school_start_time: data.school_start_time,
         lunch_time: data.lunch_time,
         school_end_time: data.school_end_time,
-        snack_time: data.snack_time,
         dinner_time: data.dinner_time,
         bedtime: data.bedtime,
       };
@@ -143,7 +140,6 @@ export const useChildren = () => {
         school_start_time: updates.school_start_time,
         lunch_time: updates.lunch_time,
         school_end_time: updates.school_end_time,
-        snack_time: updates.snack_time,
         dinner_time: updates.dinner_time,
         bedtime: updates.bedtime,
       };
@@ -175,7 +171,6 @@ export const useChildren = () => {
         school_start_time: data.school_start_time,
         lunch_time: data.lunch_time,
         school_end_time: data.school_end_time,
-        snack_time: data.snack_time,
         dinner_time: data.dinner_time,
         bedtime: data.bedtime,
       };

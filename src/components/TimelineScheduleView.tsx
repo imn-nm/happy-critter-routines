@@ -123,15 +123,6 @@ const getSystemEvents = (child: Child): TimelineEvent[] => {
       recurring_days: (child as any).lunch_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     },
     { 
-      id: 'snack', 
-      name: 'Snack', 
-      time: child.snack_time || '15:30', 
-      duration: (child as any).snack_duration || 15, 
-      type: 'scheduled', 
-      color: 'bg-yellow-500',
-      recurring_days: (child as any).snack_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-    },
-    { 
       id: 'dinner', 
       name: 'Dinner', 
       time: child.dinner_time || '18:00', 
