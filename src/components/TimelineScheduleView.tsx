@@ -432,7 +432,7 @@ const TimelineScheduleView = ({
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    console.log('Drag ended:', { activeId: active?.id, overId: over?.id });
+    console.log('Drag ended:', { activeId: active?.id, overId: over?.id, activeTask: draggableTasks.find(t => t.id === active.id)?.name });
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
@@ -452,20 +452,50 @@ const TimelineScheduleView = ({
     const overEvent = allEvents.find(event => event.id === over.id);
     if (overEvent) {
       // If dropping on a draggable task, this is reordering
-      if (draggableTasks.find(task => task.id === over.id) && onReorderTasks) {
+      const overDraggableTask = draggableTasks.find(task => task.id === over.id);
+      if (overDraggableTask && onReorderTasks) {
         console.log('Reordering tasks - dropping on draggable task:', overEvent.name);
         const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
         const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
         
         if (oldIndex !== -1 && newIndex !== -1) {
           const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-          onReorderTasks(reorderedTasks);
+          
+          // Calculate new times for reordered tasks to prevent overlaps
+          const updatedTasks = reorderedTasks.map((task, index) => {
+            if (index === 0) {
+              // First task gets a default time if no time set
+              return { ...task, scheduled_time: task.scheduled_time || '09:00' };
+            } else {
+              // Subsequent tasks are scheduled 10 minutes after the previous task ends
+              const prevTask = reorderedTasks[index - 1];
+              const prevEndTime = calculateTimeWithBuffer(
+                prevTask.scheduled_time || '09:00', 
+                prevTask.duration || 30, 
+                10
+              );
+              return { ...task, scheduled_time: prevEndTime };
+            }
+          });
+          
+          console.log('Updated tasks with new times:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
+          
+          // Update each task with new time
+          updatedTasks.forEach((task, index) => {
+            if (task.scheduled_time !== draggableTasks.find(t => t.id === task.id)?.scheduled_time) {
+              console.log(`Updating task ${task.name} time to ${task.scheduled_time}`);
+              onTaskTimeUpdate?.(task.id, task.scheduled_time);
+            }
+          });
+          
+          onReorderTasks(updatedTasks);
         }
         return;
       }
       
       // If dropping on a fixed event (system or scheduled), this is time update
-      if (fixedEvents.find(event => event.id === over.id) && onTaskTimeUpdate) {
+      const fixedEvent = fixedEvents.find(event => event.id === over.id);
+      if (fixedEvent && onTaskTimeUpdate) {
         console.log('Dropping on fixed event for time update:', overEvent.name);
         const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
         const isSystemEvent = systemEventIds.includes(overEvent.id);
@@ -487,7 +517,7 @@ const TimelineScheduleView = ({
       }
     }
 
-    console.log('No valid drop action found');
+    console.log('No valid drop action found - available events:', allEvents.map(e => ({ id: e.id, name: e.name, isDraggable: e.type === 'flexible' || e.type === 'regular' })));
   };
 
   const goToPreviousWeek = () => {
@@ -538,7 +568,10 @@ const TimelineScheduleView = ({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={draggableEvents.map(event => event.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext 
+          items={allEvents.map(event => event.id)} 
+          strategy={verticalListSortingStrategy}
+        >
           <div className="space-y-2 sm:space-y-4">
             {allEvents.map((event, index) => {
               const isDraggable = event.type === 'flexible' || event.type === 'regular';
