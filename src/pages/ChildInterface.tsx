@@ -114,7 +114,7 @@ const ChildInterface = () => {
     const availableTasks = tasksWithCompletion.filter(task => 
       !task.isCompleted && 
       task.scheduled_time &&
-      (task.recurring_days?.length === 0 || task.recurring_days?.includes(currentDay))
+      task.recurring_days?.includes(currentDay)
     );
 
     // Sort by scheduled time
@@ -163,7 +163,7 @@ const ChildInterface = () => {
       !task.isCompleted && 
       task.id !== activeTask?.id &&
       task.scheduled_time &&
-      (task.recurring_days?.length === 0 || task.recurring_days?.includes(currentDay)) &&
+      task.recurring_days?.includes(currentDay) &&
       task.scheduled_time > currentTimeString // Only future tasks
     ).slice(0, 2);
   };

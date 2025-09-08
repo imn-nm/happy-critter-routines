@@ -54,11 +54,12 @@ const UpcomingEventsForAll = () => {
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
     
-    // Filter for tasks with scheduled times
+    // Filter for scheduled tasks only (exclude regular and flexible)
     const scheduledTasks = allTasks.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const hasRecurringDays = task.recurring_days && task.recurring_days.length > 0;
-      return hasScheduledTime && hasRecurringDays;
+      const isScheduledTask = task.type === 'scheduled';
+      return hasScheduledTime && hasRecurringDays && isScheduledTask;
     });
 
     scheduledTasks.forEach(task => {
