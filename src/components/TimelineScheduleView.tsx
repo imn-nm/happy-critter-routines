@@ -52,6 +52,15 @@ interface TimelineEvent {
 }
 
 const getSystemEvents = (child: Child): TimelineEvent[] => {
+  console.log('getSystemEvents called with child:', {
+    id: child.id,
+    name: child.name,
+    wake_time: child.wake_time,
+    breakfast_time: child.breakfast_time,
+    wake_duration: (child as any).wake_duration,
+    breakfast_duration: (child as any).breakfast_duration,
+  });
+
   const calculateSchoolDuration = (startTime: string, endTime: string) => {
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     const [endHours, endMinutes] = endTime.split(':').map(Number);
@@ -276,8 +285,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
                   id: event.id, 
                   name: event.name, 
                   scheduled_time: event.time, 
+                  duration: event.duration,
                   type: event.type,
-                  coins: event.coins || 0
+                  coins: event.coins || 0,
+                  recurring_days: event.recurring_days || []
                 })}
                 className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
                 title="Edit task"

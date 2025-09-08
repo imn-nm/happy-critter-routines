@@ -18,9 +18,12 @@ interface TaskFormProps {
 }
 
 const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => {
+  // Check if this is a system event
+  const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
   const [formData, setFormData] = useState({
     name: task?.name || "",
-    type: task?.type || "regular" as Task['type'],
+    type: (task?.type || "regular") as Task['type'],
     scheduledTime: task?.scheduled_time || "",
     duration: task?.duration?.toString() || "",
     coins: task?.coins?.toString() || "5",
@@ -95,6 +98,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
           <Select 
             value={formData.type} 
             onValueChange={(value: Task['type']) => setFormData({ ...formData, type: value })}
+            disabled={isSystemEvent}
           >
             <SelectTrigger>
               <SelectValue />
@@ -121,7 +125,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false }: TaskFormProps) => 
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            {taskTypeDescriptions[formData.type]}
+            {isSystemEvent ? "System-managed schedule event" : taskTypeDescriptions[formData.type]}
           </p>
         </div>
 

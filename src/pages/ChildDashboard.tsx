@@ -113,12 +113,15 @@ const ChildDashboard = () => {
           
           const updateData = {};
           if (timeField && taskData.scheduled_time) {
+            console.log(`Setting ${timeField} to ${taskData.scheduled_time}`);
             updateData[timeField] = taskData.scheduled_time;
           }
           if (daysField && taskData.recurring_days) {
+            console.log(`Setting ${daysField} to`, taskData.recurring_days);
             updateData[daysField] = taskData.recurring_days;
           }
           if (durationField && taskData.duration) {
+            console.log(`Setting ${durationField} to ${taskData.duration}`);
             updateData[durationField] = taskData.duration;
           }
           
