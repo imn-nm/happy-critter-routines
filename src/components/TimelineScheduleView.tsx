@@ -385,20 +385,112 @@ const TimelineScheduleView = ({
 
   const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
 
-  // Draggable tasks (flexible and regular)
+  // Draggable tasks (flexible and regular) - we'll calculate their times based on snapping logic
   const draggableTasks = dayTasks.filter(task => task.type === 'flexible' || task.type === 'regular');
-  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => ({
-    id: task.id,
-    name: task.name,
-    time: task.scheduled_time || '09:00',
-    duration: task.duration || 30, // Default 30 minutes if not specified
-    type: task.type,
-    color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500', // Blue for regular, amber for flexible
-    task: task,
-    coins: task.coins,
-    isCompleted: task.isCompleted,
-    isLate: false,
-  }));
+  
+  // Sort fixed events by time to create anchor points
+  const sortedFixedEvents = [...fixedEvents].sort((a, b) => {
+    const timeA = a.time.split(':').map(Number);
+    const timeB = b.time.split(':').map(Number);
+    const minutesA = timeA[0] * 60 + timeA[1];
+    const minutesB = timeB[0] * 60 + timeB[1];
+    return minutesA - minutesB;
+  });
+
+  // Calculate snapped times for draggable tasks
+  const calculateSnappedTimes = (tasks: any[], fixedEvents: TimelineEvent[]) => {
+    const snappedEvents: TimelineEvent[] = [];
+    
+    // Create time windows between fixed events
+    const timeWindows: { start: number; end: number; afterEvent: string }[] = [];
+    
+    for (let i = 0; i < fixedEvents.length - 1; i++) {
+      const currentEvent = fixedEvents[i];
+      const nextEvent = fixedEvents[i + 1];
+      
+      // Calculate end time of current event
+      const [currentHours, currentMinutes] = currentEvent.time.split(':').map(Number);
+      const currentEndMinutes = currentHours * 60 + currentMinutes + currentEvent.duration;
+      
+      // Calculate start time of next event
+      const [nextHours, nextMinutes] = nextEvent.time.split(':').map(Number);
+      const nextStartMinutes = nextHours * 60 + nextMinutes;
+      
+      // Only create window if there's at least 15 minutes gap
+      if (nextStartMinutes - currentEndMinutes >= 15) {
+        timeWindows.push({
+          start: currentEndMinutes,
+          end: nextStartMinutes,
+          afterEvent: currentEvent.name
+        });
+      }
+    }
+
+    // Add a final window after the last fixed event
+    if (fixedEvents.length > 0) {
+      const lastEvent = fixedEvents[fixedEvents.length - 1];
+      const [lastHours, lastMinutes] = lastEvent.time.split(':').map(Number);
+      const lastEndMinutes = lastHours * 60 + lastMinutes + lastEvent.duration;
+      
+      timeWindows.push({
+        start: lastEndMinutes,
+        end: 24 * 60, // End of day
+        afterEvent: lastEvent.name
+      });
+    }
+
+    // Distribute tasks across time windows
+    let taskIndex = 0;
+    for (const window of timeWindows) {
+      const windowDuration = window.end - window.start;
+      if (windowDuration < 15) continue; // Skip windows too small
+      
+      // Get tasks for this window (for now, just distribute sequentially)
+      const windowTasks = tasks.slice(taskIndex);
+      if (windowTasks.length === 0) break;
+      
+      let currentTime = window.start;
+      const tasksInWindow = Math.min(windowTasks.length, Math.floor(windowDuration / 30)); // Max tasks that fit
+      
+      for (let i = 0; i < tasksInWindow && taskIndex < tasks.length; i++, taskIndex++) {
+        const task = tasks[taskIndex];
+        let taskDuration = task.duration || 30;
+        
+        // If this is the last task in the window and it's flexible, expand it to fill remaining time
+        const isLastInWindow = i === tasksInWindow - 1;
+        const remainingTime = window.end - currentTime;
+        
+        if (task.type === 'flexible' && isLastInWindow && remainingTime > taskDuration) {
+          taskDuration = Math.max(taskDuration, remainingTime - 10); // Leave 10 min buffer
+        }
+        
+        // Convert time back to HH:MM format
+        const hours = Math.floor(currentTime / 60);
+        const minutes = currentTime % 60;
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        
+        snappedEvents.push({
+          id: task.id,
+          name: task.name,
+          time: timeStr,
+          duration: taskDuration,
+          type: task.type,
+          color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
+          task: task,
+          coins: task.coins,
+          isCompleted: task.isCompleted,
+          isLate: false,
+        });
+        
+        currentTime += taskDuration;
+        if (currentTime >= window.end) break;
+      }
+    }
+    
+    return snappedEvents;
+  };
+
+  const draggableEvents = calculateSnappedTimes(draggableTasks, sortedFixedEvents);
 
   // Combine and sort all events by time
   const allEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents].sort((a, b) => {
@@ -467,34 +559,10 @@ const TimelineScheduleView = ({
         const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
         console.log('After arrayMove:', reorderedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
         
-        // Calculate new sequential times
-        const updatedTasks = [];
-        for (let i = 0; i < reorderedTasks.length; i++) {
-          const task = reorderedTasks[i];
-          if (i === 0) {
-            // First task keeps current time or default
-            updatedTasks.push({ ...task, scheduled_time: task.scheduled_time || '09:00' });
-          } else {
-            // Calculate end time of previous task
-            const prevTask = updatedTasks[i - 1];
-            const prevTime = prevTask.scheduled_time || '09:00';
-            const prevDuration = prevTask.duration || 30;
-            
-            const [hours, minutes] = prevTime.split(':').map(Number);
-            const totalMinutes = hours * 60 + minutes + prevDuration;
-            const newHours = Math.floor(totalMinutes / 60) % 24;
-            const newMinutes = totalMinutes % 60;
-            const newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-            
-            updatedTasks.push({ ...task, scheduled_time: newTime });
-          }
-        }
-        
-        console.log('=== CALCULATED NEW TIMES ===');
-        console.log('Updated tasks:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
-        
-        console.log('Calling onReorderTasks...');
-        onReorderTasks(updatedTasks);
+        // With snapping logic, we don't need to manually calculate times here
+        // The snapping logic will automatically recalculate times based on the new order
+        console.log('Calling onReorderTasks with reordered tasks...');
+        onReorderTasks(reorderedTasks);
         console.log('onReorderTasks called successfully');
       }
       return;
@@ -508,14 +576,16 @@ const TimelineScheduleView = ({
       console.log('=== TIME UPDATE LOGIC START ===');
       console.log('Dropping on fixed event:', overEvent.name);
       
+      // With snapping logic, we just need to trigger a reorder to place the task in that time window
+      // The actual time calculation will be done by the snapping algorithm
       const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
       const isSystemEvent = systemEventIds.includes(overEvent.id);
       
       let newTime: string;
       if (isSystemEvent) {
-        // For system events, place task 20 minutes after event ends
+        // For system events, place task right after event ends (no buffer needed with snapping)
         const [hours, minutes] = overEvent.time.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes + overEvent.duration + 20;
+        const totalMinutes = hours * 60 + minutes + overEvent.duration;
         const newHours = Math.floor(totalMinutes / 60) % 24;
         const newMinutes = totalMinutes % 60;
         newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
