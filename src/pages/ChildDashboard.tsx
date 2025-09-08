@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ArrowLeft, ListTodo, Gift, Calendar, Plus, CalendarDays } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -105,8 +105,15 @@ const ChildDashboard = () => {
             });
           }
         } else {
-          // Regular task update
-          await updateTask(editingTask.id, taskData);
+          // Regular task update - ensure we have the proper task structure
+          const updateData = {
+            ...taskData,
+            id: editingTask.id,
+            child_id: editingTask.child_id,
+            created_at: editingTask.created_at,
+            updated_at: new Date().toISOString(),
+          };
+          await updateTask(editingTask.id, updateData);
           toast({
             title: "Task updated",
             description: "Task has been updated successfully.",
@@ -349,12 +356,12 @@ const ChildDashboard = () => {
         {/* Task Form Dialog */}
         <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sr-only">
-              <h2 id="dialog-title">{editingTask ? "Edit Task" : "Add New Task"}</h2>
-              <p id="dialog-description">
-                {editingTask ? "Edit the task details below" : "Fill in the form below to create a new task"}
-              </p>
-            </div>
+            <DialogTitle className="sr-only">
+              {editingTask ? "Edit Task" : "Add New Task"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {editingTask ? "Edit the task details below" : "Fill in the form below to create a new task"}
+            </DialogDescription>
             <TaskForm
               task={editingTask}
               onSave={handleSaveTask}
