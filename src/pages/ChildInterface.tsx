@@ -96,11 +96,69 @@ const ChildInterface = () => {
     return 20;
   };
 
-  const activeTask = tasksWithCompletion.find(task => task.is_active && !task.isCompleted);
-  const upcomingTasks = tasksWithCompletion.filter(task => !task.is_active && !task.isCompleted).slice(0, 3);
+  // Get current time in PST timezone
+  const getCurrentTimePST = () => {
+    const now = new Date();
+    // Convert to PST (UTC-8, or UTC-7 during DST)
+    const pstOffset = -8 * 60; // PST is UTC-8
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const pstTime = new Date(utc + (pstOffset * 60000));
+    return pstTime;
+  };
+
+  // Determine current task based on schedule and current PST time
+  const getCurrentTask = () => {
+    const currentTime = getCurrentTimePST();
+    const currentTimeString = currentTime.toTimeString().slice(0, 5); // HH:MM format
+    const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+    // Filter tasks that are not completed and are scheduled for today
+    const availableTasks = tasksWithCompletion.filter(task => 
+      !task.isCompleted && 
+      task.scheduled_time &&
+      (task.recurring_days?.length === 0 || task.recurring_days?.includes(currentDay))
+    );
+
+    // Sort by scheduled time
+    availableTasks.sort((a, b) => {
+      const timeA = a.scheduled_time || '00:00';
+      const timeB = b.scheduled_time || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+
+    // Find the current task (the one that should be active right now)
+    for (let i = 0; i < availableTasks.length; i++) {
+      const task = availableTasks[i];
+      const taskTime = task.scheduled_time || '';
+      
+      // If this is the last task or the current time is between this task and the next
+      if (i === availableTasks.length - 1) {
+        // If current time is past this task's time, it's the current task
+        if (currentTimeString >= taskTime) {
+          return task;
+        }
+      } else {
+        const nextTask = availableTasks[i + 1];
+        const nextTaskTime = nextTask.scheduled_time || '';
+        
+        // If current time is between this task and next task
+        if (currentTimeString >= taskTime && currentTimeString < nextTaskTime) {
+          return task;
+        }
+      }
+    }
+
+    // If no scheduled task matches, return the first non-completed task
+    return tasksWithCompletion.find(task => !task.isCompleted);
+  };
+
+  const activeTask = getCurrentTask();
   
   // Get next 2 upcoming tasks (excluding the active task)
-  const nextTwoTasks = upcomingTasks.slice(0, 2);
+  const upcomingTasks = tasksWithCompletion.filter(task => 
+    !task.isCompleted && 
+    task.id !== activeTask?.id
+  ).slice(0, 2);
   
   // Calculate total expected duration vs actual duration for flexible task adjustment
   const calculateFlexibleTaskAdjustment = () => {
@@ -245,11 +303,11 @@ const ChildInterface = () => {
 
           <TabsContent value="current" className="space-y-6">
             {/* Next Two Tasks with Timers */}
-            {nextTwoTasks.length > 0 && (
+            {upcomingTasks.length > 0 && (
               <div className="space-y-4">
                 <h3 className="font-semibold text-white text-center">Next Tasks</h3>
                 <div className="grid gap-4">
-                  {nextTwoTasks.map((task, index) => (
+                  {upcomingTasks.map((task, index) => (
                     <NextTaskTimer
                       key={task.id}
                       task={task}
@@ -262,7 +320,7 @@ const ChildInterface = () => {
             )}
 
             {/* No tasks state */}
-            {!activeTask && nextTwoTasks.length === 0 && (
+            {!activeTask && upcomingTasks.length === 0 && (
               <Card className="p-8 text-center bg-white/90 backdrop-blur">
                 <div className="text-6xl mb-4">🎉</div>
                 <h2 className="text-2xl font-bold mb-2">All Done!</h2>
