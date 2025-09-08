@@ -53,12 +53,6 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
           </div>
         )}
 
-        {/* Duration Display */}
-        {task.duration && (
-          <div className="text-sm text-muted-foreground">
-            {Math.floor(task.duration / 60)}h {task.duration % 60}m
-          </div>
-        )}
 
         {/* Coins Display */}
         <div className="flex items-center justify-center gap-2 text-warning">

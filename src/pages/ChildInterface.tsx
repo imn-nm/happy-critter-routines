@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PetAvatar from "@/components/PetAvatar";
 import NextTaskTimer from "@/components/NextTaskTimer";
 import CircularTimer from "@/components/CircularTimer";
-import UpcomingEvents from "@/components/UpcomingEvents";
+import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import { ArrowLeft, Coins, Star, Calendar, Clock } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -509,26 +509,8 @@ const ChildInterface = () => {
 
           <TabsContent value="upcoming" className="space-y-6">
             <div className="space-y-4">
-              <h3 className="font-semibold text-white text-center">Today's Complete Schedule</h3>
-              <div className="grid gap-4">
-                {todaysSchedule.map((task, index) => (
-                  <NextTaskTimer
-                    key={task.id}
-                    task={task}
-                    index={index}
-                    onComplete={handleCompleteTask}
-                  />
-                ))}
-              </div>
-              {todaysSchedule.length === 0 && (
-                <Card className="p-8 text-center bg-white/90 backdrop-blur">
-                  <div className="text-4xl mb-4">📅</div>
-                  <h3 className="text-xl font-bold mb-2">No Schedule Today</h3>
-                  <p className="text-muted-foreground">
-                    No tasks or events are scheduled for today.
-                  </p>
-                </Card>
-              )}
+              <h3 className="font-semibold text-white text-center">Today's Schedule</h3>
+              <TodaysScheduleTimeline schedule={todaysSchedule} />
             </div>
           </TabsContent>
         </Tabs>
