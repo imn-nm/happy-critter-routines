@@ -431,10 +431,33 @@ const TimelineScheduleView = ({
       return;
     }
 
-    // Check if we're dropping on another draggable task (reorder)
+    // First check if we're dropping on a system event or fixed event (time update)
+    const overEvent = fixedEvents.find(event => event.id === over.id);
+    if (overEvent && onTaskTimeUpdate) {
+      console.log('Dropping on fixed event:', overEvent);
+      const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
+      const isSystemEvent = systemEventIds.includes(overEvent.id);
+      
+      let newTime: string;
+      if (isSystemEvent) {
+        // For system events, place the task 20 minutes after the event ends
+        newTime = calculateTimeWithBuffer(overEvent.time, overEvent.duration, 20);
+        console.log('System event detected, new time with buffer:', newTime);
+      } else {
+        // For scheduled tasks, place at the same time
+        newTime = overEvent.time;
+        console.log('Scheduled event, new time:', newTime);
+      }
+      
+      console.log('Calling onTaskTimeUpdate with:', activeTask.id, newTime);
+      onTaskTimeUpdate(activeTask.id, newTime);
+      return;
+    }
+
+    // Then check if we're dropping on another draggable task (reorder)
     const overTask = draggableTasks.find(task => task.id === over.id);
     if (overTask && onReorderTasks) {
-      console.log('Reordering tasks');
+      console.log('Reordering tasks - dropping on draggable task:', overTask.name);
       const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
       const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
       
@@ -445,27 +468,7 @@ const TimelineScheduleView = ({
       return;
     }
 
-    // Check if we're dropping on a fixed event (time update)
-    const overEvent = allEvents.find(event => event.id === over.id);
-    if (overEvent && onTaskTimeUpdate) {
-      console.log('Dropping on event:', overEvent);
-      const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
-      const isSystemEvent = systemEventIds.includes(overEvent.id);
-      
-      let newTime: string;
-      if (isSystemEvent) {
-        // For system events, place the task 20 minutes after the event ends
-        newTime = calculateTimeWithBuffer(overEvent.time, overEvent.duration, 20);
-        console.log('System event detected, new time with buffer:', newTime);
-      } else {
-        // For other events, place at the same time
-        newTime = overEvent.time;
-        console.log('Regular event, new time:', newTime);
-      }
-      
-      console.log('Calling onTaskTimeUpdate with:', activeTask.id, newTime);
-      onTaskTimeUpdate(activeTask.id, newTime);
-    }
+    console.log('No valid drop action found');
   };
 
   const goToPreviousWeek = () => {
