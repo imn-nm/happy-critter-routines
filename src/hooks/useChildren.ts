@@ -232,6 +232,8 @@ export const useChildren = () => {
   useEffect(() => {
     fetchChildren();
     
+    console.log('Setting up real-time subscription for children changes');
+    
     // Set up real-time subscription for children changes
     const childrenChannel = supabase
       .channel('children-changes')
@@ -243,7 +245,7 @@ export const useChildren = () => {
           table: 'children'
         },
         (payload) => {
-          console.log('Real-time child change:', payload);
+          console.log('Real-time child change detected:', payload);
           if (payload.eventType === 'UPDATE') {
             // Map database format to interface format for real-time updates
             const mappedChild = {
@@ -252,6 +254,7 @@ export const useChildren = () => {
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
+            console.log('Updating children state with real-time change:', mappedChild);
             setChildren(prev => prev.map(child => 
               child.id === payload.new?.id ? mappedChild as Child : child
             ));
@@ -262,15 +265,20 @@ export const useChildren = () => {
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
+            console.log('Adding new child via real-time:', mappedChild);
             setChildren(prev => [...prev, mappedChild as Child]);
           } else if (payload.eventType === 'DELETE') {
+            console.log('Removing child via real-time:', payload.old?.id);
             setChildren(prev => prev.filter(child => child.id !== payload.old?.id));
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Children real-time subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up children real-time subscription');
       supabase.removeChannel(childrenChannel);
     };
   }, []);
