@@ -20,6 +20,20 @@ export interface Child {
   school_end_time?: string;
   dinner_time?: string;
   bedtime?: string;
+  // Schedule days
+  wake_days?: string[];
+  breakfast_days?: string[];
+  school_days?: string[];
+  lunch_days?: string[];
+  dinner_days?: string[];
+  bedtime_days?: string[];
+  // Durations
+  wake_duration?: number;
+  breakfast_duration?: number;
+  school_duration?: number;
+  lunch_duration?: number;
+  dinner_duration?: number;
+  bedtime_duration?: number;
 }
 
 export const useChildren = () => {
