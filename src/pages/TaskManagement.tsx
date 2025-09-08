@@ -50,12 +50,14 @@ const TaskManagement = () => {
 
   // Filter tasks for current day view
   const getTasksForCurrentDay = () => {
-    const dayName = format(currentDate, 'EEEE').toLowerCase();
-    return tasksWithCompletion.filter(task => {
-      if (!task.is_recurring || !task.recurring_days) return true;
+  const dayName = format(currentDate, 'EEEE').toLowerCase();
+  return tasksWithCompletion.filter(task => {
+    if (task.is_recurring && task.recurring_days) {
       return task.recurring_days.includes(dayName);
-    });
-  };
+    }
+    return task.task_date && isSameDay(parseISO(task.task_date), currentDate);
+  });
+};
 
   const tasksForCurrentDay = getTasksForCurrentDay();
 
@@ -131,11 +133,12 @@ const TaskManagement = () => {
       <div className="min-h-screen bg-gradient-primary p-4">
         <div className="max-w-2xl mx-auto">
           <TaskForm
-            task={editingTask || undefined}
-            onSave={handleSaveTask}
-            onCancel={handleCancelForm}
-            isEdit={!!editingTask}
-          />
+  task={editingTask}
+  onSave={handleSaveTask}
+  onCancel={handleCancelForm}
+  isEdit={!!editingTask}
+  currentDate={currentDate}  // Add this line
+/>
         </div>
       </div>
     );
