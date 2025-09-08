@@ -64,6 +64,17 @@ const ChildInterface = () => {
       supabase.removeChannel(childChannel);
     };
   }, [childId]);
+
+  // Real-time current task updates - refresh every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Force re-render to update current task based on time
+      setShowCelebration(prev => prev);
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+  
   
   if (!child) {
     return (
@@ -109,13 +120,21 @@ const ChildInterface = () => {
     const currentTime = getCurrentTimePST();
     const currentTimeString = currentTime.toTimeString().slice(0, 5); // HH:MM format
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    
+    console.log(`Current time: ${currentTimeString}, Current day: ${currentDay}`);
 
-    // Filter tasks that are not completed and are scheduled for today
-    const availableTasks = tasksWithCompletion.filter(task => 
-      !task.isCompleted && 
-      task.scheduled_time &&
-      task.recurring_days?.includes(currentDay)
-    );
+    // Filter tasks based on type and schedule
+    const availableTasks = tasksWithCompletion.filter(task => {
+      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
+      const isScheduledForToday = task.recurring_days?.includes(currentDay) || 
+                                  (!task.recurring_days && task.type === 'regular'); // Regular tasks without recurring days run daily
+      const isNotCompleted = !task.isCompleted;
+      
+      console.log(`Task ${task.name}: type=${task.type}, scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, isScheduledForToday=${isScheduledForToday}, isNotCompleted=${isNotCompleted}`);
+      
+      // Only include tasks that have scheduled times and are scheduled for today
+      return isNotCompleted && hasScheduledTime && isScheduledForToday;
+    });
 
     // Sort by scheduled time
     availableTasks.sort((a, b) => {
@@ -159,13 +178,18 @@ const ChildInterface = () => {
     const currentTimeString = currentTime.toTimeString().slice(0, 5);
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-    return tasksWithCompletion.filter(task => 
-      !task.isCompleted && 
-      task.id !== activeTask?.id &&
-      task.scheduled_time &&
-      task.recurring_days?.includes(currentDay) &&
-      task.scheduled_time > currentTimeString // Only future tasks
-    ).slice(0, 2);
+    return tasksWithCompletion.filter(task => {
+      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
+      const isScheduledForToday = task.recurring_days?.includes(currentDay) || 
+                                  (!task.recurring_days && task.type === 'regular'); // Regular tasks without recurring days run daily
+      const isFutureTask = task.scheduled_time > currentTimeString;
+      
+      return !task.isCompleted && 
+             task.id !== activeTask?.id &&
+             hasScheduledTime &&
+             isScheduledForToday &&
+             isFutureTask; // Only future tasks
+    }).slice(0, 2);
   };
 
   const upcomingTasks = getUpcomingTasks();
