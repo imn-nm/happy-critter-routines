@@ -433,7 +433,8 @@ const TimelineScheduleView = ({
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
     console.log('=== DRAG END START ===');
-    console.log('Drag ended:', { activeId: active?.id, overId: over?.id, activeTask: draggableTasks.find(t => t.id === active.id)?.name });
+    console.log('Drag ended:', { activeId: active?.id, overId: over?.id });
+    
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
@@ -448,80 +449,90 @@ const TimelineScheduleView = ({
       console.log('Active task not found:', active.id);
       return;
     }
+    console.log('Active task found:', activeTask.name);
 
-    // Check if we're dropping on a system event or scheduled task (time update)
-    const overEvent = allEvents.find(event => event.id === over.id);
-    if (overEvent) {
-      console.log('Found over event:', overEvent.name, 'type:', overEvent.type);
+    // FIRST: Check if dropping on another draggable task (reordering)
+    const overDraggableTask = draggableTasks.find(task => task.id === over.id);
+    if (overDraggableTask && onReorderTasks) {
+      console.log('=== REORDERING LOGIC START ===');
+      console.log('Reordering - Active:', activeTask.name, 'Over:', overDraggableTask.name);
+      console.log('Current draggable tasks:', draggableTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
       
-      // If dropping on a draggable task, this is reordering
-      const overDraggableTask = draggableTasks.find(task => task.id === over.id);
-      if (overDraggableTask && onReorderTasks) {
-        console.log('=== REORDERING LOGIC START ===');
-        console.log('Reordering tasks - dropping on draggable task:', overEvent.name);
-        console.log('Current draggable tasks order:', draggableTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
-        
-        const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
-        const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
-        
-        console.log('Indexes:', { oldIndex, newIndex });
-        
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-          console.log('After arrayMove:', reorderedTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
-          
-          // Calculate new times for reordered tasks to prevent overlaps
-          const updatedTasks = reorderedTasks.map((task, index) => {
-            if (index === 0) {
-              // First task keeps its current time or gets a default
-              return { ...task, scheduled_time: task.scheduled_time || '09:00' };
-            } else {
-              // Subsequent tasks are scheduled right after the previous task ends
-              const prevTask = updatedTasks[index - 1]; // Use the already updated previous task
-              const prevEndTime = calculateTimeWithBuffer(
-                prevTask.scheduled_time || '09:00', 
-                prevTask.duration || 30, 
-                0  // No padding between tasks
-              );
-              return { ...task, scheduled_time: prevEndTime };
-            }
-          });
-          
-          console.log('=== CALCULATED NEW TIMES ===');
-          console.log('Updated tasks with new times:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
-          
-          // Call the reorder handler with all updated tasks
-          console.log('Calling onReorderTasks with updated tasks');
-          onReorderTasks(updatedTasks);
-        }
-        return;
-      }
+      const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
+      const newIndex = draggableTasks.findIndex((task) => task.id === over.id);
       
-      // If dropping on a fixed event (system or scheduled), this is time update
-      const fixedEvent = fixedEvents.find(event => event.id === over.id);
-      if (fixedEvent && onTaskTimeUpdate) {
-        console.log('Dropping on fixed event for time update:', overEvent.name);
-        const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
-        const isSystemEvent = systemEventIds.includes(overEvent.id);
+      console.log('Indexes - old:', oldIndex, 'new:', newIndex);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
+        console.log('After arrayMove:', reorderedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
         
-        let newTime: string;
-        if (isSystemEvent) {
-          // For system events, place the task 20 minutes after the event ends
-          newTime = calculateTimeWithBuffer(overEvent.time, overEvent.duration, 20);
-          console.log('System event detected, new time with buffer:', newTime);
-        } else {
-          // For scheduled tasks, place at the same time
-          newTime = overEvent.time;
-          console.log('Scheduled event, new time:', newTime);
+        // Calculate new sequential times
+        const updatedTasks = [];
+        for (let i = 0; i < reorderedTasks.length; i++) {
+          const task = reorderedTasks[i];
+          if (i === 0) {
+            // First task keeps current time or default
+            updatedTasks.push({ ...task, scheduled_time: task.scheduled_time || '09:00' });
+          } else {
+            // Calculate end time of previous task
+            const prevTask = updatedTasks[i - 1];
+            const prevTime = prevTask.scheduled_time || '09:00';
+            const prevDuration = prevTask.duration || 30;
+            
+            const [hours, minutes] = prevTime.split(':').map(Number);
+            const totalMinutes = hours * 60 + minutes + prevDuration;
+            const newHours = Math.floor(totalMinutes / 60) % 24;
+            const newMinutes = totalMinutes % 60;
+            const newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+            
+            updatedTasks.push({ ...task, scheduled_time: newTime });
+          }
         }
         
-        console.log('Calling onTaskTimeUpdate with:', activeTask.id, newTime);
-        onTaskTimeUpdate(activeTask.id, newTime);
-        return;
+        console.log('=== CALCULATED NEW TIMES ===');
+        console.log('Updated tasks:', updatedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
+        
+        console.log('Calling onReorderTasks...');
+        onReorderTasks(updatedTasks);
+        console.log('onReorderTasks called successfully');
       }
+      return;
     }
 
-    console.log('No valid drop action found - available events:', allEvents.map(e => ({ id: e.id, name: e.name, isDraggable: e.type === 'flexible' || e.type === 'regular' })));
+    // SECOND: Check if dropping on fixed events (time update)
+    const overEvent = allEvents.find(event => event.id === over.id);
+    const fixedEvent = fixedEvents.find(event => event.id === over.id);
+    
+    if (overEvent && fixedEvent && onTaskTimeUpdate) {
+      console.log('=== TIME UPDATE LOGIC START ===');
+      console.log('Dropping on fixed event:', overEvent.name);
+      
+      const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'snack', 'dinner', 'bedtime'];
+      const isSystemEvent = systemEventIds.includes(overEvent.id);
+      
+      let newTime: string;
+      if (isSystemEvent) {
+        // For system events, place task 20 minutes after event ends
+        const [hours, minutes] = overEvent.time.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes + overEvent.duration + 20;
+        const newHours = Math.floor(totalMinutes / 60) % 24;
+        const newMinutes = totalMinutes % 60;
+        newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+      } else {
+        // For scheduled tasks, place at same time
+        newTime = overEvent.time;
+      }
+      
+      console.log('Calculated new time:', newTime);
+      console.log('Calling onTaskTimeUpdate...');
+      onTaskTimeUpdate(activeTask.id, newTime);
+      return;
+    }
+
+    console.log('No valid drop action found');
+    console.log('Available draggable tasks:', draggableTasks.map(t => t.name));
+    console.log('Available fixed events:', fixedEvents.map(e => e.name));
   };
 
   const goToPreviousWeek = () => {
