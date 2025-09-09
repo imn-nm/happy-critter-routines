@@ -260,9 +260,11 @@ const MonthView = ({ child, tasks }: MonthViewProps) => {
                         <div className="text-xs text-muted-foreground">
                           {dayData.completions} completed
                         </div>
-                        <div className="text-xs font-medium text-warning">
-                          {dayData.coinsEarned} coins
-                        </div>
+                        {dayData.coinsEarned > 0 && (
+                          <div className="text-xs font-medium text-warning">
+                            {dayData.coinsEarned} coins
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

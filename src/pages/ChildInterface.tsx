@@ -2,28 +2,50 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PetAvatar from "@/components/PetAvatar";
-import NextTaskTimer from "@/components/NextTaskTimer";
-import CircularTimer from "@/components/CircularTimer";
+import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
-import { ArrowLeft, Coins, Star, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, X } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { supabase } from "@/integrations/supabase/client";
+import { calculatePetEmotion, evaluateScheduleStatus, getTimeOfDay, ScheduleStatus } from "@/utils/petEmotions";
+import { prioritizeTasks, getScheduleStatus, applyScheduleAdjustments, TaskWithPriority } from "@/utils/taskPrioritization";
+import { ensureSystemTasksExist } from "@/utils/systemTasks";
 
 const ChildInterface = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
   const { children, updateChildCoins, updateChildHappiness } = useChildren();
-  const { tasks, completeTask, updateTask, getTasksWithCompletionStatus } = useTasks(childId);
+  const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [systemTasksReady, setSystemTasksReady] = useState(false);
   
   const child = children.find(c => c.id === childId);
   const tasksWithCompletion = getTasksWithCompletionStatus();
+
+  // Ensure system tasks exist for this child
+  useEffect(() => {
+    if (!childId) return;
+
+    const setupSystemTasks = async () => {
+      try {
+        await ensureSystemTasksExist(childId);
+        setSystemTasksReady(true);
+        // Refetch tasks after system tasks are set up
+        refetchTasks();
+      } catch (error) {
+        console.error('Failed to setup system tasks:', error);
+        setSystemTasksReady(true); // Allow rendering even if setup fails
+      }
+    };
+
+    setupSystemTasks();
+  }, [childId]);
 
   // Real-time data updates
   useEffect(() => {
@@ -93,18 +115,85 @@ const ChildInterface = () => {
     );
   }
 
+  // Show loading until system tasks are ready
+  if (!systemTasksReady) {
+    return (
+      <div className="min-h-screen bg-gradient-primary p-4">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="text-white text-xl">Setting up schedule...</div>
+        </div>
+      </div>
+    );
+  }
+
   // Calculate progress for happiness
   const completedTasks = tasksWithCompletion.filter(task => task.isCompleted).length;
   const totalTasks = tasksWithCompletion.length;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   
-  // Update pet happiness based on progress
+  // Calculate pet emotion and happiness based on schedule adherence
   const calculateHappiness = () => {
     if (progressPercent >= 80) return 95;
     if (progressPercent >= 60) return 75; 
     if (progressPercent >= 40) return 55;
     if (progressPercent >= 20) return 35;
     return 20;
+  };
+
+  const calculatePetEmotionForChild = () => {
+    const currentTime = getCurrentTimePST();
+    const todaysSchedule = getTodaysSchedule();
+    const timeOfDay = getTimeOfDay(currentTime);
+    
+    const scheduleStatus = evaluateScheduleStatus(
+      completedTasks,
+      totalTasks,
+      currentTime,
+      todaysSchedule
+    );
+    
+    return calculatePetEmotion(scheduleStatus, timeOfDay);
+  };
+
+  // Format time from 24-hour to 12-hour format
+  const formatTime = (timeString?: string) => {
+    if (!timeString) return '';
+    
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    
+    return `${displayHour}:${minutes}${ampm}`;
+  };
+
+  // Calculate timer status based on schedule adherence
+  const getTimerStatus = (): TimerStatus => {
+    if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return "on-track";
+    
+    const currentTime = getCurrentTimePST();
+    const [taskHours, taskMinutes] = activeTask.scheduled_time.split(':').map(Number);
+    const taskStartTime = new Date(currentTime);
+    taskStartTime.setHours(taskHours, taskMinutes, 0, 0);
+    
+    const remainingTime = getActiveTaskRemainingTime();
+    const timeElapsed = (activeTask.duration * 60) - remainingTime;
+    
+    // Calculate if we're ahead, on track, or behind schedule
+    const timeIntoTask = (currentTime.getTime() - taskStartTime.getTime()) / 1000;
+    const expectedProgress = timeIntoTask / (activeTask.duration * 60);
+    const actualProgress = timeElapsed / (activeTask.duration * 60);
+    
+    // Less than 5 minutes remaining = critical
+    if (remainingTime < 300) return "critical";
+    
+    // Ahead by more than 20%
+    if (actualProgress > expectedProgress + 0.2) return "ahead";
+    
+    // Behind by more than 20%  
+    if (actualProgress < expectedProgress - 0.2) return "behind";
+    
+    return "on-track";
   };
 
   // Get current time in PST timezone
@@ -115,100 +204,6 @@ const ChildInterface = () => {
     return pstDate;
   };
 
-  // Get system events from child schedule - only include if configured for today
-  const getSystemEvents = () => {
-    if (!child) return [];
-    
-    const currentDay = getCurrentTimePST().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    
-    const systemEvents = [];
-    
-    // Wake Up - only if time is set and today is included
-    if (child.wake_time && child.wake_time !== '07:00:00' && child.wake_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'wake-up',
-        name: 'Wake Up',
-        scheduled_time: child.wake_time.slice(0, 5),
-        duration: child.wake_duration || 15,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.wake_days,
-        isCompleted: false
-      });
-    }
-    
-    // Breakfast - only if time is set and today is included
-    if (child.breakfast_time && child.breakfast_time !== '07:30:00' && child.breakfast_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'breakfast',
-        name: 'Breakfast',
-        scheduled_time: child.breakfast_time.slice(0, 5),
-        duration: child.breakfast_duration || 30,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.breakfast_days,
-        isCompleted: false
-      });
-    }
-    
-    // School - only if time is set and today is included
-    if (child.school_start_time && child.school_start_time !== '08:30:00' && child.school_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'school',
-        name: 'School',
-        scheduled_time: child.school_start_time.slice(0, 5),
-        duration: child.school_duration || 420,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.school_days,
-        isCompleted: false
-      });
-    }
-    
-    // Lunch - only if time is set and today is included  
-    if (child.lunch_time && child.lunch_time !== '12:00:00' && child.lunch_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'lunch',
-        name: 'Lunch',
-        scheduled_time: child.lunch_time.slice(0, 5),
-        duration: child.lunch_duration || 45,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.lunch_days,
-        isCompleted: false
-      });
-    }
-    
-    // Dinner - only if time is set and today is included
-    if (child.dinner_time && child.dinner_time !== '18:00:00' && child.dinner_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'dinner',
-        name: 'Dinner',
-        scheduled_time: child.dinner_time.slice(0, 5),
-        duration: child.dinner_duration || 45,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.dinner_days,
-        isCompleted: false
-      });
-    }
-    
-    // Bedtime - only if time is set and today is included
-    if (child.bedtime && child.bedtime !== '20:00:00' && child.bedtime_days?.includes(currentDay)) {
-      systemEvents.push({
-        id: 'bedtime',
-        name: 'Bedtime',
-        scheduled_time: child.bedtime.slice(0, 5),
-        duration: child.bedtime_duration || 60,
-        type: 'system',
-        coins: 0,
-        recurring_days: child.bedtime_days,
-        isCompleted: false
-      });
-    }
-    
-    return systemEvents;
-  };
 
   // Determine current task based on schedule and current PST time
   const getCurrentTask = () => {
@@ -216,26 +211,15 @@ const ChildInterface = () => {
     const currentTimeString = currentTime.toTimeString().slice(0, 5); // HH:MM format
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     
-    console.log(`Current time: ${currentTimeString}, Current day: ${currentDay}`);
-
-    // Get system events and combine with regular tasks
-    const systemEvents = getSystemEvents();
-    const regularTasks = tasksWithCompletion.filter(task => {
+    // Get all tasks for today (including system tasks from database)
+    const availableTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
       const isNotCompleted = !task.isCompleted;
       
-      console.log(`Task ${task.name}: type=${task.type}, scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, isScheduledForToday=${isScheduledForToday}, isNotCompleted=${isNotCompleted}, hasScheduledTime=${hasScheduledTime}`);
-      
       // Include all tasks (scheduled, regular, flexible) that have scheduled times and are scheduled for today
-      const result = isNotCompleted && hasScheduledTime && isScheduledForToday;
-      console.log(`Task ${task.name} final filter result: ${result}`);
-      
-      return result;
+      return isNotCompleted && hasScheduledTime && isScheduledForToday;
     });
-    
-    // Combine system events with regular tasks
-    const availableTasks = [...systemEvents, ...regularTasks];
 
     // Sort by scheduled time
     availableTasks.sort((a, b) => {
@@ -251,9 +235,12 @@ const ChildInterface = () => {
       const task = availableTasks[i];
       const taskTime = task.scheduled_time || '';
       
+      // Normalize time format to HH:MM (remove seconds if present)
+      const normalizedTaskTime = taskTime.slice(0, 5); // 07:00:00 -> 07:00
+      
       // Calculate task end time
       const taskDurationMinutes = task.duration || 30;
-      const [taskHours, taskMinutes] = taskTime.split(':').map(Number);
+      const [taskHours, taskMinutes] = normalizedTaskTime.split(':').map(Number);
       const taskStartDate = new Date(currentTime);
       taskStartDate.setHours(taskHours, taskMinutes, 0, 0);
       
@@ -261,13 +248,14 @@ const ChildInterface = () => {
       const taskEndString = taskEndDate.toTimeString().slice(0, 5);
       
       // Check if current time is within this task's time window
-      if (currentTimeString >= taskTime && currentTimeString < taskEndString) {
+      const isInTimeWindow = currentTimeString >= normalizedTaskTime && currentTimeString < taskEndString;
+      
+      if (isInTimeWindow) {
         currentTask = task;
         break;
       }
     }
 
-    // If no task is currently in progress, return null (no active task)
     return currentTask;
   };
 
@@ -276,26 +264,24 @@ const ChildInterface = () => {
   // Get complete today's schedule
   const getTodaysSchedule = () => {
     const currentTime = getCurrentTimePST();
-    const currentTimeString = currentTime.toTimeString().slice(0, 5);
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-    // Get system events and combine with regular tasks
-    const systemEvents = getSystemEvents();
-    const regularTasks = tasksWithCompletion.filter(task => {
+    // Filter all tasks for today (including system tasks from database)
+    const todaysTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
       
       return hasScheduledTime && isScheduledForToday;
     });
     
-    // Combine all tasks and sort by time
-    const allTasks = [...systemEvents, ...regularTasks].sort((a, b) => {
-      const timeA = a.scheduled_time || '00:00';
-      const timeB = b.scheduled_time || '00:00';
+    // Sort by time (normalize to HH:MM format first)
+    const sortedTasks = todaysTasks.sort((a, b) => {
+      const timeA = (a.scheduled_time || '00:00').slice(0, 5);
+      const timeB = (b.scheduled_time || '00:00').slice(0, 5);
       return timeA.localeCompare(timeB);
     });
     
-    return allTasks;
+    return sortedTasks;
   };
 
   // Get next 2 upcoming tasks (excluding the active task and tasks that have passed)
@@ -307,7 +293,8 @@ const ChildInterface = () => {
     
     // Filter for future tasks only
     const upcomingTasks = todaysSchedule.filter(task => {
-      const isFutureTask = task.scheduled_time && task.scheduled_time > currentTimeString;
+      const normalizedTaskTime = task.scheduled_time?.slice(0, 5); // Normalize to HH:MM format
+      const isFutureTask = normalizedTaskTime && normalizedTaskTime > currentTimeString;
       return task.id !== activeTask?.id && isFutureTask && !task.isCompleted;
     });
     
@@ -316,7 +303,7 @@ const ChildInterface = () => {
 
   const upcomingTasks = getUpcomingTasks();
   const todaysSchedule = getTodaysSchedule();
-
+  
   // Calculate remaining time for active task
   const getActiveTaskRemainingTime = () => {
     if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
@@ -332,18 +319,14 @@ const ChildInterface = () => {
     return Math.max(0, Math.floor(timeDiff / 1000)); // Return seconds remaining
   };
   
-  // Calculate total expected duration vs actual duration for flexible task adjustment
-  const calculateFlexibleTaskAdjustment = () => {
-    const scheduledTasks = tasksWithCompletion.filter(task => task.type === 'scheduled' || task.type === 'regular');
-    const totalExpectedDuration = scheduledTasks.reduce((sum, task) => sum + (task.duration || 0), 0);
-    
-    // For demo purposes, assume 10% overtime on scheduled/regular tasks
-    const estimatedOvertime = totalExpectedDuration * 0.1;
-    
-    return Math.max(0, estimatedOvertime);
-  };
-  
-  const flexibleReduction = calculateFlexibleTaskAdjustment();
+  // Apply task prioritization and schedule adjustments
+  const prioritizedTasks = prioritizeTasks(todaysSchedule);
+  const scheduleStatus = getScheduleStatus(
+    completedTasks,
+    getCurrentTimePST(),
+    prioritizedTasks,
+    getActiveTaskRemainingTime()
+  );
 
   const handleCompleteTask = async (taskId: string) => {
     const task = tasksWithCompletion.find(t => t.id === taskId);
@@ -407,113 +390,203 @@ const ChildInterface = () => {
         <div className="text-center mb-8">
           <PetAvatar 
             petType={child.petType} 
-            happiness={calculateHappiness()} 
+            happiness={calculateHappiness()}
+            emotion={calculatePetEmotionForChild()}
             size="xl"
             className="mx-auto mb-4"
           />
           <h1 className="text-2xl font-bold text-white">{child.name}'s Adventure</h1>
         </div>
 
-        {/* Current Task */}
+        {/* Current Task - Simplified for Children */}
         {activeTask && (
-          <Card className="p-6 mb-6 bg-white/95 backdrop-blur">
-            <div className="text-center">
-              <h2 className="text-xl font-bold mb-4">Current Task</h2>
+          <Card className="p-8 mb-6 bg-white/95 backdrop-blur shadow-2xl">
+            <div className="text-center space-y-6">
+              {/* Task Icon */}
+              <div className="text-8xl mb-4">
+                {activeTask.name.toLowerCase().includes('study') || activeTask.name.toLowerCase().includes('homework') ? '📚' : 
+                 activeTask.name.toLowerCase().includes('exercise') || activeTask.name.toLowerCase().includes('workout') ? '💪' :
+                 activeTask.name.toLowerCase().includes('read') ? '📖' :
+                 activeTask.name.toLowerCase().includes('clean') ? '🧹' :
+                 activeTask.name.toLowerCase().includes('music') || activeTask.name.toLowerCase().includes('practice') ? '🎵' :
+                 activeTask.name.toLowerCase().includes('eat') || activeTask.name.toLowerCase().includes('breakfast') || activeTask.name.toLowerCase().includes('lunch') || activeTask.name.toLowerCase().includes('dinner') ? '🍽️' :
+                 activeTask.name.toLowerCase().includes('sleep') || activeTask.name.toLowerCase().includes('bed') ? '🛏️' :
+                 '⭐'}
+              </div>
               
-              <div className="bg-gradient-primary text-white p-6 rounded-lg mb-4">
-                <h3 className="text-2xl font-bold mb-2">{activeTask.name}</h3>
-                
-                <div className="flex flex-col items-center gap-4 mb-4">
-                  {activeTask.duration && (
-                    <CircularTimer
-                      totalSeconds={activeTask.duration * 60}
-                      remainingSeconds={getActiveTaskRemainingTime()}
-                      size="lg"
-                      className="text-white"
-                      isRunning={true}
-                      onComplete={() => {
-                        // Auto complete task when timer ends
-                        handleCompleteTask(activeTask.id);
-                      }}
-                    />
-                  )}
-                  
-                  <div className="flex items-center gap-2">
-                    <Coins className="w-5 h-5 text-warning" />
-                    <span className="text-lg font-semibold">{activeTask.coins} coins</span>
-                  </div>
+              {/* Task Name - Large and Clear */}
+              <h2 className="text-4xl font-bold text-primary mb-6">{activeTask.name}</h2>
+              
+              {/* Visual Timer - Large and Prominent with Color Coding */}
+              {activeTask.duration && (
+                <div className="mb-6">
+                  <CircularTimer
+                    totalSeconds={activeTask.duration * 60}
+                    remainingSeconds={getActiveTaskRemainingTime()}
+                    size="lg"
+                    className="mx-auto"
+                    isRunning={true}
+                    status={getTimerStatus()}
+                    onComplete={() => {
+                      handleCompleteTask(activeTask.id);
+                    }}
+                  />
                 </div>
-              </div>
+              )}
+              
+              {/* Coins Display - Only show if coins > 0 */}
+              {activeTask.coins > 0 && (
+                <div className="flex items-center justify-center gap-3 mb-6 bg-gradient-warning text-white p-4 rounded-xl">
+                  <Coins className="w-8 h-8" />
+                  <span className="text-2xl font-bold">{activeTask.coins} coins</span>
+                </div>
+              )}
 
-              <div className="flex justify-center">
-                <Button
-                  variant="success"
-                  size="lg"
-                  onClick={() => handleCompleteTask(activeTask.id)}
-                  className="text-lg px-8"
-                >
-                  <Star className="w-5 h-5 mr-2" />
-                  Complete Task
-                </Button>
-              </div>
+              {/* Large Completion Button */}
+              <Button
+                variant="success"
+                size="lg"
+                onClick={() => handleCompleteTask(activeTask.id)}
+                className="text-2xl px-12 py-6 h-auto shadow-lg"
+              >
+                <Star className="w-8 h-8 mr-3" />
+                I'm Done!
+              </Button>
             </div>
           </Card>
         )}
 
-        {/* Tabs for different views */}
-        <Tabs defaultValue="current" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 bg-white/90 backdrop-blur">
-            <TabsTrigger value="current" className="gap-2">
-              <Clock className="w-4 h-4" />
-              Current
-            </TabsTrigger>
-            <TabsTrigger value="upcoming" className="gap-2">
-              <Calendar className="w-4 h-4" />
-              Today's Schedule
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="current" className="space-y-6">
-            {/* Next Two Tasks with Timers */}
-            {upcomingTasks.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-white text-center">Next Tasks</h3>
-                <div className="grid gap-4">
-                  {upcomingTasks.map((task, index) => (
-                    <NextTaskTimer
-                      key={task.id}
-                      task={task}
-                      index={index + 1}
-                      onComplete={handleCompleteTask}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* No tasks state */}
-            {!activeTask && upcomingTasks.length === 0 && (
-              <Card className="p-8 text-center bg-white/90 backdrop-blur">
-                <div className="text-6xl mb-4">🎉</div>
-                <h2 className="text-2xl font-bold mb-2">All Done!</h2>
-                <p className="text-muted-foreground mb-4">
-                  Great job {child.name}! You've completed all your tasks for today.
-                </p>
-                <div className="bg-gradient-success text-white p-4 rounded-lg">
-                  <p className="font-semibold">Your pet is super happy!</p>
-                  <p className="text-sm opacity-90">Keep up the amazing work tomorrow!</p>
-                </div>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="upcoming" className="space-y-6">
+        {/* Next Tasks Preview - Simplified for Children */}
+        {upcomingTasks.length > 0 && (
+          <div className="space-y-4 mb-6">
+            <h3 className="text-2xl font-bold text-white text-center">Coming Up Next</h3>
             <div className="space-y-4">
-              <h3 className="font-semibold text-white text-center">Today's Schedule</h3>
-              <TodaysScheduleTimeline schedule={todaysSchedule} />
+              {upcomingTasks.map((task) => {
+                const adjustment = scheduleStatus.adjustmentsNeeded.find(adj => adj.taskId === task.id);
+                const isAdjusted = adjustment && adjustment.adjustedDuration !== adjustment.originalDuration;
+                const isEliminated = adjustment?.eliminated;
+                
+                if (isEliminated) return null; // Don't show eliminated tasks
+                
+                return (
+                  <Card key={task.id} className={`p-6 backdrop-blur ${isAdjusted ? 'bg-amber-50/90 border border-amber-300' : 'bg-white/90'}`}>
+                    <div className="flex items-center space-x-4">
+                      {/* Task Icon */}
+                      <div className="text-4xl">
+                        {task.name.toLowerCase().includes('study') || task.name.toLowerCase().includes('homework') ? '📚' : 
+                         task.name.toLowerCase().includes('exercise') || task.name.toLowerCase().includes('workout') ? '💪' :
+                         task.name.toLowerCase().includes('read') ? '📖' :
+                         task.name.toLowerCase().includes('clean') ? '🧹' :
+                         task.name.toLowerCase().includes('music') || task.name.toLowerCase().includes('practice') ? '🎵' :
+                         task.name.toLowerCase().includes('eat') || task.name.toLowerCase().includes('breakfast') || task.name.toLowerCase().includes('lunch') || task.name.toLowerCase().includes('dinner') ? '🍽️' :
+                         task.name.toLowerCase().includes('sleep') || task.name.toLowerCase().includes('bed') ? '🛏️' :
+                         '⭐'}
+                      </div>
+                      
+                      <div className="flex-1">
+                        {/* Task Name */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="text-xl font-semibold">{task.name}</h4>
+                          {isAdjusted && (
+                            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
+                              Shortened
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Time and Progress */}
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-lg font-medium">{formatTime(task.scheduled_time)}</span>
+                          {task.coins > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Coins className="w-4 h-4 text-warning" />
+                              <span className="font-semibold">{task.coins}</span>
+                            </div>
+                          )}
+                          {isAdjusted && (
+                            <span className="text-sm text-amber-700">
+                              ({adjustment.adjustedDuration}min)
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Static Progress Bar (not a timer) */}
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className={`h-full rounded-full ${
+                              isAdjusted 
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-600' 
+                                : 'bg-gradient-to-r from-blue-400 to-blue-600'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(20, ((adjustment?.adjustedDuration || task.duration) || 30) / 30 * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+
+        {/* Schedule Button */}
+        <div className="text-center mb-6">
+          <Button
+            onClick={() => setShowSchedule(true)}
+            variant="outline"
+            className="bg-white/90 backdrop-blur text-lg px-8 py-3"
+          >
+            <Calendar className="w-5 h-5 mr-2" />
+            Today's Schedule
+          </Button>
+        </div>
+
+        {/* No tasks state */}
+        {!activeTask && upcomingTasks.length === 0 && (
+          <Card className="p-8 text-center bg-white/90 backdrop-blur">
+            <div className="text-6xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold mb-2">All Done!</h2>
+            <p className="text-muted-foreground mb-4">
+              Great job {child.name}! You've completed all your tasks for today.
+            </p>
+            <div className="bg-gradient-success text-white p-4 rounded-lg">
+              <p className="font-semibold">Your pet is super happy!</p>
+              <p className="text-sm opacity-90">Keep up the amazing work tomorrow!</p>
+            </div>
+          </Card>
+        )}
+
+        {/* Schedule Flyout Overlay */}
+        {showSchedule && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-white shadow-2xl">
+              {/* Header with close button */}
+              <div className="flex items-center justify-between p-6 border-b">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Calendar className="w-6 h-6" />
+                  Today's Schedule
+                </h2>
+                <Button
+                  onClick={() => setShowSchedule(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="p-2"
+                >
+                  <X className="w-6 h-6" />
+                </Button>
+              </div>
+              
+              {/* Schedule Content */}
+              <div className="p-6">
+                <TodaysScheduleTimeline 
+                  schedule={todaysSchedule} 
+                  highlightTaskId={activeTask?.id}
+                />
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* Celebration Modal */}
         {showCelebration && (

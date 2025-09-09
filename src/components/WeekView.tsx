@@ -228,9 +228,11 @@ const WeekView = ({ child, tasks, onTasksReorder, onEditTask, onDeleteTask }: We
                       <span className="text-sm text-muted-foreground">
                         {dayData.completions} tasks completed
                       </span>
-                      <span className="text-sm font-medium text-warning">
-                        {dayData.coinsEarned} coins earned
-                      </span>
+                      {dayData.coinsEarned > 0 && (
+                        <span className="text-sm font-medium text-warning">
+                          {dayData.coinsEarned} coins earned
+                        </span>
+                      )}
                       <span className="text-sm text-muted-foreground">
                         {dayData.scheduledTasks.length} scheduled tasks
                       </span>

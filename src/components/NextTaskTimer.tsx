@@ -54,11 +54,13 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
         )}
 
 
-        {/* Coins Display */}
-        <div className="flex items-center justify-center gap-2 text-warning">
-          <Coins className="w-4 h-4" />
-          <span className="font-semibold">{task.coins} coins</span>
-        </div>
+        {/* Coins Display - Only show if coins > 0 */}
+        {task.coins > 0 && (
+          <div className="flex items-center justify-center gap-2 text-warning">
+            <Coins className="w-4 h-4" />
+            <span className="font-semibold">{task.coins} coins</span>
+          </div>
+        )}
 
         {/* Complete Button */}
         <Button

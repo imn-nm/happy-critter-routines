@@ -11,9 +11,10 @@ interface ScheduleItem {
 
 interface TodaysScheduleTimelineProps {
   schedule: ScheduleItem[];
+  highlightTaskId?: string;
 }
 
-const TodaysScheduleTimeline = ({ schedule }: TodaysScheduleTimelineProps) => {
+const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTimelineProps) => {
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return '';
     const [hours, minutes] = timeStr.split(':');
@@ -54,37 +55,56 @@ const TodaysScheduleTimeline = ({ schedule }: TodaysScheduleTimelineProps) => {
   return (
     <Card className="p-6 bg-white/90 backdrop-blur">
       <div className="space-y-4">
-        {schedule.map((item, index) => (
-          <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-            {/* Timeline dot */}
-            <div className="flex flex-col items-center">
-              <div className={`w-3 h-3 rounded-full ${item.isCompleted ? 'bg-success' : 'bg-primary'}`}></div>
-              {index < schedule.length - 1 && (
-                <div className="w-0.5 h-8 bg-gray-200 mt-2"></div>
-              )}
-            </div>
-            
-            {/* Task icon */}
-            <div className="text-2xl">
-              {getTaskIcon(item.name)}
-            </div>
-            
-            {/* Task details */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <h4 className={`font-medium ${item.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-                  {item.name}
-                </h4>
-                {item.scheduled_time && (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatTime(item.scheduled_time)}</span>
-                  </div>
+        {schedule.map((item, index) => {
+          const isCurrentTask = highlightTaskId && item.id === highlightTaskId;
+          return (
+            <div 
+              key={item.id} 
+              className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
+                isCurrentTask 
+                  ? 'bg-primary/10 border-2 border-primary shadow-md' 
+                  : 'hover:bg-gray-50'
+              }`}
+            >
+              {/* Timeline dot */}
+              <div className="flex flex-col items-center">
+                <div className={`w-3 h-3 rounded-full ${
+                  isCurrentTask ? 'bg-primary border-2 border-white shadow-lg' :
+                  item.isCompleted ? 'bg-success' : 'bg-primary'
+                }`}></div>
+                {index < schedule.length - 1 && (
+                  <div className="w-0.5 h-8 bg-gray-200 mt-2"></div>
                 )}
               </div>
+              
+              {/* Task icon */}
+              <div className={`text-2xl ${isCurrentTask ? 'animate-pulse' : ''}`}>
+                {getTaskIcon(item.name)}
+              </div>
+              
+              {/* Task details */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className={`font-medium ${
+                    isCurrentTask ? 'text-primary font-bold' :
+                    item.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                  }`}>
+                    {item.name}
+                    {isCurrentTask && <span className="ml-2 text-sm bg-primary text-white px-2 py-1 rounded-full">Current</span>}
+                  </h4>
+                  {item.scheduled_time && (
+                    <div className={`flex items-center gap-1 text-sm ${
+                      isCurrentTask ? 'text-primary font-semibold' : 'text-muted-foreground'
+                    }`}>
+                      <Clock className="w-3 h-3" />
+                      <span>{formatTime(item.scheduled_time)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
