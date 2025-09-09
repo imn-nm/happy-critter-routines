@@ -15,6 +15,7 @@ export interface Task {
   description?: string;
   sort_order: number;
   is_active: boolean;
+  task_date?: string;
   created_at: string;
   updated_at: string;
   isCompleted?: boolean; // For UI state

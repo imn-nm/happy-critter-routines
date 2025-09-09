@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,37 +22,53 @@ interface TaskFormProps {
 const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskFormProps) => {
   const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
+  console.log('TaskForm: Received props:', {
+    currentDate: currentDate,
+    formattedCurrentDate: format(currentDate, 'yyyy-MM-dd'),
+    taskDate: task?.task_date,
+    isEdit: isEdit
+  });
+
+  // For new tasks, always use currentDate. For editing tasks, use their existing date
+  const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
+  
   const [formData, setFormData] = useState({
     name: task?.name || "",
     type: (task?.type || "regular") as Task['type'],
     scheduledTime: task?.scheduled_time || "",
-    duration: task?.duration?.toString() || "",
+    durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
+    durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
     coins: task?.coins?.toString() || "5",
-    isRecurring: task?.is_recurring ?? true,
+    isRecurring: task?.is_recurring ?? false,
     description: task?.description || "",
-    recurringDays: task?.recurring_days || ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as string[],
-    taskDate: task?.task_date || format(currentDate, 'yyyy-MM-dd'),
+    recurringDays: task?.recurring_days || [] as string[],
+    taskDate: initialTaskDate,
   });
 
+  console.log('TaskForm: Initial formData.taskDate:', formData.taskDate, 'from currentDate:', format(currentDate, 'yyyy-MM-dd'));
+
   const daysOfWeek = [
-    { id: "monday", label: "Mon" },
-    { id: "tuesday", label: "Tue" },
-    { id: "wednesday", label: "Wed" },
-    { id: "thursday", label: "Thu" },
-    { id: "friday", label: "Fri" },
-    { id: "saturday", label: "Sat" },
-    { id: "sunday", label: "Sun" },
+    { id: "sunday", label: "S" },
+    { id: "monday", label: "M" },
+    { id: "tuesday", label: "T" },
+    { id: "wednesday", label: "W" },
+    { id: "thursday", label: "Th" },
+    { id: "friday", label: "F" },
+    { id: "saturday", label: "S" },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Calculate total duration in minutes
+    const totalMinutes = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
     
     const newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
       child_id: task?.child_id || '',
       name: formData.name,
       type: formData.type,
       scheduled_time: formData.scheduledTime || undefined,
-      duration: formData.duration ? parseInt(formData.duration) : undefined,
+      duration: totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
       is_recurring: formData.isRecurring,
       recurring_days: formData.isRecurring ? formData.recurringDays : undefined,
@@ -61,6 +77,14 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
       is_active: task?.is_active || true,
       task_date: !formData.isRecurring ? formData.taskDate : undefined,
     };
+
+    console.log('TaskForm: Submitting task with data:', {
+      isRecurring: formData.isRecurring,
+      taskDate: formData.taskDate,
+      finalTaskDate: newTask.task_date,
+      type: formData.type,
+      name: formData.name
+    });
 
     onSave(newTask);
   };
@@ -113,28 +137,57 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
 
         {/* Duration */}
         <div>
-          <Label htmlFor="duration">Duration (minutes)</Label>
-          <Input
-            id="duration"
-            type="number"
-            min="1"
-            value={formData.duration}
-            onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-            placeholder="e.g., 15"
-          />
+          <Label>Duration</Label>
+          <div className="flex gap-2 items-center">
+            <div className="flex-1">
+              <Input
+                type="number"
+                min="0"
+                max="23"
+                value={formData.durationHours}
+                onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
+                placeholder="0"
+              />
+              <Label className="text-xs text-muted-foreground mt-1 block">Hours</Label>
+            </div>
+            <div className="flex-1">
+              <Input
+                type="number"
+                min="0"
+                max="59"
+                value={formData.durationMinutes}
+                onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
+                placeholder="0"
+              />
+              <Label className="text-xs text-muted-foreground mt-1 block">Minutes</Label>
+            </div>
+          </div>
         </div>
 
         {/* Coins */}
         <div>
           <Label htmlFor="coins">Coins *</Label>
-          <Input
-            id="coins"
-            type="number"
-            min="1"
+          <Select
             value={formData.coins}
-            onChange={(e) => setFormData({ ...formData, coins: e.target.value })}
-            required
-          />
+            onValueChange={(value) => setFormData({ ...formData, coins: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select coins" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">None (0 coins)</SelectItem>
+              <SelectItem value="1">1 coin</SelectItem>
+              <SelectItem value="2">2 coins</SelectItem>
+              <SelectItem value="3">3 coins</SelectItem>
+              <SelectItem value="4">4 coins</SelectItem>
+              <SelectItem value="5">5 coins</SelectItem>
+              <SelectItem value="10">10 coins</SelectItem>
+              <SelectItem value="15">15 coins</SelectItem>
+              <SelectItem value="20">20 coins</SelectItem>
+              <SelectItem value="25">25 coins</SelectItem>
+              <SelectItem value="50">50 coins</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Is Recurring Switch */}

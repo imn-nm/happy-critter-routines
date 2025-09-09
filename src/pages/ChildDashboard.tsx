@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, ListTodo, Gift, Calendar, Plus, CalendarDays } from "lucide-react";
+import { ArrowLeft, Gift, Calendar, Plus, CalendarDays } from "lucide-react";
+import { format } from "date-fns";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,7 @@ const ChildDashboard = () => {
   const [child, setChild] = useState(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
   const { toast } = useToast();
 
   const { 
@@ -58,6 +60,7 @@ const ChildDashboard = () => {
   }, [children, child]);
 
   const handleAddTask = () => {
+    console.log('ChildDashboard: Opening task form with currentDate:', currentDate, 'formatted:', format(currentDate, 'yyyy-MM-dd'));
     setEditingTask(null);
     setShowTaskForm(true);
   };
@@ -268,6 +271,7 @@ const ChildDashboard = () => {
           </div>
         </Card>
 
+
         {/* Management Tabs */}
         <Tabs defaultValue="timeline" className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
@@ -302,6 +306,7 @@ const ChildDashboard = () => {
             <TimelineScheduleView 
               child={child}
               tasks={tasks}
+              currentDate={currentDate}
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask}
               onEditTask={handleEditTask}
@@ -311,15 +316,39 @@ const ChildDashboard = () => {
                 console.log('Received reorderedTasks:', reorderedTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
                 
                 try {
-                  // Update each task with its new time and sort order
+                  // Update each task with smart snapping times and sort order
+                  let currentTime = 0; // Will be set based on previous events
+                  
                   const updatePromises = reorderedTasks.map((task, index) => {
+                    let newTime: string;
+                    
+                    if (index === 0) {
+                      // First task: find the last scheduled event before this task group
+                      // For now, snap to after school (15:30) as a reasonable default
+                      const schoolEndTime = 15 * 60 + 30; // 15:30 in minutes
+                      currentTime = schoolEndTime;
+                    } else {
+                      // Subsequent tasks: snap to end of previous task
+                      const prevTask = reorderedTasks[index - 1];
+                      const prevDuration = prevTask.duration || 30; // Default 30 min
+                      currentTime += prevDuration;
+                    }
+                    
+                    const hours = Math.floor(currentTime / 60);
+                    const minutes = currentTime % 60;
+                    newTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+                    
                     console.log(`Preparing to update task ${task.name}:`, { 
                       id: task.id, 
-                      newTime: task.scheduled_time, 
-                      newSortOrder: index 
+                      oldTime: task.scheduled_time,
+                      newTime: newTime, 
+                      newSortOrder: index,
+                      duration: task.duration || 30,
+                      currentTimeMinutes: currentTime
                     });
+                    
                     return updateTask(task.id, { 
-                      scheduled_time: task.scheduled_time,
+                      scheduled_time: newTime,
                       sort_order: index 
                     });
                   });
@@ -403,6 +432,7 @@ const ChildDashboard = () => {
               {editingTask ? "Edit the task details below" : "Fill in the form below to create a new task"}
             </DialogDescription>
             <TaskForm
+              key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}`}
               task={editingTask}
               onSave={handleSaveTask}
               onCancel={() => {
@@ -410,7 +440,7 @@ const ChildDashboard = () => {
                 setEditingTask(null);
               }}
               isEdit={!!editingTask}
-              currentDate={new Date()}
+              currentDate={currentDate}
             />
           </DialogContent>
         </Dialog>

@@ -53,13 +53,33 @@ const WeekView = ({ child, tasks, onTasksReorder, onEditTask, onDeleteTask }: We
       // Initialize all days with all tasks for that day
       weekDays.forEach(day => {
         const dayName = format(day, 'EEEE').toLowerCase();
+        const dayDate = format(day, 'yyyy-MM-dd');
+        
         const tasksForDay = (tasks || []).filter(task => {
-          // Show all tasks: one-time tasks for today, and recurring tasks for this day
+          // Debug logging
+          console.log(`Filtering task "${task.name}" for ${dayName} (${dayDate}):`, {
+            isRecurring: task.is_recurring,
+            taskDate: task.task_date,
+            recurringDays: task.recurring_days,
+            taskType: task.type
+          });
+          
+          // Show recurring tasks on their specified days
           if (task.is_recurring && task.recurring_days) {
-            return task.recurring_days.includes(dayName);
+            const includesDay = task.recurring_days.includes(dayName);
+            console.log(`Recurring task "${task.name}" includes ${dayName}:`, includesDay);
+            return includesDay;
           }
-          // For non-recurring tasks, show them every day or based on created date
-          return true;
+          // For non-recurring tasks, only show them on their specified date
+          if (!task.is_recurring && task.task_date) {
+            const matchesDate = task.task_date === dayDate;
+            console.log(`Non-recurring task "${task.name}" matches ${dayDate}:`, matchesDate);
+            return matchesDate;
+          }
+          // For tasks without a specific date (legacy tasks), show them every day
+          const isLegacyNonRecurring = !task.is_recurring;
+          console.log(`Legacy non-recurring task "${task.name}":`, isLegacyNonRecurring);
+          return isLegacyNonRecurring;
         });
         
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {

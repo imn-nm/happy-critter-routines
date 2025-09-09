@@ -13,6 +13,7 @@ import { format, addMinutes, parse } from 'date-fns';
 interface TimelineViewProps {
   child: Child;
   simple?: boolean;
+  currentDate?: Date;
 }
 
 interface TimelineItem {
@@ -127,7 +128,7 @@ const SortableTimelineItem = ({ item, onTimeChange, simple = false }: {
   );
 };
 
-const TimelineView = ({ child, simple = false }: TimelineViewProps) => {
+const TimelineView = ({ child, simple = false, currentDate = new Date() }: TimelineViewProps) => {
   const { tasks, updateTask } = useTasks(child.id);
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   
@@ -140,8 +141,48 @@ const TimelineView = ({ child, simple = false }: TimelineViewProps) => {
 
   useEffect(() => {
     // Convert tasks to timeline items and merge with system tasks
+    const today = format(currentDate, 'yyyy-MM-dd');
+    const dayName = format(currentDate, 'EEEE').toLowerCase();
+    
     const taskItems: TimelineItem[] = tasks
-      .filter(task => task.is_active)
+      .filter(task => {
+        if (!task.is_active) return false;
+        
+        console.log(`TimelineView: Filtering task "${task.name}":`, {
+          isRecurring: task.is_recurring,
+          taskDate: task.task_date,
+          recurringDays: task.recurring_days,
+          today: today,
+          dayName: dayName
+        });
+        
+        // For recurring tasks, check if today is in their recurring days
+        if (task.is_recurring && task.recurring_days) {
+          const includes = task.recurring_days.includes(dayName);
+          console.log(`Recurring task "${task.name}" includes ${dayName}:`, includes);
+          return includes;
+        }
+        
+        // For non-recurring tasks, check if today matches their task_date
+        if (!task.is_recurring && task.task_date) {
+          const matches = task.task_date === today;
+          console.log(`Non-recurring task "${task.name}" matches ${today}:`, matches);
+          return matches;
+        }
+        
+        // TEMPORARY WORKAROUND: For non-recurring scheduled tasks without task_date,
+        // only show them on the day they were created (assuming user created them for today)
+        if (!task.is_recurring && task.type === 'scheduled' && !task.task_date) {
+          const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+          const matchesCreatedDate = createdDate === today;
+          console.log(`Non-recurring scheduled task "${task.name}" created on ${createdDate}, matches today (${today}):`, matchesCreatedDate);
+          return matchesCreatedDate;
+        }
+        
+        // For other legacy tasks without specific dates, show them every day
+        console.log(`Legacy task "${task.name}" (no task_date) - showing every day`);
+        return !task.is_recurring;
+      })
       .map(task => ({
         id: task.id,
         name: task.name,
@@ -160,7 +201,7 @@ const TimelineView = ({ child, simple = false }: TimelineViewProps) => {
     });
 
     setTimelineItems(allItems);
-  }, [tasks]);
+  }, [tasks, currentDate]);
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;

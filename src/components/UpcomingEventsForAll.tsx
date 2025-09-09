@@ -31,6 +31,7 @@ const UpcomingEventsForAll = () => {
       
       try {
         const childIds = children.map(c => c.id);
+        console.log('Fetching tasks for children:', childIds);
         const { data, error } = await supabase
           .from('tasks')
           .select('*')
@@ -38,6 +39,16 @@ const UpcomingEventsForAll = () => {
           .order('sort_order', { ascending: true });
 
         if (error) throw error;
+        console.log('Fetched tasks:', data);
+        console.log('All tasks with details:', data?.map(t => ({
+          id: t.id,
+          name: t.name,
+          child_id: t.child_id,
+          type: t.type,
+          scheduled_time: t.scheduled_time,
+          recurring_days: t.recurring_days,
+          task_date: t.task_date
+        })));
         setAllTasks((data || []) as Task[]);
       } catch (error) {
         console.error('Error fetching all tasks:', error);
@@ -54,26 +65,73 @@ const UpcomingEventsForAll = () => {
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
     
-    // Filter for scheduled tasks only (exclude regular and flexible, and system tasks)
+    // Filter for scheduled-type non-system tasks only
     const scheduledTasks = allTasks.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const hasRecurringDays = task.recurring_days && task.recurring_days.length > 0;
-      const isScheduledTask = task.type === 'scheduled';
+      const isScheduledType = task.type === 'scheduled';
+      // For scheduled tasks, accept either recurring tasks OR one-time tasks with task_date
+      const hasValidScheduling = (task.recurring_days && task.recurring_days.length > 0) || task.task_date;
       // Exclude system tasks (wake, breakfast, school, lunch, dinner, bedtime)
       const systemTasks = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
       const isNotSystemTask = !systemTasks.some(sysTask => task.name.toLowerCase().includes(sysTask.toLowerCase()));
-      console.log(`Task ${task.name} (${task.child_id}): scheduled_time=${task.scheduled_time}, recurring_days=${task.recurring_days}, type=${task.type}, isNotSystemTask=${isNotSystemTask}, passes filter=${hasScheduledTime && hasRecurringDays && isScheduledTask && isNotSystemTask}`);
-      return hasScheduledTime && hasRecurringDays && isScheduledTask && isNotSystemTask;
+      
+      console.log(`=== FILTER DEBUG for ${task.name} ===`);
+      console.log(`  scheduled_time: "${task.scheduled_time}" (hasScheduledTime: ${hasScheduledTime})`);
+      console.log(`  type: "${task.type}" (isScheduledType: ${isScheduledType})`);
+      console.log(`  recurring_days: ${JSON.stringify(task.recurring_days)} (length: ${task.recurring_days?.length || 0})`);
+      console.log(`  task_date: "${task.task_date}"`);
+      console.log(`  hasValidScheduling: ${hasValidScheduling}`);
+      console.log(`  isNotSystemTask: ${isNotSystemTask}`);
+      console.log(`  FINAL RESULT: ${hasScheduledTime && hasValidScheduling && isScheduledType && isNotSystemTask}`);
+      console.log('');
+      
+      return hasScheduledTime && hasValidScheduling && isScheduledType && isNotSystemTask;
     });
+
+    console.log('Scheduled tasks that passed filter:', scheduledTasks.map(t => ({ name: t.name, child_id: t.child_id, recurring_days: t.recurring_days, task_date: t.task_date })));
 
     scheduledTasks.forEach(task => {
       const child = children.find(c => c.id === task.child_id);
-      if (!child) return;
+      if (!child) {
+        console.log(`No child found for task ${task.name} with child_id ${task.child_id}`);
+        return;
+      }
 
       // Format the time properly - remove seconds if present (18:00:00 -> 18:00)
       const taskTime = task.scheduled_time!.slice(0, 5);
 
-      // Generate events for the next 2 weeks
+      // Handle one-time scheduled tasks with task_date
+      if (task.task_date && (!task.recurring_days || task.recurring_days.length === 0)) {
+        console.log(`Processing one-time task ${task.name} with task_date: ${task.task_date}`);
+        
+        // Parse the date correctly - task_date is in YYYY-MM-DD format
+        const taskDate = parse(task.task_date, 'yyyy-MM-dd', new Date());
+        console.log(`Parsed task date: ${taskDate.toISOString()}, current date: ${now.toISOString()}`);
+        
+        // Only include if it's within our 2-week window and in the future or today
+        const isWithinWindow = (taskDate >= startOfDay(now)) && (taskDate <= endOfDay(addDays(now, 14)));
+        console.log(`Date check - isWithinWindow: ${isWithinWindow}, taskDate: ${format(taskDate, 'yyyy-MM-dd')}, window start: ${format(startOfDay(now), 'yyyy-MM-dd')}, window end: ${format(endOfDay(addDays(now, 14)), 'yyyy-MM-dd')}`);
+        
+        if (isWithinWindow) {
+          console.log(`Adding one-time task ${task.name} for date ${task.task_date}`);
+          events.push({
+            id: `${task.id}-oneTime`,
+            name: task.name,
+            time: taskTime,
+            date: taskDate,
+            duration: task.duration,
+            type: task.type,
+            coins: task.coins,
+            childName: child.name,
+            childId: child.id,
+          });
+        } else {
+          console.log(`One-time task ${task.name} is outside the 2-week window or in the past`);
+        }
+        return;
+      }
+
+      // Generate events for recurring tasks (next 2 weeks)
       for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
         const eventDate = addDays(now, dayOffset);
         const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
@@ -111,7 +169,7 @@ const UpcomingEventsForAll = () => {
       .slice(0, 5);
   }, [allTasks, children]);
 
-  const getIcon = (type: string, name: string) => {
+  const getIcon = (name: string) => {
     if (name.toLowerCase().includes('study') || name.toLowerCase().includes('homework')) return <BookOpen className="w-4 h-4" />;
     if (name.toLowerCase().includes('play') || name.toLowerCase().includes('game')) return <Gamepad2 className="w-4 h-4" />;
     if (name.toLowerCase().includes('practice') || name.toLowerCase().includes('lesson')) return <Target className="w-4 h-4" />;
@@ -183,7 +241,7 @@ const UpcomingEventsForAll = () => {
               event.type === 'scheduled' ? 'bg-blue-100' :
               event.type === 'regular' ? 'bg-green-100' : 'bg-yellow-100'
             }`}>
-              {getIcon(event.type, event.name)}
+              {getIcon(event.name)}
             </div>
             
             {/* Content */}
