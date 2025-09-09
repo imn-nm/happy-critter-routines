@@ -305,7 +305,6 @@ const ChildDashboard = () => {
             </div>
             <TimelineScheduleView 
               child={child}
-              tasks={tasks}
               currentDate={currentDate}
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask}

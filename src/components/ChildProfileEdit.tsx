@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Edit, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
+import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 
 interface ChildProfileEditProps {
   child: Child;
@@ -34,6 +35,7 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
     e.preventDefault();
     
     try {
+      // First update the child profile
       await updateChild(child.id, {
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
@@ -46,6 +48,36 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
         dinner_time: formData.dinner_time,
         bedtime: formData.bedtime,
       });
+
+      // Then update all system task instances with the new times
+      // Only include fields that have changed from the original values
+      const systemTaskUpdates: any = {};
+      
+      if (formData.wake_time !== child.wake_time) {
+        systemTaskUpdates.wake_time = formData.wake_time;
+      }
+      if (formData.breakfast_time !== child.breakfast_time) {
+        systemTaskUpdates.breakfast_time = formData.breakfast_time;
+      }
+      if (formData.school_start_time !== child.school_start_time) {
+        systemTaskUpdates.school_start_time = formData.school_start_time;
+      }
+      if (formData.lunch_time !== child.lunch_time) {
+        systemTaskUpdates.lunch_time = formData.lunch_time;
+      }
+      if (formData.dinner_time !== child.dinner_time) {
+        systemTaskUpdates.dinner_time = formData.dinner_time;
+      }
+      if (formData.bedtime !== child.bedtime) {
+        systemTaskUpdates.bedtime = formData.bedtime;
+      }
+
+      // Update all system task instances if there are changes
+      if (Object.keys(systemTaskUpdates).length > 0) {
+        console.log('Profile edit: Updating all system task instances:', systemTaskUpdates);
+        await updateAllSystemTaskInstances(child.id, systemTaskUpdates);
+      }
+
       setIsOpen(false);
     } catch (error) {
       console.error('Error updating child profile:', error);

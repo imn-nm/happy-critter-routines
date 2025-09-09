@@ -211,3 +211,60 @@ export const ensureSystemTasksExist = async (childId: string) => {
     console.log(`All system tasks already exist for child ${childId}`);
   }
 };
+
+export const updateAllSystemTaskInstances = async (childId: string, systemTaskUpdates: {
+  wake_time?: string;
+  breakfast_time?: string;
+  school_start_time?: string;
+  lunch_time?: string;
+  school_end_time?: string;
+  dinner_time?: string;
+  bedtime?: string;
+}) => {
+  console.log(`Updating all system task instances for child ${childId}:`, systemTaskUpdates);
+  
+  // Map profile field names to system task names and times
+  const taskNameMapping = {
+    wake_time: 'Wake Up',
+    breakfast_time: 'Breakfast', 
+    school_start_time: 'School',
+    lunch_time: 'Lunch',
+    dinner_time: 'Dinner',
+    bedtime: 'Bedtime'
+  };
+
+  const updatePromises = [];
+  
+  for (const [profileField, newTime] of Object.entries(systemTaskUpdates)) {
+    if (newTime && taskNameMapping[profileField as keyof typeof taskNameMapping]) {
+      const taskName = taskNameMapping[profileField as keyof typeof taskNameMapping];
+      
+      console.log(`Updating all instances of "${taskName}" to time ${newTime}`);
+      
+      const updatePromise = supabase
+        .from('tasks')
+        .update({ 
+          scheduled_time: newTime.includes(':') ? `${newTime}:00` : newTime // Ensure HH:MM:SS format
+        })
+        .eq('child_id', childId)
+        .eq('name', taskName);
+      
+      updatePromises.push(updatePromise);
+    }
+  }
+
+  if (updatePromises.length > 0) {
+    const results = await Promise.all(updatePromises);
+    
+    // Check for any errors
+    const errors = results.filter(result => result.error);
+    if (errors.length > 0) {
+      console.error('Errors updating system tasks:', errors);
+      throw errors[0].error;
+    }
+    
+    console.log(`Successfully updated ${updatePromises.length} system task types for child ${childId}`);
+  } else {
+    console.log(`No system task updates needed for child ${childId}`);
+  }
+};

@@ -28,7 +28,6 @@ import { cn } from '@/lib/utils';
 
 interface TimelineScheduleViewProps {
   child: Child;
-  tasks: any[];
   currentDate?: Date;
   getTasksWithCompletionStatus: () => any[];
   onAddTask?: () => void;
@@ -52,97 +51,8 @@ interface TimelineEvent {
   recurring_days?: string[];
 }
 
-const getSystemEvents = (child: Child): TimelineEvent[] => {
-  console.log('getSystemEvents called with child:', {
-    id: child.id,
-    name: child.name,
-    wake_time: child.wake_time,
-    breakfast_time: child.breakfast_time,
-    wake_duration: (child as any).wake_duration,
-    breakfast_duration: (child as any).breakfast_duration,
-  });
-
-  const calculateSchoolDuration = (startTime: string, endTime: string) => {
-    const [startHours, startMinutes] = startTime.split(':').map(Number);
-    const [endHours, endMinutes] = endTime.split(':').map(Number);
-    const startTotalMinutes = startHours * 60 + startMinutes;
-    const endTotalMinutes = endHours * 60 + endMinutes;
-    return Math.max(endTotalMinutes - startTotalMinutes, 60); // Minimum 1 hour
-  };
-
-  // Use stored duration or fallback to calculated/default value
-  const schoolDuration = (child as any).school_duration || calculateSchoolDuration(
-    child.school_start_time || '08:30', 
-    child.school_end_time || '15:00'
-  );
-
-  console.log('getSystemEvents called with child durations:', {
-    wake_duration: (child as any).wake_duration,
-    breakfast_duration: (child as any).breakfast_duration,
-    school_duration: schoolDuration,
-    lunch_duration: (child as any).lunch_duration,
-    snack_duration: (child as any).snack_duration,
-    dinner_duration: (child as any).dinner_duration,
-    bedtime_duration: (child as any).bedtime_duration,
-  });
-
-  return [
-    { 
-      id: 'wake', 
-      name: 'Wake up', 
-      time: child.wake_time || '07:00', 
-      duration: (child as any).wake_duration || 30, 
-      type: 'scheduled', 
-      color: 'bg-amber-500',
-      recurring_days: (child as any).wake_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    },
-    { 
-      id: 'breakfast', 
-      name: 'Breakfast', 
-      time: child.breakfast_time || '07:30', 
-      duration: (child as any).breakfast_duration || 30, 
-      type: 'scheduled', 
-      color: 'bg-orange-500',
-      recurring_days: (child as any).breakfast_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    },
-    { 
-      id: 'school', 
-      name: 'School', 
-      time: child.school_start_time || '08:30', 
-      duration: schoolDuration, 
-      type: 'scheduled', 
-      color: 'bg-blue-600',
-      recurring_days: (child as any).school_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-    },
-    { 
-      id: 'lunch', 
-      name: 'Lunch', 
-      time: child.lunch_time || '12:00', 
-      duration: (child as any).lunch_duration || 45, 
-      type: 'scheduled', 
-      color: 'bg-green-500',
-      recurring_days: (child as any).lunch_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    },
-    { 
-      id: 'dinner', 
-      name: 'Dinner', 
-      time: child.dinner_time || '18:00', 
-      duration: (child as any).dinner_duration || 45, 
-      type: 'scheduled', 
-      color: 'bg-red-500',
-      recurring_days: (child as any).dinner_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    },
-    { 
-      id: 'bedtime', 
-      name: 'Bedtime Routine', 
-      time: child.bedtime || '20:00', 
-      duration: (child as any).bedtime_duration || 60, 
-      type: 'scheduled', 
-      color: 'bg-purple-500',
-      recurring_days: (child as any).bedtime_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    },
-  ];
-};
+// System events are now managed in the database via the systemTasks utility
+// They are treated as regular tasks in the database
 
 interface SortableTimelineEventProps {
   event: TimelineEvent;
@@ -321,7 +231,6 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
 
 const TimelineScheduleView = ({ 
   child, 
-  tasks, 
   currentDate = new Date(),
   getTasksWithCompletionStatus, 
   onAddTask, 
@@ -340,14 +249,7 @@ const TimelineScheduleView = ({
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
-  const calculateTimeWithBuffer = (startTime: string, durationMinutes: number, bufferMinutes: number = 20) => {
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startMinutes = hours * 60 + minutes;
-    const endMinutes = startMinutes + durationMinutes + bufferMinutes;
-    const endHours = Math.floor(endMinutes / 60) % 24;
-    const endMins = endMinutes % 60;
-    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
-  };
+// calculateTimeWithBuffer function removed - no longer needed
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -405,12 +307,19 @@ const TimelineScheduleView = ({
 
   const dayTasks = getTasksForDay(selectedDay);
 
-  // Get system events for this child on the selected day
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const selectedDayName = dayNames[selectedDay.getDay()];
-  const systemEvents = getSystemEvents(child).filter(event => 
-    event.recurring_days && event.recurring_days.includes(selectedDayName)
-  );
+  // System events are now managed in the database - filter them from the regular tasks
+  const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
+  const systemEvents = dayTasks.filter(task => 
+    systemTaskNames.includes(task.name)
+  ).map(task => ({
+    id: task.id,
+    name: task.name,
+    time: task.scheduled_time || '09:00',
+    duration: task.duration || 30,
+    type: 'system' as const,
+    color: 'bg-gray-500',
+    recurring_days: task.recurring_days,
+  }));
   
   // Separate fixed events (system + scheduled) from draggable tasks
   // Filter out lunch when school is present (they overlap in time)
@@ -440,7 +349,9 @@ const TimelineScheduleView = ({
       isLate: false 
     }));
 
-  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => task.type === 'scheduled').map(task => ({
+  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => 
+    task.type === 'scheduled' && !systemTaskNames.includes(task.name)
+  ).map(task => ({
     id: task.id,
     name: task.name,
     time: task.scheduled_time || '09:00',
@@ -456,109 +367,12 @@ const TimelineScheduleView = ({
   const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
 
   // Draggable tasks (flexible and regular) - we'll calculate their times based on snapping logic
-  const draggableTasks = dayTasks.filter(task => task.type === 'flexible' || task.type === 'regular');
+  const draggableTasks = dayTasks.filter(task => 
+    (task.type === 'flexible' || task.type === 'regular') && !systemTaskNames.includes(task.name)
+  );
   
-  // Sort fixed events by time to create anchor points
-  const sortedFixedEvents = [...fixedEvents].sort((a, b) => {
-    const timeA = a.time.split(':').map(Number);
-    const timeB = b.time.split(':').map(Number);
-    const minutesA = timeA[0] * 60 + timeA[1];
-    const minutesB = timeB[0] * 60 + timeB[1];
-    return minutesA - minutesB;
-  });
-
-  // Calculate snapped times for draggable tasks
-  const calculateSnappedTimes = (tasks: any[], fixedEvents: TimelineEvent[]) => {
-    const snappedEvents: TimelineEvent[] = [];
-    
-    // Create time windows between fixed events
-    const timeWindows: { start: number; end: number; afterEvent: string }[] = [];
-    
-    for (let i = 0; i < fixedEvents.length - 1; i++) {
-      const currentEvent = fixedEvents[i];
-      const nextEvent = fixedEvents[i + 1];
-      
-      // Calculate end time of current event
-      const [currentHours, currentMinutes] = currentEvent.time.split(':').map(Number);
-      const currentEndMinutes = currentHours * 60 + currentMinutes + currentEvent.duration;
-      
-      // Calculate start time of next event
-      const [nextHours, nextMinutes] = nextEvent.time.split(':').map(Number);
-      const nextStartMinutes = nextHours * 60 + nextMinutes;
-      
-      // Only create window if there's at least 15 minutes gap
-      if (nextStartMinutes - currentEndMinutes >= 15) {
-        timeWindows.push({
-          start: currentEndMinutes,
-          end: nextStartMinutes,
-          afterEvent: currentEvent.name
-        });
-      }
-    }
-
-    // Add a final window after the last fixed event
-    if (fixedEvents.length > 0) {
-      const lastEvent = fixedEvents[fixedEvents.length - 1];
-      const [lastHours, lastMinutes] = lastEvent.time.split(':').map(Number);
-      const lastEndMinutes = lastHours * 60 + lastMinutes + lastEvent.duration;
-      
-      timeWindows.push({
-        start: lastEndMinutes,
-        end: 24 * 60, // End of day
-        afterEvent: lastEvent.name
-      });
-    }
-
-    // Distribute tasks across time windows
-    let taskIndex = 0;
-    for (const window of timeWindows) {
-      const windowDuration = window.end - window.start;
-      if (windowDuration < 15) continue; // Skip windows too small
-      
-      // Get tasks for this window (for now, just distribute sequentially)
-      const windowTasks = tasks.slice(taskIndex);
-      if (windowTasks.length === 0) break;
-      
-      let currentTime = window.start;
-      const tasksInWindow = Math.min(windowTasks.length, Math.floor(windowDuration / 30)); // Max tasks that fit
-      
-      for (let i = 0; i < tasksInWindow && taskIndex < tasks.length; i++, taskIndex++) {
-        const task = tasks[taskIndex];
-        let taskDuration = task.duration || 30;
-        
-        // If this is the last task in the window and it's flexible, expand it to fill remaining time
-        const isLastInWindow = i === tasksInWindow - 1;
-        const remainingTime = window.end - currentTime;
-        
-        if (task.type === 'flexible' && isLastInWindow && remainingTime > taskDuration) {
-          taskDuration = Math.max(taskDuration, remainingTime - 10); // Leave 10 min buffer
-        }
-        
-        // Convert time back to HH:MM format
-        const hours = Math.floor(currentTime / 60);
-        const minutes = currentTime % 60;
-        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        
-        snappedEvents.push({
-          id: task.id,
-          name: task.name,
-          time: timeStr,
-          duration: taskDuration,
-          type: task.type,
-          color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
-          task: task,
-          coins: task.coins,
-          isCompleted: task.isCompleted,
-          isLate: false,
-        });
-        
-        currentTime += taskDuration;
-        if (currentTime >= window.end) break;
-      }
-    }
-    
-    return snappedEvents;
-  };
+  // Removed unused sortedFixedEvents and calculateSnappedTimes functions
+  // as we're using actual scheduled times from database instead of auto-snapping
 
   // Use actual scheduled times for draggable tasks instead of auto-snapping
   const draggableEvents: TimelineEvent[] = draggableTasks.map(task => ({

@@ -26,13 +26,8 @@ interface TimelineItem {
   isFixed?: boolean;
 }
 
-const systemTasks: TimelineItem[] = [
-  { id: 'wake', name: 'Wake Up', time: '07:00', duration: 0, type: 'system', isFixed: true },
-  { id: 'breakfast', name: 'Breakfast', time: '07:30', duration: 30, type: 'system', isFixed: true },
-  { id: 'lunch', name: 'Lunch', time: '12:00', duration: 45, type: 'system', isFixed: true },
-  { id: 'dinner', name: 'Dinner', time: '18:00', duration: 60, type: 'system', isFixed: true },
-  { id: 'bedtime', name: 'Bedtime', time: '20:30', duration: 0, type: 'system', isFixed: true },
-];
+// System tasks are now managed in the database via the systemTasks utility
+// They will come through the regular tasks array
 
 const SortableTimelineItem = ({ item, onTimeChange, simple = false }: { 
   item: TimelineItem; 
@@ -193,8 +188,8 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
         isFixed: task.type === 'scheduled',
       }));
 
-    // Merge and sort all items by time
-    const allItems = [...systemTasks, ...taskItems].sort((a, b) => {
+    // Sort all task items by time (system tasks are now included in the regular tasks array)
+    const allItems = [...taskItems].sort((a, b) => {
       const timeA = parse(a.time, 'HH:mm', new Date()).getTime();
       const timeB = parse(b.time, 'HH:mm', new Date()).getTime();
       return timeA - timeB;
