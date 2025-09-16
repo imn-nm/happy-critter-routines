@@ -13,6 +13,7 @@ import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import ChildReports from "./pages/ChildReports";
 import NotFound from "./pages/NotFound";
+import ChildrenSideBySide from "./pages/ChildrenSideBySide";
 
 const queryClient = new QueryClient();
 
@@ -24,7 +25,8 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<ChildrenSideBySide />} />
+            <Route path="/landing" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/setup" element={<ChildSetup />} />
             <Route path="/child/:childId" element={<ChildInterface />} />

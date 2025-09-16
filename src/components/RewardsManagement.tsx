@@ -8,22 +8,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Edit, Trash2, Coins, Gift, ShoppingCart } from "lucide-react";
 import { useRewards, type Reward } from "@/hooks/useRewards";
 import { Child, useChildren } from "@/hooks/useChildren";
+import { toast } from "sonner";
 
 interface RewardsManagementProps {
   child: Child;
 }
 
-const RewardsManagement = ({ child }: RewardsManagementProps) => {
+const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAwardOpen, setIsAwardOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     cost: "10",
   });
+  const [awardData, setAwardData] = useState({
+    amount: "10",
+    reason: "",
+  });
+  const [isDeductOpen, setIsDeductOpen] = useState(false);
+  const [deductData, setDeductData] = useState({
+    amount: "5",
+    reason: "",
+  });
   
-  const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(child.id);
-  const { updateChildCoins } = useChildren();
+  const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(propChild.id);
+  const { children, updateChildCoins } = useChildren();
+  
+  // Get the most up-to-date child data from the children state
+  const child = children.find(c => c.id === propChild.id) || propChild;
 
   const resetForm = () => {
     setFormData({
@@ -71,20 +85,77 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
 
   const handlePurchase = async (reward: Reward) => {
     if (child.currentCoins < reward.cost) {
-      return; // Not enough coins
+      toast.error("Not enough coins for this reward!");
+      return;
     }
 
     try {
       await purchaseReward(reward.id, reward.cost);
       await updateChildCoins(child.id, child.currentCoins - reward.cost);
+      
+      toast.success(`${child.name} purchased: ${reward.name}!`, {
+        description: `Spent ${reward.cost} coins`,
+        icon: "🎁"
+      });
     } catch (error) {
       console.error('Error purchasing reward:', error);
+      toast.error("Failed to purchase reward. Please try again.");
     }
   };
 
   const handleDelete = async (rewardId: string) => {
     if (confirm('Are you sure you want to delete this reward?')) {
       await deleteReward(rewardId);
+    }
+  };
+
+  const handleAwardCoins = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const coinsToAward = parseInt(awardData.amount);
+      await updateChildCoins(child.id, child.currentCoins + coinsToAward);
+      
+      toast.success(`Awarded ${coinsToAward} coins to ${child.name}!`, {
+        description: awardData.reason || "Manual coin award",
+        icon: "🪙"
+      });
+      
+      setIsAwardOpen(false);
+      setAwardData({
+        amount: "10",
+        reason: "",
+      });
+    } catch (error) {
+      console.error('Error awarding coins:', error);
+      toast.error("Failed to award coins. Please try again.");
+    }
+  };
+
+  const handleDeductCoins = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const coinsToDeduct = parseInt(deductData.amount);
+      const newCoinBalance = Math.max(0, child.currentCoins - coinsToDeduct);
+      
+      await updateChildCoins(child.id, newCoinBalance);
+      
+      const actualDeducted = child.currentCoins - newCoinBalance;
+      
+      toast.success(`Deducted ${actualDeducted} coins from ${child.name}`, {
+        description: deductData.reason || "Manual coin deduction",
+        icon: "💸"
+      });
+      
+      setIsDeductOpen(false);
+      setDeductData({
+        amount: "5",
+        reason: "",
+      });
+    } catch (error) {
+      console.error('Error deducting coins:', error);
+      toast.error("Failed to deduct coins. Please try again.");
     }
   };
 
@@ -96,19 +167,137 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
         <div className="flex items-center gap-2">
           <Gift className="w-5 h-5 text-primary" />
           <h3 className="text-xl font-semibold">Rewards for {child.name}</h3>
+          <div className="flex items-center gap-1 bg-warning/10 px-3 py-1 rounded-full">
+            <Coins className="w-4 h-4 text-warning" />
+            <span className="font-medium">{child.currentCoins} coins</span>
+          </div>
         </div>
         
-        <Dialog open={isAddOpen} onOpenChange={(open) => {
-          setIsAddOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Reward
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+        <div className="flex gap-2">
+          <Dialog open={isDeductOpen} onOpenChange={setIsDeductOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300">
+                <Coins className="w-4 h-4 mr-2" />
+                Take Coins
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Take Coins from {child.name}</DialogTitle>
+              </DialogHeader>
+              
+              <form onSubmit={handleDeductCoins} className="space-y-4">
+                <div>
+                  <Label htmlFor="deduct-amount">Number of Coins *</Label>
+                  <Input
+                    id="deduct-amount"
+                    type="number"
+                    min="1"
+                    max={child.currentCoins}
+                    value={deductData.amount}
+                    onChange={(e) => setDeductData({ ...deductData, amount: e.target.value })}
+                    placeholder="5"
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {child.name} currently has {child.currentCoins} coins
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="deduct-reason">Reason (optional)</Label>
+                  <Textarea
+                    id="deduct-reason"
+                    value={deductData.reason}
+                    onChange={(e) => setDeductData({ ...deductData, reason: e.target.value })}
+                    placeholder="e.g., Broke a rule, didn't complete chores, misbehavior..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button type="submit" variant="destructive" className="flex-1">
+                    <Coins className="w-4 h-4 mr-2" />
+                    Take {deductData.amount} Coins
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsDeductOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isAwardOpen} onOpenChange={setIsAwardOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300">
+                <Coins className="w-4 h-4 mr-2" />
+                Award Coins
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Award Coins to {child.name}</DialogTitle>
+              </DialogHeader>
+              
+              <form onSubmit={handleAwardCoins} className="space-y-4">
+                <div>
+                  <Label htmlFor="amount">Number of Coins *</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={awardData.amount}
+                    onChange={(e) => setAwardData({ ...awardData, amount: e.target.value })}
+                    placeholder="10"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="reason">Reason (optional)</Label>
+                  <Textarea
+                    id="reason"
+                    value={awardData.reason}
+                    onChange={(e) => setAwardData({ ...awardData, reason: e.target.value })}
+                    placeholder="e.g., Good behavior, extra chores, special achievement..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button type="submit" className="flex-1">
+                    <Coins className="w-4 h-4 mr-2" />
+                    Award {awardData.amount} Coins
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsAwardOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isAddOpen} onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Reward
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {editingReward ? 'Edit Reward' : 'Add New Reward'}
@@ -166,8 +355,9 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
                 </Button>
               </div>
             </form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {loading ? (

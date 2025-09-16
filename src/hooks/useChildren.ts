@@ -2,12 +2,28 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Helper function to convert old pet types to new ones
+const convertPetType = (dbPetType: string): 'fox' | 'panda' => {
+  switch(dbPetType) {
+    case 'fox':
+      return 'fox';
+    case 'panda':
+      return 'panda';
+    // Convert old pet types to new ones
+    case 'owl':
+    case 'penguin':
+    case 'bunny':
+    default:
+      return 'panda'; // Default to panda for any old/unknown pet types
+  }
+};
+
 export interface Child {
   id: string;
   parent_id: string;
   name: string;
   age?: number;
-  petType: 'owl' | 'fox' | 'penguin';
+  petType: 'fox' | 'panda';
   currentCoins: number;
   petHappiness: number;
   created_at: string;
@@ -52,19 +68,29 @@ export const useChildren = () => {
       if (error) throw error;
       
       // Map database format to interface format
-      const mappedData = (data || []).map(child => ({
-        ...child,
-        petType: child.pet_type as 'owl' | 'fox' | 'penguin',
-        currentCoins: child.current_coins,
-        petHappiness: child.pet_happiness,
-        wake_time: child.wake_time,
-        breakfast_time: child.breakfast_time,
-        school_start_time: child.school_start_time,
-        lunch_time: child.lunch_time,
-        school_end_time: child.school_end_time,
-        dinner_time: child.dinner_time,
-        bedtime: child.bedtime,
-      }));
+      console.log('Raw children data from database:', data);
+      const mappedData = (data || []).map(child => {
+        console.log(`Mapping child ${child.name}: pet_type="${child.pet_type}"`);
+        const convertedPetType = convertPetType(child.pet_type);
+
+        if (child.pet_type !== convertedPetType) {
+          console.log(`Converting old pet type "${child.pet_type}" to "${convertedPetType}" for ${child.name}`);
+        }
+
+        return {
+          ...child,
+          petType: convertedPetType,
+          currentCoins: child.current_coins,
+          petHappiness: child.pet_happiness,
+          wake_time: child.wake_time,
+          breakfast_time: child.breakfast_time,
+          school_start_time: child.school_start_time,
+          lunch_time: child.lunch_time,
+          school_end_time: child.school_end_time,
+          dinner_time: child.dinner_time,
+          bedtime: child.bedtime,
+        };
+      });
       
       setChildren(mappedData);
     } catch (error) {
@@ -89,10 +115,12 @@ export const useChildren = () => {
         name: childData.name,
         age: childData.age,
         parent_id: user.id,
-        pet_type: childData.petType,
+        pet_type: 'fox', // TEMPORARY: Force to 'fox' until database constraint is fixed
         current_coins: childData.currentCoins,
         pet_happiness: childData.petHappiness,
       };
+
+      console.log(`TEMPORARY: Creating child with pet_type='fox' regardless of UI selection`);
 
       const { data, error } = await supabase
         .from('children')
@@ -105,7 +133,7 @@ export const useChildren = () => {
       // Map database format to interface format
       const mappedChild = {
         ...data,
-        petType: data.pet_type as 'owl' | 'fox' | 'penguin',
+        petType: convertPetType(data.pet_type),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
         wake_time: data.wake_time,
@@ -138,6 +166,7 @@ export const useChildren = () => {
   const updateChild = async (id: string, updates: Partial<Child>) => {
     try {
       console.log('Updating child with:', { id, updates });
+      console.log('Available pet types in system:', ['fox', 'panda']);
       
       // Optimistically update UI first
       setChildren(prev => prev.map(child => 
@@ -147,7 +176,6 @@ export const useChildren = () => {
       // Map interface format to database format
       const dbUpdates = {
         ...updates,
-        pet_type: updates.petType,
         current_coins: updates.currentCoins,
         pet_happiness: updates.petHappiness,
         wake_time: updates.wake_time,
@@ -158,11 +186,17 @@ export const useChildren = () => {
         dinner_time: updates.dinner_time,
         bedtime: updates.bedtime,
       };
-      
+
+      // TEMPORARY: Skip all pet_type updates until database constraint is fixed
+      console.log(`Temporarily skipping pet_type updates due to database constraint`);
+      // TODO: Remove this when database constraint allows 'fox' and 'panda'
+
       // Remove the interface properties that don't exist in database
       delete (dbUpdates as any).petType;
       delete (dbUpdates as any).currentCoins;
       delete (dbUpdates as any).petHappiness;
+
+      console.log('Database updates being sent:', dbUpdates);
 
       const { data, error } = await supabase
         .from('children')
@@ -178,7 +212,7 @@ export const useChildren = () => {
       // Map database format to interface format
       const mappedChild = {
         ...data,
-        petType: data.pet_type as 'owl' | 'fox' | 'penguin',
+        petType: convertPetType(data.pet_type),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
         wake_time: data.wake_time,
@@ -260,7 +294,7 @@ export const useChildren = () => {
             // Map database format to interface format for real-time updates
             const mappedChild = {
               ...payload.new,
-              petType: payload.new.pet_type as 'owl' | 'fox' | 'penguin',
+              petType: convertPetType(payload.new.pet_type),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
@@ -271,7 +305,7 @@ export const useChildren = () => {
           } else if (payload.eventType === 'INSERT') {
             const mappedChild = {
               ...payload.new,
-              petType: payload.new.pet_type as 'owl' | 'fox' | 'penguin',
+              petType: convertPetType(payload.new.pet_type),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };

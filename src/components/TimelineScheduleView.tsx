@@ -326,8 +326,8 @@ const TimelineScheduleView = ({
   const systemEventsOnly: TimelineEvent[] = systemEvents
     .filter(event => {
       // If this is lunch and school is also in the events, exclude lunch
-      if (event.id === 'lunch') {
-        const hasSchool = systemEvents.some(e => e.id === 'school');
+      if (event.name === 'Lunch') {
+        const hasSchool = systemEvents.some(e => e.name === 'School');
         return !hasSchool;
       }
       return true;
@@ -637,8 +637,34 @@ const TimelineScheduleView = ({
     setCurrentWeek(prev => addDays(prev, 7));
   };
 
+  // Format week range for header
+  const formatWeekRange = (startOfWeek: Date) => {
+    const endOfWeek = addDays(startOfWeek, 6);
+    const startMonth = format(startOfWeek, 'MMMM');
+    const endMonth = format(endOfWeek, 'MMMM');
+    const startDay = format(startOfWeek, 'd');
+    const endDay = format(endOfWeek, 'd');
+    const year = format(startOfWeek, 'yyyy');
+    
+    // If same month
+    if (startMonth === endMonth) {
+      return `${startMonth} ${startDay}-${endDay}, ${year}`;
+    }
+    // If different months
+    else {
+      return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+    }
+  };
+
   return (
     <Card className="p-3 sm:p-6">
+      {/* Week Range Header */}
+      <div className="text-center mb-4">
+        <h2 className="text-lg font-semibold text-foreground">
+          {formatWeekRange(weekStart)}
+        </h2>
+      </div>
+      
       {/* Week Navigation */}
       <div className="flex items-center justify-between mb-4 sm:mb-6">
         <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-8 w-8 p-0">

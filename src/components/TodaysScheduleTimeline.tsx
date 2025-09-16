@@ -42,19 +42,18 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
 
   if (schedule.length === 0) {
     return (
-      <Card className="p-8 text-center bg-white/90 backdrop-blur">
+      <div className="p-8 text-center">
         <div className="text-4xl mb-4">📅</div>
-        <h3 className="text-xl font-bold mb-2">No Schedule Today</h3>
-        <p className="text-muted-foreground">
+        <h3 className="text-xl font-bold mb-2 text-white">No Schedule Today</h3>
+        <p className="text-white/80">
           No tasks or events are scheduled for today.
         </p>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="p-6 bg-white/90 backdrop-blur">
-      <div className="space-y-4">
+    <div className="space-y-4">
         {schedule.map((item, index) => {
           const isCurrentTask = highlightTaskId && item.id === highlightTaskId;
           return (
@@ -62,18 +61,18 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
               key={item.id} 
               className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
                 isCurrentTask 
-                  ? 'bg-primary/10 border-2 border-primary shadow-md' 
-                  : 'hover:bg-gray-50'
+                  ? 'bg-white/20 border-2 border-white shadow-md' 
+                  : 'bg-white/10 hover:bg-white/15'
               }`}
             >
               {/* Timeline dot */}
               <div className="flex flex-col items-center">
                 <div className={`w-3 h-3 rounded-full ${
-                  isCurrentTask ? 'bg-primary border-2 border-white shadow-lg' :
-                  item.isCompleted ? 'bg-success' : 'bg-primary'
+                  isCurrentTask ? 'bg-white border-2 border-accent shadow-lg' :
+                  item.isCompleted ? 'bg-green-400' : 'bg-white'
                 }`}></div>
                 {index < schedule.length - 1 && (
-                  <div className="w-0.5 h-8 bg-gray-200 mt-2"></div>
+                  <div className="w-0.5 h-8 bg-white/30 mt-2"></div>
                 )}
               </div>
               
@@ -86,15 +85,15 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className={`font-medium ${
-                    isCurrentTask ? 'text-primary font-bold' :
-                    item.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                    isCurrentTask ? 'text-white font-bold' :
+                    item.isCompleted ? 'text-white/60 line-through' : 'text-white'
                   }`}>
                     {item.name}
-                    {isCurrentTask && <span className="ml-2 text-sm bg-primary text-white px-2 py-1 rounded-full">Current</span>}
+                    {isCurrentTask && <span className="ml-2 text-sm bg-accent text-white px-2 py-1 rounded-full">Current</span>}
                   </h4>
                   {item.scheduled_time && (
                     <div className={`flex items-center gap-1 text-sm ${
-                      isCurrentTask ? 'text-primary font-semibold' : 'text-muted-foreground'
+                      isCurrentTask ? 'text-white font-semibold' : 'text-white/80'
                     }`}>
                       <Clock className="w-3 h-3" />
                       <span>{formatTime(item.scheduled_time)}</span>
@@ -105,8 +104,7 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
             </div>
           );
         })}
-      </div>
-    </Card>
+    </div>
   );
 };
 

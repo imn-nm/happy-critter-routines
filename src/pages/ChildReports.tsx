@@ -19,16 +19,11 @@ const ChildReports = () => {
   const childId = searchParams.get("childId");
   const { children, loading: childrenLoading } = useChildren();
   const { tasks, loading: tasksLoading } = useTasks(childId || undefined);
-  const [selectedChild, setSelectedChild] = useState<any>(null);
+  
+  // Get the most up-to-date child data directly from children state
+  const selectedChild = children.find(c => c.id === childId) || null;
 
   const loading = childrenLoading || tasksLoading;
-
-  useEffect(() => {
-    if (children.length > 0 && childId) {
-      const child = children.find(c => c.id === childId);
-      setSelectedChild(child);
-    }
-  }, [children, childId]);
 
   if (loading) {
     return (

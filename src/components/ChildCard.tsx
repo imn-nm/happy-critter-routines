@@ -9,9 +9,11 @@ interface ChildCardProps {
   isSelected?: boolean;
   onClick?: (child: Child) => void;
   className?: string;
+  completedTasks?: number;
+  totalTasks?: number;
 }
 
-const ChildCard = ({ child, isSelected, onClick, className }: ChildCardProps) => {
+const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, totalTasks = 0 }: ChildCardProps) => {
   return (
     <Card 
       className={cn(
@@ -22,10 +24,12 @@ const ChildCard = ({ child, isSelected, onClick, className }: ChildCardProps) =>
       onClick={() => onClick?.(child)}
     >
       <div className="flex flex-col items-center text-center space-y-4">
-        <PetAvatar 
-          petType={child.petType} 
-          happiness={child.petHappiness} 
+        <PetAvatar
+          petType={child.petType}
+          happiness={child.petHappiness}
           size="lg"
+          completedTasks={completedTasks}
+          totalTasks={totalTasks}
         />
         
         <div>

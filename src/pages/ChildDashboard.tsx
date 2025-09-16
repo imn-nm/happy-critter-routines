@@ -12,15 +12,15 @@ import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TaskForm from "@/components/TaskForm";
-import WeekView from "@/components/WeekView";
 import MonthView from "@/components/MonthView";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { children, loading } = useChildren();
-  const { updateChild } = useChildren();
-  const [child, setChild] = useState(null);
+  const { children, loading, updateChild } = useChildren();
+  
+  // Get the most up-to-date child data directly from children state
+  const child = children.find(c => c.id === childId) || null;
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -37,27 +37,7 @@ const ChildDashboard = () => {
     loading: tasksLoading 
   } = useTasks(childId || '');
 
-  useEffect(() => {
-    if (children.length > 0 && childId) {
-      const foundChild = children.find(c => c.id === childId);
-      console.log('ChildDashboard: Setting child state to:', foundChild);
-      setChild(foundChild || null);
-    }
-  }, [children, childId]);
-
-  // Additional effect to force re-render when child data changes
-  useEffect(() => {
-    if (child && children.length > 0) {
-      const updatedChild = children.find(c => c.id === child.id);
-      if (updatedChild && JSON.stringify(updatedChild) !== JSON.stringify(child)) {
-        console.log('ChildDashboard: Child data changed, updating:', {
-          old: child,
-          new: updatedChild
-        });
-        setChild(updatedChild);
-      }
-    }
-  }, [children, child]);
+  // No longer needed - getting child directly from children state
 
   const handleAddTask = () => {
     console.log('ChildDashboard: Opening task form with currentDate:', currentDate, 'formatted:', format(currentDate, 'yyyy-MM-dd'));
@@ -274,19 +254,15 @@ const ChildDashboard = () => {
 
         {/* Management Tabs */}
         <Tabs defaultValue="timeline" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Timeline</span>
               <span className="sm:hidden">Time</span>
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-              <CalendarDays className="w-3 h-3 sm:w-4 sm:h-4" />
-              Week
-            </TabsTrigger>
             <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
               <CalendarDays className="w-3 h-3 sm:w-4 sm:h-4" />
-              Month
+              Calendar
             </TabsTrigger>
             <TabsTrigger value="rewards" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
               <Gift className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -399,20 +375,18 @@ const ChildDashboard = () => {
             />
           </TabsContent>
 
-          <TabsContent value="week">
-            <WeekView 
-              child={child}
-              tasks={tasks}
-              onTasksReorder={handleTasksReorder}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-            />
-          </TabsContent>
 
           <TabsContent value="month">
             <MonthView 
               child={child}
               tasks={tasks}
+              getTasksWithCompletionStatus={getTasksWithCompletionStatus}
+              onAddTask={(date) => {
+                setCurrentDate(date);
+                handleAddTask();
+              }}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
             />
           </TabsContent>
 

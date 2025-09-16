@@ -149,15 +149,14 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
             <Label htmlFor="petType">Pet Type *</Label>
             <Select 
               value={formData.petType} 
-              onValueChange={(value: "owl" | "fox" | "penguin") => setFormData({ ...formData, petType: value })}
+              onValueChange={(value: "fox" | "panda") => setFormData({ ...formData, petType: value })}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="owl">Owl - Wise and calm</SelectItem>
-                <SelectItem value="fox">Fox - Clever and energetic</SelectItem>
-                <SelectItem value="penguin">Penguin - Friendly and social</SelectItem>
+                <SelectItem value="fox">Arctic Fox - Clever and energetic</SelectItem>
+                <SelectItem value="panda">Red Panda - Playful and curious</SelectItem>
               </SelectContent>
             </Select>
           </div>

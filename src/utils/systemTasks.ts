@@ -39,7 +39,7 @@ export const systemTaskTemplates: SystemTaskTemplate[] = [
     type: 'scheduled',
     defaultTime: '12:00:00',
     defaultDuration: 45,
-    defaultDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    defaultDays: ['saturday', 'sunday'],
     description: 'Midday meal'
   },
   {

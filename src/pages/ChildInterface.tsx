@@ -14,9 +14,16 @@ import { calculatePetEmotion, evaluateScheduleStatus, getTimeOfDay, ScheduleStat
 import { prioritizeTasks, getScheduleStatus, applyScheduleAdjustments, TaskWithPriority } from "@/utils/taskPrioritization";
 import { ensureSystemTasksExist } from "@/utils/systemTasks";
 
-const ChildInterface = () => {
-  const { childId } = useParams();
+interface ChildInterfaceProps {
+  childId?: string;
+}
+
+const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
+  const { childId: paramChildId } = useParams();
   const navigate = useNavigate();
+  
+  // Use prop childId if provided, otherwise use URL param
+  const childId = propChildId || paramChildId;
   const { children, updateChildCoins, updateChildHappiness } = useChildren();
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
@@ -100,16 +107,18 @@ const ChildInterface = () => {
   
   if (!child) {
     return (
-      <div className="min-h-screen bg-gradient-primary p-4">
+      <div className={`${!propChildId ? 'min-h-screen bg-gradient-primary' : ''} p-4`}>
         <div className="max-w-2xl mx-auto text-center">
           <div className="text-white text-xl">Child not found</div>
-          <Button 
-            variant="accent" 
-            onClick={() => navigate("/dashboard")}
-            className="mt-4"
-          >
-            Back to Dashboard
-          </Button>
+          {!propChildId && (
+            <Button 
+              variant="accent" 
+              onClick={() => navigate("/dashboard")}
+              className="mt-4"
+            >
+              Back to Dashboard
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -118,7 +127,7 @@ const ChildInterface = () => {
   // Show loading until system tasks are ready
   if (!systemTasksReady) {
     return (
-      <div className="min-h-screen bg-gradient-primary p-4">
+      <div className={`${!propChildId ? 'min-h-screen bg-gradient-primary' : ''} p-4`}>
         <div className="max-w-2xl mx-auto text-center">
           <div className="text-white text-xl">Setting up schedule...</div>
         </div>
@@ -260,7 +269,7 @@ const ChildInterface = () => {
   };
 
   const activeTask = getCurrentTask();
-  
+
   // Get complete today's schedule
   const getTodaysSchedule = () => {
     const currentTime = getCurrentTimePST();
@@ -282,6 +291,16 @@ const ChildInterface = () => {
     });
     
     return sortedTasks;
+  };
+
+  // Calculate task completion for pet emotion
+  const getTodaysTaskCompletion = () => {
+    const todaysTasks = getTodaysSchedule();
+    const completedTasks = todaysTasks.filter(task => task.isCompleted).length;
+    return {
+      completed: completedTasks,
+      total: todaysTasks.length
+    };
   };
 
   // Get next 2 upcoming tasks (excluding the active task and tasks that have passed)
@@ -366,19 +385,22 @@ const ChildInterface = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-4">
+    <div className={`${!propChildId ? 'min-h-screen bg-gradient-primary' : ''} p-4`}>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
+          {!propChildId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          )}
+          {propChildId && <div />}
           
           <div className="flex items-center gap-2 text-white">
             <Coins className="w-5 h-5 text-warning" />
@@ -387,23 +409,25 @@ const ChildInterface = () => {
         </div>
 
         {/* Pet Avatar */}
-        <div className="text-center mb-8">
-          <PetAvatar 
-            petType={child.petType} 
+        <div className="text-center mb-4 sm:mb-8">
+          <PetAvatar
+            petType={child.petType}
             happiness={calculateHappiness()}
             emotion={calculatePetEmotionForChild()}
             size="xl"
-            className="mx-auto mb-4"
+            className="mx-auto mb-2 sm:mb-4"
+            completedTasks={getTodaysTaskCompletion().completed}
+            totalTasks={getTodaysTaskCompletion().total}
           />
-          <h1 className="text-2xl font-bold text-white">{child.name}'s Adventure</h1>
+          <h1 className="text-lg sm:text-2xl font-bold text-white">{child.name}'s Adventure</h1>
         </div>
 
         {/* Current Task - Simplified for Children */}
         {activeTask && (
-          <Card className="p-8 mb-6 bg-white/95 backdrop-blur shadow-2xl">
-            <div className="text-center space-y-6">
+          <Card className="p-4 sm:p-8 mb-4 sm:mb-6 bg-white/95 backdrop-blur shadow-2xl">
+            <div className="text-center space-y-3 sm:space-y-6">
               {/* Task Icon */}
-              <div className="text-8xl mb-4">
+              <div className="text-4xl sm:text-6xl lg:text-8xl mb-2 sm:mb-4">
                 {activeTask.name.toLowerCase().includes('study') || activeTask.name.toLowerCase().includes('homework') ? '📚' : 
                  activeTask.name.toLowerCase().includes('exercise') || activeTask.name.toLowerCase().includes('workout') ? '💪' :
                  activeTask.name.toLowerCase().includes('read') ? '📖' :
@@ -415,11 +439,11 @@ const ChildInterface = () => {
               </div>
               
               {/* Task Name - Large and Clear */}
-              <h2 className="text-4xl font-bold text-primary mb-6">{activeTask.name}</h2>
+              <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold text-primary mb-3 sm:mb-6">{activeTask.name}</h2>
               
               {/* Visual Timer - Large and Prominent with Color Coding */}
               {activeTask.duration && (
-                <div className="mb-6">
+                <div className="mb-3 sm:mb-6">
                   <CircularTimer
                     totalSeconds={activeTask.duration * 60}
                     remainingSeconds={getActiveTaskRemainingTime()}
@@ -436,9 +460,9 @@ const ChildInterface = () => {
               
               {/* Coins Display - Only show if coins > 0 */}
               {activeTask.coins > 0 && (
-                <div className="flex items-center justify-center gap-3 mb-6 bg-gradient-warning text-white p-4 rounded-xl">
-                  <Coins className="w-8 h-8" />
-                  <span className="text-2xl font-bold">{activeTask.coins} coins</span>
+                <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-6 bg-gradient-warning text-white p-3 sm:p-4 rounded-xl">
+                  <Coins className="w-6 h-6 sm:w-8 sm:h-8" />
+                  <span className="text-lg sm:text-2xl font-bold">{activeTask.coins} coins</span>
                 </div>
               )}
 
@@ -447,9 +471,9 @@ const ChildInterface = () => {
                 variant="success"
                 size="lg"
                 onClick={() => handleCompleteTask(activeTask.id)}
-                className="text-2xl px-12 py-6 h-auto shadow-lg"
+                className="text-lg sm:text-2xl px-8 sm:px-12 py-4 sm:py-6 h-auto shadow-lg w-full sm:w-auto"
               >
-                <Star className="w-8 h-8 mr-3" />
+                <Star className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3" />
                 I'm Done!
               </Button>
             </div>
@@ -458,9 +482,9 @@ const ChildInterface = () => {
 
         {/* Next Tasks Preview - Simplified for Children */}
         {upcomingTasks.length > 0 && (
-          <div className="space-y-4 mb-6">
-            <h3 className="text-2xl font-bold text-white text-center">Coming Up Next</h3>
-            <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+            <h3 className="text-lg sm:text-2xl font-bold text-white text-center">Coming Up Next</h3>
+            <div className="space-y-3 sm:space-y-4">
               {upcomingTasks.map((task) => {
                 const adjustment = scheduleStatus.adjustmentsNeeded.find(adj => adj.taskId === task.id);
                 const isAdjusted = adjustment && adjustment.adjustedDuration !== adjustment.originalDuration;
@@ -469,10 +493,10 @@ const ChildInterface = () => {
                 if (isEliminated) return null; // Don't show eliminated tasks
                 
                 return (
-                  <Card key={task.id} className={`p-6 backdrop-blur ${isAdjusted ? 'bg-amber-50/90 border border-amber-300' : 'bg-white/90'}`}>
-                    <div className="flex items-center space-x-4">
+                  <Card key={task.id} className={`p-3 sm:p-6 backdrop-blur ${isAdjusted ? 'bg-amber-50/90 border border-amber-300' : 'bg-white/90'}`}>
+                    <div className="flex items-center space-x-3 sm:space-x-4">
                       {/* Task Icon */}
-                      <div className="text-4xl">
+                      <div className="text-2xl sm:text-4xl">
                         {task.name.toLowerCase().includes('study') || task.name.toLowerCase().includes('homework') ? '📚' : 
                          task.name.toLowerCase().includes('exercise') || task.name.toLowerCase().includes('workout') ? '💪' :
                          task.name.toLowerCase().includes('read') ? '📖' :
@@ -485,26 +509,26 @@ const ChildInterface = () => {
                       
                       <div className="flex-1">
                         {/* Task Name */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="text-xl font-semibold">{task.name}</h4>
+                        <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                          <h4 className="text-sm sm:text-xl font-semibold">{task.name}</h4>
                           {isAdjusted && (
-                            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
+                            <span className="text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-1 rounded-full">
                               Shortened
                             </span>
                           )}
                         </div>
                         
                         {/* Time and Progress */}
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-lg font-medium">{formatTime(task.scheduled_time)}</span>
+                        <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                          <span className="text-sm sm:text-lg font-medium">{formatTime(task.scheduled_time)}</span>
                           {task.coins > 0 && (
                             <div className="flex items-center gap-1">
-                              <Coins className="w-4 h-4 text-warning" />
-                              <span className="font-semibold">{task.coins}</span>
+                              <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-warning" />
+                              <span className="text-sm sm:text-base font-semibold">{task.coins}</span>
                             </div>
                           )}
                           {isAdjusted && (
-                            <span className="text-sm text-amber-700">
+                            <span className="text-xs sm:text-sm text-amber-700">
                               ({adjustment.adjustedDuration}min)
                             </span>
                           )}
@@ -531,60 +555,124 @@ const ChildInterface = () => {
         )}
 
         {/* Schedule Button */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-4 sm:mb-6">
           <Button
             onClick={() => setShowSchedule(true)}
             variant="outline"
-            className="bg-white/90 backdrop-blur text-lg px-8 py-3"
+            className="bg-white/90 backdrop-blur text-sm sm:text-lg px-4 sm:px-8 py-2 sm:py-3"
           >
-            <Calendar className="w-5 h-5 mr-2" />
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
             Today's Schedule
           </Button>
         </div>
 
         {/* No tasks state */}
         {!activeTask && upcomingTasks.length === 0 && (
-          <Card className="p-8 text-center bg-white/90 backdrop-blur">
-            <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold mb-2">All Done!</h2>
-            <p className="text-muted-foreground mb-4">
+          <Card className="p-4 sm:p-8 text-center bg-white/90 backdrop-blur">
+            <div className="text-4xl sm:text-6xl mb-4">🎉</div>
+            <h2 className="text-xl sm:text-2xl font-bold mb-2">All Done!</h2>
+            <p className="text-muted-foreground mb-4 text-sm sm:text-base">
               Great job {child.name}! You've completed all your tasks for today.
             </p>
-            <div className="bg-gradient-success text-white p-4 rounded-lg">
-              <p className="font-semibold">Your pet is super happy!</p>
-              <p className="text-sm opacity-90">Keep up the amazing work tomorrow!</p>
+            <div className="bg-gradient-success text-white p-3 sm:p-4 rounded-lg">
+              <p className="font-semibold text-sm sm:text-base">Your pet is super happy!</p>
+              <p className="text-xs sm:text-sm opacity-90">Keep up the amazing work tomorrow!</p>
             </div>
           </Card>
         )}
 
         {/* Schedule Flyout Overlay */}
         {showSchedule && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-white shadow-2xl">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 p-4 pt-8 sm:pt-16">
+            <div className="w-full max-w-2xl mx-auto">
               {/* Header with close button */}
-              <div className="flex items-center justify-between p-6 border-b">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Calendar className="w-6 h-6" />
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2 text-white">
+                  <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
                   Today's Schedule
                 </h2>
                 <Button
                   onClick={() => setShowSchedule(false)}
                   variant="ghost"
                   size="sm"
-                  className="p-2"
+                  className="p-2 text-white hover:bg-white/20"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </Button>
               </div>
               
               {/* Schedule Content */}
-              <div className="p-6">
-                <TodaysScheduleTimeline 
-                  schedule={todaysSchedule} 
-                  highlightTaskId={activeTask?.id}
-                />
+              <div>
+                {todaysSchedule.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <div className="text-4xl mb-4">📅</div>
+                    <h3 className="text-xl font-bold mb-2 text-white">No Schedule Today</h3>
+                    <p className="text-white/80">No tasks or events are scheduled for today.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {todaysSchedule.map((item, index) => {
+                      const isCurrentTask = activeTask?.id === item.id;
+                      const formatTime = (timeStr?: string) => {
+                        if (!timeStr) return '';
+                        const [hours, minutes] = timeStr.split(':');
+                        const hour = parseInt(hours);
+                        const ampm = hour >= 12 ? 'pm' : 'am';
+                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                        return `${displayHour}:${minutes}${ampm}`;
+                      };
+                      
+                      const getTaskIcon = (taskName: string) => {
+                        const name = taskName.toLowerCase();
+                        if (name.includes('wake') || name.includes('morning')) return '🌅';
+                        if (name.includes('breakfast')) return '🍳';
+                        if (name.includes('school')) return '🏫';
+                        if (name.includes('lunch')) return '🍽️';
+                        if (name.includes('dinner')) return '🍽️';
+                        if (name.includes('bedtime') || name.includes('sleep')) return '🌙';
+                        if (name.includes('study') || name.includes('homework')) return '📚';
+                        if (name.includes('exercise') || name.includes('workout')) return '💪';
+                        if (name.includes('read')) return '📖';
+                        if (name.includes('clean')) return '🧹';
+                        if (name.includes('music') || name.includes('practice')) return '🎵';
+                        return '📝';
+                      };
+                      
+                      return (
+                        <div 
+                          key={item.id} 
+                          className={`flex items-center gap-4 p-4 rounded-lg mb-3 transition-colors ${
+                            isCurrentTask 
+                              ? 'bg-white border-2 border-accent shadow-lg' 
+                              : 'bg-white/90 hover:bg-white'
+                          }`}
+                        >
+                          <div className="text-2xl">{getTaskIcon(item.name)}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h4 className={`font-medium ${
+                                isCurrentTask ? 'text-primary font-bold' :
+                                item.isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'
+                              }`}>
+                                {item.name}
+                                {isCurrentTask && <span className="ml-2 text-sm bg-accent text-white px-2 py-1 rounded-full">Current</span>}
+                              </h4>
+                              {item.scheduled_time && (
+                                <span className={`text-sm font-medium ${
+                                  isCurrentTask ? 'text-primary' : 'text-gray-600'
+                                }`}>
+                                  {formatTime(item.scheduled_time)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </Card>
+            </div>
           </div>
         )}
 

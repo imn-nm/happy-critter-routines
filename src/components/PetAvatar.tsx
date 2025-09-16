@@ -3,7 +3,17 @@ import owlAvatar from "@/assets/owl-avatar.png";
 import foxAvatar from "@/assets/fox-avatar.png";
 import penguinAvatar from "@/assets/penguin-avatar.png";
 
-export type PetType = "owl" | "fox" | "penguin" | "bunny" | "panda";
+// Fox emotion images
+import foxVeryHappy from "@/assets/fox_veryhappy.png";
+import foxHappy from "@/assets/fox_happy.png";
+import foxSad from "@/assets/fox_sad.png";
+
+// Red Panda emotion images
+import pandaVeryHappy from "@/assets/panda_veryhappy.png";
+import pandaHappy from "@/assets/panda_happy.png";
+import pandaSad from "@/assets/panda_sad.png";
+
+export type PetType = "fox" | "panda";
 export type PetEmotion = "happy" | "playful" | "neutral" | "sad" | "concerned" | "sleepy" | "excited";
 
 interface PetAvatarProps {
@@ -12,15 +22,67 @@ interface PetAvatarProps {
   emotion?: PetEmotion;
   size?: "sm" | "md" | "lg" | "xl";
   className?: string;
+  completedTasks?: number;
+  totalTasks?: number;
 }
 
-const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetAvatarProps) => {
-  const petImages = {
-    owl: owlAvatar,
-    fox: foxAvatar,
-    penguin: penguinAvatar,
-    bunny: owlAvatar, // fallback for now
-    panda: foxAvatar, // fallback for now
+const PetAvatar = ({ petType, happiness, emotion, size = "md", className, completedTasks = 0, totalTasks = 0 }: PetAvatarProps) => {
+  // Calculate task completion ratio
+  let taskCompletionRatio = totalTasks > 0 ? completedTasks / totalTasks : 0;
+
+  // Default to "happy" emotion images when no tasks are present
+  if (totalTasks === 0) {
+    taskCompletionRatio = 0.6; // This will show the "happy" images by default
+  }
+
+  // Get emotion-based image for Fox and Red Panda
+  const getEmotionBasedImage = () => {
+    console.log('PetAvatar getEmotionBasedImage:', {
+      petType,
+      completedTasks,
+      totalTasks,
+      taskCompletionRatio,
+      foxVeryHappy: !!foxVeryHappy,
+      foxHappy: !!foxHappy,
+      foxSad: !!foxSad,
+      pandaVeryHappy: !!pandaVeryHappy,
+      pandaHappy: !!pandaHappy,
+      pandaSad: !!pandaSad
+    });
+
+    if (petType === 'fox') {
+      let selectedImage;
+      if (taskCompletionRatio >= 0.8) {
+        selectedImage = foxVeryHappy;
+        console.log('Fox: Using very happy image');
+      } else if (taskCompletionRatio >= 0.5) {
+        selectedImage = foxHappy;
+        console.log('Fox: Using happy image');
+      } else {
+        selectedImage = foxSad;
+        console.log('Fox: Using sad image');
+      }
+      return selectedImage;
+    }
+
+    if (petType === 'panda') {
+      let selectedImage;
+      if (taskCompletionRatio >= 0.8) {
+        selectedImage = pandaVeryHappy;
+        console.log('Panda: Using very happy image');
+      } else if (taskCompletionRatio >= 0.5) {
+        selectedImage = pandaHappy;
+        console.log('Panda: Using happy image');
+      } else {
+        selectedImage = pandaSad;
+        console.log('Panda: Using sad image');
+      }
+      return selectedImage;
+    }
+
+    // Fallback - should not be reached with only fox and panda
+    console.log('Fallback: returning foxSad');
+    return foxSad;
   };
 
   const sizeClasses = {
@@ -30,7 +92,15 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetA
     xl: "w-48 h-48",
   };
 
+  // For Fox and Red Panda, emotion is shown through the image itself
+  // No emoji indicators needed since both pets use emotion-based images
+  const shouldShowEmojiIndicator = () => {
+    return false; // Never show emoji indicators
+  };
+
   const getEmotionIndicator = () => {
+    if (!shouldShowEmojiIndicator()) return null;
+
     // If emotion is explicitly set, use it
     if (emotion) {
       switch (emotion) {
@@ -44,7 +114,7 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetA
         default: return "😊";
       }
     }
-    
+
     // Fallback to happiness-based emotions
     if (happiness >= 80) return "😊";
     if (happiness >= 60) return "🙂";
@@ -85,16 +155,18 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetA
         style={{ borderColor: getEmotionColor() }}
       >
         <img
-          src={petImages[petType]}
+          src={getEmotionBasedImage()}
           alt={`${petType} pet`}
           className="w-full h-full object-cover"
         />
       </div>
       
-      {/* Emotion indicator */}
-      <div className="absolute -top-1 -right-1 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md text-sm">
-        {getEmotionIndicator()}
-      </div>
+      {/* Emotion indicator - only for non-Fox/Panda pets */}
+      {shouldShowEmojiIndicator() && (
+        <div className="absolute -top-1 -right-1 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md text-sm">
+          {getEmotionIndicator()}
+        </div>
+      )}
       
       {/* Happiness bar */}
       <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-full bg-gray-200 rounded-full h-2">

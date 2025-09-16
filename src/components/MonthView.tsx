@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, Award, Target, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, X, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
@@ -10,18 +10,23 @@ import { Task } from '@/hooks/useTasks';
 interface MonthViewProps {
   child: Child;
   tasks: Task[];
+  onAddTask?: (date: Date) => void;
+  onEditTask?: (task: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
+  getTasksWithCompletionStatus: () => Task[];
 }
 
 interface DayData {
   date: Date;
+  tasksForDay: Task[];
   completions: number;
   coinsEarned: number;
   isCurrentMonth: boolean;
-  scheduledTasks: Task[];
 }
 
-const MonthView = ({ child, tasks }: MonthViewProps) => {
+const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasksWithCompletionStatus }: MonthViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [monthData, setMonthData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +45,25 @@ const MonthView = ({ child, tasks }: MonthViewProps) => {
   
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  const getTasksForDay = (date: Date) => {
+    const dayName = format(date, 'EEEE').toLowerCase();
+    const dateString = format(date, 'yyyy-MM-dd');
+    
+    return getTasksWithCompletionStatus().filter(task => {
+      // For recurring tasks, check if today is in their recurring days
+      if (task.is_recurring && task.recurring_days) {
+        return task.recurring_days.includes(dayName);
+      }
+      
+      // For non-recurring tasks, check if today matches their task_date
+      if (!task.is_recurring && task.task_date) {
+        return task.task_date === dateString;
+      }
+      
+      return false;
+    });
+  };
+
   const fetchMonthData = async () => {
     setLoading(true);
     try {
@@ -54,20 +78,14 @@ const MonthView = ({ child, tasks }: MonthViewProps) => {
 
       const dayDataMap = new Map<string, DayData>();
       
-      // Initialize all calendar days with scheduled tasks
-      calendarDays.forEach(day => {
-        const dayTasks = tasks?.filter(task => {
-          // For this demo, show all tasks on all days
-          // In real implementation, you'd filter by recurring_days or specific dates
-          return task.is_active;
-        }) || [];
-        
+      // Initialize all calendar days
+      calendarDays.forEach(day => {        
         dayDataMap.set(format(day, 'yyyy-MM-dd'), {
           date: day,
+          tasksForDay: getTasksForDay(day),
           completions: 0,
           coinsEarned: 0,
           isCurrentMonth: isSameMonth(day, currentMonth),
-          scheduledTasks: dayTasks,
         });
       });
 
@@ -101,204 +119,220 @@ const MonthView = ({ child, tasks }: MonthViewProps) => {
     setCurrentMonth(new Date());
   };
 
-  const getMonthStats = () => {
-    const currentMonthData = monthData.filter(day => day.isCurrentMonth);
-    const totalCompletions = currentMonthData.reduce((sum, day) => sum + day.completions, 0);
-    const totalCoins = currentMonthData.reduce((sum, day) => sum + day.coinsEarned, 0);
-    const activeDays = currentMonthData.filter(day => day.completions > 0).length;
-    const daysInMonth = currentMonthData.length;
-    const totalScheduledTasks = currentMonthData.reduce((sum, day) => sum + day.scheduledTasks.length, 0);
-    
-    return {
-      totalCompletions,
-      totalCoins,
-      activeDays,
-      daysInMonth,
-      totalScheduledTasks,
-      averagePerDay: totalCompletions / daysInMonth,
-      consistencyRate: (activeDays / daysInMonth) * 100,
-    };
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date);
   };
 
-  const getCompletionLevel = (completions: number) => {
-    if (completions === 0) return 'bg-muted';
-    if (completions <= 2) return 'bg-green-200';
-    if (completions <= 4) return 'bg-green-400';
-    if (completions <= 6) return 'bg-green-600';
-    return 'bg-green-800';
+  const handleCloseDetails = () => {
+    setSelectedDate(null);
   };
+
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes}${ampm}`;
+  };
+
+  const selectedDayData = selectedDate ? monthData.find(d => isSameDay(d.date, selectedDate)) : null;
 
   useEffect(() => {
     fetchMonthData();
-  }, [child.id, currentMonth]);
-
-  const stats = getMonthStats();
+  }, [child.id, currentMonth, tasks]);
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h3 className="text-xl font-semibold">Month View - {child.name}</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={goToCurrentMonth}
-            className="text-sm"
-          >
-            This Month
-          </Button>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-lg font-semibold px-4">
-            {format(currentMonth, 'MMMM yyyy')}
-          </span>
-          <Button variant="outline" size="sm" onClick={goToNextMonth}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Month Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-primary" />
-            <div>
-              <p className="text-sm text-muted-foreground">Total Tasks</p>
-              <p className="text-xl font-bold">{stats.totalCompletions}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-warning" />
-            <div>
-              <p className="text-sm text-muted-foreground">Coins Earned</p>
-              <p className="text-xl font-bold">{stats.totalCoins}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-info" />
-            <div>
-              <p className="text-sm text-muted-foreground">Scheduled</p>
-              <p className="text-xl font-bold">{stats.totalScheduledTasks}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-success" />
-            <div>
-              <p className="text-sm text-muted-foreground">Daily Average</p>
-              <p className="text-xl font-bold">{stats.averagePerDay.toFixed(1)}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-accent" />
-            <div>
-              <p className="text-sm text-muted-foreground">Consistency</p>
-              <p className="text-xl font-bold">{stats.consistencyRate.toFixed(0)}%</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Calendar Grid */}
-      {loading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading month data...</div>
-      ) : (
-        <div>
-          {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-muted-foreground p-2">
-                {day}
-              </div>
-            ))}
+    <div className="flex gap-6 h-[calc(100vh-200px)]">
+      {/* Calendar Side */}
+      <Card className="flex-1 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-semibold">{child.name}'s Calendar</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToCurrentMonth}
+              className="text-sm"
+            >
+              Today
+            </Button>
           </div>
           
-          {/* Calendar days */}
-          <div className="grid grid-cols-7 gap-1">
-            {monthData.map((dayData) => (
-              <div
-                key={format(dayData.date, 'yyyy-MM-dd')}
-                className={`
-                  relative p-2 min-h-[60px] border rounded-lg transition-all hover:shadow-sm
-                  ${dayData.isCurrentMonth ? 'bg-background' : 'bg-muted/30'}
-                  ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary' : ''}
-                `}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-sm font-medium ${dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {format(dayData.date, 'd')}
-                  </span>
-                  {dayData.completions > 0 && (
-                    <div
-                      className={`w-3 h-3 rounded-full ${getCompletionLevel(dayData.completions)}`}
-                      title={`${dayData.completions} tasks completed`}
-                    />
-                  )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-lg font-semibold px-4">
+              {format(currentMonth, 'MMMM yyyy')}
+            </span>
+            <Button variant="outline" size="sm" onClick={goToNextMonth}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Calendar Grid */}
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading calendar...</div>
+        ) : (
+          <div>
+            {/* Day headers */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                <div key={day} className="text-center text-sm font-medium text-muted-foreground p-3">
+                  {day}
                 </div>
-                
-                {dayData.isCurrentMonth && (
-                  <div className="space-y-1">
-                    {dayData.scheduledTasks.length > 0 && (
-                      <div className="text-xs text-info">
-                        {dayData.scheduledTasks.length} scheduled
+              ))}
+            </div>
+            
+            {/* Calendar days */}
+            <div className="grid grid-cols-7 gap-1">
+              {monthData.map((dayData) => (
+                <button
+                  key={format(dayData.date, 'yyyy-MM-dd')}
+                  onClick={() => dayData.isCurrentMonth && handleDayClick(dayData.date)}
+                  className={`
+                    relative p-3 h-20 border rounded-lg transition-all hover:shadow-sm cursor-pointer
+                    ${dayData.isCurrentMonth ? 'bg-background hover:bg-muted/30' : 'bg-muted/10 cursor-default'}
+                    ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary bg-primary/5' : ''}
+                    ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
+                  `}
+                  disabled={!dayData.isCurrentMonth}
+                >
+                  <div className="flex items-start justify-between">
+                    <span className={`text-sm font-medium ${dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {format(dayData.date, 'd')}
+                    </span>
+                    {dayData.tasksForDay.length > 0 && (
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        {dayData.completions > 0 && (
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        )}
                       </div>
                     )}
-                    {dayData.completions > 0 && (
-                      <>
-                        <div className="text-xs text-muted-foreground">
-                          {dayData.completions} completed
-                        </div>
-                        {dayData.coinsEarned > 0 && (
-                          <div className="text-xs font-medium text-warning">
-                            {dayData.coinsEarned} coins
-                          </div>
-                        )}
-                      </>
+                  </div>
+                  
+                  {dayData.isCurrentMonth && dayData.tasksForDay.length > 0 && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {dayData.tasksForDay.length} task{dayData.tasksForDay.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Day Details Panel */}
+      {selectedDate && (
+        <Card className="w-96 p-6 relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCloseDetails}
+            className="absolute top-4 right-4 h-8 w-8 p-0"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-1">
+              {format(selectedDate, 'EEEE, MMMM d')}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {selectedDayData?.tasksForDay.length || 0} task{(selectedDayData?.tasksForDay.length || 0) !== 1 ? 's' : ''} scheduled
+            </p>
+          </div>
+
+          {/* Add Task Button */}
+          {onAddTask && (
+            <Button
+              onClick={() => onAddTask(selectedDate)}
+              className="w-full mb-4"
+              variant="outline"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Task for This Day
+            </Button>
+          )}
+
+          {/* Tasks List */}
+          <div className="space-y-3">
+            {selectedDayData?.tasksForDay.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No tasks scheduled</p>
+              </div>
+            ) : (
+              selectedDayData?.tasksForDay.map((task) => (
+                <div
+                  key={task.id}
+                  className={`p-3 border rounded-lg ${
+                    task.isCompleted ? 'bg-green-50 border-green-200' : 'bg-background'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className={`font-medium ${task.isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+                      {task.name}
+                    </h4>
+                    <div className="flex items-center gap-1">
+                      {onEditTask && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEditTask(task)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                      )}
+                      {onDeleteTask && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDeleteTask(task.id)}
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {task.scheduled_time && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatTime(task.scheduled_time)}
+                      </div>
+                    )}
+                    {task.coins > 0 && (
+                      <div className="text-warning font-medium">
+                        {task.coins} coins
+                      </div>
+                    )}
+                    {task.duration && (
+                      <div>
+                        {Math.floor(task.duration / 60)}h {task.duration % 60}m
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  {task.description && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {task.description}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
-          
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-4 mt-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-muted"></div>
-              <span>No tasks</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-200"></div>
-              <span>1-2 tasks</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-400"></div>
-              <span>3-4 tasks</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-600"></div>
-              <span>5-6 tasks</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-800"></div>
-              <span>7+ tasks</span>
-            </div>
-          </div>
-        </div>
+        </Card>
       )}
-    </Card>
+    </div>
   );
 };
 

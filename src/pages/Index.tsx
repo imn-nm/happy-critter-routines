@@ -32,7 +32,7 @@ const Index = () => {
             <Button 
               variant="accent" 
               size="xl"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/")}
               className="font-semibold"
             >
               Get Started
@@ -103,7 +103,7 @@ const Index = () => {
               <Button 
                 variant="gradient" 
                 size="xl"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate("/")}
                 className="font-semibold"
               >
                 Start Your Family's Journey

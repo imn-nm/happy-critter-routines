@@ -11,9 +11,8 @@ import { useChildren } from "@/hooks/useChildren";
 import { useToast } from "@/hooks/use-toast";
 
 const petTypes: { type: PetType; name: string }[] = [
-  { type: "owl", name: "Wise Owl" },
-  { type: "fox", name: "Clever Fox" },
-  { type: "penguin", name: "Happy Penguin" },
+  { type: "fox", name: "Arctic Fox" },
+  { type: "panda", name: "Red Panda" },
 ];
 
 const ChildSetup = () => {
@@ -25,7 +24,7 @@ const ChildSetup = () => {
   const [formData, setFormData] = useState({
     name: "",
     age: "",
-    petType: "owl" as 'owl' | 'fox' | 'penguin',
+    petType: "fox" as 'fox' | 'panda',
     wakeTime: "07:00",
     sleepTime: "20:00",
     breakfastTime: "07:30",
@@ -48,7 +47,7 @@ const ChildSetup = () => {
       const childData = {
         name: formData.name,
         age: parseInt(formData.age),
-        petType: formData.petType as 'owl' | 'fox' | 'penguin',
+        petType: formData.petType as 'fox' | 'panda',
         currentCoins: 0,
         petHappiness: 50,
       };
@@ -156,7 +155,7 @@ const ChildSetup = () => {
                           ? "bg-primary/10 ring-2 ring-primary"
                           : "bg-muted/50 hover:bg-muted"
                       )}
-                      onClick={() => setFormData({ ...formData, petType: pet.type as 'owl' | 'fox' | 'penguin' })}
+                      onClick={() => setFormData({ ...formData, petType: pet.type as 'fox' | 'panda' })}
                     >
                       <PetAvatar petType={pet.type} happiness={85} size="md" className="mx-auto mb-2" />
                       <p className="text-sm font-medium text-center">{pet.name}</p>

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import ChildCard, { type Child } from "@/components/ChildCard";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import UpcomingEventsForAll from "@/components/UpcomingEventsForAll";
-import { Plus, Settings } from "lucide-react";
+import { Plus, Settings, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren } from "@/hooks/useChildren";
 
@@ -66,6 +66,16 @@ const Dashboard = () => {
               <Plus className="w-4 h-4" />
               Add Child
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate("/")}
+              className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-xs sm:text-sm"
+            >
+              <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Child Dashboard</span>
+              <span className="sm:hidden">Back</span>
+            </Button>
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
               <Settings className="w-4 h-4" />
             </Button>
@@ -92,18 +102,7 @@ const Dashboard = () => {
                       onClick={() => navigate(`/child-dashboard/${child.id}`)}
                     />
                     <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <ChildProfileEdit child={child} />
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/child/${child.id}`)}
-                          className="flex-1 text-xs sm:text-sm"
-                        >
-                          <span className="hidden sm:inline">Child Interface</span>
-                          <span className="sm:hidden">Interface</span>
-                        </Button>
-                      </div>
+                      <ChildProfileEdit child={child} />
                     </div>
                   </div>
                 ))}
