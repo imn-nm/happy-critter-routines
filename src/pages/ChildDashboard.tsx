@@ -111,11 +111,8 @@ const ChildDashboard = () => {
           console.log('System event update data:', updateData);
           
           if (Object.keys(updateData).length > 0) {
-            const updatedChild = await updateChild(child.id, updateData);
-            console.log('Child updated with system event changes, forcing UI update');
-            
-            // Force immediate UI update by updating local child state
-            setChild(updatedChild);
+            await updateChild(child.id, updateData);
+            console.log('Child updated with system event changes');
             
             toast({
               title: "Schedule Updated",

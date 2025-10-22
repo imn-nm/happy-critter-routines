@@ -25,6 +25,10 @@ const ChildReports = () => {
 
   const loading = childrenLoading || tasksLoading;
 
+  const getTasksWithCompletionStatus = () => {
+    return tasks;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-primary p-4">
@@ -177,7 +181,11 @@ const ChildReports = () => {
           </TabsContent>
 
           <TabsContent value="month">
-            <MonthView child={child} tasks={tasks} />
+            <MonthView 
+              child={child} 
+              tasks={tasks} 
+              getTasksWithCompletionStatus={getTasksWithCompletionStatus}
+            />
           </TabsContent>
 
           <TabsContent value="rewards">

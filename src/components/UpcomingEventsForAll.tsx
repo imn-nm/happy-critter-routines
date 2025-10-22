@@ -47,7 +47,7 @@ const UpcomingEventsForAll = () => {
           type: t.type,
           scheduled_time: t.scheduled_time,
           recurring_days: t.recurring_days,
-          task_date: t.task_date
+          is_recurring: t.is_recurring
         })));
         setAllTasks((data || []) as Task[]);
       } catch (error) {
@@ -69,26 +69,12 @@ const UpcomingEventsForAll = () => {
     const scheduledTasks = allTasks.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledType = task.type === 'scheduled';
-      // For scheduled tasks, accept either recurring tasks OR one-time tasks with task_date
-      const hasValidScheduling = (task.recurring_days && task.recurring_days.length > 0) || task.task_date;
-      // Exclude system tasks (wake, breakfast, school, lunch, dinner, bedtime)
+      const hasValidScheduling = task.is_recurring && task.recurring_days && task.recurring_days.length > 0;
       const systemTasks = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
       const isNotSystemTask = !systemTasks.some(sysTask => task.name.toLowerCase().includes(sysTask.toLowerCase()));
       
-      console.log(`=== FILTER DEBUG for ${task.name} ===`);
-      console.log(`  scheduled_time: "${task.scheduled_time}" (hasScheduledTime: ${hasScheduledTime})`);
-      console.log(`  type: "${task.type}" (isScheduledType: ${isScheduledType})`);
-      console.log(`  recurring_days: ${JSON.stringify(task.recurring_days)} (length: ${task.recurring_days?.length || 0})`);
-      console.log(`  task_date: "${task.task_date}"`);
-      console.log(`  hasValidScheduling: ${hasValidScheduling}`);
-      console.log(`  isNotSystemTask: ${isNotSystemTask}`);
-      console.log(`  FINAL RESULT: ${hasScheduledTime && hasValidScheduling && isScheduledType && isNotSystemTask}`);
-      console.log('');
-      
       return hasScheduledTime && hasValidScheduling && isScheduledType && isNotSystemTask;
     });
-
-    console.log('Scheduled tasks that passed filter:', scheduledTasks.map(t => ({ name: t.name, child_id: t.child_id, recurring_days: t.recurring_days, task_date: t.task_date })));
 
     scheduledTasks.forEach(task => {
       const child = children.find(c => c.id === task.child_id);
@@ -99,37 +85,6 @@ const UpcomingEventsForAll = () => {
 
       // Format the time properly - remove seconds if present (18:00:00 -> 18:00)
       const taskTime = task.scheduled_time!.slice(0, 5);
-
-      // Handle one-time scheduled tasks with task_date
-      if (task.task_date && (!task.recurring_days || task.recurring_days.length === 0)) {
-        console.log(`Processing one-time task ${task.name} with task_date: ${task.task_date}`);
-        
-        // Parse the date correctly - task_date is in YYYY-MM-DD format
-        const taskDate = parse(task.task_date, 'yyyy-MM-dd', new Date());
-        console.log(`Parsed task date: ${taskDate.toISOString()}, current date: ${now.toISOString()}`);
-        
-        // Only include if it's within our 2-week window and in the future or today
-        const isWithinWindow = (taskDate >= startOfDay(now)) && (taskDate <= endOfDay(addDays(now, 14)));
-        console.log(`Date check - isWithinWindow: ${isWithinWindow}, taskDate: ${format(taskDate, 'yyyy-MM-dd')}, window start: ${format(startOfDay(now), 'yyyy-MM-dd')}, window end: ${format(endOfDay(addDays(now, 14)), 'yyyy-MM-dd')}`);
-        
-        if (isWithinWindow) {
-          console.log(`Adding one-time task ${task.name} for date ${task.task_date}`);
-          events.push({
-            id: `${task.id}-oneTime`,
-            name: task.name,
-            time: taskTime,
-            date: taskDate,
-            duration: task.duration,
-            type: task.type,
-            coins: task.coins,
-            childName: child.name,
-            childId: child.id,
-          });
-        } else {
-          console.log(`One-time task ${task.name} is outside the 2-week window or in the past`);
-        }
-        return;
-      }
 
       // Generate events for recurring tasks (next 2 weeks)
       for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {

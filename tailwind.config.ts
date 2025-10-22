@@ -77,7 +77,10 @@ export default {
 			backgroundImage: {
 				'gradient-primary': 'var(--gradient-primary)',
 				'gradient-secondary': 'var(--gradient-secondary)',
-				'gradient-success': 'var(--gradient-success)'
+				'gradient-success': 'var(--gradient-success)',
+				'gradient-playful-green': 'var(--gradient-playful-green)',
+				'gradient-playful-purple': 'var(--gradient-playful-purple)',
+				'gradient-playful-yellow': 'var(--gradient-playful-yellow)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

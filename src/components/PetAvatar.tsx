@@ -13,7 +13,7 @@ import pandaVeryHappy from "@/assets/panda_veryhappy.png";
 import pandaHappy from "@/assets/panda_happy.png";
 import pandaSad from "@/assets/panda_sad.png";
 
-export type PetType = "fox" | "panda";
+export type PetType = "fox" | "panda" | "owl" | "penguin";
 export type PetEmotion = "happy" | "playful" | "neutral" | "sad" | "concerned" | "sleepy" | "excited";
 
 interface PetAvatarProps {
@@ -37,52 +37,23 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className, comple
 
   // Get emotion-based image for Fox and Red Panda
   const getEmotionBasedImage = () => {
-    console.log('PetAvatar getEmotionBasedImage:', {
-      petType,
-      completedTasks,
-      totalTasks,
-      taskCompletionRatio,
-      foxVeryHappy: !!foxVeryHappy,
-      foxHappy: !!foxHappy,
-      foxSad: !!foxSad,
-      pandaVeryHappy: !!pandaVeryHappy,
-      pandaHappy: !!pandaHappy,
-      pandaSad: !!pandaSad
-    });
-
     if (petType === 'fox') {
-      let selectedImage;
-      if (taskCompletionRatio >= 0.8) {
-        selectedImage = foxVeryHappy;
-        console.log('Fox: Using very happy image');
-      } else if (taskCompletionRatio >= 0.5) {
-        selectedImage = foxHappy;
-        console.log('Fox: Using happy image');
-      } else {
-        selectedImage = foxSad;
-        console.log('Fox: Using sad image');
-      }
-      return selectedImage;
+      if (taskCompletionRatio >= 0.8) return foxVeryHappy;
+      if (taskCompletionRatio >= 0.5) return foxHappy;
+      return foxSad;
     }
 
     if (petType === 'panda') {
-      let selectedImage;
-      if (taskCompletionRatio >= 0.8) {
-        selectedImage = pandaVeryHappy;
-        console.log('Panda: Using very happy image');
-      } else if (taskCompletionRatio >= 0.5) {
-        selectedImage = pandaHappy;
-        console.log('Panda: Using happy image');
-      } else {
-        selectedImage = pandaSad;
-        console.log('Panda: Using sad image');
-      }
-      return selectedImage;
+      if (taskCompletionRatio >= 0.8) return pandaVeryHappy;
+      if (taskCompletionRatio >= 0.5) return pandaHappy;
+      return pandaSad;
     }
 
-    // Fallback - should not be reached with only fox and panda
-    console.log('Fallback: returning foxSad');
-    return foxSad;
+    // Fallback for owl and penguin - use static avatars
+    if (petType === 'owl') return owlAvatar;
+    if (petType === 'penguin') return penguinAvatar;
+    
+    return foxHappy;
   };
 
   const sizeClasses = {
