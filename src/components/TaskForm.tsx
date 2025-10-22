@@ -216,27 +216,81 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
 
         {/* Recurring Days - Only show if isRecurring is true */}
         {formData.isRecurring && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label>Recurring Days</Label>
+
+            {/* Quick Select Buttons */}
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, recurringDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] })}
+                className="text-xs"
+              >
+                Weekdays
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, recurringDays: ['saturday', 'sunday'] })}
+                className="text-xs"
+              >
+                Weekends
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, recurringDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] })}
+                className="text-xs"
+              >
+                Every Day
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, recurringDays: [] })}
+                className="text-xs"
+              >
+                Clear
+              </Button>
+            </div>
+
+            {/* Individual Day Toggles */}
+            <div className="grid grid-cols-7 gap-2">
               {daysOfWeek.map(({ id, label }) => (
-                <div key={id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={id}
-                    checked={formData.recurringDays.includes(id)}
-                    onCheckedChange={(checked) => {
-                      setFormData({
-                        ...formData,
-                        recurringDays: checked
-                          ? [...formData.recurringDays, id]
-                          : formData.recurringDays.filter((day) => day !== id),
-                      });
-                    }}
-                  />
-                  <Label htmlFor={id}>{label}</Label>
-                </div>
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      recurringDays: formData.recurringDays.includes(id)
+                        ? formData.recurringDays.filter((day) => day !== id)
+                        : [...formData.recurringDays, id],
+                    });
+                  }}
+                  className={`
+                    flex items-center justify-center h-10 rounded-md border-2 font-medium text-sm transition-all
+                    ${formData.recurringDays.includes(id)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background hover:bg-muted border-input'
+                    }
+                  `}
+                >
+                  {label}
+                </button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              {formData.recurringDays.length === 0
+                ? 'Select at least one day'
+                : `Selected: ${formData.recurringDays.length} day${formData.recurringDays.length !== 1 ? 's' : ''}`
+              }
+            </p>
           </div>
         )}
 

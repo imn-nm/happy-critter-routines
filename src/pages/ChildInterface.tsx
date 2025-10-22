@@ -9,10 +9,12 @@ import { ArrowLeft, Coins, Star, Calendar, X } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
+import { useHolidays } from "@/hooks/useHolidays";
 import { supabase } from "@/integrations/supabase/client";
 import { calculatePetEmotion, evaluateScheduleStatus, getTimeOfDay, ScheduleStatus } from "@/utils/petEmotions";
 import { prioritizeTasks, getScheduleStatus, applyScheduleAdjustments, TaskWithPriority } from "@/utils/taskPrioritization";
-import { ensureSystemTasksExist } from "@/utils/systemTasks";
+import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
+import { format } from 'date-fns';
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -27,13 +29,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const { children, updateChildCoins, updateChildHappiness } = useChildren();
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
-  
+  const { holidays, isHoliday } = useHolidays(childId);
+
   const [showCelebration, setShowCelebration] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
-  
+
   const child = children.find(c => c.id === childId);
   const tasksWithCompletion = getTasksWithCompletionStatus();
+
+  // Check if today is a holiday
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const todaysHoliday = isHoliday(today);
 
   // Ensure system tasks exist for this child
   useEffect(() => {
@@ -219,16 +226,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const currentTime = getCurrentTimePST();
     const currentTimeString = currentTime.toTimeString().slice(0, 5); // HH:MM format
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    
+
     // Get all tasks for today (including system tasks from database)
-    const availableTasks = tasksWithCompletion.filter(task => {
+    let availableTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
       const isNotCompleted = !task.isCompleted;
-      
+
       // Include all tasks (scheduled, regular, flexible) that have scheduled times and are scheduled for today
       return isNotCompleted && hasScheduledTime && isScheduledForToday;
     });
+
+    // If today is a holiday (especially no-school days), filter out school-related tasks
+    if (todaysHoliday) {
+      availableTasks = availableTasks.filter(task => {
+        const taskName = task.name.toLowerCase();
+        // Remove school tasks if it's a no-school day
+        if (todaysHoliday.is_no_school && taskName.includes('school')) {
+          return false;
+        }
+        return true;
+      });
+    }
 
     // Sort by scheduled time
     availableTasks.sort((a, b) => {
@@ -276,20 +295,48 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
     // Filter all tasks for today (including system tasks from database)
-    const todaysTasks = tasksWithCompletion.filter(task => {
+    let todaysTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
-      
+
       return hasScheduledTime && isScheduledForToday;
     });
-    
+
+    // If today is a holiday (especially no-school days), filter out school-related tasks
+    if (todaysHoliday) {
+      todaysTasks = todaysTasks.filter(task => {
+        const taskName = task.name.toLowerCase();
+        // Remove school tasks if it's a no-school day
+        if (todaysHoliday.is_no_school && taskName.includes('school')) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // Apply day-specific schedules for system tasks
+    const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
+    const tasksWithDaySpecificTimes = todaysTasks.map(task => {
+      if (child && systemTaskNames.includes(task.name)) {
+        const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay);
+        if (daySpecificSchedule) {
+          return {
+            ...task,
+            scheduled_time: daySpecificSchedule.time,
+            duration: daySpecificSchedule.duration,
+          };
+        }
+      }
+      return task;
+    });
+
     // Sort by time (normalize to HH:MM format first)
-    const sortedTasks = todaysTasks.sort((a, b) => {
+    const sortedTasks = tasksWithDaySpecificTimes.sort((a, b) => {
       const timeA = (a.scheduled_time || '00:00').slice(0, 5);
       const timeB = (b.scheduled_time || '00:00').slice(0, 5);
       return timeA.localeCompare(timeB);
     });
-    
+
     return sortedTasks;
   };
 

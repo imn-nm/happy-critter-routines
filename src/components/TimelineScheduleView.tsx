@@ -3,9 +3,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2, PartyPopper } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
+import { useHolidays } from '@/hooks/useHolidays';
 import { Child } from '@/hooks/useChildren';
+import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import {
   DndContext,
   closestCenter,
@@ -229,25 +231,30 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
   );
 };
 
-const TimelineScheduleView = ({ 
-  child, 
+const TimelineScheduleView = ({
+  child,
   currentDate = new Date(),
-  getTasksWithCompletionStatus, 
-  onAddTask, 
-  onEditTask, 
+  getTasksWithCompletionStatus,
+  onAddTask,
+  onEditTask,
   onDeleteTask,
   onTaskTimeUpdate,
-  onReorderTasks 
+  onReorderTasks
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(currentDate);
-  
+  const { holidays, isHoliday } = useHolidays(child.id);
+
   useEffect(() => {
     setSelectedDay(currentDate);
   }, [currentDate]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
+
+  // Check if selected day is a holiday
+  const selectedDayString = format(selectedDay, 'yyyy-MM-dd');
+  const selectedDayHoliday = isHoliday(selectedDayString);
 
 // calculateTimeWithBuffer function removed - no longer needed
 
@@ -306,20 +313,30 @@ const TimelineScheduleView = ({
   };
 
   const dayTasks = getTasksForDay(selectedDay);
+  const dayOfWeek = format(selectedDay, 'EEEE').toLowerCase(); // e.g., 'monday', 'tuesday'
 
   // System events are now managed in the database - filter them from the regular tasks
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
-  const systemEvents = dayTasks.filter(task => 
-    systemTaskNames.includes(task.name)
-  ).map(task => ({
-    id: task.id,
-    name: task.name,
-    time: task.scheduled_time || '09:00',
-    duration: task.duration || 30,
-    type: 'system' as const,
-    color: 'bg-gray-500',
-    recurring_days: task.recurring_days,
-  }));
+  const systemEvents = dayTasks.filter(task => {
+    // Filter out school on no-school holidays
+    if (selectedDayHoliday && selectedDayHoliday.is_no_school && task.name === 'School') {
+      return false;
+    }
+    return systemTaskNames.includes(task.name);
+  }).map(task => {
+    // Get day-specific schedule if available, otherwise use task defaults
+    const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, dayOfWeek);
+
+    return {
+      id: task.id,
+      name: task.name,
+      time: daySpecificSchedule?.time || task.scheduled_time || '09:00',
+      duration: daySpecificSchedule?.duration || task.duration || 30,
+      type: 'system' as const,
+      color: 'bg-gray-500',
+      recurring_days: task.recurring_days,
+    };
+  });
   
   // Separate fixed events (system + scheduled) from draggable tasks
   // Filter out lunch when school is present (they overlap in time)
@@ -663,6 +680,20 @@ const TimelineScheduleView = ({
         <h2 className="text-lg font-semibold text-foreground">
           {formatWeekRange(weekStart)}
         </h2>
+        {selectedDayHoliday && (
+          <div className="mt-2 flex items-center justify-center">
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+              style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
+            >
+              <PartyPopper className="w-4 h-4" />
+              <span>{selectedDayHoliday.name}</span>
+              {selectedDayHoliday.is_no_school && (
+                <span className="ml-1 text-xs opacity-75">(No School)</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Week Navigation */}

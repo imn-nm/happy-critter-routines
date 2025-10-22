@@ -20,18 +20,22 @@ export type Database = {
           bedtime: string | null
           bedtime_days: string[] | null
           bedtime_duration: number | null
+          bedtime_schedule_overrides: Json | null
           breakfast_days: string[] | null
           breakfast_duration: number | null
           breakfast_time: string | null
+          breakfast_schedule_overrides: Json | null
           created_at: string
           current_coins: number
           dinner_days: string[] | null
           dinner_duration: number | null
           dinner_time: string | null
+          dinner_schedule_overrides: Json | null
           id: string
           lunch_days: string[] | null
           lunch_duration: number | null
           lunch_time: string | null
+          lunch_schedule_overrides: Json | null
           name: string
           parent_id: string
           pet_happiness: number
@@ -40,28 +44,34 @@ export type Database = {
           school_duration: number | null
           school_end_time: string | null
           school_start_time: string | null
+          school_schedule_overrides: Json | null
           updated_at: string
           wake_days: string[] | null
           wake_duration: number | null
           wake_time: string | null
+          wake_schedule_overrides: Json | null
         }
         Insert: {
           age?: number | null
           bedtime?: string | null
           bedtime_days?: string[] | null
           bedtime_duration?: number | null
+          bedtime_schedule_overrides?: Json | null
           breakfast_days?: string[] | null
           breakfast_duration?: number | null
           breakfast_time?: string | null
+          breakfast_schedule_overrides?: Json | null
           created_at?: string
           current_coins?: number
           dinner_days?: string[] | null
           dinner_duration?: number | null
           dinner_time?: string | null
+          dinner_schedule_overrides?: Json | null
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
           lunch_time?: string | null
+          lunch_schedule_overrides?: Json | null
           name: string
           parent_id: string
           pet_happiness?: number
@@ -70,28 +80,34 @@ export type Database = {
           school_duration?: number | null
           school_end_time?: string | null
           school_start_time?: string | null
+          school_schedule_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null
           wake_time?: string | null
+          wake_schedule_overrides?: Json | null
         }
         Update: {
           age?: number | null
           bedtime?: string | null
           bedtime_days?: string[] | null
           bedtime_duration?: number | null
+          bedtime_schedule_overrides?: Json | null
           breakfast_days?: string[] | null
           breakfast_duration?: number | null
           breakfast_time?: string | null
+          breakfast_schedule_overrides?: Json | null
           created_at?: string
           current_coins?: number
           dinner_days?: string[] | null
           dinner_duration?: number | null
           dinner_time?: string | null
+          dinner_schedule_overrides?: Json | null
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
           lunch_time?: string | null
+          lunch_schedule_overrides?: Json | null
           name?: string
           parent_id?: string
           pet_happiness?: number
@@ -100,10 +116,12 @@ export type Database = {
           school_duration?: number | null
           school_end_time?: string | null
           school_start_time?: string | null
+          school_schedule_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null
           wake_time?: string | null
+          wake_schedule_overrides?: Json | null
         }
         Relationships: [
           {
@@ -111,6 +129,50 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holidays: {
+        Row: {
+          child_id: string
+          color: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          is_no_school: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          color?: string
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          is_no_school?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          color?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          is_no_school?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holidays_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
             referencedColumns: ["id"]
           },
         ]

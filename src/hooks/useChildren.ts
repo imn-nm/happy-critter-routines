@@ -50,6 +50,13 @@ export interface Child {
   lunch_duration?: number;
   dinner_duration?: number;
   bedtime_duration?: number;
+  // Day-specific schedule overrides
+  school_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  breakfast_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  lunch_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  dinner_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  bedtime_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  wake_schedule_overrides?: Record<string, { time: string; duration: number }>;
 }
 
 export const useChildren = () => {
@@ -89,6 +96,12 @@ export const useChildren = () => {
           school_end_time: child.school_end_time,
           dinner_time: child.dinner_time,
           bedtime: child.bedtime,
+          school_schedule_overrides: child.school_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+          breakfast_schedule_overrides: child.breakfast_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+          lunch_schedule_overrides: child.lunch_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+          dinner_schedule_overrides: child.dinner_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+          bedtime_schedule_overrides: child.bedtime_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+          wake_schedule_overrides: child.wake_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
         };
       });
       
@@ -129,7 +142,7 @@ export const useChildren = () => {
         .single();
 
       if (error) throw error;
-      
+
       // Map database format to interface format
       const mappedChild = {
         ...data,
@@ -143,6 +156,12 @@ export const useChildren = () => {
         school_end_time: data.school_end_time,
         dinner_time: data.dinner_time,
         bedtime: data.bedtime,
+        school_schedule_overrides: data.school_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        breakfast_schedule_overrides: data.breakfast_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        lunch_schedule_overrides: data.lunch_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        dinner_schedule_overrides: data.dinner_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        bedtime_schedule_overrides: data.bedtime_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        wake_schedule_overrides: data.wake_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
       };
       
       setChildren(prev => [...prev, mappedChild]);
@@ -185,6 +204,12 @@ export const useChildren = () => {
         school_end_time: updates.school_end_time,
         dinner_time: updates.dinner_time,
         bedtime: updates.bedtime,
+        school_schedule_overrides: updates.school_schedule_overrides,
+        breakfast_schedule_overrides: updates.breakfast_schedule_overrides,
+        lunch_schedule_overrides: updates.lunch_schedule_overrides,
+        dinner_schedule_overrides: updates.dinner_schedule_overrides,
+        bedtime_schedule_overrides: updates.bedtime_schedule_overrides,
+        wake_schedule_overrides: updates.wake_schedule_overrides,
       };
 
       // TEMPORARY: Skip all pet_type updates until database constraint is fixed
@@ -208,7 +233,7 @@ export const useChildren = () => {
       if (error) throw error;
       
       console.log('Child updated successfully:', data);
-      
+
       // Map database format to interface format
       const mappedChild = {
         ...data,
@@ -222,6 +247,12 @@ export const useChildren = () => {
         school_end_time: data.school_end_time,
         dinner_time: data.dinner_time,
         bedtime: data.bedtime,
+        school_schedule_overrides: data.school_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        breakfast_schedule_overrides: data.breakfast_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        lunch_schedule_overrides: data.lunch_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        dinner_schedule_overrides: data.dinner_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        bedtime_schedule_overrides: data.bedtime_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
+        wake_schedule_overrides: data.wake_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
       };
       
       // Update with server response to ensure consistency

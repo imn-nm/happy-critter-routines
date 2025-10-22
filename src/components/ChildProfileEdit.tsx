@@ -10,6 +10,7 @@ import { Edit, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
+import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 
 interface ChildProfileEditProps {
   child: Child;
@@ -188,27 +189,28 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="school_start_time" className="text-xs">School Start</Label>
-                <Input
-                  id="school_start_time"
-                  type="time"
-                  value={formData.school_start_time}
-                  onChange={(e) => setFormData({ ...formData, school_start_time: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="school_end_time" className="text-xs">School End</Label>
-                <Input
-                  id="school_end_time"
-                  type="time"
-                  value={formData.school_end_time}
-                  onChange={(e) => setFormData({ ...formData, school_end_time: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
+            {/* School Schedule Manager */}
+            <div>
+              <Label className="text-xs mb-2 block">School Schedule</Label>
+              <SchoolScheduleManager
+                childId={child.id}
+                currentSchedule={{
+                  school_days: child.school_days,
+                  school_start_time: child.school_start_time,
+                  school_end_time: child.school_end_time,
+                  school_duration: child.school_duration,
+                  school_schedule_overrides: child.school_schedule_overrides,
+                }}
+                onSave={async (schedule) => {
+                  await updateChild(child.id, {
+                    school_days: schedule.school_days,
+                    school_start_time: schedule.school_start_time,
+                    school_end_time: schedule.school_end_time,
+                    school_duration: schedule.school_duration,
+                    school_schedule_overrides: schedule.school_schedule_overrides,
+                  });
+                }}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, X, Edit, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, X, Edit, Trash2, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
+import { useHolidays, Holiday } from '@/hooks/useHolidays';
+import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
 
 interface MonthViewProps {
   child: Child;
@@ -22,6 +24,7 @@ interface DayData {
   completions: number;
   coinsEarned: number;
   isCurrentMonth: boolean;
+  holiday?: Holiday;
 }
 
 const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasksWithCompletionStatus }: MonthViewProps) => {
@@ -29,6 +32,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [monthData, setMonthData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState<Holiday | undefined>(undefined);
+  const [holidayFormDate, setHolidayFormDate] = useState<Date | undefined>(undefined);
+
+  const {
+    holidays,
+    createHoliday,
+    updateHoliday,
+    deleteHoliday,
+    isCreating,
+    isUpdating,
+    isDeleting,
+  } = useHolidays(child.id);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -77,15 +93,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
       if (error) throw error;
 
       const dayDataMap = new Map<string, DayData>();
-      
+
       // Initialize all calendar days
-      calendarDays.forEach(day => {        
-        dayDataMap.set(format(day, 'yyyy-MM-dd'), {
+      calendarDays.forEach(day => {
+        const dateKey = format(day, 'yyyy-MM-dd');
+        const dayHoliday = holidays?.find(h => h.date === dateKey);
+
+        dayDataMap.set(dateKey, {
           date: day,
           tasksForDay: getTasksForDay(day),
           completions: 0,
           coinsEarned: 0,
           isCurrentMonth: isSameMonth(day, currentMonth),
+          holiday: dayHoliday,
         });
       });
 
@@ -140,7 +160,41 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
 
   useEffect(() => {
     fetchMonthData();
-  }, [child.id, currentMonth, tasks]);
+  }, [child.id, currentMonth, tasks, holidays]);
+
+  const handleAddHoliday = (date: Date) => {
+    setHolidayFormDate(date);
+    setEditingHoliday(undefined);
+    setHolidayDialogOpen(true);
+  };
+
+  const handleEditHoliday = (holiday: Holiday) => {
+    setEditingHoliday(holiday);
+    setHolidayFormDate(new Date(holiday.date));
+    setHolidayDialogOpen(true);
+  };
+
+  const handleDeleteHoliday = (holidayId: string) => {
+    if (confirm('Are you sure you want to delete this holiday?')) {
+      deleteHoliday(holidayId);
+    }
+  };
+
+  const handleHolidaySubmit = (data: HolidayFormData) => {
+    if (editingHoliday) {
+      updateHoliday({
+        id: editingHoliday.id,
+        updates: data,
+      });
+    } else {
+      createHoliday({
+        child_id: child.id,
+        ...data,
+      });
+    }
+    setHolidayDialogOpen(false);
+    setEditingHoliday(undefined);
+  };
 
   return (
     <div className="flex gap-6 h-[calc(100vh-200px)]">
@@ -198,13 +252,23 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
                     ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary bg-primary/5' : ''}
                     ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                   `}
+                  style={dayData.holiday ? {
+                    backgroundColor: `${dayData.holiday.color}15`,
+                    borderColor: dayData.holiday.color,
+                  } : {}}
                   disabled={!dayData.isCurrentMonth}
                 >
                   <div className="flex items-start justify-between">
                     <span className={`text-sm font-medium ${dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {format(dayData.date, 'd')}
                     </span>
-                    {dayData.tasksForDay.length > 0 && (
+                    {dayData.holiday && (
+                      <PartyPopper
+                        className="w-4 h-4"
+                        style={{ color: dayData.holiday.color }}
+                      />
+                    )}
+                    {!dayData.holiday && dayData.tasksForDay.length > 0 && (
                       <div className="flex flex-col items-end gap-1">
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                         {dayData.completions > 0 && (
@@ -213,8 +277,13 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
                       </div>
                     )}
                   </div>
-                  
-                  {dayData.isCurrentMonth && dayData.tasksForDay.length > 0 && (
+
+                  {dayData.isCurrentMonth && dayData.holiday && (
+                    <div className="mt-1 text-xs font-medium truncate" style={{ color: dayData.holiday.color }}>
+                      {dayData.holiday.name}
+                    </div>
+                  )}
+                  {dayData.isCurrentMonth && !dayData.holiday && dayData.tasksForDay.length > 0 && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {dayData.tasksForDay.length} task{dayData.tasksForDay.length !== 1 ? 's' : ''}
                     </div>
@@ -246,6 +315,58 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
               {selectedDayData?.tasksForDay.length || 0} task{(selectedDayData?.tasksForDay.length || 0) !== 1 ? 's' : ''} scheduled
             </p>
           </div>
+
+          {/* Holiday Section */}
+          {selectedDayData?.holiday ? (
+            <Card className="p-4 mb-4" style={{ backgroundColor: `${selectedDayData.holiday.color}15`, borderColor: selectedDayData.holiday.color }}>
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <PartyPopper className="w-5 h-5" style={{ color: selectedDayData.holiday.color }} />
+                  <h4 className="font-semibold" style={{ color: selectedDayData.holiday.color }}>
+                    {selectedDayData.holiday.name}
+                  </h4>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditHoliday(selectedDayData.holiday!)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)}
+                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+              {selectedDayData.holiday.description && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  {selectedDayData.holiday.description}
+                </p>
+              )}
+              {selectedDayData.holiday.is_no_school && (
+                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-background/50 text-xs font-medium">
+                  No School Day
+                </div>
+              )}
+            </Card>
+          ) : (
+            <Button
+              onClick={() => handleAddHoliday(selectedDate)}
+              className="w-full mb-4"
+              variant="outline"
+              size="sm"
+            >
+              <PartyPopper className="w-4 h-4 mr-2" />
+              Mark as Holiday
+            </Button>
+          )}
 
           {/* Add Task Button */}
           {onAddTask && (
@@ -332,6 +453,17 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
           </div>
         </Card>
       )}
+
+      {/* Holiday Form Dialog */}
+      <HolidayFormDialog
+        open={holidayDialogOpen}
+        onOpenChange={setHolidayDialogOpen}
+        onSubmit={handleHolidaySubmit}
+        childId={child.id}
+        initialDate={holidayFormDate}
+        holiday={editingHoliday}
+        isLoading={isCreating || isUpdating}
+      />
     </div>
   );
 };

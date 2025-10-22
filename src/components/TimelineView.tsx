@@ -5,10 +5,12 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Clock, Plus, Calendar, Coffee, Utensils, Moon, Sun } from 'lucide-react';
+import { Clock, Plus, Calendar, Coffee, Utensils, Moon, Sun, PartyPopper } from 'lucide-react';
 import { Child } from '@/hooks/useChildren';
 import { Task, useTasks } from '@/hooks/useTasks';
+import { useHolidays } from '@/hooks/useHolidays';
 import { format, addMinutes, parse } from 'date-fns';
+import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 
 interface TimelineViewProps {
   child: Child;
@@ -125,8 +127,9 @@ const SortableTimelineItem = ({ item, onTimeChange, simple = false }: {
 
 const TimelineView = ({ child, simple = false, currentDate = new Date() }: TimelineViewProps) => {
   const { tasks, updateTask } = useTasks(child.id);
+  const { holidays, isHoliday } = useHolidays(child.id);
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -138,7 +141,8 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
     // Convert tasks to timeline items and merge with system tasks
     const today = format(currentDate, 'yyyy-MM-dd');
     const dayName = format(currentDate, 'EEEE').toLowerCase();
-    
+    const todaysHoliday = isHoliday(today);
+
     const taskItems: TimelineItem[] = tasks
       .filter(task => {
         if (!task.is_active) return false;
@@ -178,15 +182,32 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
         console.log(`Legacy task "${task.name}" (no task_date) - showing every day`);
         return !task.is_recurring;
       })
-      .map(task => ({
-        id: task.id,
-        name: task.name,
-        time: task.scheduled_time || '09:00',
-        duration: task.duration || 30,
-        type: task.type,
-        coins: task.coins,
-        isFixed: task.type === 'scheduled',
-      }));
+      .filter(task => {
+        // Filter out school-related tasks on no-school holidays
+        if (todaysHoliday && todaysHoliday.is_no_school) {
+          const taskName = task.name.toLowerCase();
+          if (taskName.includes('school')) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map(task => {
+        // Check if this is a system task and get day-specific schedule if available
+        const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
+        const isSystemTask = systemTaskNames.includes(task.name);
+        const daySpecificSchedule = isSystemTask ? getSystemTaskScheduleForDay(child, task.name, dayName) : null;
+
+        return {
+          id: task.id,
+          name: task.name,
+          time: daySpecificSchedule?.time || task.scheduled_time || '09:00',
+          duration: daySpecificSchedule?.duration || task.duration || 30,
+          type: task.type,
+          coins: task.coins,
+          isFixed: task.type === 'scheduled',
+        };
+      });
 
     // Sort all task items by time (system tasks are now included in the regular tasks array)
     const allItems = [...taskItems].sort((a, b) => {
@@ -196,7 +217,10 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
     });
 
     setTimelineItems(allItems);
-  }, [tasks, currentDate]);
+  }, [tasks, currentDate, holidays]);
+
+  const today = format(currentDate, 'yyyy-MM-dd');
+  const todaysHoliday = isHoliday(today);
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
@@ -265,6 +289,18 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
           <Calendar className="w-5 h-5 text-primary" />
           <h3 className="text-xl font-semibold">Daily Schedule - {child.name}</h3>
         </div>
+        {todaysHoliday && (
+          <div
+            className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium"
+            style={{ backgroundColor: `${todaysHoliday.color}20`, color: todaysHoliday.color }}
+          >
+            <PartyPopper className="w-4 h-4" />
+            <span>{todaysHoliday.name}</span>
+            {todaysHoliday.is_no_school && (
+              <span className="ml-1 text-xs opacity-75">(No School)</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Legend - only show in full mode */}

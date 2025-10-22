@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { type Child } from '@/hooks/useChildren';
 
 export interface SystemTaskTemplate {
   name: string;
@@ -7,6 +8,11 @@ export interface SystemTaskTemplate {
   defaultDuration: number;
   defaultDays: string[];
   description?: string;
+}
+
+export interface DaySpecificSchedule {
+  time: string;
+  duration: number;
 }
 
 export const systemTaskTemplates: SystemTaskTemplate[] = [
@@ -267,4 +273,79 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
   } else {
     console.log(`No system task updates needed for child ${childId}`);
   }
+};
+
+/**
+ * Get the correct time and duration for a system task on a specific day
+ * Uses day-specific overrides if available, otherwise falls back to default schedule
+ */
+export const getSystemTaskScheduleForDay = (
+  child: Child,
+  taskName: string,
+  dayOfWeek: string // e.g., 'monday', 'tuesday', etc.
+): DaySpecificSchedule | null => {
+  const taskNameLower = taskName.toLowerCase();
+
+  // Map task name to child schedule properties
+  const scheduleMapping: Record<string, {
+    timeField: keyof Child;
+    durationField: keyof Child;
+    overridesField: keyof Child;
+  }> = {
+    'school': {
+      timeField: 'school_start_time',
+      durationField: 'school_duration',
+      overridesField: 'school_schedule_overrides',
+    },
+    'wake up': {
+      timeField: 'wake_time',
+      durationField: 'wake_duration',
+      overridesField: 'wake_schedule_overrides',
+    },
+    'breakfast': {
+      timeField: 'breakfast_time',
+      durationField: 'breakfast_duration',
+      overridesField: 'breakfast_schedule_overrides',
+    },
+    'lunch': {
+      timeField: 'lunch_time',
+      durationField: 'lunch_duration',
+      overridesField: 'lunch_schedule_overrides',
+    },
+    'dinner': {
+      timeField: 'dinner_time',
+      durationField: 'dinner_duration',
+      overridesField: 'dinner_schedule_overrides',
+    },
+    'bedtime': {
+      timeField: 'bedtime',
+      durationField: 'bedtime_duration',
+      overridesField: 'bedtime_schedule_overrides',
+    },
+  };
+
+  const mapping = scheduleMapping[taskNameLower];
+  if (!mapping) {
+    console.warn(`No schedule mapping found for task "${taskName}"`);
+    return null;
+  }
+
+  // Check for day-specific override first
+  const overrides = child[mapping.overridesField] as Record<string, { time: string; duration: number }> | undefined;
+  if (overrides && overrides[dayOfWeek]) {
+    return overrides[dayOfWeek];
+  }
+
+  // Fall back to default schedule
+  const defaultTime = child[mapping.timeField] as string | undefined;
+  const defaultDuration = child[mapping.durationField] as number | undefined;
+
+  if (defaultTime && defaultDuration !== undefined) {
+    return {
+      time: defaultTime,
+      duration: defaultDuration,
+    };
+  }
+
+  return null;
 };
