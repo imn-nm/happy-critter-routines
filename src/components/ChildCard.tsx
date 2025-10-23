@@ -17,7 +17,7 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
   return (
     <Card 
       className={cn(
-        "p-6 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 bg-white",
+        "p-6 cursor-pointer transition-all duration-200 hover:shadow-md bg-card border-border",
         className
       )}
       onClick={() => onClick?.(child)}
@@ -39,8 +39,6 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
           <Coins className="w-4 h-4" />
           <span className="font-semibold text-foreground">{child.currentCoins}</span>
         </div>
-        
-        {/* Removed current task display for now since it's not in the database yet */}
       </div>
     </Card>
   );

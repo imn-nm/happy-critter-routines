@@ -52,16 +52,16 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-3 sm:p-4">
+    <div className="min-h-screen bg-background p-3 sm:p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Button 
               variant="ghost"
               size="sm"
               onClick={() => navigate("/")}
-              className="text-foreground hover:bg-white/50 rounded-xl h-10 px-3"
+              className="text-foreground hover:bg-muted rounded-xl h-10 px-3"
             >
               <ArrowLeft className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Child View</span>
@@ -71,15 +71,14 @@ const Dashboard = () => {
           <Button 
             size="sm"
             onClick={() => navigate("/setup")}
-            className="rounded-2xl h-10 px-3 sm:px-4 shadow-sm text-sm font-medium"
-            style={{ background: 'hsl(var(--accent-purple))' }}
+            className="rounded-2xl h-10 px-3 sm:px-4 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="w-4 h-4 sm:mr-1" />
             <span className="hidden sm:inline">Add Child</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column */}
           <div>
             {/* Upcoming Events */}
@@ -88,8 +87,8 @@ const Dashboard = () => {
 
           {/* Right Column - Children Cards */}
           <div>
-            <h2 className="text-foreground font-semibold mb-3 text-base sm:text-lg">Your Children</h2>
-            <div className="grid grid-cols-1 gap-4">
+            <h2 className="text-foreground font-semibold mb-4 text-lg">Your Children</h2>
+            <div className="space-y-4">
               {children.map((child) => (
                 <div key={child.id} className="space-y-2">
                   <ChildCard

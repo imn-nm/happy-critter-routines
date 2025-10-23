@@ -160,14 +160,14 @@ const UpcomingEventsForAll = () => {
 
   if (allUpcomingEvents.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-5 bg-card border-border">
         <div className="flex items-center gap-2 mb-4">
           <Calendar className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold">Upcoming Events</h2>
+          <h2 className="font-semibold text-lg">Upcoming Events</h2>
         </div>
-        <div className="text-center py-8">
+        <div className="text-center py-6">
           <div className="text-4xl mb-2">📅</div>
-          <h3 className="text-lg font-semibold mb-2">No Scheduled Tasks</h3>
+          <h3 className="text-base font-semibold mb-1">No Scheduled Tasks</h3>
           <p className="text-muted-foreground text-sm">
             No scheduled tasks found for the next two weeks.
           </p>
@@ -177,24 +177,24 @@ const UpcomingEventsForAll = () => {
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-5 bg-card border-border">
       <div className="flex items-center gap-2 mb-4">
         <Calendar className="w-5 h-5 text-primary" />
-        <h2 className="font-semibold">Upcoming Events</h2>
-        <span className="text-sm text-muted-foreground ml-auto">Next 2 weeks</span>
+        <h2 className="font-semibold text-lg">Upcoming Events</h2>
+        <span className="text-xs text-muted-foreground ml-auto">Next 2 weeks</span>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {allUpcomingEvents.map((event, index) => (
           <div
             key={event.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border ${
+            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
               index === 0 ? 'border-primary/30 bg-primary/5' : 'border-border/50'
             }`}
           >
             {/* Icon */}
-            <div className={`p-2 rounded-full ${
-              event.type === 'scheduled' ? 'bg-blue-100' :
-              event.type === 'regular' ? 'bg-green-100' : 'bg-yellow-100'
+            <div className={`p-2 rounded-full shrink-0 ${
+              event.type === 'scheduled' ? 'bg-blue-100 text-blue-600' :
+              event.type === 'regular' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
             }`}>
               {getIcon(event.name)}
             </div>
@@ -203,12 +203,12 @@ const UpcomingEventsForAll = () => {
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h4 className="font-medium truncate">{event.name}</h4>
+                  <h4 className="font-medium truncate text-sm">{event.name}</h4>
                   <Badge variant="secondary" className="text-xs shrink-0">
                     {event.childName}
                   </Badge>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs">
                   <span className="text-muted-foreground">
                     {formatDate(event.date)}
                   </span>
@@ -218,10 +218,7 @@ const UpcomingEventsForAll = () => {
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
-                <Badge className={`text-xs ${getTypeColor(event.type)}`}>
-                  {event.type}
-                </Badge>
+              <div className="flex items-center gap-2 flex-wrap">
                 {event.duration && event.duration > 0 && (
                   <span className="text-xs text-muted-foreground">
                     {Math.floor(event.duration / 60)}h {event.duration % 60}m
