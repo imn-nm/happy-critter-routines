@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import PetAvatar from "@/components/PetAvatar";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
-import { ArrowLeft, Coins, Star, Calendar, X, Settings } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, X, Settings, Plus } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -436,7 +436,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="text-white text-lg font-medium">{child.name}</div>
+          <div className="w-10" />
           
           <div className="flex items-center gap-2">
             {!propChildId && (
@@ -445,13 +445,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   variant="outline"
                   size="icon"
                   className="rounded-full h-10 w-10 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
+                  aria-label="Settings"
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate("/dashboard")}
-                  className="rounded-full px-4 py-2 h-10 border-2 border-foreground/20 bg-white"
+                  className="rounded-full px-4 h-10 border-2 border-foreground/20 bg-white"
                 >
                   <span className="text-sm font-medium">Parent</span>
                 </Button>
@@ -462,20 +463,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               variant="outline"
               size="icon"
               className="rounded-full h-12 w-12 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
+              aria-label="Add"
             >
-              <span className="text-xl leading-none">+</span>
+              <Plus className="w-5 h-5" />
             </Button>
           </div>
         </div>
 
-        {/* Avatar & Greeting */}
-        <div className="text-center mb-6">
-          <div className="w-32 h-32 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-orange-300">
+        {/* Avatar & Greeting (row) */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
             <PetAvatar
               petType={child.petType}
               happiness={calculateHappiness()}
               emotion={calculatePetEmotionForChild()}
-              size="lg"
+              size="md"
               completedTasks={getTodaysTaskCompletion().completed}
               totalTasks={getTodaysTaskCompletion().total}
             />

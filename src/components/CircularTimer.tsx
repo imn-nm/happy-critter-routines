@@ -36,21 +36,19 @@ const CircularTimer = ({
   const getStatusColor = () => {
     switch (status) {
       case "on-track":
-        return "#10b981"; // Green
+        return "hsl(var(--success))"; // Green
       case "behind":
-        return "#f59e0b"; // Yellow
+        return "hsl(var(--warning))"; // Yellow
       case "ahead":
-        return "#3b82f6"; // Blue
+        return "hsl(var(--primary))"; // Brand
       case "critical":
-        return "#ef4444"; // Red
+        return "hsl(var(--destructive))"; // Red
       default:
-        return "#10b981";
+        return "hsl(var(--success))";
     }
   };
 
-  const getBackgroundColor = () => {
-    return "#d8b4fe"; // Light purple
-  };
+  const getTrackColor = () => "hsl(var(--accent))";
 
   // Timer effect
   useEffect(() => {
@@ -93,17 +91,18 @@ const CircularTimer = ({
           cx="50"
           cy="50"
           r="45"
-          stroke={getBackgroundColor()}
-          strokeWidth="8"
+          stroke={getTrackColor()}
+          strokeOpacity={0.25}
+          strokeWidth="10"
           fill="transparent"
         />
-        {/* Progress circle - green */}
+        {/* Progress circle */}
         <circle
           cx="50"
           cy="50"
           r="45"
           stroke={getStatusColor()}
-          strokeWidth="8"
+          strokeWidth="10"
           fill="transparent"
           className="transition-all duration-1000 ease-linear"
           strokeDasharray={circumference}
