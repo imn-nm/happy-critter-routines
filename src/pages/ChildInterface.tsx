@@ -174,17 +174,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const calculatePetEmotionForChild = () => {
     const currentTime = getCurrentTimePST();
-    const todaysSchedule = getTodaysSchedule();
-    const timeOfDay = getTimeOfDay(currentTime);
-    
-    const scheduleStatus = evaluateScheduleStatus(
-      completedTasks,
-      totalTasks,
-      currentTime,
-      todaysSchedule
-    );
-    
-    return calculatePetEmotion(scheduleStatus, timeOfDay);
+    const currentTimeString = currentTime.toTimeString().slice(0, 5);
+
+    const isBehind = !!(activeTask && getActiveTaskRemainingTime() === 0 && !activeTask.isCompleted);
+
+    const missedTasks = getTodaysSchedule().some(task => {
+      const taskTime = task.scheduled_time?.slice(0, 5);
+      return taskTime && taskTime < currentTimeString && !task.isCompleted;
+    });
+
+    return (isBehind || missedTasks) ? 'sad' : 'happy';
   };
 
   // Format time from 24-hour to 12-hour format
@@ -592,12 +591,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   </div>
                   
                   {/* Linear Progress Bar */}
-                  <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                     <div 
                       className="h-full transition-all duration-500 rounded-full"
                       style={{ 
                         width: `${progressPercent}%`,
-                        background: index === 0 ? '#7c3aed' : '#000000'
+                        background: index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--foreground))'
                       }}
                     />
                   </div>
