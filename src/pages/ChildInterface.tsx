@@ -352,6 +352,26 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       return timeA.localeCompare(timeB);
     });
 
+    // Filter out lunch if it overlaps with school time
+    const schoolTask = sortedTasks.find(t => t.name.toLowerCase() === 'school');
+    if (schoolTask && schoolTask.scheduled_time && schoolTask.duration) {
+      const schoolStart = schoolTask.scheduled_time.slice(0, 5);
+      const [schoolHours, schoolMinutes] = schoolStart.split(':').map(Number);
+      const schoolEndMinutes = schoolHours * 60 + schoolMinutes + schoolTask.duration;
+      const schoolEndHours = Math.floor(schoolEndMinutes / 60);
+      const schoolEndMins = schoolEndMinutes % 60;
+      const schoolEnd = `${schoolEndHours.toString().padStart(2, '0')}:${schoolEndMins.toString().padStart(2, '0')}`;
+
+      return sortedTasks.filter(task => {
+        if (task.name.toLowerCase() !== 'lunch') return true;
+        if (!task.scheduled_time) return true;
+        
+        const lunchTime = task.scheduled_time.slice(0, 5);
+        // Check if lunch time is during school hours
+        return lunchTime < schoolStart || lunchTime >= schoolEnd;
+      });
+    }
+
     return sortedTasks;
   };
 
@@ -499,12 +519,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               />
             </div>
 
-            <Button 
-              onClick={() => handleCompleteTask(activeTask.id)}
-              className="w-full rounded-full h-14 text-lg font-medium bg-white text-black hover:bg-white/90 shadow-sm"
-            >
-              I'm Done!
-            </Button>
+            {activeTask.type !== 'scheduled' && (
+              <Button 
+                onClick={() => handleCompleteTask(activeTask.id)}
+                className="w-full rounded-full h-14 text-lg font-medium bg-white text-black hover:bg-white/90 shadow-sm"
+              >
+                I'm Done!
+              </Button>
+            )}
           </Card>
         )}
 
