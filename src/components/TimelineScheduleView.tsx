@@ -722,12 +722,38 @@ const TimelineScheduleView = ({
         </div>
       )}
       
-      {/* Week Navigation */}
-      <div className="flex items-center gap-2 mb-6">
-        <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-10 w-10 p-0 rounded-full flex-shrink-0">
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-        <div className="grid grid-cols-7 gap-1 flex-1">
+      {/* Week Navigation - New Design */}
+      <div className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
+        {/* Month/Year Header */}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <button 
+            onClick={goToPreviousWeek}
+            className="p-1 hover:bg-muted rounded-full transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h3 className="text-base font-semibold text-foreground">
+            {format(selectedDay, 'MMMM yyyy')}
+          </h3>
+          <button 
+            onClick={goToNextWeek}
+            className="p-1 hover:bg-muted rounded-full transition-colors"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Day Headers */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day, index) => (
+            <div key={index} className="text-center text-xs font-medium text-muted-foreground py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Week Days */}
+        <div className="grid grid-cols-7 gap-1">
           {weekDays.map((day, index) => {
             const isSelected = isSameDay(day, selectedDay);
             const isTodayDay = isToday(day);
@@ -736,27 +762,20 @@ const TimelineScheduleView = ({
               <button
                 key={index}
                 onClick={() => setSelectedDay(day)}
-                className={`flex flex-col items-center py-2 px-1 rounded-2xl transition-all duration-200 relative ${
+                className={cn(
+                  "h-10 w-full flex items-center justify-center text-sm font-medium rounded-full transition-all",
                   isSelected
-                    ? 'bg-primary text-primary-foreground shadow-md scale-105'
+                    ? "bg-foreground text-background"
                     : isTodayDay
-                    ? 'bg-primary/10 text-primary border-2 border-primary'
-                    : 'hover:bg-muted text-foreground'
-                }`}
+                    ? "bg-muted text-foreground"
+                    : "text-foreground hover:bg-muted/50"
+                )}
               >
-                <span className="text-xs font-medium mb-1">
-                  {format(day, 'EEE')}
-                </span>
-                <span className="text-lg font-bold">
-                  {format(day, 'd')}
-                </span>
+                {format(day, 'd')}
               </button>
             );
           })}
         </div>
-        <Button variant="ghost" size="sm" onClick={goToNextWeek} className="h-10 w-10 p-0 rounded-full flex-shrink-0">
-          <ChevronRight className="w-5 h-5" />
-        </Button>
       </div>
 
       {/* Timeline */}
