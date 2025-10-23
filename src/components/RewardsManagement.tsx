@@ -162,23 +162,29 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
   const canAfford = (cost: number) => child.currentCoins >= cost;
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Gift className="w-5 h-5 text-primary" />
-          <h3 className="text-xl font-semibold">Rewards for {child.name}</h3>
-          <div className="flex items-center gap-1 bg-warning/10 px-3 py-1 rounded-full">
+    <Card className="p-4 bg-white rounded-3xl shadow-sm border-0">
+      <div className="space-y-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Gift className="w-5 h-5" style={{ color: 'hsl(var(--primary))' }} />
+            <h3 className="text-lg font-semibold text-foreground">Rewards</h3>
+          </div>
+          <div className="flex items-center gap-2 bg-warning/10 px-3 py-2 rounded-2xl">
             <Coins className="w-4 h-4 text-warning" />
-            <span className="font-medium">{child.currentCoins} coins</span>
+            <span className="font-semibold text-foreground">{child.currentCoins}</span>
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Dialog open={isDeductOpen} onOpenChange={setIsDeductOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300">
-                <Coins className="w-4 h-4 mr-2" />
-                Take Coins
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 h-10 text-xs rounded-xl flex-1"
+              >
+                <Coins className="w-3 h-3 sm:mr-1" />
+                <span className="hidden sm:inline">Take</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -234,9 +240,13 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
           <Dialog open={isAwardOpen} onOpenChange={setIsAwardOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300">
-                <Coins className="w-4 h-4 mr-2" />
-                Award Coins
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300 h-10 text-xs rounded-xl flex-1"
+              >
+                <Coins className="w-3 h-3 sm:mr-1" />
+                <span className="hidden sm:inline">Award</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -292,9 +302,13 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Reward
+              <Button 
+                size="sm"
+                className="h-10 text-xs rounded-xl flex-1"
+                style={{ background: 'hsl(var(--primary))' }}
+              >
+                <Plus className="w-3 h-3 sm:mr-1" />
+                <span className="hidden sm:inline">Add</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -369,9 +383,9 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
           <p className="text-sm text-muted-foreground">Add rewards that {child.name} can earn with coins!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rewards.map((reward) => (
-            <Card key={reward.id} className="p-4">
+            <Card key={reward.id} className="p-4 bg-background rounded-2xl border shadow-sm">
               <div className="flex items-start justify-between mb-3">
                 <h4 className="font-semibold text-lg">{reward.name}</h4>
                 <div className="flex gap-1">

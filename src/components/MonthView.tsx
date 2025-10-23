@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, X, Edit, Trash2, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay } from 'date-fns';
@@ -197,31 +198,41 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
   };
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-200px)]">
+    <div className="space-y-4">
       {/* Calendar Side */}
-      <Card className="flex-1 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <h3 className="text-xl font-semibold">{child.name}'s Calendar</h3>
+      <Card className="p-4 bg-white rounded-3xl shadow-sm border-0">
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">{child.name}'s Calendar</h3>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={goToCurrentMonth}
-              className="text-sm"
+              className="h-8 px-3 text-sm font-medium rounded-full"
             >
               Today
             </Button>
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
-              <ChevronLeft className="w-4 h-4" />
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={goToPreviousMonth}
+              className="h-10 w-10 p-0 rounded-full"
+            >
+              <ChevronLeft className="w-5 h-5" />
             </Button>
-            <span className="text-lg font-semibold px-4">
+            <span className="text-base font-semibold text-foreground">
               {format(currentMonth, 'MMMM yyyy')}
             </span>
-            <Button variant="outline" size="sm" onClick={goToNextMonth}>
-              <ChevronRight className="w-4 h-4" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={goToNextMonth}
+              className="h-10 w-10 p-0 rounded-full"
+            >
+              <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -234,7 +245,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
             {/* Day headers */}
             <div className="grid grid-cols-7 gap-1 mb-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                <div key={day} className="text-center text-sm font-medium text-muted-foreground p-3">
+                <div key={day} className="text-center text-xs font-semibold text-muted-foreground py-2">
                   {day}
                 </div>
               ))}
@@ -247,10 +258,10 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
                   key={format(dayData.date, 'yyyy-MM-dd')}
                   onClick={() => dayData.isCurrentMonth && handleDayClick(dayData.date)}
                   className={`
-                    relative p-3 h-20 border rounded-lg transition-all hover:shadow-sm cursor-pointer
+                    relative p-1.5 sm:p-2 h-14 sm:h-16 border rounded-xl transition-all hover:shadow-sm cursor-pointer
                     ${dayData.isCurrentMonth ? 'bg-background hover:bg-muted/30' : 'bg-muted/10 cursor-default'}
-                    ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary bg-primary/5' : ''}
-                    ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
+                    ${isSameDay(dayData.date, new Date()) ? 'ring-2 ring-primary bg-primary/10' : ''}
+                    ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-primary bg-primary/20' : ''}
                   `}
                   style={dayData.holiday ? {
                     backgroundColor: `${dayData.holiday.color}15`,
@@ -258,36 +269,25 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
                   } : {}}
                   disabled={!dayData.isCurrentMonth}
                 >
-                  <div className="flex items-start justify-between">
-                    <span className={`text-sm font-medium ${dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  <div className="flex flex-col items-center justify-center h-full gap-0.5">
+                    <span className={`text-sm sm:text-base font-semibold ${dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {format(dayData.date, 'd')}
                     </span>
                     {dayData.holiday && (
                       <PartyPopper
-                        className="w-4 h-4"
+                        className="w-3 h-3"
                         style={{ color: dayData.holiday.color }}
                       />
                     )}
                     {!dayData.holiday && dayData.tasksForDay.length > 0 && (
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <div className="flex items-center gap-0.5">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
                         {dayData.completions > 0 && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                         )}
                       </div>
                     )}
                   </div>
-
-                  {dayData.isCurrentMonth && dayData.holiday && (
-                    <div className="mt-1 text-xs font-medium truncate" style={{ color: dayData.holiday.color }}>
-                      {dayData.holiday.name}
-                    </div>
-                  )}
-                  {dayData.isCurrentMonth && !dayData.holiday && dayData.tasksForDay.length > 0 && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {dayData.tasksForDay.length} task{dayData.tasksForDay.length !== 1 ? 's' : ''}
-                    </div>
-                  )}
                 </button>
               ))}
             </div>
@@ -295,19 +295,11 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
         )}
       </Card>
 
-      {/* Day Details Panel */}
+      {/* Day Details Panel - Mobile Modal */}
       {selectedDate && (
-        <Card className="w-96 p-6 relative">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCloseDetails}
-            className="absolute top-4 right-4 h-8 w-8 p-0"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-
-          <div className="mb-6">
+        <Dialog open={!!selectedDate} onOpenChange={(open) => !open && handleCloseDetails()}>
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+          <div className="mb-4">
             <h3 className="text-lg font-semibold mb-1">
               {format(selectedDate, 'EEEE, MMMM d')}
             </h3>
@@ -451,7 +443,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
               ))
             )}
           </div>
-        </Card>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Holiday Form Dialog */}
