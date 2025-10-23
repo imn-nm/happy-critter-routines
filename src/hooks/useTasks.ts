@@ -252,7 +252,7 @@ export const useTasks = (childId?: string) => {
       
       // Set up real-time subscription for tasks
       const tasksChannel = supabase
-        .channel('tasks-changes')
+        .channel(`tasks-changes-${childId}`)
         .on(
           'postgres_changes',
           {
@@ -262,15 +262,16 @@ export const useTasks = (childId?: string) => {
             filter: `child_id=eq.${childId}`
           },
           (payload) => {
-            console.log('Real-time task change:', payload);
-            // Only refetch if the change wasn't made by this client
-            // This prevents redundant fetches after optimistic updates
-            if (payload.eventType === 'DELETE') {
-              setTasks(prev => prev.filter(task => task.id !== payload.old?.id));
-            } else if (payload.eventType === 'INSERT') {
-              fetchTasks();
-            } else if (payload.eventType === 'UPDATE') {
-              fetchTasks();
+            console.log('Real-time task change for child', childId, ':', payload);
+            // Only update if it's for this specific child
+            if (payload.eventType === 'DELETE' && payload.old) {
+              setTasks(prev => prev.filter(task => task.id !== payload.old.id));
+            } else if (payload.eventType === 'INSERT' && payload.new) {
+              setTasks(prev => [...prev, payload.new as Task]);
+            } else if (payload.eventType === 'UPDATE' && payload.new) {
+              setTasks(prev => prev.map(task => 
+                task.id === payload.new.id ? payload.new as Task : task
+              ));
             }
           }
         )
