@@ -72,15 +72,13 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
-			},
-			backgroundImage: {
-				'gradient-primary': 'var(--gradient-primary)',
-				'gradient-secondary': 'var(--gradient-secondary)',
-				'gradient-success': 'var(--gradient-success)',
-				'gradient-playful-green': 'var(--gradient-playful-green)',
-				'gradient-playful-purple': 'var(--gradient-playful-purple)',
-				'gradient-playful-yellow': 'var(--gradient-playful-yellow)'
+				},
+				'soft-orange': 'hsl(var(--soft-orange))',
+				'soft-pink': 'hsl(var(--soft-pink))',
+				'soft-blue': 'hsl(var(--soft-blue))',
+				'soft-green': 'hsl(var(--soft-green))',
+				'soft-purple': 'hsl(var(--soft-purple))',
+				'soft-yellow': 'hsl(var(--soft-yellow))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

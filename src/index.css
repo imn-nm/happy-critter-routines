@@ -8,42 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Playful organic gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(258 60% 65%), hsl(268 70% 75%));
-    --gradient-secondary: linear-gradient(135deg, hsl(155 65% 70%), hsl(145 70% 75%));
-    --gradient-success: linear-gradient(135deg, hsl(145 70% 65%), hsl(155 65% 70%));
-    --gradient-playful-green: linear-gradient(135deg, hsl(155 70% 75%), hsl(165 65% 70%));
-    --gradient-playful-purple: linear-gradient(135deg, hsl(265 60% 80%), hsl(275 65% 85%));
-    --gradient-playful-yellow: linear-gradient(135deg, hsl(50 95% 75%), hsl(55 90% 80%));
+    /* Soft neutral background */
+    --bg-cream: 30 25% 94%;
+    --bg-soft: 30 20% 97%;
+    
+    /* Soft pastel accents */
+    --soft-orange: 25 85% 65%;
+    --soft-pink: 350 70% 75%;
+    --soft-blue: 210 70% 75%;
+    --soft-green: 150 50% 70%;
+    --soft-purple: 270 60% 75%;
+    --soft-yellow: 45 90% 70%;
     
     /* Core theme colors */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 30 20% 97%;
+    --foreground: 0 0% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 15%;
 
-    /* Primary purple theme */
-    --primary: 258 60% 65%;
+    /* Primary soft orange theme */
+    --primary: 25 85% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 268 70% 85%;
-    --primary-dark: 248 50% 45%;
+    --primary-light: 25 85% 85%;
+    --primary-dark: 25 85% 45%;
 
-    /* Turquoise accent */
-    --accent: 180 65% 70%;
-    --accent-foreground: 0 0% 100%;
-    --accent-light: 180 70% 85%;
+    /* Accent colors */
+    --accent: 210 70% 75%;
+    --accent-foreground: 0 0% 15%;
+    --accent-light: 210 70% 90%;
 
     /* Success green */
-    --success: 145 70% 65%;
+    --success: 150 50% 70%;
     --success-foreground: 0 0% 100%;
 
-    /* Warm orange */
-    --warning: 25 95% 70%;
-    --warning-foreground: 0 0% 100%;
+    /* Warm tones */
+    --warning: 45 90% 70%;
+    --warning-foreground: 0 0% 15%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -126,33 +130,13 @@ All colors MUST be HSL.
   }
 }
 
-/* Organic blob shapes for playful design */
+/* Soft decorative shapes */
 @layer utilities {
-  .blob-green {
-    background: linear-gradient(135deg, hsl(155 70% 75%), hsl(165 65% 70%));
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  .soft-blob {
+    border-radius: 50% 40% 60% 50% / 50% 60% 40% 50%;
   }
   
-  .blob-purple {
-    background: linear-gradient(135deg, hsl(265 60% 80%), hsl(275 65% 85%));
-    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-  }
-  
-  .blob-yellow {
-    background: linear-gradient(135deg, hsl(50 95% 75%), hsl(55 90% 80%));
-    border-radius: 50% 50% 30% 70% / 30% 70% 50% 50%;
-  }
-
-  .organic-shape {
-    animation: morph 8s ease-in-out infinite;
-  }
-
-  @keyframes morph {
-    0%, 100% {
-      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-    }
-    50% {
-      border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
-    }
+  .card-shadow {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
   }
 }
