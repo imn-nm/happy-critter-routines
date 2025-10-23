@@ -52,47 +52,43 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-primary p-3 sm:p-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Family Dashboard</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Family Dashboard</h1>
           <Button 
             size="sm"
             onClick={() => navigate("/setup")}
-            className="rounded-2xl h-10 px-4 shadow-sm"
+            className="rounded-2xl h-10 px-3 sm:px-4 shadow-sm text-sm font-medium"
             style={{ background: 'hsl(var(--accent-purple))' }}
           >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Child
+            <Plus className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">Add Child</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column */}
-          <div className="space-y-6">
+          <div>
             {/* Upcoming Events */}
             <UpcomingEventsForAll />
           </div>
 
           {/* Right Column - Children Cards */}
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-foreground font-semibold mb-4">Your Children</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {children.map((child) => (
-                  <div key={child.id} className="space-y-3">
-                    <ChildCard
-                      child={child}
-                      isSelected={false}
-                      onClick={() => navigate(`/child-dashboard/${child.id}`)}
-                    />
-                    <div className="flex flex-col gap-2">
-                      <ChildProfileEdit child={child} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div>
+            <h2 className="text-foreground font-semibold mb-3 text-base sm:text-lg">Your Children</h2>
+            <div className="grid grid-cols-1 gap-4">
+              {children.map((child) => (
+                <div key={child.id} className="space-y-2">
+                  <ChildCard
+                    child={child}
+                    isSelected={false}
+                    onClick={() => navigate(`/child-dashboard/${child.id}`)}
+                  />
+                  <ChildProfileEdit child={child} />
+                </div>
+              ))}
             </div>
           </div>
         </div>
