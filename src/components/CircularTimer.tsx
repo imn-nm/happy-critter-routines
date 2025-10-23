@@ -122,12 +122,11 @@ const CircularTimer = ({
         <div className="text-center">
           <div 
             className={cn(
-              "font-mono font-bold leading-none",
+              "font-bold leading-none text-black",
               size === "sm" && "text-xs",
               size === "md" && "text-sm", 
               size === "lg" && "text-lg"
             )}
-            style={{ color: getStatusColor() }}
           >
             {formatTime(remainingSeconds)}
           </div>
