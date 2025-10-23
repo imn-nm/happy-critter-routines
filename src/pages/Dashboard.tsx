@@ -56,7 +56,18 @@ const Dashboard = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Family Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="text-foreground hover:bg-white/50 rounded-xl h-10 px-3"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Child View</span>
+            </Button>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Family Dashboard</h1>
+          </div>
           <Button 
             size="sm"
             onClick={() => navigate("/setup")}
