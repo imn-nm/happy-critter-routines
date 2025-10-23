@@ -116,6 +116,25 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
     return `${hours}h ${remainingMinutes}min`;
   };
 
+  // Determine if this task is currently active based on time
+  const isCurrentTask = () => {
+    if (isGap) return false;
+    
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    
+    const [taskHours, taskMinutes] = event.time.split(':').map(Number);
+    const taskStartMinutes = taskHours * 60 + taskMinutes;
+    const taskEndMinutes = taskStartMinutes + event.duration;
+    
+    const [currentHours, currentMins] = currentTime.split(':').map(Number);
+    const nowMinutes = currentHours * 60 + currentMins;
+    
+    return nowMinutes >= taskStartMinutes && nowMinutes < taskEndMinutes;
+  };
+
+  const isCurrent = isCurrentTask();
+
   return (
     <div 
       ref={setNodeRef} 
@@ -123,110 +142,104 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
       className={cn(
-        "flex items-center gap-2 sm:gap-4 group transition-all duration-200 ease-out rounded-lg",
-        isDragging && "shadow-2xl ring-2 ring-primary/50 bg-background border-2 border-primary/30 transform rotate-2",
-        isActive && "bg-primary/10 shadow-md",
-        !isDragging && !isGap && "hover:bg-muted/50 hover:shadow-sm",
-        isDraggable && "cursor-grab active:cursor-grabbing",
-        isGap && "opacity-60 border border-dashed border-gray-300"
+        "group transition-all duration-200 ease-out",
+        isDragging && "shadow-2xl ring-2 ring-primary/50"
       )}
     >
-      {/* Visual indicator for draggable tasks */}
-      {isDraggable && (
-        <div
-          className={cn(
-            "p-1 text-muted-foreground transition-all duration-200 flex-shrink-0",
-            isDragging && "text-primary animate-pulse",
-            isActive && "text-primary",
-            !isDraggable && "invisible"
-          )}
-        >
-          <GripVertical className={cn("w-3 h-3", isDragging && "animate-pulse")} />
+      {/* Gap (Free Time) */}
+      {isGap ? (
+        <div className="flex items-center gap-3 py-2">
+          <div className="text-xs text-muted-foreground w-20 text-right flex flex-col">
+            <span>{formatTime(event.time)}</span>
+            <span>{calculateEndTime(event.time, event.duration)}</span>
+          </div>
+          <div className="flex-1 bg-muted/30 rounded-xl p-3 border border-dashed border-muted-foreground/20">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground font-medium">{event.name}</span>
+              <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Regular Task */
+        <div className={cn(
+          "flex items-center gap-3 py-1",
+          isCurrent && "animate-in fade-in slide-in-from-left-2"
+        )}>
+          {/* Time */}
+          <div className={cn(
+            "text-xs w-20 text-right flex flex-col flex-shrink-0",
+            isCurrent ? "text-primary font-semibold" : "text-muted-foreground"
+          )}>
+            <span>{formatTime(event.time)}</span>
+            <span className={cn(isCurrent ? "text-primary/70" : "text-muted-foreground/70")}>
+              {calculateEndTime(event.time, event.duration)}
+            </span>
+          </div>
+
+          {/* Task Card */}
+          <div className={cn(
+            "flex-1 bg-background rounded-2xl p-4 border-2 transition-all",
+            isCurrent 
+              ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
+              : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
+          )}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {isDraggable && (
+                    <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={cn(
+                    "font-semibold truncate",
+                    isCurrent ? "text-primary" : "text-foreground"
+                  )}>
+                    {event.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
+                  {event.coins && event.coins > 0 && (
+                    <span className="text-xs font-medium">{event.coins}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {onEditTask && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEditTask(event.task || { 
+                      id: event.id, 
+                      name: event.name, 
+                      scheduled_time: event.time, 
+                      duration: event.duration,
+                      type: event.type,
+                      coins: event.coins || 0,
+                      recurring_days: event.recurring_days || []
+                    })}
+                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                )}
+                {onDeleteTask && event.task && event.task.id && event.task.id.length > 10 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDeleteTask(event.task.id)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
-      
-      {/* Time Range */}
-      <div className={cn(
-        "text-xs font-mono text-muted-foreground w-16 sm:w-24 text-right flex-shrink-0 flex flex-col",
-        !isDraggable ? "ml-7" : "ml-0"
-      )}>
-        <span className="font-medium">{formatTime(event.time)}</span>
-        <span className="text-xs opacity-75">{calculateEndTime(event.time, event.duration)}</span>
-      </div>
-      
-      {/* Timeline bar with duration */}
-      <div className="flex flex-col items-center flex-shrink-0">
-        {isGap ? (
-          <div className="w-1 h-8 sm:h-12 rounded-full bg-gray-300 opacity-50 border-dashed" style={{
-            background: 'repeating-linear-gradient(to bottom, transparent, transparent 2px, #d1d5db 2px, #d1d5db 4px)'
-          }} />
-        ) : (
-          <>
-            <div className={cn(`w-1 h-8 sm:h-12 rounded-full ${event.color}`, isDragging && "animate-pulse")} />
-            {event.duration > 30 && (
-              <div className={cn(`w-0.5 h-4 sm:h-6 ${event.color} opacity-50 -mt-1`, isDragging && "animate-pulse")} />
-            )}
-          </>
-        )}
-      </div>
-      
-      {/* Event content */}
-      <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between bg-background/50 rounded-lg p-2 sm:p-3 border min-w-0">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <span className="font-medium text-sm sm:text-base truncate">{event.name}</span>
-          <Badge variant="outline" className="text-xs flex-shrink-0">
-            {formatDuration(event.duration)}
-          </Badge>
-          {event.coins && event.coins > 0 && (
-            <Badge variant="secondary" className="text-xs flex-shrink-0">
-              {event.coins} coins
-            </Badge>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-0 flex-shrink-0">
-          {event.isLate && (
-            <Badge variant="destructive" className="text-xs">
-              Late
-            </Badge>
-          )}
-          {/* Show edit/delete buttons for all events except gaps */}
-          {!isGap && (
-            <div className="flex items-center gap-1">
-              {onEditTask && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditTask(event.task || { 
-                    id: event.id, 
-                    name: event.name, 
-                    scheduled_time: event.time, 
-                    duration: event.duration,
-                    type: event.type,
-                    coins: event.coins || 0,
-                    recurring_days: event.recurring_days || []
-                  })}
-                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0"
-                  title="Edit task"
-                >
-                  <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                </Button>
-              )}
-              {onDeleteTask && event.task && event.task.id && event.task.id.length > 10 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDeleteTask(event.task.id)}
-                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-6 w-6 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
-                  title="Delete task"
-                >
-                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
