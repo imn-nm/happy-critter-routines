@@ -40,6 +40,18 @@ const ChildrenSideBySide = () => {
     // Single child - use full width
     return (
       <div className="min-h-screen bg-gradient-primary relative">
+        {/* Single Parent Button - Top Right */}
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            onClick={() => setShowPincodeDialog(true)}
+            variant="outline"
+            className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5 shadow-lg"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Parent</span>
+          </Button>
+        </div>
+
         {/* Single Child Interface */}
         <ChildInterface childId={children[0].id} />
 
@@ -54,6 +66,18 @@ const ChildrenSideBySide = () => {
   // Multiple children - responsive layout
   return (
     <div className="min-h-screen bg-gradient-primary relative">
+      {/* Single Parent Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          onClick={() => setShowPincodeDialog(true)}
+          variant="outline"
+          className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5 shadow-lg"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span className="text-xs font-medium">Parent</span>
+        </Button>
+      </div>
+
       {/* Responsive Children Interfaces Layout */}
       <div className="h-screen flex flex-col lg:flex-row">
         {children.slice(0, 2).map((child, index) => (
