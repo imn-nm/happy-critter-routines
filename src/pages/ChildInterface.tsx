@@ -434,23 +434,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   return (
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-sm">
-            <Coins className="w-5 h-5 text-amber-500" />
-            <span className="text-lg font-bold text-foreground">{child.currentCoins}</span>
+        {/* Header - Compact */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm">
+            <Coins className="w-4 h-4 text-amber-500" />
+            <span className="text-base font-bold text-foreground">{child.currentCoins}</span>
           </div>
           
-          {!propChildId && (
-            <Button
-              variant="outline"
-              onClick={() => navigate("/dashboard")}
-              className="rounded-full px-4 h-10 border-2 border-foreground/20 bg-white flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="text-sm font-medium">Parent</span>
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/dashboard")}
+            className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Parent</span>
+          </Button>
         </div>
 
         {/* Avatar & Greeting (row) */}
