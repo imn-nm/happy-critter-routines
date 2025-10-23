@@ -52,7 +52,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
     { id: "monday", label: "M" },
     { id: "tuesday", label: "T" },
     { id: "wednesday", label: "W" },
-    { id: "thursday", label: "Th" },
+    { id: "thursday", label: "T" },
     { id: "friday", label: "F" },
     { id: "saturday", label: "S" },
   ];
@@ -90,239 +90,146 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
   };
 
   return (
-    <Card className="p-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Task Name */}
-        <div>
-          <Label htmlFor="taskName">Task Name *</Label>
-          <Input
-            id="taskName"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g., Brush teeth, Do homework, Soccer practice"
-            required
-          />
-        </div>
-
-        {/* Task Type */}
-        <div>
-          <Label htmlFor="taskType">Task Type *</Label>
-          <Select
-            value={formData.type}
-            onValueChange={(value) => setFormData({ ...formData, type: value as Task['type'] })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select task type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="regular">Regular</SelectItem>
-              <SelectItem value="scheduled">Scheduled</SelectItem>
-              <SelectItem value="flexible">Flexible</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Scheduled Time - Only show for scheduled tasks */}
-        {formData.type === "scheduled" && (
-          <div>
-            <Label htmlFor="scheduledTime">Scheduled Time</Label>
+    <div className="p-6 max-w-2xl mx-auto">
+      <Card className="rounded-3xl border-0 shadow-sm bg-white p-6">
+        <h2 className="text-2xl font-bold text-center mb-8">Add a task for {task?.child_id ? '' : 'child'}</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Task Name */}
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="taskName" className="text-base text-muted-foreground w-32 flex-shrink-0">Title</Label>
             <Input
-              id="scheduledTime"
-              type="time"
-              value={formData.scheduledTime}
-              onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-            />
-          </div>
-        )}
-
-        {/* Duration */}
-        <div>
-          <Label>Duration</Label>
-          <div className="flex gap-2 items-center">
-            <div className="flex-1">
-              <Input
-                type="number"
-                min="0"
-                max="23"
-                value={formData.durationHours}
-                onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
-                placeholder="0"
-              />
-              <Label className="text-xs text-muted-foreground mt-1 block">Hours</Label>
-            </div>
-            <div className="flex-1">
-              <Input
-                type="number"
-                min="0"
-                max="59"
-                value={formData.durationMinutes}
-                onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
-                placeholder="0"
-              />
-              <Label className="text-xs text-muted-foreground mt-1 block">Minutes</Label>
-            </div>
-          </div>
-        </div>
-
-        {/* Coins */}
-        <div>
-          <Label htmlFor="coins">Coins *</Label>
-          <Select
-            value={formData.coins}
-            onValueChange={(value) => setFormData({ ...formData, coins: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select coins" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">None (0 coins)</SelectItem>
-              <SelectItem value="1">1 coin</SelectItem>
-              <SelectItem value="2">2 coins</SelectItem>
-              <SelectItem value="3">3 coins</SelectItem>
-              <SelectItem value="4">4 coins</SelectItem>
-              <SelectItem value="5">5 coins</SelectItem>
-              <SelectItem value="10">10 coins</SelectItem>
-              <SelectItem value="15">15 coins</SelectItem>
-              <SelectItem value="20">20 coins</SelectItem>
-              <SelectItem value="25">25 coins</SelectItem>
-              <SelectItem value="50">50 coins</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Is Recurring Switch */}
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="isRecurring"
-            checked={formData.isRecurring}
-            onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
-          />
-          <Label htmlFor="isRecurring">Recurring Task</Label>
-        </div>
-
-        {/* Date Field (only for non-recurring tasks) */}
-        {!formData.isRecurring && (
-          <div>
-            <Label htmlFor="taskDate">Task Date *</Label>
-            <Input
-              id="taskDate"
-              type="date"
-              value={formData.taskDate}
-              onChange={(e) => setFormData({ ...formData, taskDate: e.target.value })}
+              id="taskName"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Task name"
               required
+              className="flex-1 rounded-xl"
             />
           </div>
-        )}
 
-        {/* Recurring Days - Only show if isRecurring is true */}
-        {formData.isRecurring && (
-          <div className="space-y-3">
-            <Label>Recurring Days</Label>
-
-            {/* Quick Select Buttons */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormData({ ...formData, recurringDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] })}
-                className="text-xs"
-              >
-                Weekdays
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormData({ ...formData, recurringDays: ['saturday', 'sunday'] })}
-                className="text-xs"
-              >
-                Weekends
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormData({ ...formData, recurringDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] })}
-                className="text-xs"
-              >
-                Every Day
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormData({ ...formData, recurringDays: [] })}
-                className="text-xs"
-              >
-                Clear
-              </Button>
+          {/* Scheduled Time Toggle */}
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="scheduledTimeToggle" className="text-base text-muted-foreground w-32 flex-shrink-0">Scheduled Time</Label>
+            <div className="flex items-center gap-3 flex-1 justify-end">
+              {formData.scheduledTime && (
+                <Input
+                  type="time"
+                  value={formData.scheduledTime}
+                  onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                  className="w-32 rounded-xl"
+                />
+              )}
+              <Switch
+                id="scheduledTimeToggle"
+                checked={!!formData.scheduledTime}
+                onCheckedChange={(checked) => setFormData({ ...formData, scheduledTime: checked ? '09:00' : '' })}
+                className="data-[state=checked]:bg-muted data-[state=unchecked]:bg-muted"
+              />
             </div>
-
-            {/* Individual Day Toggles */}
-            <div className="grid grid-cols-7 gap-2">
-              {daysOfWeek.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setFormData({
-                      ...formData,
-                      recurringDays: formData.recurringDays.includes(id)
-                        ? formData.recurringDays.filter((day) => day !== id)
-                        : [...formData.recurringDays, id],
-                    });
-                  }}
-                  className={`
-                    flex items-center justify-center h-10 rounded-md border-2 font-medium text-sm transition-all
-                    ${formData.recurringDays.includes(id)
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background hover:bg-muted border-input'
-                    }
-                  `}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {formData.recurringDays.length === 0
-                ? 'Select at least one day'
-                : `Selected: ${formData.recurringDays.length} day${formData.recurringDays.length !== 1 ? 's' : ''}`
-              }
-            </p>
           </div>
-        )}
 
-        {/* Description */}
-        <div>
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Add any additional details..."
-          />
-        </div>
+          {/* Duration */}
+          <div className="flex items-center justify-between gap-4">
+            <Label className="text-base text-muted-foreground w-32 flex-shrink-0">Duration</Label>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full px-6 py-2 h-auto bg-foreground text-background hover:bg-foreground/90"
+              onClick={() => {
+                const hours = formData.durationHours || '0';
+                const minutes = formData.durationMinutes || '30';
+                const currentMinutes = (parseInt(hours) || 0) * 60 + (parseInt(minutes) || 0);
+                const nextMinutes = currentMinutes === 0 ? 30 : currentMinutes === 30 ? 60 : currentMinutes === 60 ? 120 : 0;
+                setFormData({
+                  ...formData,
+                  durationHours: Math.floor(nextMinutes / 60).toString(),
+                  durationMinutes: (nextMinutes % 60).toString()
+                });
+              }}
+            >
+              {formData.durationHours || formData.durationMinutes
+                ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
+                : 'Not set'}
+            </Button>
+          </div>
 
-        {/* Form Actions */}
-        <div className="flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            className="flex items-center gap-2"
-          >
-            <X className="h-4 w-4" />
-            Cancel
-          </Button>
-          <Button type="submit" className="flex items-center gap-2">
-            <Save className="h-4 w-4" />
-            {isEdit ? "Update" : "Save"}
-          </Button>
-        </div>
-      </form>
-    </Card>
+          {/* Recurring Toggle */}
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="isRecurring" className="text-base text-muted-foreground w-32 flex-shrink-0">Recurring</Label>
+            <Switch
+              id="isRecurring"
+              checked={formData.isRecurring}
+              onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
+              className="data-[state=checked]:bg-green-500"
+            />
+          </div>
+
+          {/* Recurring Days */}
+          {formData.isRecurring && (
+            <div className="flex items-start justify-between gap-4">
+              <Label className="text-base text-muted-foreground w-32 flex-shrink-0 pt-2">Days</Label>
+              <div className="flex gap-2 flex-1 justify-end flex-wrap">
+                {daysOfWeek.map(({ id, label }) => (
+                  <Button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        recurringDays: formData.recurringDays.includes(id)
+                          ? formData.recurringDays.filter((day) => day !== id)
+                          : [...formData.recurringDays, id],
+                      });
+                    }}
+                    className={`
+                      h-12 w-12 rounded-full font-medium transition-all
+                      ${formData.recurringDays.includes(id)
+                        ? 'bg-foreground text-background hover:bg-foreground/90'
+                        : 'bg-muted text-foreground hover:bg-muted/80'
+                      }
+                    `}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Coins */}
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="coins" className="text-base text-muted-foreground w-32 flex-shrink-0">Reward</Label>
+            <Select
+              value={formData.coins}
+              onValueChange={(value) => setFormData({ ...formData, coins: value })}
+            >
+              <SelectTrigger className="w-32 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0 coins</SelectItem>
+                <SelectItem value="5">5 coins</SelectItem>
+                <SelectItem value="10">10 coins</SelectItem>
+                <SelectItem value="15">15 coins</SelectItem>
+                <SelectItem value="20">20 coins</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Submit Button */}
+          <div className="pt-4">
+            <Button 
+              type="submit" 
+              className="w-full rounded-full h-14 text-lg font-medium shadow-sm"
+              style={{ background: 'hsl(180 50% 60%)', color: 'white' }}
+            >
+              {isEdit ? 'Update Task' : 'Add Task'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
   );
 };
 
