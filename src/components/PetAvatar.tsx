@@ -27,32 +27,53 @@ interface PetAvatarProps {
 }
 
 const PetAvatar = ({ petType, happiness, emotion, size = "md", className, completedTasks = 0, totalTasks = 0 }: PetAvatarProps) => {
-  // Calculate task completion ratio
-  let taskCompletionRatio = totalTasks > 0 ? completedTasks / totalTasks : 0;
+  // Emotion/image selection is based on explicit emotion or happiness now.
 
-  // Default to "happy" emotion images when no tasks are present
-  if (totalTasks === 0) {
-    taskCompletionRatio = 0.6; // This will show the "happy" images by default
-  }
-
-  // Get emotion-based image for Fox and Red Panda
   const getEmotionBasedImage = () => {
-    if (petType === 'fox') {
-      if (taskCompletionRatio >= 0.8) return foxVeryHappy;
-      if (taskCompletionRatio >= 0.5) return foxHappy;
-      return foxSad;
-    }
+    // Prefer explicit emotion or happiness for expressive pets
+    if (petType === 'fox' || petType === 'panda') {
+      type Level = 'very' | 'happy' | 'sad';
+      let level: Level;
 
-    if (petType === 'panda') {
-      if (taskCompletionRatio >= 0.8) return pandaVeryHappy;
-      if (taskCompletionRatio >= 0.5) return pandaHappy;
+      if (emotion) {
+        switch (emotion) {
+          case 'playful':
+          case 'excited':
+            level = 'very';
+            break;
+          case 'happy':
+          case 'neutral':
+          case 'sleepy':
+            level = 'happy';
+            break;
+          case 'concerned':
+          case 'sad':
+            level = 'sad';
+            break;
+          default:
+            level = happiness >= 80 ? 'very' : happiness >= 50 ? 'happy' : 'sad';
+        }
+      } else {
+        // Fall back to happiness if no explicit emotion
+        level = happiness >= 80 ? 'very' : happiness >= 50 ? 'happy' : 'sad';
+      }
+
+      if (petType === 'fox') {
+        if (level === 'very') return foxVeryHappy;
+        if (level === 'happy') return foxHappy;
+        return foxSad;
+      }
+
+      // petType === 'panda'
+      if (level === 'very') return pandaVeryHappy;
+      if (level === 'happy') return pandaHappy;
       return pandaSad;
     }
 
     // Fallback for owl and penguin - use static avatars
     if (petType === 'owl') return owlAvatar;
     if (petType === 'penguin') return penguinAvatar;
-    
+
     return foxHappy;
   };
 
