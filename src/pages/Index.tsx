@@ -1,31 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Clock, BookOpen, Star, TrendingUp, Sparkles } from "lucide-react";
+import { Clock, Calendar, Target, TrendingUp, Sparkles, PlayCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Subtle decorative shapes */}
-      <div className="absolute top-20 right-10 w-64 h-64 rounded-full bg-soft-orange/10 soft-blob" />
-      <div className="absolute bottom-20 left-10 w-80 h-80 rounded-full bg-soft-purple/10 soft-blob" />
-      
+    <div className="min-h-screen bg-gradient-purple relative overflow-hidden">
       {/* Header */}
       <header className="container mx-auto px-6 pt-8 pb-4 relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-12 h-12 rounded-[20px] bg-white flex items-center justify-center shadow-lg">
+              <Sparkles className="w-6 h-6 text-primary" />
             </div>
-            <span className="text-xl font-bold text-foreground">PetPals</span>
+            <span className="text-2xl font-bold text-foreground">PetPals</span>
           </div>
           <Button 
-            variant="ghost" 
-            size="sm"
             onClick={() => navigate("/dashboard")}
-            className="text-foreground/70 hover:text-foreground"
+            className="bg-foreground hover:bg-foreground/90 text-white rounded-full px-6 h-11 font-medium"
           >
             Sign In
           </Button>
@@ -33,94 +27,125 @@ const Index = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 pt-20 pb-32 relative z-10">
-        <div className="max-w-3xl">
-          <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
-            Help your child build
-            <br />
-            <span className="text-primary">healthy routines</span>
-          </h1>
-          <p className="text-xl text-foreground/60 mb-8 leading-relaxed">
-            A fun and engaging app that teaches children time management and responsibility through virtual pet companions.
-          </p>
-          <Button 
-            size="lg"
-            onClick={() => navigate("/dashboard")}
-            className="bg-primary hover:bg-primary/90 text-white px-8 py-6 rounded-2xl text-lg font-medium shadow-none"
-          >
-            Get Started
-          </Button>
+      <section className="container mx-auto px-6 pt-16 pb-20 relative z-10">
+        <div className="grid md:grid-cols-2 gap-12 items-center">
+          {/* Left Column - Text */}
+          <div>
+            <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
+              Let's Learn Now!
+            </h1>
+            <p className="text-xl text-foreground/70 mb-8 leading-relaxed">
+              Build healthy routines with virtual pet companions that make learning fun and engaging for children.
+            </p>
+            <div className="flex gap-4">
+              <Button 
+                size="lg"
+                onClick={() => navigate("/dashboard")}
+                className="bg-foreground hover:bg-foreground/90 text-white rounded-full px-8 h-14 text-lg font-medium"
+              >
+                <PlayCircle className="w-5 h-5 mr-2" />
+                Start Learning
+              </Button>
+            </div>
+          </div>
+
+          {/* Right Column - Feature Card */}
+          <div className="relative">
+            <Card className="modern-card card-yellow p-8 border-0 relative overflow-hidden">
+              <div className="mb-4">
+                <h3 className="text-3xl font-bold text-foreground mb-2">Daily Tasks</h3>
+                <p className="text-lg text-foreground/70">Complete & Earn Rewards</p>
+              </div>
+              <div className="flex items-center gap-3 mt-8">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+                  <Target className="w-6 h-6 text-foreground" />
+                </div>
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-foreground" />
+                </div>
+                <div className="w-12 h-12 rounded-full bg-foreground flex items-center justify-center text-white font-bold">
+                  +5
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="container mx-auto px-6 pb-32 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl">
-          {/* Feature 1 */}
-          <Card className="p-8 rounded-3xl border-0 card-shadow bg-card hover:translate-y-[-4px] transition-transform duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-soft-orange/20 flex items-center justify-center mb-6">
-              <Clock className="w-7 h-7 text-soft-orange" />
+      {/* Features Section */}
+      <section className="container mx-auto px-6 pb-20 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Purple Card */}
+          <Card className="modern-card card-purple p-8 border-0 hover:scale-105 transition-transform duration-300">
+            <div className="w-14 h-14 rounded-[18px] bg-white flex items-center justify-center mb-6">
+              <Calendar className="w-7 h-7 text-primary" />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-3">Task Scheduling</h3>
-            <p className="text-sm text-foreground/60 leading-relaxed">
-              Visual timelines help children understand their daily schedule
+            <h3 className="text-xl font-bold text-foreground mb-3">Smart Scheduling</h3>
+            <p className="text-foreground/70 leading-relaxed">
+              Visual calendars that kids can understand and follow easily
             </p>
           </Card>
 
-          {/* Feature 2 */}
-          <Card className="p-8 rounded-3xl border-0 card-shadow bg-card hover:translate-y-[-4px] transition-transform duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-soft-pink/20 flex items-center justify-center mb-6">
-              <Sparkles className="w-7 h-7 text-soft-pink" />
+          {/* White Card */}
+          <Card className="modern-card bg-white p-8 border-0 hover:scale-105 transition-transform duration-300">
+            <div className="w-14 h-14 rounded-[18px] bg-accent-purple flex items-center justify-center mb-6">
+              <Sparkles className="w-7 h-7 text-primary-dark" />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-3">Virtual Pets</h3>
-            <p className="text-sm text-foreground/60 leading-relaxed">
-              Adorable companions that respond to completed tasks
+            <h3 className="text-xl font-bold text-foreground mb-3">Pet Companions</h3>
+            <p className="text-foreground/70 leading-relaxed">
+              Choose from pandas, foxes, owls, and penguins
             </p>
           </Card>
 
-          {/* Feature 3 */}
-          <Card className="p-8 rounded-3xl border-0 card-shadow bg-card hover:translate-y-[-4px] transition-transform duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-soft-blue/20 flex items-center justify-center mb-6">
-              <Star className="w-7 h-7 text-soft-blue" />
+          {/* Blue Card */}
+          <Card className="modern-card card-blue p-8 border-0 hover:scale-105 transition-transform duration-300">
+            <div className="w-14 h-14 rounded-[18px] bg-white flex items-center justify-center mb-6">
+              <Target className="w-7 h-7 text-primary" />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-3">Reward System</h3>
-            <p className="text-sm text-foreground/60 leading-relaxed">
-              Earn coins and unlock achievements for consistency
+            <h3 className="text-xl font-bold text-foreground mb-3">Goal Tracking</h3>
+            <p className="text-foreground/70 leading-relaxed">
+              Set and achieve daily goals with progress bars
             </p>
           </Card>
 
-          {/* Feature 4 */}
-          <Card className="p-8 rounded-3xl border-0 card-shadow bg-card hover:translate-y-[-4px] transition-transform duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-soft-green/20 flex items-center justify-center mb-6">
-              <TrendingUp className="w-7 h-7 text-soft-green" />
+          {/* Green Card */}
+          <Card className="modern-card card-green p-8 border-0 hover:scale-105 transition-transform duration-300">
+            <div className="w-14 h-14 rounded-[18px] bg-white flex items-center justify-center mb-6">
+              <TrendingUp className="w-7 h-7 text-success" />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-3">Progress Tracking</h3>
-            <p className="text-sm text-foreground/60 leading-relaxed">
-              Parents can monitor growth and celebrate wins
+            <h3 className="text-xl font-bold text-foreground mb-3">Progress Reports</h3>
+            <p className="text-foreground/70 leading-relaxed">
+              Parents track achievements and celebrate wins
             </p>
           </Card>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-6 pb-32 relative z-10">
-        <Card className="max-w-4xl mx-auto p-12 md:p-16 rounded-3xl border-0 card-shadow bg-card text-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <BookOpen className="w-8 h-8 text-primary" />
-          </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Ready to get started?
+      <section className="container mx-auto px-6 pb-20 relative z-10">
+        <Card className="modern-card bg-white max-w-3xl mx-auto p-12 md:p-16 border-0 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            From Basics to<br />Breakthroughs
           </h2>
-          <p className="text-lg text-foreground/60 mb-8 max-w-2xl mx-auto">
-            Join families who are teaching their children valuable life skills through play
+          <p className="text-lg text-foreground/70 mb-8 max-w-xl mx-auto leading-relaxed">
+            Start your child's journey to building better habits and learning responsibility through engaging tasks and rewards
           </p>
-          <Button 
-            size="lg"
-            onClick={() => navigate("/dashboard")}
-            className="bg-primary hover:bg-primary/90 text-white px-8 py-6 rounded-2xl text-lg font-medium shadow-none"
-          >
-            Start Free Today
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              size="lg"
+              onClick={() => navigate("/dashboard")}
+              className="bg-foreground hover:bg-foreground/90 text-white rounded-full px-10 h-14 text-lg font-medium"
+            >
+              Get Started Free
+            </Button>
+            <Button 
+              size="lg"
+              variant="outline"
+              className="border-2 border-foreground/20 hover:bg-foreground/5 text-foreground rounded-full px-10 h-14 text-lg font-medium"
+            >
+              Learn More
+            </Button>
+          </div>
         </Card>
       </section>
     </div>

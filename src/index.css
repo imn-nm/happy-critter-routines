@@ -8,46 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Soft neutral background */
-    --bg-cream: 30 25% 94%;
-    --bg-soft: 30 20% 97%;
+    /* Purple gradient background */
+    --bg-gradient-start: 270 50% 85%;
+    --bg-gradient-end: 280 60% 75%;
     
-    /* Soft pastel accents */
-    --soft-orange: 25 85% 65%;
-    --soft-pink: 350 70% 75%;
-    --soft-blue: 210 70% 75%;
-    --soft-green: 150 50% 70%;
-    --soft-purple: 270 60% 75%;
-    --soft-yellow: 45 90% 70%;
+    /* Modern pastel palette */
+    --accent-purple: 270 60% 80%;
+    --accent-purple-dark: 270 50% 65%;
+    --accent-yellow: 48 100% 78%;
+    --accent-blue: 200 80% 85%;
+    --accent-green: 140 50% 80%;
+    --accent-pink: 320 60% 85%;
     
     /* Core theme colors */
-    --background: 30 20% 97%;
-    --foreground: 0 0% 15%;
+    --background: 270 40% 96%;
+    --foreground: 0 0% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Primary soft orange theme */
-    --primary: 25 85% 65%;
+    /* Primary purple theme */
+    --primary: 270 60% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 25 85% 85%;
-    --primary-dark: 25 85% 45%;
+    --primary-light: 270 60% 85%;
+    --primary-dark: 270 50% 50%;
 
     /* Accent colors */
-    --accent: 210 70% 75%;
-    --accent-foreground: 0 0% 15%;
-    --accent-light: 210 70% 90%;
+    --accent: 270 60% 80%;
+    --accent-foreground: 0 0% 10%;
+    --accent-light: 270 60% 90%;
 
     /* Success green */
-    --success: 150 50% 70%;
+    --success: 140 50% 60%;
     --success-foreground: 0 0% 100%;
 
-    /* Warm tones */
-    --warning: 45 90% 70%;
-    --warning-foreground: 0 0% 15%;
+    /* Yellow accent */
+    --warning: 48 100% 70%;
+    --warning-foreground: 0 0% 10%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -130,13 +130,30 @@ All colors MUST be HSL.
   }
 }
 
-/* Soft decorative shapes */
+/* Modern design utilities */
 @layer utilities {
-  .soft-blob {
-    border-radius: 50% 40% 60% 50% / 50% 60% 40% 50%;
+  .modern-card {
+    border-radius: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   }
   
-  .card-shadow {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  .card-purple {
+    background: hsl(var(--accent-purple));
+  }
+  
+  .card-yellow {
+    background: hsl(var(--accent-yellow));
+  }
+  
+  .card-blue {
+    background: hsl(var(--accent-blue));
+  }
+  
+  .card-green {
+    background: hsl(var(--accent-green));
+  }
+  
+  .bg-gradient-purple {
+    background: linear-gradient(135deg, hsl(var(--bg-gradient-start)), hsl(var(--bg-gradient-end)));
   }
 }

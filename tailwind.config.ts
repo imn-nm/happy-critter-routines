@@ -73,12 +73,12 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				'soft-orange': 'hsl(var(--soft-orange))',
-				'soft-pink': 'hsl(var(--soft-pink))',
-				'soft-blue': 'hsl(var(--soft-blue))',
-				'soft-green': 'hsl(var(--soft-green))',
-				'soft-purple': 'hsl(var(--soft-purple))',
-				'soft-yellow': 'hsl(var(--soft-yellow))'
+				'accent-purple': 'hsl(var(--accent-purple))',
+				'accent-purple-dark': 'hsl(var(--accent-purple-dark))',
+				'accent-yellow': 'hsl(var(--accent-yellow))',
+				'accent-blue': 'hsl(var(--accent-blue))',
+				'accent-green': 'hsl(var(--accent-green))',
+				'accent-pink': 'hsl(var(--accent-pink))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
