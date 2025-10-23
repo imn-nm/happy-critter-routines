@@ -38,6 +38,7 @@ const TaskList = ({ tasks, onToggleCompletion, onEditTask, onDeleteTask }: TaskL
           onToggleCompletion={onToggleCompletion}
           onEdit={onEditTask}
           onDelete={onDeleteTask}
+          showCompleteButton={true}
         />
       ))}
     </div>

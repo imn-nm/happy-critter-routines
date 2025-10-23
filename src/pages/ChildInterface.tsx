@@ -247,9 +247,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
       const isNotCompleted = !task.isCompleted;
+      const isFlexible = task.type === 'flexible';
 
-      // Include all tasks (scheduled, regular, flexible) that have scheduled times and are scheduled for today
-      return isNotCompleted && hasScheduledTime && isScheduledForToday;
+      // Include all tasks (scheduled, regular) that have scheduled times and are scheduled for today
+      // Also include flexible tasks even without scheduled times (they appear as free time)
+      return isNotCompleted && isScheduledForToday && (hasScheduledTime || isFlexible);
     });
 
     // If today is a holiday (especially no-school days), filter out school-related tasks
@@ -313,8 +315,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     let todaysTasks = tasksWithCompletion.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
       const isScheduledForToday = task.recurring_days?.includes(currentDay);
+      const isFlexible = task.type === 'flexible';
 
-      return hasScheduledTime && isScheduledForToday;
+      // Include all scheduled tasks, and also flexible tasks (free time) even without times
+      return isScheduledForToday && (hasScheduledTime || isFlexible);
     });
 
     // If today is a holiday (especially no-school days), filter out school-related tasks
