@@ -108,11 +108,6 @@ const ChildrenSideBySide = () => {
             } overflow-y-auto`}
           >
             <div className="p-1 sm:p-2">
-              {/* Child Header */}
-              <div className="text-center py-2 sm:py-4">
-                <h2 className="text-lg sm:text-xl font-bold text-white">{child.name}</h2>
-              </div>
-              
               {/* Child Interface Component with responsive scaling */}
               <div className="scale-75 sm:scale-85 lg:scale-90 origin-top">
                 <ChildInterface childId={child.id} />
