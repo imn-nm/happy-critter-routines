@@ -15,14 +15,14 @@ interface ChildCardProps {
 
 const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, totalTasks = 0 }: ChildCardProps) => {
   return (
-    <Card 
+    <div 
       className={cn(
-        "p-6 cursor-pointer transition-all duration-200 hover:shadow-md bg-card border-border",
+        "p-6 cursor-pointer transition-all duration-200 hover:opacity-80 bg-card rounded-lg border border-border",
         className
       )}
       onClick={() => onClick?.(child)}
     >
-      <div className="flex flex-col items-center text-center space-y-4">
+      <div className="flex flex-col items-center text-center space-y-3">
         <PetAvatar
           petType={child.petType}
           happiness={child.petHappiness}
@@ -31,16 +31,14 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
           totalTasks={totalTasks}
         />
         
-        <div>
-          <h3 className="font-bold text-lg text-foreground">{child.name}</h3>
-        </div>
+        <h3 className="font-bold text-lg text-foreground">{child.name}</h3>
         
-        <div className="flex items-center gap-2 text-warning">
-          <Coins className="w-4 h-4" />
+        <div className="flex items-center gap-1.5">
+          <Coins className="w-4 h-4 text-amber-500" />
           <span className="font-semibold text-foreground">{child.currentCoins}</span>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
