@@ -1,5 +1,5 @@
-import { Card } from "@/components/ui/card";
-import PetAvatar, { type PetType } from "./PetAvatar";
+// import { Card } from "@/components/ui/card";
+import PetAvatar from "./PetAvatar";
 import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Child } from "@/hooks/useChildren";
@@ -23,13 +23,15 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
       onClick={() => onClick?.(child)}
     >
       <div className="flex flex-col items-center text-center space-y-3">
-        <PetAvatar
-          petType={child.petType}
-          happiness={child.petHappiness}
-          size="lg"
-          completedTasks={completedTasks}
-          totalTasks={totalTasks}
-        />
+        <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
+          <PetAvatar
+            petType={child.petType}
+            happiness={child.petHappiness}
+            size="lg"
+            completedTasks={completedTasks}
+            totalTasks={totalTasks}
+          />
+        </div>
         
         <h3 className="font-bold text-lg text-foreground">{child.name}</h3>
         
