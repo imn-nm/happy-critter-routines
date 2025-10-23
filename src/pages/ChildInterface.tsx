@@ -516,6 +516,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 remainingSeconds={getActiveTaskRemainingTime()}
                 status={getTimerStatus()}
                 size="lg"
+                isRunning={true}
               />
             </div>
 
