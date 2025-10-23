@@ -56,30 +56,16 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-white">Family Dashboard</h1>
-          <div className="flex gap-2">
-            <Button 
-              variant="accent" 
-              size="sm"
-              onClick={() => navigate("/setup")}
-            >
-              <Plus className="w-4 h-4" />
-              Add Child
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate("/")}
-              className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-xs sm:text-sm"
-            >
-              <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Back to Child Dashboard</span>
-              <span className="sm:hidden">Back</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
+          <h1 className="text-2xl font-bold text-foreground">Family Dashboard</h1>
+          <Button 
+            size="sm"
+            onClick={() => navigate("/setup")}
+            className="rounded-2xl h-10 px-4 shadow-sm"
+            style={{ background: 'hsl(var(--accent-purple))' }}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Child
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -92,7 +78,7 @@ const Dashboard = () => {
           {/* Right Column - Children Cards */}
           <div className="space-y-6">
             <div>
-              <h2 className="text-white font-semibold mb-4">Your Children</h2>
+              <h2 className="text-foreground font-semibold mb-4">Your Children</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {children.map((child) => (
                   <div key={child.id} className="space-y-3">
