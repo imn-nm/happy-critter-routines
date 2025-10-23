@@ -435,8 +435,22 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          {/* Empty header space for alignment */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-sm">
+            <Coins className="w-5 h-5 text-amber-500" />
+            <span className="text-lg font-bold text-foreground">{child.currentCoins}</span>
+          </div>
+          
+          {!propChildId && (
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboard")}
+              className="rounded-full px-4 h-10 border-2 border-foreground/20 bg-white flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-sm font-medium">Parent</span>
+            </Button>
+          )}
         </div>
 
         {/* Avatar & Greeting (row) */}
