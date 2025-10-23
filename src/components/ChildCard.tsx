@@ -43,15 +43,26 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
   };
   
   const { completed, total } = getTodaysTaskCompletion();
-  const progressPercent = total > 0 ? (completed / total) * 100 : 0;
   
-  // Calculate happiness based on task completion
+  // Calculate happiness - default to happy, only sad if behind
   const calculateHappiness = () => {
-    if (progressPercent >= 80) return 95;
-    if (progressPercent >= 60) return 75; 
-    if (progressPercent >= 40) return 55;
-    if (progressPercent >= 20) return 35;
-    return 20;
+    const currentTime = getCurrentTimePST();
+    const currentTimeString = currentTime.toTimeString().slice(0, 5);
+    
+    // Check if child missed any past tasks today
+    const missedTasks = tasksWithCompletion.filter(task => {
+      const taskTime = task.scheduled_time?.slice(0, 5);
+      const currentDay = currentTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const isScheduledForToday = task.recurring_days?.includes(currentDay);
+      return taskTime && taskTime < currentTimeString && !task.isCompleted && isScheduledForToday;
+    });
+    
+    if (missedTasks.length > 0) {
+      return 20; // Sad when tasks were missed
+    }
+    
+    // Default to happy
+    return 95;
   };
   
   return (

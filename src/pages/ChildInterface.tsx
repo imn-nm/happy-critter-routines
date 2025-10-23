@@ -147,13 +147,29 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const totalTasks = tasksWithCompletion.length;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   
-  // Calculate pet emotion and happiness based on schedule adherence
+  // Calculate pet emotion and happiness - default to happy, only sad if behind
   const calculateHappiness = () => {
-    if (progressPercent >= 80) return 95;
-    if (progressPercent >= 60) return 75; 
-    if (progressPercent >= 40) return 55;
-    if (progressPercent >= 20) return 35;
-    return 20;
+    const currentTime = getCurrentTimePST();
+    const remainingTime = getActiveTaskRemainingTime();
+    
+    // If there's an active task and timer has expired (child is running behind)
+    if (activeTask && remainingTime === 0 && !activeTask.isCompleted) {
+      return 20; // Sad when behind on current task
+    }
+    
+    // Check if child missed any past tasks today
+    const currentTimeString = currentTime.toTimeString().slice(0, 5);
+    const missedTasks = todaysSchedule.filter(task => {
+      const taskTime = task.scheduled_time?.slice(0, 5);
+      return taskTime && taskTime < currentTimeString && !task.isCompleted;
+    });
+    
+    if (missedTasks.length > 0) {
+      return 20; // Sad when tasks were missed
+    }
+    
+    // Default to happy
+    return 95;
   };
 
   const calculatePetEmotionForChild = () => {
@@ -496,7 +512,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {/* Upcoming Tasks */}
         {upcomingTasks.length > 0 && (
           <div className="space-y-3 mb-6">
-            {upcomingTasks.map((task) => {
+            {upcomingTasks.map((task, index) => {
               const adjustment = scheduleStatus.adjustmentsNeeded.find(adj => adj.taskId === task.id);
               const isEliminated = adjustment?.eliminated;
               
@@ -524,16 +540,67 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 return <Star className="w-5 h-5" />;
               };
               
+              // Calculate if this task is delayed (active task timer expired)
+              const isDelayed = activeTask && getActiveTaskRemainingTime() === 0 && !activeTask.isCompleted;
+              
+              // Calculate progress for the linear timer
+              const getTaskProgress = () => {
+                if (!isDelayed) return 0;
+                
+                // First upcoming task gets filled
+                if (index === 0) {
+                  // Calculate how long the task has been delayed
+                  const currentTime = getCurrentTimePST();
+                  const taskTime = task.scheduled_time?.slice(0, 5);
+                  if (!taskTime) return 0;
+                  
+                  const currentTimeString = currentTime.toTimeString().slice(0, 5);
+                  if (currentTimeString < taskTime) return 0;
+                  
+                  // Task time has passed, show as fully delayed
+                  return 100;
+                }
+                
+                // Second task only shows progress if first is also delayed
+                if (index === 1) {
+                  const firstTask = upcomingTasks[0];
+                  const firstTaskTime = firstTask.scheduled_time?.slice(0, 5);
+                  const currentTime = getCurrentTimePST();
+                  const currentTimeString = currentTime.toTimeString().slice(0, 5);
+                  
+                  if (firstTaskTime && currentTimeString >= firstTaskTime) {
+                    return 50; // Show partial progress
+                  }
+                }
+                
+                return 0;
+              };
+              
+              const progressPercent = getTaskProgress();
+              
               return (
                 <div 
                   key={task.id} 
-                  className="flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm"
+                  className="bg-white rounded-2xl p-4 shadow-sm"
                 >
-                  <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0 flex items-center justify-center">
-                    {getTaskIcon()}
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0 flex items-center justify-center">
+                      {getTaskIcon()}
+                    </div>
+                    <span className="font-medium text-foreground flex-1">{task.name}</span>
+                    <span className="text-sm text-muted-foreground">{formatTime(task.scheduled_time)}</span>
                   </div>
-                  <span className="font-medium text-foreground flex-1">{task.name}</span>
-                  <span className="text-sm text-muted-foreground">{formatTime(task.scheduled_time)}</span>
+                  
+                  {/* Linear Progress Bar */}
+                  <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full transition-all duration-500 rounded-full"
+                      style={{ 
+                        width: `${progressPercent}%`,
+                        background: index === 0 ? '#7c3aed' : '#000000'
+                      }}
+                    />
+                  </div>
                 </div>
               );
             })}
