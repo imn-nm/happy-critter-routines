@@ -435,20 +435,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-end mb-6">
-          <Button
-            variant="outline"
-            size="icon"
-            className="rounded-full h-12 w-12 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
-            aria-label="Add"
-          >
-            <Plus className="w-5 h-5" />
-          </Button>
+        <div className="mb-6">
+          {/* Empty header space for alignment */}
         </div>
 
         {/* Avatar & Greeting (row) */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
+          <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
             <PetAvatar
               petType={child.petType}
               happiness={calculateHappiness()}
