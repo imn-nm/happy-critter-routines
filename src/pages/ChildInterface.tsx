@@ -434,36 +434,37 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   return (
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
-        {/* Header - Compact */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm">
-            <Coins className="w-4 h-4 text-amber-500" />
-            <span className="text-base font-bold text-foreground">{child.currentCoins}</span>
+        {/* Avatar, Greeting & Coin Count */}
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
+              <PetAvatar
+                petType={child.petType}
+                happiness={calculateHappiness()}
+                emotion={calculatePetEmotionForChild()}
+                size="lg"
+                completedTasks={getTodaysTaskCompletion().completed}
+                totalTasks={getTodaysTaskCompletion().total}
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-black">Hi, {child.name}!</h1>
           </div>
           
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Parent</span>
-          </Button>
-        </div>
-
-        {/* Avatar & Greeting (row) */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
-            <PetAvatar
-              petType={child.petType}
-              happiness={calculateHappiness()}
-              emotion={calculatePetEmotionForChild()}
-              size="lg"
-              completedTasks={getTodaysTaskCompletion().completed}
-              totalTasks={getTodaysTaskCompletion().total}
-            />
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm">
+              <Coins className="w-4 h-4 text-amber-500" />
+              <span className="text-base font-bold text-foreground">{child.currentCoins}</span>
+            </div>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboard")}
+              className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Parent</span>
+            </Button>
           </div>
-          <h1 className="text-2xl font-bold text-black">Hi, {child.name}!</h1>
         </div>
 
         {/* Current Task Card */}
