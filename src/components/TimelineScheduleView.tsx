@@ -674,34 +674,60 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-3 sm:p-6">
-      {/* Week Range Header */}
-      <div className="text-center mb-4">
-        <h2 className="text-lg font-semibold text-foreground">
+    <Card className="p-4 bg-white rounded-3xl shadow-sm border-0">
+      {/* Add Task Button at top */}
+      {onAddTask && (
+        <Button 
+          onClick={onAddTask} 
+          className="w-full mb-4 h-14 rounded-2xl text-base font-semibold shadow-sm"
+          style={{ background: 'hsl(var(--primary))' }}
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Add Task
+        </Button>
+      )}
+
+      {/* Week Range Header with Today button */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-semibold text-foreground">
           {formatWeekRange(weekStart)}
         </h2>
-        {selectedDayHoliday && (
-          <div className="mt-2 flex items-center justify-center">
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
-              style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
-            >
-              <PartyPopper className="w-4 h-4" />
-              <span>{selectedDayHoliday.name}</span>
-              {selectedDayHoliday.is_no_school && (
-                <span className="ml-1 text-xs opacity-75">(No School)</span>
-              )}
-            </div>
-          </div>
-        )}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => {
+            const today = new Date();
+            setSelectedDay(today);
+            setCurrentWeek(today);
+          }} 
+          className="h-8 px-3 text-sm font-medium rounded-full"
+          disabled={isToday(selectedDay)}
+        >
+          Today
+        </Button>
       </div>
+
+      {selectedDayHoliday && (
+        <div className="mb-4 flex items-center justify-center">
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+            style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
+          >
+            <PartyPopper className="w-4 h-4" />
+            <span>{selectedDayHoliday.name}</span>
+            {selectedDayHoliday.is_no_school && (
+              <span className="ml-1 text-xs opacity-75">(No School)</span>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-8 w-8 p-0">
-          <ChevronLeft className="w-4 h-4" />
+      <div className="flex items-center gap-2 mb-6">
+        <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-10 w-10 p-0 rounded-full flex-shrink-0">
+          <ChevronLeft className="w-5 h-5" />
         </Button>
-        <div className="flex gap-0.5 sm:gap-1 overflow-x-auto px-2">
+        <div className="grid grid-cols-7 gap-1 flex-1">
           {weekDays.map((day, index) => {
             const isSelected = isSameDay(day, selectedDay);
             const isTodayDay = isToday(day);
@@ -710,48 +736,27 @@ const TimelineScheduleView = ({
               <button
                 key={index}
                 onClick={() => setSelectedDay(day)}
-                className={`flex flex-col items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors duration-200 flex-shrink-0 relative min-h-[60px] justify-center ${
+                className={`flex flex-col items-center py-2 px-1 rounded-2xl transition-all duration-200 relative ${
                   isSelected
-                    ? 'bg-primary text-primary-foreground shadow-md'
+                    ? 'bg-primary text-primary-foreground shadow-md scale-105'
                     : isTodayDay
-                    ? 'bg-accent text-accent-foreground border border-primary/30'
-                    : 'hover:bg-muted'
+                    ? 'bg-primary/10 text-primary border-2 border-primary'
+                    : 'hover:bg-muted text-foreground'
                 }`}
               >
-                <span className="text-xs font-medium">
+                <span className="text-xs font-medium mb-1">
                   {format(day, 'EEE')}
                 </span>
-                <span className="text-sm sm:text-lg font-semibold">
+                <span className="text-lg font-bold">
                   {format(day, 'd')}
                 </span>
-                {isTodayDay && !isSelected && (
-                  <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                )}
-                {isSelected && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-primary-foreground rounded-full" />
-                )}
               </button>
             );
           })}
         </div>
-        <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => {
-              const today = new Date();
-              setSelectedDay(today);
-              setCurrentWeek(today);
-            }} 
-            className="h-8 px-2 text-xs font-medium"
-            disabled={isToday(selectedDay)}
-          >
-            Today
-          </Button>
-          <Button variant="ghost" size="sm" onClick={goToNextWeek} className="h-8 w-8 p-0">
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" onClick={goToNextWeek} className="h-10 w-10 p-0 rounded-full flex-shrink-0">
+          <ChevronRight className="w-5 h-5" />
+        </Button>
       </div>
 
       {/* Timeline */}
@@ -833,15 +838,6 @@ const TimelineScheduleView = ({
         )}
       </DndContext>
 
-      {/* Add Task Button */}
-      {onAddTask && (
-        <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t">
-          <Button onClick={onAddTask} className="w-full text-sm sm:text-base h-8 sm:h-10" variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            Add New Task
-          </Button>
-        </div>
-      )}
     </Card>
   );
 };
