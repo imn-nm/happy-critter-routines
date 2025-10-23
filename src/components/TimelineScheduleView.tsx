@@ -693,15 +693,15 @@ const TimelineScheduleView = ({
           {formatWeekRange(weekStart)}
         </h2>
         <Button 
-          variant="ghost" 
+          variant="outline" 
           size="sm" 
           onClick={() => {
             const today = new Date();
             setSelectedDay(today);
             setCurrentWeek(today);
           }} 
-          className="h-8 px-3 text-sm font-medium rounded-full"
           disabled={isToday(selectedDay)}
+          className="h-8 px-3 text-sm font-medium rounded-full border-primary/30 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Today
         </Button>
