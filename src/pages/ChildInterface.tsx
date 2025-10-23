@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import PetAvatar from "@/components/PetAvatar";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
-import { ArrowLeft, Coins, Star, Calendar, X } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, X, Settings } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -436,29 +436,41 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          {!propChildId ? (
+          <div className="text-white text-lg font-medium">{child.name}</div>
+          
+          <div className="flex items-center gap-2">
+            {!propChildId && (
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full h-10 w-10 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/dashboard")}
+                  className="rounded-full px-4 py-2 h-10 border-2 border-foreground/20 bg-white"
+                >
+                  <span className="text-sm font-medium">Parent</span>
+                </Button>
+              </>
+            )}
+            
             <Button
               variant="outline"
               size="icon"
-              onClick={() => navigate("/dashboard")}
-              className="rounded-full h-12 w-12 border-2 border-foreground/20"
+              className="rounded-full h-12 w-12 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <span className="text-xl leading-none">+</span>
             </Button>
-          ) : <div className="h-12 w-12" />}
-          
-          <Button
-            variant="outline"
-            size="icon"
-            className="rounded-full h-12 w-12 border-2 border-foreground/20"
-          >
-            <span className="text-2xl">+</span>
-          </Button>
+          </div>
         </div>
 
         {/* Avatar & Greeting */}
         <div className="text-center mb-6">
-          <div className="w-32 h-32 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center overflow-hidden">
+          <div className="w-32 h-32 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-orange-300">
             <PetAvatar
               petType={child.petType}
               happiness={calculateHappiness()}
@@ -468,27 +480,26 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               totalTasks={getTodaysTaskCompletion().total}
             />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Hi, {child.name}!</h1>
+          <h1 className="text-2xl font-bold text-black">Hi, {child.name}!</h1>
         </div>
 
         {/* Current Task Card */}
         {activeTask && (
-          <Card className="p-6 mb-4 rounded-3xl border-0 shadow-sm" style={{ background: 'hsl(262 50% 85%)' }}>
-            <h2 className="text-2xl font-bold text-center text-foreground mb-4">{activeTask.name}</h2>
+          <Card className="p-8 mb-4 rounded-3xl border-0 shadow-sm" style={{ background: 'hsl(262 50% 85%)' }}>
+            <h2 className="text-2xl font-bold text-center text-black mb-6">{activeTask.name}</h2>
             
-            <div className="flex justify-center mb-6">
-              <div className="w-32 h-32">
-                <CircularTimer
-                  totalSeconds={activeTask.duration ? activeTask.duration * 60 : 1800}
-                  remainingSeconds={getActiveTaskRemainingTime()}
-                  status={getTimerStatus()}
-                />
-              </div>
+            <div className="flex justify-center mb-8">
+              <CircularTimer
+                totalSeconds={activeTask.duration ? activeTask.duration * 60 : 1800}
+                remainingSeconds={getActiveTaskRemainingTime()}
+                status={getTimerStatus()}
+                size="lg"
+              />
             </div>
 
             <Button 
               onClick={() => handleCompleteTask(activeTask.id)}
-              className="w-full rounded-full h-14 text-lg font-medium bg-white text-foreground hover:bg-white/90 shadow-sm"
+              className="w-full rounded-full h-14 text-lg font-medium bg-white text-black hover:bg-white/90 shadow-sm"
             >
               I'm Done!
             </Button>

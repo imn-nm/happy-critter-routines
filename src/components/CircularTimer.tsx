@@ -36,31 +36,20 @@ const CircularTimer = ({
   const getStatusColor = () => {
     switch (status) {
       case "on-track":
-        return "text-emerald-500"; // Green
+        return "#10b981"; // Green
       case "behind":
-        return "text-amber-500"; // Yellow
+        return "#f59e0b"; // Yellow
       case "ahead":
-        return "text-blue-500"; // Blue
+        return "#3b82f6"; // Blue
       case "critical":
-        return "text-red-500"; // Red
+        return "#ef4444"; // Red
       default:
-        return "text-primary";
+        return "#10b981";
     }
   };
 
-  const getStatusBgColor = () => {
-    switch (status) {
-      case "on-track":
-        return "bg-emerald-100"; // Light green
-      case "behind":
-        return "bg-amber-100"; // Light yellow
-      case "ahead":
-        return "bg-blue-100"; // Light blue
-      case "critical":
-        return "bg-red-100"; // Light red
-      default:
-        return "bg-gray-100";
-    }
+  const getBackgroundColor = () => {
+    return "#d8b4fe"; // Light purple
   };
 
   // Timer effect
@@ -98,32 +87,25 @@ const CircularTimer = ({
 
   return (
     <div className={cn("relative", sizeClasses[size], className)}>
-      {/* Background with status color */}
-      <div className={cn(
-        "absolute inset-0 rounded-full opacity-20",
-        getStatusBgColor()
-      )} />
-      
       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-        {/* Background circle */}
+        {/* Background circle - light purple */}
         <circle
           cx="50"
           cy="50"
           r="45"
-          stroke="currentColor"
+          stroke={getBackgroundColor()}
           strokeWidth="8"
           fill="transparent"
-          className="text-gray-200"
         />
-        {/* Progress circle with status color */}
+        {/* Progress circle - green */}
         <circle
           cx="50"
           cy="50"
           r="45"
-          stroke="currentColor"
+          stroke={getStatusColor()}
           strokeWidth="8"
           fill="transparent"
-          className={cn(getStatusColor(), "transition-all duration-1000 ease-linear")}
+          className="transition-all duration-1000 ease-linear"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
@@ -133,13 +115,15 @@ const CircularTimer = ({
       {/* Time display */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="text-center">
-          <div className={cn(
-            "font-mono font-bold leading-none",
-            size === "sm" && "text-xs",
-            size === "md" && "text-sm", 
-            size === "lg" && "text-xl",
-            getStatusColor()
-          )}>
+          <div 
+            className={cn(
+              "font-mono font-bold leading-none",
+              size === "sm" && "text-xs",
+              size === "md" && "text-sm", 
+              size === "lg" && "text-lg"
+            )}
+            style={{ color: getStatusColor() }}
+          >
             {formatTime(remainingSeconds)}
           </div>
         </div>
