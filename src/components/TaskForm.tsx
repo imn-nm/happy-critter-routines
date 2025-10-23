@@ -124,7 +124,7 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
                 id="scheduledTimeToggle"
                 checked={!!formData.scheduledTime}
                 onCheckedChange={(checked) => setFormData({ ...formData, scheduledTime: checked ? '09:00' : '' })}
-                className="data-[state=checked]:bg-muted data-[state=unchecked]:bg-muted"
+                className="data-[state=checked]:bg-green-500"
               />
             </div>
           </div>
@@ -132,26 +132,36 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
           {/* Duration */}
           <div className="flex items-center justify-between gap-4">
             <Label className="text-base text-muted-foreground w-32 flex-shrink-0">Duration</Label>
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full px-6 py-2 h-auto bg-foreground text-background hover:bg-foreground/90"
-              onClick={() => {
-                const hours = formData.durationHours || '0';
-                const minutes = formData.durationMinutes || '30';
-                const currentMinutes = (parseInt(hours) || 0) * 60 + (parseInt(minutes) || 0);
-                const nextMinutes = currentMinutes === 0 ? 30 : currentMinutes === 30 ? 60 : currentMinutes === 60 ? 120 : 0;
+            <Select
+              value={`${(parseInt(formData.durationHours || '0') * 60 + parseInt(formData.durationMinutes || '0'))}`}
+              onValueChange={(value) => {
+                const totalMinutes = parseInt(value);
                 setFormData({
                   ...formData,
-                  durationHours: Math.floor(nextMinutes / 60).toString(),
-                  durationMinutes: (nextMinutes % 60).toString()
+                  durationHours: Math.floor(totalMinutes / 60).toString(),
+                  durationMinutes: (totalMinutes % 60).toString()
                 });
               }}
             >
-              {formData.durationHours || formData.durationMinutes
-                ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
-                : 'Not set'}
-            </Button>
+              <SelectTrigger className="w-32 rounded-full bg-foreground text-background hover:bg-foreground/90 border-0 h-10">
+                <SelectValue>
+                  {formData.durationHours || formData.durationMinutes
+                    ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
+                    : 'Not set'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="0">Not set</SelectItem>
+                <SelectItem value="15">15m</SelectItem>
+                <SelectItem value="30">30m</SelectItem>
+                <SelectItem value="45">45m</SelectItem>
+                <SelectItem value="60">1h 0m</SelectItem>
+                <SelectItem value="90">1h 30m</SelectItem>
+                <SelectItem value="120">2h 0m</SelectItem>
+                <SelectItem value="180">3h 0m</SelectItem>
+                <SelectItem value="240">4h 0m</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Recurring Toggle */}
@@ -182,11 +192,12 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
                           : [...formData.recurringDays, id],
                       });
                     }}
+                    variant="ghost"
                     className={`
-                      h-12 w-12 rounded-full font-medium transition-all
+                      h-14 w-14 rounded-full font-semibold text-base transition-all p-0
                       ${formData.recurringDays.includes(id)
                         ? 'bg-foreground text-background hover:bg-foreground/90'
-                        : 'bg-muted text-foreground hover:bg-muted/80'
+                        : 'bg-muted text-muted-foreground hover:bg-muted hover:text-foreground'
                       }
                     `}
                   >
