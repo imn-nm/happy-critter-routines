@@ -17,8 +17,7 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
   return (
     <Card 
       className={cn(
-        "p-6 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105",
-        isSelected && "ring-2 ring-primary bg-primary/5",
+        "p-6 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 bg-white",
         className
       )}
       onClick={() => onClick?.(child)}
@@ -33,12 +32,12 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
         />
         
         <div>
-          <h3 className="font-bold text-lg">{child.name}</h3>
+          <h3 className="font-bold text-lg text-foreground">{child.name}</h3>
         </div>
         
         <div className="flex items-center gap-2 text-warning">
           <Coins className="w-4 h-4" />
-          <span className="font-semibold">{child.currentCoins}</span>
+          <span className="font-semibold text-foreground">{child.currentCoins}</span>
         </div>
         
         {/* Removed current task display for now since it's not in the database yet */}

@@ -98,7 +98,7 @@ const Dashboard = () => {
                   <div key={child.id} className="space-y-3">
                     <ChildCard
                       child={child}
-                      isSelected={selectedChild?.id === child.id}
+                      isSelected={false}
                       onClick={() => navigate(`/child-dashboard/${child.id}`)}
                     />
                     <div className="flex flex-col gap-2">
