@@ -434,6 +434,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   return (
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
+        {/* Parent Button - Top Right */}
+        <div className="flex justify-end mb-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/dashboard")}
+            className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Parent</span>
+          </Button>
+        </div>
+
         {/* Avatar, Greeting & Coin Count */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -450,20 +462,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <h1 className="text-2xl font-bold text-black">Hi, {child.name}!</h1>
           </div>
           
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm">
-              <Coins className="w-4 h-4 text-amber-500" />
-              <span className="text-base font-bold text-foreground">{child.currentCoins}</span>
-            </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate("/dashboard")}
-              className="rounded-full px-3 py-1.5 h-auto border-2 border-foreground/20 bg-white flex items-center gap-1.5"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Parent</span>
-            </Button>
+          <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm">
+            <Coins className="w-4 h-4 text-amber-500" />
+            <span className="text-base font-bold text-foreground">{child.currentCoins}</span>
           </div>
         </div>
 
