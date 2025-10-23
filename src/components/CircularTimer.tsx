@@ -36,19 +36,19 @@ const CircularTimer = ({
   const getStatusColor = () => {
     switch (status) {
       case "on-track":
-        return "hsl(var(--success))"; // Green
+        return "#10b981"; // Green
       case "behind":
-        return "hsl(var(--warning))"; // Yellow
+        return "#f59e0b"; // Amber
       case "ahead":
-        return "hsl(var(--primary))"; // Brand
+        return "#3b82f6"; // Blue
       case "critical":
-        return "hsl(var(--destructive))"; // Red
+        return "#ef4444"; // Red
       default:
-        return "hsl(var(--success))";
+        return "#10b981";
     }
   };
 
-  const getTrackColor = () => "hsl(var(--accent))";
+  const getTrackColor = () => "#c4b5fd"; // Light purple
 
   // Timer effect
   useEffect(() => {
@@ -92,16 +92,15 @@ const CircularTimer = ({
           cy="50"
           r="45"
           stroke={getTrackColor()}
-          strokeOpacity={0.25}
           strokeWidth="10"
           fill="transparent"
         />
-        {/* Progress circle */}
+        {/* Progress circle - dark purple gradient */}
         <circle
           cx="50"
           cy="50"
           r="45"
-          stroke={getStatusColor()}
+          stroke="url(#purpleGradient)"
           strokeWidth="10"
           fill="transparent"
           className="transition-all duration-1000 ease-linear"
@@ -109,6 +108,13 @@ const CircularTimer = ({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
         />
+        {/* Define gradient */}
+        <defs>
+          <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#7c3aed" />
+            <stop offset="100%" stopColor="#5b21b6" />
+          </linearGradient>
+        </defs>
       </svg>
       
       {/* Time display */}

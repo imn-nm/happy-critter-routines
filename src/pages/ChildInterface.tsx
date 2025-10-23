@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import PetAvatar from "@/components/PetAvatar";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
-import { ArrowLeft, Coins, Star, Calendar, X, Settings, Plus } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, X, Settings, Plus, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, Moon } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -435,49 +435,25 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     <div className={`${!propChildId ? 'min-h-screen' : ''} p-4`} style={{ background: 'hsl(var(--background))' }}>
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="w-10" />
-          
-          <div className="flex items-center gap-2">
-            {!propChildId && (
-              <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full h-10 w-10 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
-                  aria-label="Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/dashboard")}
-                  className="rounded-full px-4 h-10 border-2 border-foreground/20 bg-white"
-                >
-                  <span className="text-sm font-medium">Parent</span>
-                </Button>
-              </>
-            )}
-            
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full h-12 w-12 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
-              aria-label="Add"
-            >
-              <Plus className="w-5 h-5" />
-            </Button>
-          </div>
+        <div className="flex items-center justify-end mb-6">
+          <Button
+            variant="outline"
+            size="icon"
+            className="rounded-full h-12 w-12 border-2 border-foreground/20 bg-white flex items-center justify-center p-0"
+            aria-label="Add"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Avatar & Greeting (row) */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-orange-300 flex items-center justify-center">
             <PetAvatar
               petType={child.petType}
               happiness={calculateHappiness()}
               emotion={calculatePetEmotionForChild()}
-              size="md"
+              size="lg"
               completedTasks={getTodaysTaskCompletion().completed}
               totalTasks={getTodaysTaskCompletion().total}
             />
@@ -517,12 +493,36 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               
               if (isEliminated) return null;
               
+              // Get icon based on task name
+              const getTaskIcon = () => {
+                const name = task.name.toLowerCase();
+                if (name.includes('lunch') || name.includes('dinner') || name.includes('breakfast')) 
+                  return <Utensils className="w-5 h-5" />;
+                if (name.includes('snack')) 
+                  return <Apple className="w-5 h-5" />;
+                if (name.includes('school')) 
+                  return <GraduationCap className="w-5 h-5" />;
+                if (name.includes('homework') || name.includes('study')) 
+                  return <Book className="w-5 h-5" />;
+                if (name.includes('music') || name.includes('practice')) 
+                  return <Music className="w-5 h-5" />;
+                if (name.includes('exercise') || name.includes('workout')) 
+                  return <Dumbbell className="w-5 h-5" />;
+                if (name.includes('bed') || name.includes('sleep')) 
+                  return <BedDouble className="w-5 h-5" />;
+                if (name.includes('wake')) 
+                  return <Sun className="w-5 h-5" />;
+                return <Star className="w-5 h-5" />;
+              };
+              
               return (
                 <div 
                   key={task.id} 
                   className="flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm"
                 >
-                  <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+                  <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0 flex items-center justify-center">
+                    {getTaskIcon()}
+                  </div>
                   <span className="font-medium text-foreground flex-1">{task.name}</span>
                   <span className="text-sm text-muted-foreground">{formatTime(task.scheduled_time)}</span>
                 </div>
