@@ -275,7 +275,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
                     <Button
                       variant={event.isCompleted ? "ghost" : "default"}
                       size="sm"
-                      onClick={() => onToggleCompletion(event.task.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('Button clicked!', { taskId: event.task.id, eventName: event.name });
+                        onToggleCompletion(event.task.id);
+                      }}
                       className={cn(
                         "h-8 px-3 text-xs font-medium rounded-full",
                         event.isCompleted 
@@ -339,6 +343,7 @@ const TimelineScheduleView = ({
   // Toggle completion for the selected day
   const handleToggleCompletion = (taskId: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
+    console.log('TimelineScheduleView: handleToggleCompletion called', { taskId, dateStr, selectedDay });
     toggleCompletion(taskId, dateStr);
   };
 

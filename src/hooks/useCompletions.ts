@@ -47,14 +47,25 @@ export const useCompletions = (childId?: string) => {
             : dateOrDay.toISOString().split('T')[0])
         : new Date().toISOString().split('T')[0];
 
+      console.log('useCompletions: toggleCompletion called', { 
+        taskId, 
+        dateOrDay, 
+        targetDate,
+        childId,
+        completionsCount: completions.length 
+      });
+
       // Check if task is already completed for the target date
       const existingCompletion = completions.find(
         completion => completion.task_id === taskId && 
         completion.date === targetDate
       );
 
+      console.log('useCompletions: existingCompletion', existingCompletion);
+
       if (existingCompletion) {
         // Remove completion
+        console.log('useCompletions: Deleting completion', existingCompletion.id);
         const { error } = await supabase
           .from('task_completions')
           .delete()
@@ -63,8 +74,10 @@ export const useCompletions = (childId?: string) => {
         if (error) throw error;
         
         setCompletions(prev => prev.filter(c => c.id !== existingCompletion.id));
+        console.log('useCompletions: Completion deleted successfully');
       } else {
         // Add completion for the target date
+        console.log('useCompletions: Inserting completion', { taskId, targetDate, childId });
         const { data, error } = await supabase
           .from('task_completions')
           .insert([{
@@ -79,6 +92,7 @@ export const useCompletions = (childId?: string) => {
 
         if (error) throw error;
         setCompletions(prev => [...prev, data]);
+        console.log('useCompletions: Completion inserted successfully', data);
       }
     } catch (error) {
       console.error('Error toggling completion:', error);
