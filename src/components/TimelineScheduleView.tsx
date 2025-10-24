@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, addDays, startOfWeek, isSameDay, parseISO, isToday } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2, PartyPopper } from 'lucide-react';
+import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter } from 'date-fns';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2, PartyPopper, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
+import { useCompletions } from '@/hooks/useCompletions';
 import { Child } from '@/hooks/useChildren';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import {
@@ -51,6 +52,8 @@ interface TimelineEvent {
   isCompleted?: boolean;
   isLate?: boolean;
   recurring_days?: string[];
+  status?: 'on-time' | 'late' | 'pending' | 'overdue';
+  completedAt?: string;
 }
 
 // System events are now managed in the database via the systemTasks utility
@@ -60,11 +63,12 @@ interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string) => void;
+  onToggleCompletion?: (taskId: string) => void;
   isActive?: boolean;
   isToday?: boolean;
 }
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = false, isToday = false }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, isActive = false, isToday = false }: SortableTimelineEventProps) => {
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   const isGap = event.type === 'gap';
   
@@ -136,6 +140,27 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
 
   const isCurrent = isCurrentTask();
 
+  const getStatusBadge = () => {
+    if (!event.status || event.status === 'pending' || event.type === 'gap') return null;
+    
+    const statusConfig = {
+      'on-time': { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100', label: 'Done on time' },
+      'late': { icon: CheckCircle2, color: 'text-orange-500', bg: 'bg-orange-100', label: 'Done late' },
+      'overdue': { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-100', label: 'Overdue' },
+    };
+
+    const config = statusConfig[event.status];
+    if (!config) return null;
+
+    const Icon = config.icon;
+    return (
+      <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium", config.bg, config.color)}>
+        <Icon className="w-3 h-3" />
+        <span>{config.label}</span>
+      </div>
+    );
+  };
+
   return (
     <div 
       ref={setNodeRef} 
@@ -186,7 +211,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
             "flex-1 bg-background rounded-2xl p-3 border-2 transition-all",
             isCurrent 
               ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
-              : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
+              : event.isCompleted
+                ? "border-green-200 bg-green-50/30"
+                : event.status === 'overdue'
+                  ? "border-red-200 bg-red-50/30"
+                  : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
           )}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -196,10 +225,12 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
                   )}
                   <span className={cn(
                     "font-semibold truncate text-sm",
-                    isCurrent ? "text-primary" : "text-foreground"
+                    event.isCompleted && "line-through text-muted-foreground",
+                    isCurrent && !event.isCompleted && "text-primary"
                   )}>
                     {event.name}
                   </span>
+                  {getStatusBadge()}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
@@ -211,6 +242,16 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, isActive = fal
 
               {/* Actions */}
               <div className="flex items-center gap-0.5 flex-shrink-0">
+                {onToggleCompletion && event.task && event.type !== 'gap' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onToggleCompletion(event.task.id)}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {event.isCompleted ? 'Undo' : 'Done'}
+                  </Button>
+                )}
                 {onEditTask && (
                   <Button
                     variant="ghost"
@@ -261,6 +302,7 @@ const TimelineScheduleView = ({
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(currentDate);
   const { holidays, isHoliday } = useHolidays(child.id);
+  const { completions, toggleCompletion } = useCompletions(child.id);
 
   useEffect(() => {
     setSelectedDay(currentDate);
@@ -272,6 +314,32 @@ const TimelineScheduleView = ({
   // Check if selected day is a holiday
   const selectedDayString = format(selectedDay, 'yyyy-MM-dd');
   const selectedDayHoliday = isHoliday(selectedDayString);
+
+  // Helper function to calculate task status
+  const calculateTaskStatus = (task: any, taskTime: string, taskDuration: number): 'on-time' | 'late' | 'pending' | 'overdue' => {
+    const now = new Date();
+    const selectedDayStr = format(selectedDay, 'yyyy-MM-dd');
+    const completion = completions.find(c => c.task_id === task.id && c.date === selectedDayStr);
+    const isCompleted = !!completion;
+    
+    const taskDateTime = parse(taskTime, 'HH:mm', new Date(selectedDayStr));
+    const taskEndTime = addMinutes(taskDateTime, taskDuration);
+    
+    if (isCompleted && completion) {
+      const completedAt = new Date(completion.completed_at);
+      // On time if completed before or during scheduled time window
+      if (isBefore(completedAt, taskEndTime) || completedAt.getTime() === taskEndTime.getTime()) {
+        return 'on-time';
+      } else {
+        return 'late';
+      }
+    } else if (isToday(selectedDay) && isAfter(now, taskEndTime)) {
+      // Overdue if current time is past task end time (only for today)
+      return 'overdue';
+    }
+    
+    return 'pending';
+  };
 
 // calculateTimeWithBuffer function removed - no longer needed
 
@@ -385,18 +453,24 @@ const TimelineScheduleView = ({
 
   const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => 
     task.type === 'scheduled' && !systemTaskNames.includes(task.name)
-  ).map(task => ({
-    id: task.id,
-    name: task.name,
-    time: task.scheduled_time || '09:00',
-    duration: task.duration || 60, // Default 1 hour if not specified
-    type: task.type,
-    color: 'bg-purple-600', // Purple for scheduled tasks
-    task: task,
-    coins: task.coins,
-    isCompleted: task.isCompleted,
-    isLate: false,
-  }));
+  ).map(task => {
+    const taskTime = task.scheduled_time || '09:00';
+    const taskDuration = task.duration || 60;
+    return {
+      id: task.id,
+      name: task.name,
+      time: taskTime,
+      duration: taskDuration,
+      type: task.type,
+      color: 'bg-purple-600',
+      task: task,
+      coins: task.coins,
+      isCompleted: task.isCompleted,
+      isLate: false,
+      status: calculateTaskStatus(task, taskTime, taskDuration),
+      completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
+    };
+  });
 
   const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
 
@@ -409,18 +483,24 @@ const TimelineScheduleView = ({
   // as we're using actual scheduled times from database instead of auto-snapping
 
   // Use actual scheduled times for draggable tasks instead of auto-snapping
-  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => ({
-    id: task.id,
-    name: task.name,
-    time: task.scheduled_time || '09:00', // Use actual scheduled time from database
-    duration: task.duration || 30,
-    type: task.type,
-    color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
-    task: task,
-    coins: task.coins,
-    isCompleted: task.isCompleted,
-    isLate: false,
-  }));
+  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
+    const taskTime = task.scheduled_time || '09:00';
+    const taskDuration = task.duration || 30;
+    return {
+      id: task.id,
+      name: task.name,
+      time: taskTime,
+      duration: taskDuration,
+      type: task.type,
+      color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
+      task: task,
+      coins: task.coins,
+      isCompleted: task.isCompleted,
+      isLate: false,
+      status: calculateTaskStatus(task, taskTime, taskDuration),
+      completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
+    };
+  });
 
   // Combine and sort all events by time
   const sortedEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents].sort((a, b) => {
@@ -840,6 +920,7 @@ const TimelineScheduleView = ({
                       event={event} 
                       onEditTask={onEditTask} 
                       onDeleteTask={onDeleteTask}
+                      onToggleCompletion={toggleCompletion}
                       isActive={isActiveEvent}
                       isToday={isToday(selectedDay)}
                     />
