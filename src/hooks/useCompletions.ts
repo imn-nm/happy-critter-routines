@@ -36,15 +36,21 @@ export const useCompletions = (childId?: string) => {
     }
   };
 
-  const toggleCompletion = async (taskId: string) => {
+  const toggleCompletion = async (taskId: string, dateOrDay?: Date | string) => {
     if (!childId) return;
 
     try {
-      // Check if task is already completed today
-      const today = new Date().toISOString().split('T')[0];
+      // Determine target date (defaults to today). Accepts Date or 'YYYY-MM-DD'.
+      const targetDate = dateOrDay
+        ? (typeof dateOrDay === 'string'
+            ? dateOrDay
+            : dateOrDay.toISOString().split('T')[0])
+        : new Date().toISOString().split('T')[0];
+
+      // Check if task is already completed for the target date
       const existingCompletion = completions.find(
         completion => completion.task_id === taskId && 
-        completion.date === today
+        completion.date === targetDate
       );
 
       if (existingCompletion) {
@@ -58,14 +64,14 @@ export const useCompletions = (childId?: string) => {
         
         setCompletions(prev => prev.filter(c => c.id !== existingCompletion.id));
       } else {
-        // Add completion
+        // Add completion for the target date
         const { data, error } = await supabase
           .from('task_completions')
           .insert([{
             child_id: childId,
             task_id: taskId,
             completed_at: new Date().toISOString(),
-            date: today,
+            date: targetDate,
             coins_earned: 0, // Will be updated based on task
           }])
           .select()

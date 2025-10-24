@@ -330,6 +330,11 @@ const TimelineScheduleView = ({
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
+  // Toggle completion for the selected day
+  const handleToggleCompletion = (taskId: string) => {
+    toggleCompletion(taskId, selectedDay);
+  };
+
   // Check if selected day is a holiday
   const selectedDayString = format(selectedDay, 'yyyy-MM-dd');
   const selectedDayHoliday = isHoliday(selectedDayString);
@@ -484,7 +489,7 @@ const TimelineScheduleView = ({
       color: 'bg-purple-600',
       task: task,
       coins: task.coins,
-      isCompleted: task.isCompleted,
+      isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
       isLate: false,
       status: calculateTaskStatus(task, taskTime, taskDuration),
       completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
@@ -514,7 +519,7 @@ const TimelineScheduleView = ({
       color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
       task: task,
       coins: task.coins,
-      isCompleted: task.isCompleted,
+      isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
       isLate: false,
       status: calculateTaskStatus(task, taskTime, taskDuration),
       completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
@@ -937,7 +942,7 @@ const TimelineScheduleView = ({
                     <SortableTimelineEvent 
                       event={event} 
                       onEditTask={onEditTask} 
-                      onToggleCompletion={toggleCompletion}
+                      onToggleCompletion={handleToggleCompletion}
                       isActive={isActiveEvent}
                       isToday={isToday(selectedDay)}
                       selectedDay={selectedDay}
