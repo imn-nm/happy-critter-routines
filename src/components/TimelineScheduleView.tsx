@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, Trash2, PartyPopper, CheckCircle2, AlertCircle } from 'lucide-react';
+import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -62,13 +62,13 @@ interface TimelineEvent {
 interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
-  onDeleteTask?: (taskId: string) => void;
   onToggleCompletion?: (taskId: string) => void;
   isActive?: boolean;
   isToday?: boolean;
+  selectedDay: Date;
 }
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, isActive = false, isToday = false }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive = false, isToday = false, selectedDay }: SortableTimelineEventProps) => {
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   const isGap = event.type === 'gap';
   
@@ -208,23 +208,23 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
 
           {/* Task Card */}
           <div className={cn(
-            "flex-1 bg-background rounded-2xl p-3 border-2 transition-all",
+            "flex-1 bg-background rounded-2xl p-3 sm:p-4 border-2 transition-all shadow-sm",
             isCurrent 
               ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
               : event.isCompleted
-                ? "border-green-200 bg-green-50/30"
+                ? "border-green-500 bg-green-50/50"
                 : event.status === 'overdue'
-                  ? "border-red-200 bg-red-50/30"
-                  : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
+                  ? "border-red-500 bg-red-50/50"
+                  : "border-border hover:border-primary/30 hover:shadow-md active:scale-[0.98]"
           )}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   {isDraggable && (
-                    <GripVertical className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
                   )}
                   <span className={cn(
-                    "font-semibold truncate text-sm",
+                    "font-semibold truncate text-sm sm:text-base",
                     event.isCompleted && "line-through text-muted-foreground",
                     isCurrent && !event.isCompleted && "text-primary"
                   )}>
@@ -235,23 +235,43 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
                   {event.coins && event.coins > 0 && (
-                    <span className="text-xs font-medium">{event.coins}</span>
+                    <Badge variant="secondary" className="h-5 px-2 text-xs font-medium">
+                      {event.coins} 🪙
+                    </Badge>
                   )}
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                {onToggleCompletion && event.task && event.type !== 'gap' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onToggleCompletion(event.task.id)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    {event.isCompleted ? 'Undo' : 'Done'}
-                  </Button>
-                )}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {onToggleCompletion && event.task && event.type !== 'gap' && (() => {
+                  // Calculate if task is in the past
+                  const taskDateTime = parse(event.time, 'HH:mm', selectedDay);
+                  const taskEndTime = addMinutes(taskDateTime, event.duration);
+                  const isTaskInPast = isPast(taskEndTime);
+                  
+                  // Show "Undo" for completed tasks
+                  // Show "Done" only for incomplete tasks that are in the past
+                  const shouldShowButton = event.isCompleted || isTaskInPast;
+                  
+                  if (!shouldShowButton) return null;
+                  
+                  return (
+                    <Button
+                      variant={event.isCompleted ? "ghost" : "default"}
+                      size="sm"
+                      onClick={() => onToggleCompletion(event.task.id)}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium rounded-full",
+                        event.isCompleted 
+                          ? "text-muted-foreground hover:text-foreground" 
+                          : "shadow-sm"
+                      )}
+                    >
+                      {event.isCompleted ? 'Undo' : 'Done'}
+                    </Button>
+                  );
+                })()}
                 {onEditTask && (
                   <Button
                     variant="ghost"
@@ -265,19 +285,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                       coins: event.coins || 0,
                       recurring_days: event.recurring_days || []
                     })}
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <Edit className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-                {onDeleteTask && event.task && event.task.id && event.task.id.length > 10 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDeleteTask(event.task.id)}
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Edit className="w-4 h-4" />
                   </Button>
                 )}
               </div>
@@ -771,13 +781,12 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-4 bg-white rounded-3xl shadow-sm border-0">
+    <Card className="p-3 sm:p-4 bg-background rounded-3xl shadow-sm border-0">
       {/* Add Task Button at top */}
       {onAddTask && (
         <Button 
           onClick={onAddTask} 
-          className="w-full mb-4 h-14 rounded-2xl text-base font-semibold shadow-sm"
-          style={{ background: 'hsl(var(--primary))' }}
+          className="w-full mb-4 h-12 sm:h-14 rounded-2xl text-sm sm:text-base font-semibold shadow-sm active:scale-[0.98] transition-transform"
         >
           <Plus className="w-5 h-5 mr-2" />
           Add Task
@@ -898,7 +907,7 @@ const TimelineScheduleView = ({
               const shouldShowSpacingBelow = activeId && overId === event.id && dropPosition === 'after' && !isActiveEvent;
               
               return (
-                <div key={event.id} className="relative">
+                <div key={event.id} className="relative touch-manipulation">
                   {/* Simple drop indicator above */}
                   {shouldShowSpacingAbove && (
                     <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -919,10 +928,10 @@ const TimelineScheduleView = ({
                     <SortableTimelineEvent 
                       event={event} 
                       onEditTask={onEditTask} 
-                      onDeleteTask={onDeleteTask}
                       onToggleCompletion={toggleCompletion}
                       isActive={isActiveEvent}
                       isToday={isToday(selectedDay)}
+                      selectedDay={selectedDay}
                     />
                   </div>
 
