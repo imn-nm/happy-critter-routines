@@ -66,7 +66,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
     const dayName = format(date, 'EEEE').toLowerCase();
     const dateString = format(date, 'yyyy-MM-dd');
     
-    return getTasksWithCompletionStatus().filter(task => {
+    const tasksForDate = getTasksWithCompletionStatus().filter(task => {
       // For recurring tasks, check if today is in their recurring days
       if (task.is_recurring && task.recurring_days) {
         return task.recurring_days.includes(dayName);
@@ -78,6 +78,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, getTasks
       }
       
       return false;
+    });
+
+    const toMinutes = (t?: string) => {
+      if (!t) return Number.POSITIVE_INFINITY; // tasks without time go last
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    return tasksForDate.sort((a, b) => {
+      const diff = toMinutes(a.scheduled_time) - toMinutes(b.scheduled_time);
+      if (diff !== 0) return diff;
+      // fallback by sort_order to keep consistency
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
   };
 
