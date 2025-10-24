@@ -165,8 +165,6 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
     <div 
       ref={setNodeRef} 
       style={style} 
-      {...(isDraggable ? attributes : {})}
-      {...(isDraggable ? listeners : {})}
       className={cn(
         "group transition-all duration-200 ease-out",
         isDragging && "shadow-2xl ring-2 ring-primary/50"
@@ -221,7 +219,15 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   {isDraggable && (
-                    <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+                    <span
+                      {...attributes}
+                      {...listeners}
+                      className="cursor-grab active:cursor-grabbing touch-none"
+                      aria-label="Drag handle"
+                      role="button"
+                    >
+                      <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+                    </span>
                   )}
                   <span className={cn(
                     "font-semibold truncate text-sm sm:text-base",
@@ -332,7 +338,8 @@ const TimelineScheduleView = ({
 
   // Toggle completion for the selected day
   const handleToggleCompletion = (taskId: string) => {
-    toggleCompletion(taskId, selectedDay);
+    const dateStr = format(selectedDay, 'yyyy-MM-dd');
+    toggleCompletion(taskId, dateStr);
   };
 
   // Check if selected day is a holiday
