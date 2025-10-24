@@ -234,7 +234,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
-                  {event.coins && event.coins > 0 && (
+                  {event.coins != null && event.coins > 0 && (
                     <Badge variant="secondary" className="h-5 px-2 text-xs font-medium">
                       {event.coins} 🪙
                     </Badge>
@@ -245,10 +245,19 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
               {/* Actions */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {onToggleCompletion && event.task && event.type !== 'gap' && (() => {
-                  // Calculate if task is in the past
-                  const taskDateTime = parse(event.time, 'HH:mm', selectedDay);
+                  // Calculate if task is in the past relative to NOW
+                  const now = new Date();
+                  const selectedDayStr = format(selectedDay, 'yyyy-MM-dd');
+                  const todayStr = format(now, 'yyyy-MM-dd');
+                  
+                  // Parse task time on the selected day
+                  const [hours, minutes] = event.time.split(':').map(Number);
+                  const taskDateTime = new Date(selectedDay);
+                  taskDateTime.setHours(hours, minutes, 0, 0);
                   const taskEndTime = addMinutes(taskDateTime, event.duration);
-                  const isTaskInPast = isPast(taskEndTime);
+                  
+                  // Task is in the past if: selected day is before today, OR it's today and task end time has passed
+                  const isTaskInPast = selectedDayStr < todayStr || (selectedDayStr === todayStr && isPast(taskEndTime));
                   
                   // Show "Undo" for completed tasks
                   // Show "Done" only for incomplete tasks that are in the past
