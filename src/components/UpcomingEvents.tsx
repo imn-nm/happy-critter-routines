@@ -111,7 +111,7 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
 
   if (upcomingEvents.length === 0) {
     return (
-      <Card className="p-6 text-center bg-white/90 backdrop-blur">
+      <Card className="p-6 text-center glass-card">
         <div className="text-4xl mb-2">🎉</div>
         <h3 className="text-lg font-semibold mb-2">No More Events Today!</h3>
         <p className="text-muted-foreground text-sm">
@@ -122,7 +122,7 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
   }
 
   return (
-    <Card className="p-4 bg-white/90 backdrop-blur">
+    <Card className="p-4 glass-card">
       <h3 className="font-semibold mb-4 text-center flex items-center justify-center gap-2">
         <Clock className="w-4 h-4" />
         Upcoming Events

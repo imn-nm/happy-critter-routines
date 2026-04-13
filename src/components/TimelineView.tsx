@@ -87,13 +87,13 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
     
     if (item.isCompleted) {
       if (item.status === 'on-time') {
-        return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+        return <CheckCircle2 className="w-5 h-5 text-green-400" />;
       }
-      return <CheckCircle2 className="w-5 h-5 text-orange-500" />;
+      return <CheckCircle2 className="w-5 h-5 text-orange-400" />;
     }
-    
+
     if (item.status === 'overdue') {
-      return <AlertCircle className="w-5 h-5 text-red-500" />;
+      return <AlertCircle className="w-5 h-5 text-red-400" />;
     }
     
     return null;
@@ -103,9 +103,9 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-4 p-3 bg-background rounded-lg border-l-4 ${getBorderColor(item)} ${
+      className={`flex items-center gap-4 p-3 border border-border/50 rounded-xl border-l-4 ${getBorderColor(item)} ${
         !item.isFixed && !simple ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
-      } ${item.isCompleted ? 'bg-muted/30' : ''}`}
+      } ${item.isCompleted ? 'opacity-80' : ''}`}
       {...attributes}
       {...(item.isFixed || simple ? {} : listeners)}
     >
@@ -116,9 +116,9 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
       
       {/* Icon */}
       <div className={`p-2 rounded-full ${
-        item.type === 'system' ? 'bg-muted' : 
-        item.type === 'scheduled' ? 'bg-blue-100' :
-        item.type === 'regular' ? 'bg-green-100' : 'bg-yellow-100'
+        item.type === 'system' ? 'bg-white/10' :
+        item.type === 'scheduled' ? 'bg-blue-500/20' :
+        item.type === 'regular' ? 'bg-green-500/20' : 'bg-yellow-500/20'
       }`}>
         {getIcon(item.type, item.name)}
       </div>
@@ -132,7 +132,7 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
             </h4>
             {getStatusIcon()}
           </div>
-          {item.coins && (
+          {item.coins > 0 && (
             <span className="text-sm text-warning font-medium">{item.coins} coins</span>
           )}
         </div>
@@ -146,19 +146,19 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
         {!simple && (
           <div className="flex items-center gap-2 mt-1">
             <div className={`text-xs px-2 py-1 rounded-full ${
-              item.type === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-              item.type === 'regular' ? 'bg-green-100 text-green-800' :
-              item.type === 'flexible' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-gray-100 text-gray-800'
+              item.type === 'scheduled' ? 'bg-blue-500/20 text-blue-400' :
+              item.type === 'regular' ? 'bg-green-500/20 text-green-400' :
+              item.type === 'flexible' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-white/10 text-muted-foreground'
             }`}>
               {item.type === 'system' ? 'Fixed' : item.type}
             </div>
             {item.status && (
               <div className={`text-xs px-2 py-1 rounded-full ${
-                item.status === 'on-time' ? 'bg-green-100 text-green-800' :
-                item.status === 'late' ? 'bg-orange-100 text-orange-800' :
-                item.status === 'overdue' ? 'bg-red-100 text-red-800' :
-                'bg-gray-100 text-gray-800'
+                item.status === 'on-time' ? 'bg-green-500/20 text-green-400' :
+                item.status === 'late' ? 'bg-orange-500/20 text-orange-400' :
+                item.status === 'overdue' ? 'bg-red-500/20 text-red-400' :
+                'bg-white/10 text-muted-foreground'
               }`}>
                 {item.status === 'on-time' ? 'Done on time' : 
                  item.status === 'late' ? 'Done late' :
@@ -355,11 +355,11 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="glass-card rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Calendar className="w-5 h-5 text-primary" />
-          <h3 className="text-xl font-semibold">Daily Schedule - {child.name}</h3>
+          <h3 className="text-lg font-semibold">Daily Schedule</h3>
         </div>
         {todaysHoliday && (
           <div
@@ -377,22 +377,22 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
 
       {/* Legend - only show in full mode */}
       {!simple && (
-        <div className="flex flex-wrap gap-4 mb-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span>Scheduled (fixed time)</span>
+        <div className="flex flex-wrap gap-4 mb-5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+            <span>Scheduled</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded"></div>
-            <span>Regular (can move)</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+            <span>Regular</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-            <span>Flexible (can move)</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full"></div>
+            <span>Flexible</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-gray-400 rounded"></div>
-            <span>System (fixed)</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+            <span>System</span>
           </div>
         </div>
       )}
@@ -434,15 +434,11 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
 
       {/* Instructions - only show in full mode */}
       {!simple && (
-        <div className="mt-6 p-4 bg-muted/30 rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            <strong>How to use:</strong> Drag and drop flexible and regular tasks to reorder them. 
-            Scheduled tasks and system events (meals, bedtime) stay at their fixed times. 
-            The timeline automatically adjusts task times when you reorder them.
-          </p>
-        </div>
+        <p className="mt-5 text-xs text-muted-foreground/60 text-center">
+          Drag and drop flexible tasks to reorder. Fixed tasks stay in place.
+        </p>
       )}
-    </Card>
+    </div>
   );
 };
 

@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
 import { Child } from '@/hooks/useChildren';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
   DndContext,
   closestCenter,
@@ -16,12 +17,12 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import {
   useSortable,
@@ -35,7 +36,7 @@ interface TimelineScheduleViewProps {
   getTasksWithCompletionStatus: () => any[];
   onAddTask?: () => void;
   onEditTask?: (task: any) => void;
-  onDeleteTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
 }
@@ -62,13 +63,65 @@ interface TimelineEvent {
 interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
+  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   onToggleCompletion?: (taskId: string) => void;
   isActive?: boolean;
   isToday?: boolean;
   selectedDay: Date;
+  isDraggingAny?: boolean;
+  highlightMinute?: number | null;
+  highlightDuration?: number;
 }
 
-const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive = false, isToday = false, selectedDay }: SortableTimelineEventProps) => {
+// Individual droppable 15-min slot within a gap
+const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isStart, isEnd, children }: {
+  tickTime: number; label: string; isHour: boolean; isHovered: boolean;
+  inWindow: boolean; isStart: boolean; isEnd: boolean; children?: React.ReactNode;
+}) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `tick-${tickTime}` });
+  const highlighted = isHovered || isOver;
+  const inWin = inWindow || isOver;
+
+  return (
+    <div ref={setNodeRef} className="flex h-7">
+      {/* Time label */}
+      <div className="w-16 flex-shrink-0 flex items-center justify-end pr-2">
+        <span className={cn(
+          "text-[10px] tabular-nums transition-all duration-100",
+          highlighted
+            ? "text-primary font-bold text-xs"
+            : inWin
+              ? "text-primary/70 font-medium"
+              : isHour
+                ? "text-muted-foreground/60 font-medium"
+                : "text-muted-foreground/30"
+        )}>
+          {label}
+        </span>
+      </div>
+      {/* Grid line */}
+      <div className={cn(
+        "flex-1 border-b flex items-center px-3 transition-all duration-100",
+        highlighted
+          ? "bg-primary/15 border-primary/30"
+          : inWin
+            ? "bg-primary/8 border-primary/15"
+            : isHour
+              ? "border-muted-foreground/15"
+              : "border-muted-foreground/6",
+        isStart && "border-t-2 border-t-primary",
+        isEnd && "border-b-2 border-b-primary"
+      )}>
+        {highlighted && (
+          <span className="text-[10px] text-primary font-semibold">← drop here</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   const isGap = event.type === 'gap';
   
@@ -79,16 +132,17 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
     transform,
     transition,
     isDragging,
-  } = useSortable({ 
+  } = useSortable({
     id: event.id,
-    disabled: !isDraggable 
+    disabled: !isDraggable,
+    animateLayoutChanges: () => false,
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
     transition: isDragging ? 'none' : transition,
-    zIndex: isDragging ? 1000 : 'auto',
-    opacity: isDragging ? 0.8 : 1,
+    zIndex: isDragging ? 1000 : 'auto' as any,
+    opacity: isDragging ? 0.85 : 1,
   };
 
   const formatTime = (timeStr: string) => {
@@ -125,16 +179,15 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
   const isCurrentTask = () => {
     if (isGap || !isToday) return false;
     
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-    
+    const currentTime = getPSTTimeString();
+
     const [taskHours, taskMinutes] = event.time.split(':').map(Number);
     const taskStartMinutes = taskHours * 60 + taskMinutes;
     const taskEndMinutes = taskStartMinutes + event.duration;
-    
+
     const [currentHours, currentMins] = currentTime.split(':').map(Number);
     const nowMinutes = currentHours * 60 + currentMins;
-    
+
     return nowMinutes >= taskStartMinutes && nowMinutes < taskEndMinutes;
   };
 
@@ -142,11 +195,14 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
 
   const getStatusBadge = () => {
     if (!event.status || event.status === 'pending' || event.type === 'gap') return null;
-    
+
+    // Only show overdue badge for important tasks
+    if (event.status === 'overdue' && !event.task?.is_important) return null;
+
     const statusConfig = {
-      'on-time': { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100', label: 'Done on time' },
-      'late': { icon: CheckCircle2, color: 'text-orange-500', bg: 'bg-orange-100', label: 'Done late' },
-      'overdue': { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-100', label: 'Overdue' },
+      'on-time': { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/20', label: 'Done on time' },
+      'late': { icon: CheckCircle2, color: 'text-orange-400', bg: 'bg-orange-500/20', label: 'Done late' },
+      'overdue': { icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/20', label: 'Overdue' },
     };
 
     const config = statusConfig[event.status];
@@ -172,17 +228,61 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
     >
       {/* Gap (Free Time) */}
       {isGap ? (
-        <div className="flex items-center gap-2 py-2">
-          <div className="text-xs text-muted-foreground w-16 text-right flex flex-col flex-shrink-0">
-            <span>{formatTime(event.time)}</span>
-            <span className="text-[10px]">{calculateEndTime(event.time, event.duration)}</span>
-          </div>
-          <div className="flex-1 bg-muted/30 rounded-xl p-3 border border-dashed border-muted-foreground/20">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground font-medium">{event.name}</span>
-              <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
+        <div className="py-1">
+          {isDraggingAny ? (() => {
+            // Show 15-min grid lines only during drag
+            const [gapH, gapM] = event.time.split(':').map(Number);
+            const gapStart = gapH * 60 + gapM;
+            const gapEnd = gapStart + event.duration;
+            const ticks: { time: number; label: string }[] = [];
+            const firstTick = Math.ceil(gapStart / 15) * 15;
+            for (let t = firstTick; t < gapEnd; t += 15) {
+              const h = Math.floor(t / 60) % 24;
+              const m = t % 60;
+              const ampm = h >= 12 ? 'pm' : 'am';
+              const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+              ticks.push({ time: t, label: `${dh}:${m.toString().padStart(2, '0')}${ampm}` });
+            }
+
+            const hlStart = highlightMinute ?? -1;
+            const hlEnd = hlStart + highlightDuration;
+
+            return (
+              <div className="animate-in fade-in duration-200 rounded-lg border border-dashed border-muted-foreground/10 overflow-hidden">
+                {ticks.map((tick) => {
+                  const inWindow = highlightMinute != null && tick.time >= hlStart && tick.time < hlEnd;
+                  const isStart = highlightMinute != null && tick.time === hlStart;
+                  const isEnd = highlightMinute != null && tick.time === hlEnd - 15;
+                  return (
+                    <DroppableTickSlot
+                      key={tick.time}
+                      tickTime={tick.time}
+                      label={tick.label}
+                      isHour={tick.time % 60 === 0}
+                      isHovered={isStart}
+                      inWindow={inWindow}
+                      isStart={isStart}
+                      isEnd={isEnd}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })() : (
+            /* Default compact view when not dragging */
+            <div className="flex items-center gap-2 py-1">
+              <div className="text-xs text-muted-foreground/40 w-16 text-right flex flex-col flex-shrink-0">
+                <span>{formatTime(event.time)}</span>
+                <span className="text-[10px]">{calculateEndTime(event.time, event.duration)}</span>
+              </div>
+              <div className="flex-1 bg-muted/20 rounded-xl p-2.5 border border-dashed border-muted-foreground/15">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground/50 font-medium">Free Time</span>
+                  <span className="text-[10px] text-muted-foreground/40">{formatDuration(event.duration)}</span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         /* Regular Task */
@@ -196,41 +296,57 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
             isCurrent ? "text-primary font-semibold" : "text-muted-foreground"
           )}>
             <span>{formatTime(event.time)}</span>
-            <span className={cn(
-              "text-[10px]",
-              isCurrent ? "text-primary/70" : "text-muted-foreground/70"
-            )}>
-              {calculateEndTime(event.time, event.duration)}
-            </span>
+            {event.name !== 'Bedtime' && (
+              <span className={cn(
+                "text-[10px]",
+                isCurrent ? "text-primary/70" : "text-muted-foreground/70"
+              )}>
+                {calculateEndTime(event.time, event.duration)}
+              </span>
+            )}
           </div>
 
           {/* Task Card */}
           <div className={cn(
-            "flex-1 bg-background rounded-2xl p-3 sm:p-4 border-2 transition-all shadow-sm",
-            isCurrent 
-              ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
+            "flex-1 rounded-lg p-3 border transition-colors",
+            isCurrent
+              ? "border-primary/30 bg-primary/5"
               : event.isCompleted
-                ? "border-green-500 bg-green-50/50"
-                : event.status === 'overdue'
-                  ? "border-red-500 bg-red-50/50"
-                  : "border-border hover:border-primary/30 hover:shadow-md active:scale-[0.98]"
+                ? "border-green-500/30 bg-green-500/5"
+                : (event.status === 'overdue' && event.task?.is_important)
+                  ? "border-red-500/30 bg-red-500/5"
+                  : "border-border/50"
           )}>
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3">
+              {/* Icon */}
+              <div className={cn(
+                "p-2 rounded-full shrink-0",
+                event.isCompleted
+                  ? "bg-green-500/20 text-green-400"
+                  : isCurrent
+                    ? "bg-primary/20 text-primary"
+                    : (event.status === 'overdue' && event.task?.is_important)
+                      ? "bg-red-500/20 text-red-400"
+                      : "bg-blue-500/20 text-blue-400"
+              )}>
+                {event.isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+              </div>
+
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-0.5">
                   {isDraggable && (
                     <span
                       {...attributes}
                       {...listeners}
-                      className="cursor-grab active:cursor-grabbing touch-none"
+                      className="cursor-grab active:cursor-grabbing touch-none p-0.5 rounded hover:bg-white/10 transition-colors"
                       aria-label="Drag handle"
                       role="button"
                     >
-                      <GripVertical className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+                      <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     </span>
                   )}
                   <span className={cn(
-                    "font-semibold truncate text-sm sm:text-base",
+                    "font-medium truncate text-sm",
                     event.isCompleted && "line-through text-muted-foreground",
                     isCurrent && !event.isCompleted && "text-primary"
                   )}>
@@ -239,11 +355,13 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
                   {getStatusBadge()}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
+                  {event.name !== 'Bedtime' && (
+                    <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
+                  )}
                   {event.coins != null && event.coins > 0 && (
-                    <Badge variant="secondary" className="h-5 px-2 text-xs font-medium">
-                      {event.coins} 🪙
-                    </Badge>
+                    <span className="text-xs text-warning font-medium">
+                      {event.coins} coins
+                    </span>
                   )}
                 </div>
               </div>
@@ -251,43 +369,38 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
               {/* Actions */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {onToggleCompletion && event.task && event.type !== 'gap' && (() => {
-                  // Calculate if task is in the past relative to NOW
-                  const now = new Date();
-                  const selectedDayStr = format(selectedDay, 'yyyy-MM-dd');
-                  const todayStr = format(now, 'yyyy-MM-dd');
-                  
-                  // Parse task time on the selected day
-                  const [hours, minutes] = event.time.split(':').map(Number);
-                  const taskDateTime = new Date(selectedDay);
-                  taskDateTime.setHours(hours, minutes, 0, 0);
-                  const taskEndTime = addMinutes(taskDateTime, event.duration);
-                  
-                  // Task is in the past if: selected day is before today, OR it's today and task end time has passed
-                  const isTaskInPast = selectedDayStr < todayStr || (selectedDayStr === todayStr && isPast(taskEndTime));
-                  
                   // Show "Undo" for completed tasks
-                  // Show "Done" only for incomplete tasks that are in the past
-                  const shouldShowButton = event.isCompleted || isTaskInPast;
-                  
-                  if (!shouldShowButton) return null;
-                  
+                  if (event.isCompleted) {
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleCompletion(event.task.id);
+                        }}
+                        className="h-8 px-3 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground"
+                      >
+                        Undo
+                      </Button>
+                    );
+                  }
+
+                  // Only show "Done" for important tasks that the child hasn't checked off
+                  // This lets the parent manually mark important tasks as done
+                  if (!event.task?.is_important) return null;
+
                   return (
                     <Button
-                      variant={event.isCompleted ? "ghost" : "default"}
+                      variant="default"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        console.log('Button clicked!', { taskId: event.task.id, eventName: event.name });
                         onToggleCompletion(event.task.id);
                       }}
-                      className={cn(
-                        "h-8 px-3 text-xs font-medium rounded-full",
-                        event.isCompleted 
-                          ? "text-muted-foreground hover:text-foreground" 
-                          : "shadow-sm"
-                      )}
+                      className="h-8 px-3 text-xs font-medium rounded-full shadow-sm"
                     >
-                      {event.isCompleted ? 'Undo' : 'Done'}
+                      Done
                     </Button>
                   );
                 })()}
@@ -295,19 +408,81 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onEditTask(event.task || { 
-                      id: event.id, 
-                      name: event.name, 
-                      scheduled_time: event.time, 
+                    onClick={() => onEditTask(event.task || {
+                      id: event.id,
+                      name: event.name,
+                      scheduled_time: event.time,
                       duration: event.duration,
                       type: event.type,
                       coins: event.coins || 0,
-                      recurring_days: event.recurring_days || []
+                      recurring_days: event.recurring_days || [],
+                      is_important: event.task?.is_important || false,
+                      window_start: event.task?.window_start,
+                      window_end: event.task?.window_end,
                     })}
                     className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
+                )}
+                {onDeleteTask && event.task && (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (event.task?.is_recurring && event.task?.recurring_days?.length > 1) {
+                          setShowDeleteConfirm(true);
+                        } else {
+                          onDeleteTask(event.task.id, 'all');
+                        }
+                      }}
+                      className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                    {showDeleteConfirm && (
+                      <div className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-xl border border-border/50 p-3 space-y-2 shadow-xl"
+                        style={{ background: 'rgba(20, 15, 35, 0.95)', backdropFilter: 'blur(16px)' }}
+                      >
+                        <p className="text-xs text-muted-foreground mb-2">Delete "{event.name}"?</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-xs h-8 hover:bg-red-500/10 hover:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const dayName = format(selectedDay, 'EEEE').toLowerCase();
+                            onDeleteTask(event.task.id, 'this-day', dayName);
+                            setShowDeleteConfirm(false);
+                          }}
+                        >
+                          Remove from {format(selectedDay, 'EEEE')}s only
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-xs h-8 hover:bg-red-500/10 hover:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteTask(event.task.id, 'all');
+                            setShowDeleteConfirm(false);
+                          }}
+                        >
+                          Delete from all days
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-xs h-8 text-muted-foreground"
+                          onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -316,6 +491,14 @@ const SortableTimelineEvent = ({ event, onEditTask, onToggleCompletion, isActive
       )}
     </div>
   );
+};
+
+const formatTimeShort = (timeStr: string) => {
+  const [hours, minutes] = timeStr.split(':');
+  const hour = parseInt(hours);
+  const ampm = hour >= 12 ? 'pm' : 'am';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minutes}${ampm}`;
 };
 
 const TimelineScheduleView = ({
@@ -328,7 +511,7 @@ const TimelineScheduleView = ({
   onTaskTimeUpdate,
   onReorderTasks
 }: TimelineScheduleViewProps) => {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(getPSTDate());
   const [selectedDay, setSelectedDay] = useState(currentDate);
   const { holidays, isHoliday } = useHolidays(child.id);
   const { completions, toggleCompletion } = useCompletions(child.id);
@@ -353,27 +536,34 @@ const TimelineScheduleView = ({
 
   // Helper function to calculate task status
   const calculateTaskStatus = (task: any, taskTime: string, taskDuration: number): 'on-time' | 'late' | 'pending' | 'overdue' => {
-    const now = new Date();
+    const now = getPSTDate();
     const selectedDayStr = format(selectedDay, 'yyyy-MM-dd');
+    const pstTodayStr = getPSTDateString();
     const completion = completions.find(c => c.task_id === task.id && c.date === selectedDayStr);
     const isCompleted = !!completion;
-    
-    const taskDateTime = parse(taskTime, 'HH:mm', new Date(selectedDayStr));
-    const taskEndTime = addMinutes(taskDateTime, taskDuration);
-    
+
+    // Use minute-based comparison to avoid timezone issues with Date parsing
+    const [taskH, taskM] = taskTime.split(':').map(Number);
+    const taskEndMinutes = taskH * 60 + taskM + taskDuration;
+
     if (isCompleted && completion) {
       const completedAt = new Date(completion.completed_at);
-      // On time if completed before or during scheduled time window
-      if (isBefore(completedAt, taskEndTime) || completedAt.getTime() === taskEndTime.getTime()) {
+      // Build task end date from selectedDay to avoid UTC midnight timezone shift
+      const taskEndDate = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate(),
+        Math.floor(taskEndMinutes / 60), taskEndMinutes % 60, 0);
+      if (isBefore(completedAt, taskEndDate) || completedAt.getTime() === taskEndDate.getTime()) {
         return 'on-time';
       } else {
         return 'late';
       }
-    } else if (isToday(selectedDay) && isAfter(now, taskEndTime)) {
-      // Overdue if current time is past task end time (only for today)
-      return 'overdue';
+    } else if (selectedDayStr === pstTodayStr) {
+      // Overdue only when viewing today (PST) and current time is past task end
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (nowMinutes > taskEndMinutes) {
+        return 'overdue';
+      }
     }
-    
+
     return 'pending';
   };
 
@@ -422,11 +612,10 @@ const TimelineScheduleView = ({
         return matches;
       }
       
-      // FALLBACK: For legacy non-recurring tasks without task_date, show them on creation date
+      // Non-recurring tasks without a specific task_date show every day
       if (!task.is_recurring && !task.task_date) {
-        const matchesCreated = isSameDay(parseISO(task.created_at), date);
-        console.log(`Legacy non-recurring task "${task.name}" matches creation date:`, matchesCreated);
-        return matchesCreated;
+        console.log(`Non-recurring task "${task.name}" without task_date: showing every day`);
+        return true;
       }
       
       return false;
@@ -470,24 +659,29 @@ const TimelineScheduleView = ({
       }
       return true;
     })
-    .map(event => ({ 
-      ...event, 
-      coins: undefined, 
-      task: {
-        id: event.id,
-        name: event.name,
-        type: event.type,
-        scheduled_time: event.time,
-        duration: event.duration,
-        recurring_days: event.recurring_days || [],
-        is_recurring: true,
-        coins: 0
-      }, 
-      isCompleted: false, 
-      isLate: false 
-    }));
+    .map(event => {
+      const isCompleted = completions.some(c => c.task_id === event.id && c.date === selectedDayString);
+      return {
+        ...event,
+        coins: undefined,
+        task: {
+          id: event.id,
+          name: event.name,
+          type: event.type,
+          scheduled_time: event.time,
+          duration: event.duration,
+          recurring_days: event.recurring_days || [],
+          is_recurring: true,
+          coins: 0
+        },
+        isCompleted,
+        isLate: false,
+        status: isCompleted ? 'on-time' as const : calculateTaskStatus({ id: event.id } as any, event.time, event.duration),
+        completedAt: completions.find(c => c.task_id === event.id && c.date === selectedDayString)?.completed_at,
+      };
+    });
 
-  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task => 
+  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task =>
     task.type === 'scheduled' && !systemTaskNames.includes(task.name)
   ).map(task => {
     const taskTime = task.scheduled_time || '09:00';
@@ -508,6 +702,14 @@ const TimelineScheduleView = ({
     };
   });
 
+  // Floating/chore tasks — displayed separately in a sidebar panel
+  const choreTasks = dayTasks.filter(task =>
+    task.type === 'floating' && !systemTaskNames.includes(task.name)
+  ).map(task => ({
+    ...task,
+    isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
+  }));
+
   const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
 
   // Draggable tasks (flexible and regular) - we'll calculate their times based on snapping logic
@@ -518,10 +720,56 @@ const TimelineScheduleView = ({
   // Removed unused sortedFixedEvents and calculateSnappedTimes functions
   // as we're using actual scheduled times from database instead of auto-snapping
 
-  // Use actual scheduled times for draggable tasks instead of auto-snapping
+  // For draggable tasks without a scheduled_time, find the first available gap after existing fixed events
+  const findNextAvailableTime = (duration: number): string => {
+    // Build a list of occupied time ranges from fixed events, sorted
+    const occupied = fixedEvents
+      .map(e => {
+        const [h, m] = e.time.split(':').map(Number);
+        const start = h * 60 + m;
+        return { start, end: start + e.duration };
+      })
+      .sort((a, b) => a.start - b.start);
+
+    // Also include already-placed draggable tasks
+    const placed = draggableTasks
+      .filter(t => t.scheduled_time)
+      .map(t => {
+        const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
+        const start = h * 60 + m;
+        return { start, end: start + (t.duration || 30) };
+      });
+
+    const allOccupied = [...occupied, ...placed].sort((a, b) => a.start - b.start);
+
+    // Try to fit after each occupied block
+    for (const block of allOccupied) {
+      const candidate = block.end;
+      const candidateEnd = candidate + duration;
+      // Check if this slot overlaps with any other block
+      const overlaps = allOccupied.some(b => candidate < b.end && candidateEnd > b.start);
+      if (!overlaps) {
+        const h = Math.floor(candidate / 60);
+        const m = candidate % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // Fallback: place after the last event
+    if (allOccupied.length > 0) {
+      const last = allOccupied[allOccupied.length - 1];
+      const h = Math.floor(last.end / 60);
+      const m = last.end % 60;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    }
+
+    return '09:00';
+  };
+
+  // Use actual scheduled times for draggable tasks, or auto-place them in gaps
   const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
-    const taskTime = task.scheduled_time || '09:00';
     const taskDuration = task.duration || 30;
+    const taskTime = task.scheduled_time || findNextAvailableTime(taskDuration);
     return {
       id: task.id,
       name: task.name,
@@ -599,17 +847,99 @@ const TimelineScheduleView = ({
     setActiveId(event.active.id);
   };
 
+  const minutesToTimeStr = (minutes: number): string => {
+    const h = Math.floor(minutes / 60) % 24;
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
+  const formatTimeShortLocal = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes}${ampm}`;
+  };
+
+  // Calculate the landing time for a drop — used by both indicators and handleDragEnd
+  const calculateDropTime = (overEventId: string, position: 'before' | 'after', taskDuration: number, excludeTaskId?: string): number | null => {
+    const overEvent = allEvents.find(e => e.id === overEventId);
+    if (!overEvent) return null;
+
+    const [oh, om] = overEvent.time.split(':').map(Number);
+    const overStart = oh * 60 + om;
+    const overEnd = overStart + overEvent.duration;
+
+    // Build occupied list (excluding the task being moved)
+    const occupied = allEvents
+      .filter(e => e.type !== 'gap' && e.id !== excludeTaskId)
+      .map(e => {
+        const [h, m] = e.time.split(':').map(Number);
+        return { start: h * 60 + m, end: h * 60 + m + e.duration };
+      })
+      .sort((a, b) => a.start - b.start);
+
+    let proposed: number;
+
+    if (overEvent.type === 'gap') {
+      // Dropping on a free time block → place at start of gap
+      proposed = overStart;
+    } else if (position === 'before') {
+      // Before an event → end of previous event, or event.start - duration
+      const prevOccupied = occupied.filter(e => e.end <= overStart);
+      const prev = prevOccupied.length > 0 ? prevOccupied[prevOccupied.length - 1] : null;
+      if (prev) {
+        proposed = prev.end;
+      } else {
+        proposed = Math.max(0, overStart - taskDuration);
+      }
+    } else {
+      // After an event → place at end of this event
+      proposed = overEnd;
+    }
+
+    // Snap to nearest 15-minute increment
+    proposed = Math.round(proposed / 15) * 15;
+
+    // Clamp: ensure no overlap with any occupied slot
+    const proposedEnd = proposed + taskDuration;
+
+    // Check overlap with next event after proposed start
+    const nextOccupied = occupied.find(e => e.start > proposed && e.start < proposedEnd);
+    if (nextOccupied) {
+      proposed = Math.max(0, nextOccupied.start - taskDuration);
+    }
+
+    // Check overlap with previous event
+    const prevOverlap = [...occupied].reverse().find(e => e.end > proposed && e.start < proposed);
+    if (prevOverlap) {
+      proposed = prevOverlap.end;
+    }
+
+    // Final check: make sure we don't go past next event after adjustment
+    const finalEnd = proposed + taskDuration;
+    const finalNext = occupied.find(e => e.start > proposed && e.start < finalEnd);
+    if (finalNext) {
+      proposed = Math.max(0, finalNext.start - taskDuration);
+    }
+
+    return Math.max(0, proposed);
+  };
+
   const handleDragOver = (event: any) => {
-    const overId = event.over?.id || null;
-    setOverId(overId);
-    
-    // Determine drop position based on mouse position relative to the target element
-    if (overId && event.over?.rect && event.delta) {
+    const newOverId = event.over?.id || null;
+    setOverId(newOverId);
+
+    // For tick slots, position doesn't matter — the tick IS the position
+    if (typeof newOverId === 'string' && newOverId.startsWith('tick-')) {
+      setDropPosition('after');
+      return;
+    }
+
+    if (newOverId && event.over?.rect && event.delta) {
       const rect = event.over.rect;
       const mouseY = rect.top + event.delta.y;
       const elementCenterY = rect.top + rect.height / 2;
-      
-      // If mouse is in upper half, drop before; lower half, drop after
       setDropPosition(mouseY < elementCenterY ? 'before' : 'after');
     } else {
       setDropPosition(null);
@@ -618,165 +948,48 @@ const TimelineScheduleView = ({
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    console.log('=== DRAG END START ===');
-    console.log('Drag ended:', { activeId: active?.id, overId: over?.id });
-    console.log('Available fixed events:', fixedEvents.map(e => ({ id: e.id, name: e.name })));
-    console.log('Available draggable tasks:', draggableTasks.map(t => ({ id: t.id, name: t.name })));
-    
+
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
 
-    if (!over || active.id === over.id) {
-      console.log('No valid drop target or dropping on self - exiting');
-      return;
-    }
+    if (!over || active.id === over.id) return;
 
     const activeTask = draggableTasks.find(task => task.id === active.id);
-    if (!activeTask) {
-      console.log('Active task not found:', active.id);
-      return;
-    }
-    console.log('Active task found:', activeTask.name);
+    if (!activeTask) return;
 
-    // FIRST: Check if dropping on another draggable task (reordering)
+    const taskDuration = activeTask.duration || 30;
+
+    // Reordering between draggable tasks
     const overDraggableTask = draggableTasks.find(task => task.id === over.id);
     if (overDraggableTask && onReorderTasks) {
-      console.log('=== REORDERING LOGIC START ===');
-      console.log('Reordering - Active:', activeTask.name, 'Over:', overDraggableTask.name);
-      console.log('Current draggable tasks:', draggableTasks.map((t, i) => ({ index: i, name: t.name, time: t.scheduled_time })));
-      
-      const oldIndex = draggableTasks.findIndex((task) => task.id === active.id);
-      const originalNewIndex = draggableTasks.findIndex((task) => task.id === over.id);
-      let newIndex = originalNewIndex;
-      
-      console.log('BEFORE adjustment - oldIndex:', oldIndex, 'originalNewIndex:', originalNewIndex, 'dropPosition:', dropPosition);
-      
-      // Adjust newIndex based on dropPosition
-      if (dropPosition === 'after') {
-        newIndex = newIndex + 1;
-        console.log('Adjusted for AFTER - newIndex is now:', newIndex);
-      } else if (dropPosition === 'before') {
-        console.log('Dropping BEFORE - newIndex stays:', newIndex);
-      }
-      
-      // Cap newIndex to array bounds to prevent out-of-bounds errors
+      const oldIndex = draggableTasks.findIndex(task => task.id === active.id);
+      let newIndex = draggableTasks.findIndex(task => task.id === over.id);
+      if (dropPosition === 'after') newIndex = newIndex + 1;
       newIndex = Math.min(newIndex, draggableTasks.length);
-      
-      console.log('FINAL - oldIndex:', oldIndex, 'newIndex:', newIndex, 'dropPosition:', dropPosition, 'arrayLength:', draggableTasks.length);
-      
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-        console.log('After arrayMove:', reorderedTasks.map(t => ({ name: t.name, time: t.scheduled_time })));
-        
-        // With snapping logic, we don't need to manually calculate times here
-        // The snapping logic will automatically recalculate times based on the new order
-        console.log('Calling onReorderTasks with reordered tasks...');
         onReorderTasks(reorderedTasks);
-        console.log('onReorderTasks called successfully');
       }
       return;
     }
 
-    // SECOND: Check if dropping on fixed events (time update)
-    const overEvent = allEvents.find(event => event.id === over.id);
-    const fixedEvent = fixedEvents.find(event => event.id === over.id);
-    
-    if (overEvent && fixedEvent && onTaskTimeUpdate) {
-      console.log('=== TIME UPDATE LOGIC START ===');
-      console.log('Dropping on fixed event:', overEvent.name);
-      
-      // With snapping logic, we just need to trigger a reorder to place the task in that time window
-      // The actual time calculation will be done by the snapping algorithm
-      const systemEventIds = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
-      const isSystemEvent = systemEventIds.includes(overEvent.id);
-      
-      let newTime: string;
-      console.log('Calculating position for dropPosition:', dropPosition);
-      
-      if (isSystemEvent) {
-        if (dropPosition === 'before') {
-          // Place task before system event starts (with 10 minute buffer)
-          const [hours, minutes] = overEvent.time.split(':').map(Number);
-          const eventStartMinutes = hours * 60 + minutes;
-          const taskDuration = activeTask.duration || 30;
-          const newStartMinutes = Math.max(0, eventStartMinutes - taskDuration - 10);
-          const newHours = Math.floor(newStartMinutes / 60) % 24;
-          const newMinutes = newStartMinutes % 60;
-          newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-          console.log('Placed BEFORE system event:', overEvent.name, 'at', newTime);
-        } else {
-          // Place task after system event ends
-          const [hours, minutes] = overEvent.time.split(':').map(Number);
-          const totalMinutes = hours * 60 + minutes + overEvent.duration;
-          const newHours = Math.floor(totalMinutes / 60) % 24;
-          const newMinutes = totalMinutes % 60;
-          newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-          console.log('Placed AFTER system event:', overEvent.name, 'at', newTime);
-        }
-      } else {
-        // For scheduled tasks, use dropPosition logic too
-        if (dropPosition === 'before') {
-          // Place at same time as the scheduled task (they'll overlap, but that's intentional)
-          newTime = overEvent.time;
-          console.log('Placed BEFORE scheduled task:', overEvent.name, 'at', newTime);
-        } else {
-          // Place after scheduled task ends
-          const [hours, minutes] = overEvent.time.split(':').map(Number);
-          const totalMinutes = hours * 60 + minutes + overEvent.duration;
-          const newHours = Math.floor(totalMinutes / 60) % 24;
-          const newMinutes = totalMinutes % 60;
-          newTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-          console.log('Placed AFTER scheduled task:', overEvent.name, 'at', newTime);
-        }
-      }
-      
-      console.log('Calculated new time:', newTime);
-      console.log('Calling onTaskTimeUpdate...');
-      onTaskTimeUpdate(activeTask.id, newTime);
+    // Drop on a specific 15-min tick slot (e.g. "tick-300" = 5:00pm)
+    const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
+    if (tickMatch && onTaskTimeUpdate) {
+      const tickMinutes = parseInt(tickMatch[1]);
+      onTaskTimeUpdate(activeTask.id, minutesToTimeStr(tickMinutes));
       return;
     }
 
-    // THIRD: Check if dropping on gap events (free time)
-    const overGapEvent = allEvents.find(event => event.id === over.id && event.type === 'gap');
-    if (overGapEvent && onTaskTimeUpdate) {
-      console.log('=== GAP DROP LOGIC START ===');
-      console.log('Dropping on free time gap:', overGapEvent.name, 'at', overGapEvent.time);
-      
-      let newTime: string;
-      if (dropPosition === 'before') {
-        // Place at start of gap
-        newTime = overGapEvent.time;
-        console.log('Placed at START of free time:', newTime);
-      } else {
-        // Place in middle of gap (or towards end if short gap)
-        const [gapHours, gapMinutes] = overGapEvent.time.split(':').map(Number);
-        const gapStartMinutes = gapHours * 60 + gapMinutes;
-        const taskDuration = activeTask.duration || 30;
-        
-        // If gap is long enough, place in middle; otherwise place at start
-        if (overGapEvent.duration >= taskDuration + 20) {
-          const middleOffset = Math.floor((overGapEvent.duration - taskDuration) / 2);
-          const newStartMinutes = gapStartMinutes + middleOffset;
-          const newHours = Math.floor(newStartMinutes / 60);
-          const newMins = newStartMinutes % 60;
-          newTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}:00`;
-          console.log('Placed in MIDDLE of free time:', newTime);
-        } else {
-          newTime = overGapEvent.time;
-          console.log('Gap too small, placed at START:', newTime);
-        }
+    // Time-based drop (on fixed events, gaps, or any timeline slot)
+    // Update the display position for all draggable tasks.
+    if (onTaskTimeUpdate) {
+      const landingMinutes = calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
+      if (landingMinutes != null) {
+        onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes));
       }
-      
-      console.log('Calculated gap drop time:', newTime);
-      console.log('Calling onTaskTimeUpdate for gap drop...');
-      onTaskTimeUpdate(activeTask.id, newTime);
-      return;
     }
-
-    console.log('No valid drop action found');
-    console.log('Available draggable tasks:', draggableTasks.map(t => t.name));
-    console.log('Available fixed events:', fixedEvents.map(e => e.name));
   };
 
   const goToPreviousWeek = () => {
@@ -807,7 +1020,7 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-3 sm:p-4 bg-background rounded-3xl shadow-sm border-0">
+    <Card className="p-3 sm:p-4 glass-card rounded-3xl border-0">
       {/* Add Task Button at top */}
       {onAddTask && (
         <Button 
@@ -828,9 +1041,9 @@ const TimelineScheduleView = ({
           variant="outline" 
           size="sm" 
           onClick={() => {
-            const today = new Date();
-            setSelectedDay(today);
-            setCurrentWeek(today);
+            const pstToday = getPSTDate();
+            setSelectedDay(pstToday);
+            setCurrentWeek(pstToday);
           }} 
           disabled={isToday(selectedDay)}
           className="h-8 px-3 text-sm font-medium rounded-full border-primary/30 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -855,12 +1068,12 @@ const TimelineScheduleView = ({
       )}
       
       {/* Week Navigation - New Design */}
-      <div className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
+      <div className="glass rounded-2xl p-4 mb-6">
         {/* Month/Year Header */}
         <div className="flex items-center justify-center gap-4 mb-4">
           <button 
             onClick={goToPreviousWeek}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
+            className="p-1 hover:bg-white/10 rounded-full transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -869,7 +1082,7 @@ const TimelineScheduleView = ({
           </h3>
           <button 
             onClick={goToNextWeek}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
+            className="p-1 hover:bg-white/10 rounded-full transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -910,86 +1123,225 @@ const TimelineScheduleView = ({
         </div>
       </div>
 
-      {/* Timeline */}
-      <DndContext 
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext 
-          items={allEvents.map(event => event.id)} 
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2 sm:space-y-4">
-            {allEvents.map((event) => {
-              const isActiveEvent = activeId === event.id;
-              const isBeingDraggedOver = overId === event.id && activeId !== event.id;
-              
-              // Check if we should show spacing above this item
-              const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
-              // Check if we should show spacing below this item  
-              const shouldShowSpacingBelow = activeId && overId === event.id && dropPosition === 'after' && !isActiveEvent;
-              
-              return (
-                <div key={event.id} className="relative touch-manipulation">
-                  {/* Simple drop indicator above */}
-                  {shouldShowSpacingAbove && (
-                    <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
-                      <div className="text-center mt-1">
-                        <span className="inline-flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 px-2 py-1 rounded-full">
-                          ↑ Drop here
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className={cn(
-                    "transition-all duration-200 ease-out",
-                    isBeingDraggedOver && "ring-2 ring-primary/30 ring-offset-2 rounded-lg",
-                    (shouldShowSpacingAbove || shouldShowSpacingBelow) && "my-2"
-                  )}>
-                    <SortableTimelineEvent 
-                      event={event} 
-                      onEditTask={onEditTask} 
-                      onToggleCompletion={handleToggleCompletion}
-                      isActive={isActiveEvent}
-                      isToday={isToday(selectedDay)}
-                      selectedDay={selectedDay}
-                    />
-                  </div>
+      {/* Timeline + Chores Sidebar */}
+      {(() => {
+        // For chore positioning, use event indices since each row has ~equal visual height
+        // Find which event index each chore's window_start and window_end correspond to
+        const getEventEndMinutes = (event: TimelineEvent) => {
+          const [h, m] = event.time.split(':').map(Number);
+          return h * 60 + m + event.duration;
+        };
+        const getEventStartMinutes = (event: TimelineEvent) => {
+          const [h, m] = event.time.split(':').map(Number);
+          return h * 60 + m;
+        };
+        const totalEvents = allEvents.length || 1;
 
-                  {/* Simple drop indicator below */}
-                  {shouldShowSpacingBelow && (
-                    <div className="mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                      <div className="text-center mb-1">
-                        <span className="inline-flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 px-2 py-1 rounded-full">
-                          ↓ Drop here
-                        </span>
-                      </div>
-                      <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+        return (
+          <div className="flex gap-2 relative">
+            {/* Main timeline column */}
+            <div className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={allEvents.filter(e => e.type === 'flexible' || e.type === 'regular').map(e => e.id)}
+                  strategy={() => null}
+                >
+                  <div className="space-y-2 sm:space-y-4">
+                    {allEvents.map((event) => {
+                      const isActiveEvent = activeId === event.id;
+                      const isBeingDraggedOver = overId === event.id && activeId !== event.id;
+
+                      const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
+                      const shouldShowSpacingBelow = activeId && overId === event.id && dropPosition === 'after' && !isActiveEvent;
+
+                      // Calculate drop time for indicators and gap highlight
+                      const activeTaskForDrop = activeId ? draggableTasks.find(t => t.id === activeId) : null;
+                      const dropTimeMinutes = (() => {
+                        if (!activeTaskForDrop || !overId || !dropPosition) return null;
+                        // If hovering a tick, use tick time directly
+                        if (typeof overId === 'string' && overId.startsWith('tick-')) {
+                          if (overId !== event.id) return null; // only for non-gap indicators
+                          return parseInt(overId.replace('tick-', ''));
+                        }
+                        if (overId !== event.id) return null;
+                        return calculateDropTime(event.id, dropPosition, activeTaskForDrop.duration || 30, activeTaskForDrop.id);
+                      })();
+                      const dropTimeLabel = dropTimeMinutes != null ? formatTimeShortLocal(minutesToTimeStr(dropTimeMinutes)) : '';
+
+                      // For gap events: highlight based on which tick slot is being hovered
+                      const gapHighlightMinute = (() => {
+                        if (!activeTaskForDrop || !activeId || event.type !== 'gap') return null;
+                        // Check if a tick within this gap is being hovered
+                        if (overId && typeof overId === 'string' && overId.startsWith('tick-')) {
+                          const tickMin = parseInt(overId.replace('tick-', ''));
+                          const [gH, gM] = event.time.split(':').map(Number);
+                          const gStart = gH * 60 + gM;
+                          const gEnd = gStart + event.duration;
+                          if (tickMin >= gStart && tickMin < gEnd) return tickMin;
+                        }
+                        // If hovering this gap directly (not a tick), use calculated drop time
+                        if (overId === event.id && dropTimeMinutes != null) {
+                          return Math.round(dropTimeMinutes / 15) * 15;
+                        }
+                        return null;
+                      })();
+
+                      return (
+                        <div key={event.id} className="relative touch-manipulation">
+                          {shouldShowSpacingAbove && (
+                            <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                              <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+                              <div className="text-center mt-1">
+                                <span className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold bg-primary/10 px-3 py-1 rounded-full">
+                                  {dropTimeLabel && <span className="text-primary/90">{dropTimeLabel}</span>}
+                                  <span>↑ Drop here</span>
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className={cn(
+                            "transition-all duration-200 ease-out",
+                            isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-primary/30 ring-offset-2 rounded-lg",
+                            (shouldShowSpacingAbove || shouldShowSpacingBelow) && "my-2"
+                          )}>
+                            <SortableTimelineEvent
+                              event={event}
+                              onEditTask={onEditTask}
+                              onDeleteTask={onDeleteTask}
+                              onToggleCompletion={handleToggleCompletion}
+                              isActive={isActiveEvent}
+                              isToday={isToday(selectedDay)}
+                              selectedDay={selectedDay}
+                              isDraggingAny={!!activeId}
+                              highlightMinute={gapHighlightMinute}
+                              highlightDuration={activeTaskForDrop?.duration || 30}
+                            />
+                          </div>
+
+                          {shouldShowSpacingBelow && (
+                            <div className="mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                              <div className="text-center mb-1">
+                                <span className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold bg-primary/10 px-3 py-1 rounded-full">
+                                  <span>↓ Drop here</span>
+                                  {dropTimeLabel && <span className="text-primary/90">{dropTimeLabel}</span>}
+                                </span>
+                              </div>
+                              <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+
+                {activeId && (
+                  <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="text-center mb-2">
+                      <span className="inline-flex items-center gap-2 text-sm text-primary font-medium bg-primary/10 px-3 py-2 rounded-full">
+                        📍 Drop at end of timeline
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </SortableContext>
-        
-        {/* Final drop zone */}
-        {activeId && (
-          <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="text-center mb-2">
-              <span className="inline-flex items-center gap-2 text-sm text-primary font-medium bg-primary/10 px-3 py-2 rounded-full">
-                📍 Drop at end of timeline
-              </span>
+                    <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+                  </div>
+                )}
+
+              </DndContext>
             </div>
-            <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+
+            {/* Chores floating sidebar */}
+            {choreTasks.length > 0 && (
+              <div className="relative w-[80px] sm:w-[96px] flex-shrink-0">
+                {choreTasks.map(task => {
+                  // Find which event index the chore's window_start and window_end fall at
+                  const choreStartMin = task.window_start
+                    ? (() => { const [h, m] = task.window_start.split(':').map(Number); return h * 60 + m; })()
+                    : 0;
+                  const choreEndMin = task.window_end
+                    ? (() => { const [h, m] = task.window_end.split(':').map(Number); return h * 60 + m; })()
+                    : 24 * 60;
+
+                  // Find the first event that starts at or after the chore's window start
+                  let startIndex = allEvents.findIndex(e => getEventStartMinutes(e) >= choreStartMin);
+                  if (startIndex === -1) startIndex = totalEvents - 1;
+
+                  // Find the last event that ends at or before the chore's window end
+                  let endIndex = startIndex;
+                  for (let i = startIndex; i < totalEvents; i++) {
+                    if (getEventStartMinutes(allEvents[i]) < choreEndMin) {
+                      endIndex = i;
+                    } else break;
+                  }
+
+                  // "Anytime" chores span the full afternoon (after school to bedtime)
+                  if (!task.window_start && !task.window_end) {
+                    startIndex = Math.floor(totalEvents * 0.3);
+                    endIndex = totalEvents - 2;
+                  }
+
+                  const topPercent = (startIndex / totalEvents) * 100;
+                  const heightPercent = Math.max(10, ((endIndex - startIndex + 1) / totalEvents) * 100);
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        "absolute left-0 right-0 rounded-2xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden backdrop-blur-sm",
+                        task.isCompleted
+                          ? "border-green-500/40 bg-green-500/10"
+                          : "border-purple-400/50 bg-purple-500/15 hover:border-purple-400/70 hover:bg-purple-500/20"
+                      )}
+                      style={{
+                        top: `${topPercent}%`,
+                        height: `${heightPercent}%`,
+                        minHeight: '60px',
+                      }}
+                      onClick={() => onEditTask?.(task)}
+                    >
+                      <div className="flex flex-col items-center justify-center h-full px-1.5 py-2.5 text-center gap-1.5">
+                        {task.is_important && (
+                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
+                        )}
+                        {task.isCompleted ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 border-purple-400/50 shrink-0" />
+                        )}
+                        <span className={cn(
+                          "text-[11px] sm:text-xs font-bold leading-tight break-words",
+                          task.isCompleted
+                            ? "line-through text-green-400/70"
+                            : "text-purple-200"
+                        )}>
+                          {task.name}
+                        </span>
+                        {task.coins > 0 && (
+                          <span className="text-[9px] text-warning/80 font-semibold">{task.coins}c</span>
+                        )}
+                        {task.window_start && task.window_end && (
+                          <span className="text-[8px] text-purple-400/60 font-medium mt-auto">
+                            {formatTimeShort(task.window_start)}–{formatTimeShort(task.window_end)}
+                          </span>
+                        )}
+                        {!task.window_start && (
+                          <span className="text-[8px] text-purple-400/40 mt-auto">Anytime</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </DndContext>
+        );
+      })()}
 
     </Card>
   );

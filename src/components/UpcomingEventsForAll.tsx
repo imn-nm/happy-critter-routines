@@ -65,15 +65,14 @@ const UpcomingEventsForAll = () => {
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
     
-    // Filter for scheduled-type non-system tasks only
+    // Filter for non-system tasks that have a scheduled time and recurrence
     const scheduledTasks = allTasks.filter(task => {
       const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const isScheduledType = task.type === 'scheduled';
       const hasValidScheduling = task.is_recurring && task.recurring_days && task.recurring_days.length > 0;
       const systemTasks = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
       const isNotSystemTask = !systemTasks.some(sysTask => task.name.toLowerCase().includes(sysTask.toLowerCase()));
-      
-      return hasScheduledTime && hasValidScheduling && isScheduledType && isNotSystemTask;
+
+      return hasScheduledTime && hasValidScheduling && isNotSystemTask;
     });
 
     scheduledTasks.forEach(task => {
@@ -160,7 +159,7 @@ const UpcomingEventsForAll = () => {
 
   if (allUpcomingEvents.length === 0) {
     return (
-      <Card className="p-5 bg-card border-border">
+      <div className="glass-card rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Calendar className="w-5 h-5 text-primary" />
           <h2 className="font-semibold text-lg">Upcoming Events</h2>
@@ -172,12 +171,12 @@ const UpcomingEventsForAll = () => {
             No scheduled tasks found for the next two weeks.
           </p>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="p-5 bg-card border-border">
+    <Card className="p-5 glass-card border-0">
       <div className="flex items-center gap-2 mb-4">
         <Calendar className="w-5 h-5 text-primary" />
         <h2 className="font-semibold text-lg">Upcoming Events</h2>
@@ -193,8 +192,8 @@ const UpcomingEventsForAll = () => {
           >
             {/* Icon */}
             <div className={`p-2 rounded-full shrink-0 ${
-              event.type === 'scheduled' ? 'bg-blue-100 text-blue-600' :
-              event.type === 'regular' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
+              event.type === 'scheduled' ? 'bg-blue-500/20 text-blue-400' :
+              event.type === 'regular' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
             }`}>
               {getIcon(event.name)}
             </div>

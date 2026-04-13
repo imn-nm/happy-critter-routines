@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-export type TimerStatus = "on-track" | "behind" | "ahead" | "critical";
+export type TimerStatus = "on-track" | "behind" | "ahead" | "critical" | "overtime";
 
 interface CircularTimerProps {
   totalSeconds: number;
@@ -22,15 +22,15 @@ const CircularTimer = ({
   onComplete,
   status = "on-track"
 }: CircularTimerProps) => {
-  const [remainingSeconds, setRemainingSeconds] = useState(initialRemainingSeconds);
-  const progress = totalSeconds > 0 ? (totalSeconds - remainingSeconds) / totalSeconds : 0;
+  const [remainingSeconds, setRemainingSeconds] = useState(Math.max(0, initialRemainingSeconds));
+  const progress = totalSeconds > 0 ? Math.min(1, (totalSeconds - remainingSeconds) / totalSeconds) : 0;
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference * (1 - progress);
 
   const sizeClasses = {
     sm: "w-16 h-16",
-    md: "w-24 h-24", 
-    lg: "w-32 h-32"
+    md: "w-28 h-28",
+    lg: "w-40 h-40"
   };
 
   const getStatusColor = () => {
@@ -48,35 +48,38 @@ const CircularTimer = ({
     }
   };
 
-  const getTrackColor = () => "#c4b5fd"; // Light purple
+  const getTrackColor = () => "rgba(139, 92, 246, 0.2)"; // Subtle purple on dark
 
-  // Timer effect
+  // Timer countdown — stops at zero and fires onComplete
   useEffect(() => {
-    if (!isRunning || remainingSeconds <= 0) return;
+    if (!isRunning) return;
 
     const interval = setInterval(() => {
       setRemainingSeconds(prev => {
-        if (prev <= 1) {
+        if (prev <= 0) return 0;
+        const next = prev - 1;
+        if (next <= 0) {
           onComplete?.();
           return 0;
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, remainingSeconds, onComplete]);
+  }, [isRunning, onComplete]);
 
   // Reset timer when initial value changes
   useEffect(() => {
-    setRemainingSeconds(initialRemainingSeconds);
+    setRemainingSeconds(Math.max(0, initialRemainingSeconds));
   }, [initialRemainingSeconds]);
 
   const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
+    const s = Math.max(0, seconds);
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -95,7 +98,7 @@ const CircularTimer = ({
           strokeWidth="10"
           fill="transparent"
         />
-        {/* Progress circle - dark purple gradient */}
+        {/* Progress circle */}
         <circle
           cx="50"
           cy="50"
@@ -108,7 +111,6 @@ const CircularTimer = ({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
         />
-        {/* Define gradient */}
         <defs>
           <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#7c3aed" />
@@ -119,13 +121,13 @@ const CircularTimer = ({
       
       {/* Time display */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-center">
-          <div 
+        <div className="text-center px-2">
+          <div
             className={cn(
-              "font-bold leading-none text-black",
+              "font-bold leading-none text-foreground",
               size === "sm" && "text-xs",
-              size === "md" && "text-sm", 
-              size === "lg" && "text-lg"
+              size === "md" && "text-base",
+              size === "lg" && "text-xl"
             )}
           >
             {formatTime(remainingSeconds)}

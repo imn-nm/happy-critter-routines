@@ -66,7 +66,7 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
               autoFocus
             />
             {error && (
-              <p className="text-red-500 text-sm mt-2 text-center">{error}</p>
+              <p className="text-destructive text-sm mt-2 text-center">{error}</p>
             )}
           </div>
           

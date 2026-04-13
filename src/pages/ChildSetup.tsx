@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PetAvatar, { type PetType } from "@/components/PetAvatar";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useChildren } from "@/hooks/useChildren";
@@ -13,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 const petTypes: { type: PetType; name: string }[] = [
   { type: "fox", name: "Arctic Fox" },
   { type: "panda", name: "Red Panda" },
+  { type: "owl", name: "Snowy Owl" },
 ];
 
 const ChildSetup = () => {
@@ -24,7 +24,7 @@ const ChildSetup = () => {
   const [formData, setFormData] = useState({
     name: "",
     age: "",
-    petType: "fox" as 'fox' | 'panda',
+    petType: "fox" as 'fox' | 'panda' | 'owl',
     wakeTime: "07:00",
     sleepTime: "20:00",
     breakfastTime: "07:30",
@@ -32,42 +32,23 @@ const ChildSetup = () => {
     dinnerTime: "18:00",
   });
 
-  const handleNext = () => {
-    if (step < 3) setStep(step + 1);
-  };
-
-  const handleBack = () => {
-    if (step > 1) setStep(step - 1);
-  };
+  const handleNext = () => { if (step < 3) setStep(step + 1); };
+  const handleBack = () => { if (step > 1) setStep(step - 1); };
 
   const handleFinish = async () => {
     setIsLoading(true);
     try {
-      // Convert form data to match database structure
-      const childData = {
+      await addChild({
         name: formData.name,
         age: parseInt(formData.age),
-        petType: formData.petType as 'fox' | 'panda',
+        petType: formData.petType as 'fox' | 'panda' | 'owl',
         currentCoins: 0,
         petHappiness: 50,
-      };
-      
-      console.log("Creating child:", formData);
-      await addChild(childData);
-      
-      toast({
-        title: "Success!",
-        description: `${formData.name} has been added successfully!`,
       });
-      
+      toast({ title: "Success!", description: `${formData.name} has been added!` });
       navigate("/dashboard");
     } catch (error) {
-      console.error("Error creating child:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create child profile. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to create profile.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -80,88 +61,81 @@ const ChildSetup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-4 flex items-center justify-center">
+    <div className="min-h-screen p-4 flex items-center justify-center">
       <div className="w-full max-w-md">
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex justify-between mb-3">
-            {[1, 2, 3].map((stepNum) => (
+        {/* Progress */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          {[1, 2, 3].map((stepNum) => (
+            <div key={stepNum} className="flex items-center gap-2">
               <div
-                key={stepNum}
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-base font-semibold transition-all",
-                  stepNum <= step
-                    ? "bg-white text-primary shadow-md scale-110"
-                    : "bg-white/30 text-white/70"
+                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all",
+                  stepNum < step
+                    ? "bg-success text-white glow-green"
+                    : stepNum === step
+                    ? "bg-primary text-white glow-purple"
+                    : "glass text-muted-foreground"
                 )}
               >
-                {stepNum}
+                {stepNum < step ? <Check className="w-4 h-4" /> : stepNum}
               </div>
-            ))}
-          </div>
-          <div className="w-full bg-white/20 rounded-full h-2">
-            <div
-              className="bg-white h-full rounded-full transition-all duration-300"
-              style={{ width: `${(step / 3) * 100}%` }}
-            />
-          </div>
+              {stepNum < 3 && (
+                <div className={cn("w-10 h-0.5 rounded-full", stepNum < step ? "bg-success" : "bg-white/10")} />
+              )}
+            </div>
+          ))}
         </div>
 
-        <Card className="p-6 sm:p-8 bg-white rounded-3xl shadow-lg border-0">
-          {/* Step 1: Basic Info */}
+        <div className="glass-card rounded-3xl p-6">
+          {/* Step 1 */}
           {step === 1 && (
-            <div className="text-center space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Let's create your child's profile!</h2>
-                <p className="text-muted-foreground text-sm">First, tell us about your child</p>
+                <h2 className="text-xl font-bold text-foreground text-glow mb-1">Create a profile</h2>
+                <p className="text-sm text-muted-foreground">Tell us about your child</p>
               </div>
 
-              <div className="space-y-5">
-                <div className="text-left">
-                  <Label htmlFor="name" className="text-foreground font-semibold text-base mb-2 block">Child's Name</Label>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-foreground/80 text-sm font-medium mb-1.5 block">Name</Label>
                   <Input
-                    id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter name"
-                    className="text-center text-base h-12 rounded-2xl bg-accent/30 border-0 text-foreground placeholder:text-muted-foreground"
+                    className="h-11 rounded-xl bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
-
-                <div className="text-left">
-                  <Label htmlFor="age" className="text-foreground font-semibold text-base mb-2 block">Age</Label>
+                <div>
+                  <Label className="text-foreground/80 text-sm font-medium mb-1.5 block">Age</Label>
                   <Input
-                    id="age"
-                    type="number"
-                    min="3"
-                    max="18"
+                    type="number" min="3" max="18"
                     value={formData.age}
                     onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                     placeholder="Enter age"
-                    className="text-center text-base h-12 rounded-2xl bg-accent/30 border-0 text-foreground placeholder:text-muted-foreground"
+                    className="h-11 rounded-xl bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold text-foreground mb-4">Choose a Pet Companion</h3>
+                <h3 className="text-sm font-medium text-foreground/80 mb-3">Choose a pet</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {petTypes.map((pet) => (
                     <button
                       key={pet.type}
                       type="button"
                       className={cn(
-                        "p-4 rounded-3xl cursor-pointer transition-all duration-200 hover:scale-105 border-2",
+                        "p-4 rounded-2xl transition-all duration-200 border-2",
                         formData.petType === pet.type
-                          ? "bg-primary/10 border-primary ring-2 ring-primary shadow-md"
-                          : "bg-accent/20 border-accent/40 hover:border-primary/40"
+                          ? "border-primary glass-strong glow-purple"
+                          : "border-white/5 glass hover:border-white/15"
                       )}
-                      onClick={() => setFormData({ ...formData, petType: pet.type as 'fox' | 'panda' })}
+                      onClick={() => setFormData({ ...formData, petType: pet.type as 'fox' | 'panda' | 'owl' })}
                     >
-                      <div className="bg-white rounded-full p-3 mb-3 mx-auto w-24 h-24 flex items-center justify-center shadow-sm">
+                      <div className="glass rounded-full p-3 mb-2 mx-auto w-20 h-20 flex items-center justify-center">
                         <PetAvatar petType={pet.type} happiness={85} size="md" className="mx-auto" />
                       </div>
-                      <p className="text-sm font-semibold text-center text-foreground">{pet.name}</p>
+                      <p className="text-xs font-semibold text-center text-foreground">{pet.name}</p>
                     </button>
                   ))}
                 </div>
@@ -169,130 +143,90 @@ const ChildSetup = () => {
             </div>
           )}
 
-          {/* Step 2: Sleep & Meal Times */}
+          {/* Step 2 */}
           {step === 2 && (
-            <div className="text-center space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Set {formData.name}'s Schedule</h2>
-                <p className="text-muted-foreground text-sm">When does {formData.name} wake up, sleep, and eat?</p>
+                <h2 className="text-xl font-bold text-foreground text-glow mb-1">{formData.name}'s schedule</h2>
+                <p className="text-sm text-muted-foreground">Set daily routines</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="p-5 rounded-3xl" style={{ background: 'hsl(var(--accent-purple))' }}>
-                  <h3 className="font-semibold text-foreground mb-4 text-left">Sleep Times</h3>
-                  <div className="space-y-4">
-                    <div className="text-left">
-                      <Label className="text-foreground/80 text-sm mb-1.5 block">Wake Time</Label>
-                      <Input
-                        type="time"
-                        value={formData.wakeTime}
+              <div className="space-y-3">
+                <div className="glass rounded-2xl p-4">
+                  <h3 className="font-medium text-foreground/80 text-sm mb-3">Sleep</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-muted-foreground text-xs mb-1 block">Wake up</Label>
+                      <Input type="time" value={formData.wakeTime}
                         onChange={(e) => setFormData({ ...formData, wakeTime: e.target.value })}
-                        className="h-12 rounded-2xl bg-white/80 border-0 text-foreground"
-                      />
+                        className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground" />
                     </div>
-                    <div className="text-left">
-                      <Label className="text-foreground/80 text-sm mb-1.5 block">Sleep Time</Label>
-                      <Input
-                        type="time"
-                        value={formData.sleepTime}
+                    <div>
+                      <Label className="text-muted-foreground text-xs mb-1 block">Bedtime</Label>
+                      <Input type="time" value={formData.sleepTime}
                         onChange={(e) => setFormData({ ...formData, sleepTime: e.target.value })}
-                        className="h-12 rounded-2xl bg-white/80 border-0 text-foreground"
-                      />
+                        className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground" />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-3xl" style={{ background: 'hsl(var(--accent-blue))' }}>
-                  <h3 className="font-semibold text-foreground mb-4 text-left">Meal Times</h3>
-                  <div className="space-y-4">
-                    <div className="text-left">
-                      <Label className="text-foreground/80 text-sm mb-1.5 block">Breakfast</Label>
-                      <Input
-                        type="time"
-                        value={formData.breakfastTime}
-                        onChange={(e) => setFormData({ ...formData, breakfastTime: e.target.value })}
-                        className="h-12 rounded-2xl bg-white/80 border-0 text-foreground"
-                      />
-                    </div>
-                    <div className="text-left">
-                      <Label className="text-foreground/80 text-sm mb-1.5 block">Lunch</Label>
-                      <Input
-                        type="time"
-                        value={formData.lunchTime}
-                        onChange={(e) => setFormData({ ...formData, lunchTime: e.target.value })}
-                        className="h-12 rounded-2xl bg-white/80 border-0 text-foreground"
-                      />
-                    </div>
-                    <div className="text-left">
-                      <Label className="text-foreground/80 text-sm mb-1.5 block">Dinner</Label>
-                      <Input
-                        type="time"
-                        value={formData.dinnerTime}
-                        onChange={(e) => setFormData({ ...formData, dinnerTime: e.target.value })}
-                        className="h-12 rounded-2xl bg-white/80 border-0 text-foreground"
-                      />
-                    </div>
+                <div className="glass rounded-2xl p-4">
+                  <h3 className="font-medium text-foreground/80 text-sm mb-3">Meals</h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Breakfast", key: "breakfastTime" },
+                      { label: "Lunch", key: "lunchTime" },
+                      { label: "Dinner", key: "dinnerTime" },
+                    ].map((meal) => (
+                      <div key={meal.key} className="flex items-center justify-between">
+                        <Label className="text-muted-foreground text-xs">{meal.label}</Label>
+                        <Input type="time" value={formData[meal.key as keyof typeof formData]}
+                          onChange={(e) => setFormData({ ...formData, [meal.key]: e.target.value })}
+                          className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground w-32" />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 3: Confirmation */}
+          {/* Step 3 */}
           {step === 3 && (
-            <div className="text-center space-y-6">
+            <div className="text-center space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">All Set!</h2>
-                <p className="text-muted-foreground text-sm">Ready to start {formData.name}'s journey?</p>
+                <h2 className="text-xl font-bold text-foreground text-glow mb-1">All set!</h2>
+                <p className="text-sm text-muted-foreground">Ready to create {formData.name}'s profile</p>
               </div>
 
-              <div>
-                <div className="bg-white rounded-full w-32 h-32 mx-auto mb-6 flex items-center justify-center shadow-lg">
-                  <PetAvatar 
-                    petType={formData.petType} 
-                    happiness={100} 
-                    size="xl" 
-                  />
-                </div>
-                
-                <div className="p-6 rounded-3xl" style={{ background: 'hsl(var(--success))' }}>
-                  <h3 className="text-xl font-bold mb-4 text-white">{formData.name} & {petTypes.find(p => p.type === formData.petType)?.name}</h3>
-                  <div className="space-y-2 text-sm text-white/90">
-                    <p className="font-medium">Age: {formData.age} years old</p>
-                    <p className="font-medium">Wake up: {formData.wakeTime}</p>
-                    <p className="font-medium">Bedtime: {formData.sleepTime}</p>
-                  </div>
-                </div>
+              <div className="glass rounded-full w-24 h-24 mx-auto flex items-center justify-center glow-purple">
+                <PetAvatar petType={formData.petType} happiness={100} size="xl" />
               </div>
 
-              <p className="text-muted-foreground text-sm">
-                Would you like to start adding tasks for {formData.name} now?
-              </p>
+              <div className="glass rounded-2xl p-4 text-left">
+                <h3 className="font-bold text-foreground text-sm mb-2">
+                  {formData.name} & {petTypes.find(p => p.type === formData.petType)?.name}
+                </h3>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>Age: {formData.age} years old</p>
+                  <p>Wake: {formData.wakeTime} &middot; Bed: {formData.sleepTime}</p>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Navigation */}
-          <div className="flex justify-between items-center mt-8 pt-6 border-t border-border/30">
-            <Button
-              variant="ghost"
-              onClick={step === 1 ? () => navigate("/dashboard") : handleBack}
-              className="flex items-center gap-2 text-foreground hover:bg-muted rounded-xl h-11 px-4"
-            >
-              <ChevronLeft className="w-5 h-5" />
+          {/* Nav */}
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5">
+            <Button variant="ghost" size="sm" onClick={step === 1 ? () => navigate("/dashboard") : handleBack} className="gap-1.5">
+              <ChevronLeft className="w-4 h-4" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>
-
-            <Button
-              onClick={step === 3 ? handleFinish : handleNext}
-              disabled={!isStepValid() || isLoading}
-              className="flex items-center gap-2 h-11 px-6 rounded-xl font-semibold shadow-md"
-              style={{ background: 'hsl(var(--primary))' }}
-            >
+            <Button size="sm" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
               {isLoading ? "Creating..." : step === 3 ? "Create Profile" : "Next"}
-              {step < 3 && !isLoading && <ChevronRight className="w-5 h-5" />}
+              {step < 3 && !isLoading && <ChevronRight className="w-4 h-4" />}
             </Button>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ export interface Task {
   id: string;
   child_id: string;
   name: string;
-  type: "scheduled" | "regular" | "flexible";
+  type: "scheduled" | "regular" | "flexible" | "floating";
   scheduled_time?: string;
   duration?: number;
   coins: number;
@@ -12,6 +12,9 @@ export interface Task {
   sort_order: number;
   is_active: boolean;
   task_date?: string;
+  is_important?: boolean;
+  window_start?: string;
+  window_end?: string;
   created_at: string;
   updated_at: string;
 }

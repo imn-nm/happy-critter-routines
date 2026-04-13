@@ -11,44 +11,20 @@ export const calculatePetEmotion = (
   scheduleStatus: ScheduleStatus,
   currentTimeOfDay: 'morning' | 'afternoon' | 'evening' | 'night'
 ): PetEmotion => {
-  const { onTrack, behindSchedule, aheadOfSchedule, completionPercentage } = scheduleStatus;
+  const { completionPercentage } = scheduleStatus;
 
-  // Child is ahead of schedule - pet is playful/excited
-  if (aheadOfSchedule && completionPercentage >= 70) {
-    return "playful";
-  }
-
-  // Child is on track - pet is happy
-  if (onTrack && completionPercentage >= 60) {
-    return "happy";
-  }
-
-  // Child is slightly behind but still decent progress - neutral
-  if (behindSchedule && completionPercentage >= 40) {
-    return "neutral";
-  }
-
-  // Child is significantly behind - concerned/sad
-  if (behindSchedule && completionPercentage < 40) {
-    return "concerned";
-  }
-
-  // Very poor performance - sad
-  if (completionPercentage < 20) {
-    return "sad";
-  }
-
-  // Time-of-day specific emotions for edge cases
-  if (currentTimeOfDay === 'night' && completionPercentage < 50) {
-    return "sleepy";
-  }
-
-  if (currentTimeOfDay === 'morning' && completionPercentage >= 80) {
+  // 60%+ done — pet is excited
+  if (completionPercentage >= 60) {
     return "excited";
   }
 
-  // Default to neutral
-  return "neutral";
+  // 1+ tasks done — pet is happy
+  if (completionPercentage > 0) {
+    return "happy";
+  }
+
+  // Default — pet is encouraging (never sad)
+  return "encouraging";
 };
 
 export const evaluateScheduleStatus = (

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { TaskCompletion } from '@/types/Task';
+import { getPSTDateString } from '@/utils/pstDate';
 
 export const useCompletions = (childId?: string) => {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
@@ -40,12 +41,12 @@ export const useCompletions = (childId?: string) => {
     if (!childId) return;
 
     try {
-      // Determine target date (defaults to today). Accepts Date or 'YYYY-MM-DD'.
+      // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
       const targetDate = dateOrDay
         ? (typeof dateOrDay === 'string'
             ? dateOrDay
-            : dateOrDay.toISOString().split('T')[0])
-        : new Date().toISOString().split('T')[0];
+            : getPSTDateString())
+        : getPSTDateString();
 
       console.log('useCompletions: toggleCompletion called', { 
         taskId, 

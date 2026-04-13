@@ -41,6 +41,7 @@ interface SortableTaskItemProps {
 }
 
 const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => {
+  const isDraggable = task.type !== 'scheduled';
   const {
     attributes,
     listeners,
@@ -48,7 +49,7 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: !isDraggable });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -58,21 +59,27 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
   const taskCardTask = convertToTaskCardTask(task);
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
+    <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
         "flex items-center gap-3 group",
         isDragging && "opacity-50"
       )}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <GripVertical className="w-4 h-4" />
-      </div>
+      {isDraggable ? (
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+      ) : (
+        <div className="p-1 text-muted-foreground/30">
+          <GripVertical className="w-4 h-4" />
+        </div>
+      )}
       
       <div className="flex-1">
         <TaskCard task={taskCardTask} />

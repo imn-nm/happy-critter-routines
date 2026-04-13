@@ -3,14 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 // Helper function to convert old pet types to new ones
-const convertPetType = (dbPetType: string): 'fox' | 'panda' => {
+const convertPetType = (dbPetType: string): 'fox' | 'panda' | 'owl' => {
   switch(dbPetType) {
     case 'fox':
       return 'fox';
     case 'panda':
       return 'panda';
-    // Convert old pet types to new ones
     case 'owl':
+      return 'owl';
+    // Convert old pet types to new ones
     case 'penguin':
     case 'bunny':
     default:
@@ -23,7 +24,7 @@ export interface Child {
   parent_id: string;
   name: string;
   age?: number;
-  petType: 'fox' | 'panda';
+  petType: 'fox' | 'panda' | 'owl';
   currentCoins: number;
   petHappiness: number;
   created_at: string;
@@ -50,6 +51,8 @@ export interface Child {
   lunch_duration?: number;
   dinner_duration?: number;
   bedtime_duration?: number;
+  // Rest day
+  rest_day_date?: string | null;
   // Day-specific schedule overrides
   school_schedule_overrides?: Record<string, { time: string; duration: number }>;
   breakfast_schedule_overrides?: Record<string, { time: string; duration: number }>;
@@ -89,6 +92,7 @@ export const useChildren = () => {
           petType: convertedPetType,
           currentCoins: child.current_coins,
           petHappiness: child.pet_happiness,
+          rest_day_date: child.rest_day_date ?? null,
           wake_time: child.wake_time,
           breakfast_time: child.breakfast_time,
           school_start_time: child.school_start_time,
@@ -128,12 +132,10 @@ export const useChildren = () => {
         name: childData.name,
         age: childData.age,
         parent_id: user.id,
-        pet_type: 'fox', // TEMPORARY: Force to 'fox' until database constraint is fixed
+        pet_type: childData.petType || 'fox',
         current_coins: childData.currentCoins,
         pet_happiness: childData.petHappiness,
       };
-
-      console.log(`TEMPORARY: Creating child with pet_type='fox' regardless of UI selection`);
 
       const { data, error } = await supabase
         .from('children')
@@ -197,6 +199,7 @@ export const useChildren = () => {
         ...updates,
         current_coins: updates.currentCoins,
         pet_happiness: updates.petHappiness,
+        rest_day_date: updates.rest_day_date,
         wake_time: updates.wake_time,
         breakfast_time: updates.breakfast_time,
         school_start_time: updates.school_start_time,
@@ -212,9 +215,10 @@ export const useChildren = () => {
         wake_schedule_overrides: updates.wake_schedule_overrides,
       };
 
-      // TEMPORARY: Skip all pet_type updates until database constraint is fixed
-      console.log(`Temporarily skipping pet_type updates due to database constraint`);
-      // TODO: Remove this when database constraint allows 'fox' and 'panda'
+      // Map petType to database column pet_type
+      if (updates.petType) {
+        (dbUpdates as any).pet_type = updates.petType;
+      }
 
       // Remove the interface properties that don't exist in database
       delete (dbUpdates as any).petType;

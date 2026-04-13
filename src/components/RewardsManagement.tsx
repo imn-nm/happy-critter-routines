@@ -27,11 +27,6 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
     amount: "10",
     reason: "",
   });
-  const [isDeductOpen, setIsDeductOpen] = useState(false);
-  const [deductData, setDeductData] = useState({
-    amount: "5",
-    reason: "",
-  });
   
   const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(propChild.id);
   const { children, updateChildCoins } = useChildren();
@@ -132,37 +127,11 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
     }
   };
 
-  const handleDeductCoins = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const coinsToDeduct = parseInt(deductData.amount);
-      const newCoinBalance = Math.max(0, child.currentCoins - coinsToDeduct);
-      
-      await updateChildCoins(child.id, newCoinBalance);
-      
-      const actualDeducted = child.currentCoins - newCoinBalance;
-      
-      toast.success(`Deducted ${actualDeducted} coins from ${child.name}`, {
-        description: deductData.reason || "Manual coin deduction",
-        icon: "💸"
-      });
-      
-      setIsDeductOpen(false);
-      setDeductData({
-        amount: "5",
-        reason: "",
-      });
-    } catch (error) {
-      console.error('Error deducting coins:', error);
-      toast.error("Failed to deduct coins. Please try again.");
-    }
-  };
 
   const canAfford = (cost: number) => child.currentCoins >= cost;
 
   return (
-    <Card className="p-4 bg-white rounded-3xl shadow-sm border-0">
+    <Card className="p-4 glass-card rounded-3xl border-0">
       <div className="space-y-4 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -175,69 +144,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-2">
-          <Dialog open={isDeductOpen} onOpenChange={setIsDeductOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 h-10 text-xs rounded-xl flex-1"
-              >
-                <Coins className="w-3 h-3 sm:mr-1" />
-                <span className="hidden sm:inline">Take</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Take Coins from {child.name}</DialogTitle>
-              </DialogHeader>
-              
-              <form onSubmit={handleDeductCoins} className="space-y-4">
-                <div>
-                  <Label htmlFor="deduct-amount">Number of Coins *</Label>
-                  <Input
-                    id="deduct-amount"
-                    type="number"
-                    min="1"
-                    max={child.currentCoins}
-                    value={deductData.amount}
-                    onChange={(e) => setDeductData({ ...deductData, amount: e.target.value })}
-                    placeholder="5"
-                    required
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {child.name} currently has {child.currentCoins} coins
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="deduct-reason">Reason (optional)</Label>
-                  <Textarea
-                    id="deduct-reason"
-                    value={deductData.reason}
-                    onChange={(e) => setDeductData({ ...deductData, reason: e.target.value })}
-                    placeholder="e.g., Broke a rule, didn't complete chores, misbehavior..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <Button type="submit" variant="destructive" className="flex-1">
-                    <Coins className="w-4 h-4 mr-2" />
-                    Take {deductData.amount} Coins
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsDeductOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
+        <div className="grid grid-cols-2 gap-2">
           <Dialog open={isAwardOpen} onOpenChange={setIsAwardOpen}>
             <DialogTrigger asChild>
               <Button 
@@ -343,14 +250,27 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
               <div>
                 <Label htmlFor="cost">Cost (coins) *</Label>
-                <Input
-                  id="cost"
-                  type="number"
-                  min="1"
-                  value={formData.cost}
-                  onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                  required
-                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-full"
+                    onClick={() => setFormData({ ...formData, cost: String(Math.max(1, parseInt(formData.cost || '1') - 1)) })}
+                  >
+                    −
+                  </Button>
+                  <span className="text-lg font-semibold min-w-[3ch] text-center">{formData.cost || '1'}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-full"
+                    onClick={() => setFormData({ ...formData, cost: String(parseInt(formData.cost || '1') + 1) })}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -385,7 +305,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rewards.map((reward) => (
-            <Card key={reward.id} className="p-4 bg-background rounded-2xl border shadow-sm">
+            <Card key={reward.id} className="p-4 glass rounded-2xl">
               <div className="flex items-start justify-between mb-3">
                 <h4 className="font-semibold text-lg">{reward.name}</h4>
                 <div className="flex gap-1">

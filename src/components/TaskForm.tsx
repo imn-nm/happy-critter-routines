@@ -1,51 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { X, Save } from "lucide-react";
 import { type Task } from "@/types/Task";
 
 interface TaskFormProps {
   task?: Task;
   onSave: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => void;
   onCancel: () => void;
+  onDelete?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   isEdit?: boolean;
   currentDate: Date;
 }
 
-const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskFormProps) => {
+// Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
+const FormRow = ({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) => (
+  <div className="flex items-center h-10">
+    <Label htmlFor={htmlFor} className="text-sm text-muted-foreground w-24 flex-shrink-0">{label}</Label>
+    <div className="flex-1 flex items-center justify-end">{children}</div>
+  </div>
+);
+
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate }: TaskFormProps) => {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
-  console.log('TaskForm: Received props:', {
-    currentDate: currentDate,
-    formattedCurrentDate: format(currentDate, 'yyyy-MM-dd'),
-    taskDate: task?.task_date,
-    isEdit: isEdit
-  });
-
-  // For new tasks, always use currentDate. For editing tasks, use their existing date
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
-  
+
   const [formData, setFormData] = useState({
     name: task?.name || "",
-    type: (task?.type || "regular") as Task['type'],
-    scheduledTime: task?.scheduled_time || "",
+    mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
+    scheduledTime: task?.type === 'scheduled' ? (task?.scheduled_time || "") : "",
+    choreAnytime: task?.type === 'floating' && !task?.window_start,
     durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
     durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
-    coins: task?.coins?.toString() || "5",
+    coins: task?.coins?.toString() || "0",
     isRecurring: task?.is_recurring ?? false,
     description: task?.description || "",
     recurringDays: task?.recurring_days || [] as string[],
     taskDate: initialTaskDate,
+    isImportant: task?.is_important ?? false,
+    windowStart: task?.window_start || "15:00",
+    windowEnd: task?.window_end || "18:00",
   });
-
-  console.log('TaskForm: Initial formData.taskDate:', formData.taskDate, 'from currentDate:', format(currentDate, 'yyyy-MM-dd'));
 
   const daysOfWeek = [
     { id: "sunday", label: "S" },
@@ -57,100 +57,118 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
     { id: "saturday", label: "S" },
   ];
 
+  const isChore = formData.mode === 'chore';
+
+  const deriveType = (): Task['type'] => {
+    if (isChore) return 'floating';
+    if (formData.scheduledTime) return 'scheduled';
+    const totalMinutes = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
+    if (totalMinutes > 0) return 'regular';
+    return 'flexible';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Calculate total duration in minutes
     const totalMinutes = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
-    
+    const derivedType = deriveType();
+
     const newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
       child_id: task?.child_id || '',
       name: formData.name,
-      type: formData.type,
-      scheduled_time: formData.scheduledTime || undefined,
-      duration: totalMinutes > 0 ? totalMinutes : undefined,
+      type: derivedType,
+      scheduled_time: !isChore && formData.scheduledTime ? formData.scheduledTime : (task?.scheduled_time || undefined),
+      duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
       is_recurring: formData.isRecurring,
       recurring_days: formData.isRecurring ? formData.recurringDays : undefined,
       description: formData.description || undefined,
       sort_order: task?.sort_order || 0,
-      is_active: task?.is_active || true,
+      is_active: task?.is_active ?? true,
       task_date: !formData.isRecurring ? formData.taskDate : undefined,
+      is_important: (derivedType === 'regular' || derivedType === 'floating') ? formData.isImportant : false,
+      window_start: derivedType === 'floating' && !formData.choreAnytime ? formData.windowStart : undefined,
+      window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
     };
-
-    console.log('TaskForm: Submitting task with data:', {
-      isRecurring: formData.isRecurring,
-      taskDate: formData.taskDate,
-      finalTaskDate: newTask.task_date,
-      type: formData.type,
-      name: formData.name
-    });
-
     onSave(newTask);
   };
 
+  const currentType = deriveType();
+
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <Card className="rounded-3xl border-0 shadow-sm bg-white p-6">
-        <h2 className="text-2xl font-bold text-center mb-8">Add a task for {task?.child_id ? '' : 'child'}</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Task Name */}
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="taskName" className="text-base text-muted-foreground w-32 flex-shrink-0">Title</Label>
-            <Input
-              id="taskName"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Task name"
-              required
-              className="flex-1 rounded-xl"
-            />
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+      {/* Task / Chore Toggle */}
+      {!isSystemEvent && (
+        <div className="flex rounded-xl border border-border/50 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, mode: 'task' })}
+            className={`flex-1 py-3 text-sm font-semibold transition-all ${
+              !isChore ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Task
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, mode: 'chore', scheduledTime: '' })}
+            className={`flex-1 py-3 text-sm font-semibold transition-all ${
+              isChore ? 'bg-purple-600 text-white' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Chore
+          </button>
+        </div>
+      )}
 
-          {/* Scheduled Time Toggle */}
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="scheduledTimeToggle" className="text-base text-muted-foreground w-32 flex-shrink-0">Scheduled Time</Label>
-            <div className="flex items-center gap-3 flex-1 justify-end">
-              {formData.scheduledTime && (
-                <Input
-                  type="time"
-                  value={formData.scheduledTime}
-                  onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                  className="w-32 rounded-xl"
-                />
-              )}
-              <Switch
-                id="scheduledTimeToggle"
-                checked={!!formData.scheduledTime}
-                onCheckedChange={(checked) => setFormData({ ...formData, scheduledTime: checked ? '09:00' : '' })}
-                className="data-[state=checked]:bg-green-500"
+      {/* Title */}
+      <FormRow label="Title" htmlFor="taskName">
+        <Input
+          id="taskName"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder={isChore ? "e.g. Clean room" : "e.g. Homework"}
+          required
+          className="rounded-xl"
+        />
+      </FormRow>
+
+      {/* === TASK MODE === */}
+      {!isChore && (
+        <>
+          <FormRow label="Set Time" htmlFor="scheduledTimeToggle">
+            {formData.scheduledTime && (
+              <Input
+                type="time"
+                value={formData.scheduledTime}
+                onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                className="w-[130px] rounded-xl mr-3"
               />
-            </div>
-          </div>
+            )}
+            <Switch
+              id="scheduledTimeToggle"
+              checked={!!formData.scheduledTime}
+              onCheckedChange={(checked) => setFormData({ ...formData, scheduledTime: checked ? '09:00' : '' })}
+              className="data-[state=checked]:bg-blue-500"
+            />
+          </FormRow>
 
-          {/* Duration */}
-          <div className="flex items-center justify-between gap-4">
-            <Label className="text-base text-muted-foreground w-32 flex-shrink-0">Duration</Label>
+          <FormRow label="Duration">
             <Select
               value={`${(parseInt(formData.durationHours || '0') * 60 + parseInt(formData.durationMinutes || '0'))}`}
               onValueChange={(value) => {
-                const totalMinutes = parseInt(value);
-                setFormData({
-                  ...formData,
-                  durationHours: Math.floor(totalMinutes / 60).toString(),
-                  durationMinutes: (totalMinutes % 60).toString()
-                });
+                const m = parseInt(value);
+                setFormData({ ...formData, durationHours: Math.floor(m / 60).toString(), durationMinutes: (m % 60).toString() });
               }}
             >
-              <SelectTrigger className="w-32 rounded-full bg-foreground text-background hover:bg-foreground/90 border-0 h-10">
+              <SelectTrigger className="w-[130px] rounded-xl">
                 <SelectValue>
                   {formData.durationHours || formData.durationMinutes
                     ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
                     : 'Not set'}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 <SelectItem value="0">Not set</SelectItem>
                 <SelectItem value="15">15m</SelectItem>
                 <SelectItem value="30">30m</SelectItem>
@@ -162,85 +180,193 @@ const TaskForm = ({ task, onSave, onCancel, isEdit = false, currentDate }: TaskF
                 <SelectItem value="240">4h 0m</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </FormRow>
 
-          {/* Recurring Toggle */}
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="isRecurring" className="text-base text-muted-foreground w-32 flex-shrink-0">Recurring</Label>
-            <Switch
-              id="isRecurring"
-              checked={formData.isRecurring}
-              onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </div>
-
-          {/* Recurring Days */}
-          {formData.isRecurring && (
-            <div className="flex items-start justify-between gap-4">
-              <Label className="text-base text-muted-foreground w-32 flex-shrink-0 pt-2">Days</Label>
-              <div className="flex gap-2 flex-1 justify-end flex-wrap">
-                {daysOfWeek.map(({ id, label }) => (
-                  <Button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      setFormData({
-                        ...formData,
-                        recurringDays: formData.recurringDays.includes(id)
-                          ? formData.recurringDays.filter((day) => day !== id)
-                          : [...formData.recurringDays, id],
-                      });
-                    }}
-                    variant="ghost"
-                    className={`
-                      h-14 w-14 rounded-full font-semibold text-base transition-all p-0
-                      ${formData.recurringDays.includes(id)
-                        ? 'bg-foreground text-background hover:bg-foreground/90'
-                        : 'bg-muted text-muted-foreground hover:bg-muted hover:text-foreground'
-                      }
-                    `}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+          {currentType === 'regular' && (
+            <FormRow label="Important" htmlFor="isImportant">
+              <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
+              <Switch
+                id="isImportant"
+                checked={formData.isImportant}
+                onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
+                className="data-[state=checked]:bg-yellow-500"
+              />
+            </FormRow>
           )}
+        </>
+      )}
 
-          {/* Coins */}
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="coins" className="text-base text-muted-foreground w-32 flex-shrink-0">Reward</Label>
+      {/* === CHORE MODE === */}
+      {isChore && (
+        <>
+          <FormRow label="When">
             <Select
-              value={formData.coins}
-              onValueChange={(value) => setFormData({ ...formData, coins: value })}
+              value={formData.choreAnytime ? 'anytime' : 'window'}
+              onValueChange={(value) => setFormData({ ...formData, choreAnytime: value === 'anytime' })}
             >
-              <SelectTrigger className="w-32 rounded-xl">
-                <SelectValue />
+              <SelectTrigger className="w-[130px] rounded-xl">
+                <SelectValue>{formData.choreAnytime ? 'Anytime' : 'Time window'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">0 coins</SelectItem>
-                <SelectItem value="5">5 coins</SelectItem>
-                <SelectItem value="10">10 coins</SelectItem>
-                <SelectItem value="15">15 coins</SelectItem>
-                <SelectItem value="20">20 coins</SelectItem>
+                <SelectItem value="anytime">Anytime</SelectItem>
+                <SelectItem value="window">Time window</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </FormRow>
 
-          {/* Submit Button */}
-          <div className="pt-4">
-            <Button 
-              type="submit" 
-              className="w-full rounded-full h-14 text-lg font-medium shadow-sm"
-              style={{ background: 'hsl(180 50% 60%)', color: 'white' }}
-            >
-              {isEdit ? 'Update Task' : 'Add Task'}
-            </Button>
+          {!formData.choreAnytime && (
+            <FormRow label="Window">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="time"
+                  value={formData.windowStart}
+                  onChange={(e) => setFormData({ ...formData, windowStart: e.target.value })}
+                  className="w-[92px] rounded-xl text-sm"
+                />
+                <span className="text-muted-foreground text-xs">to</span>
+                <Input
+                  type="time"
+                  value={formData.windowEnd}
+                  onChange={(e) => setFormData({ ...formData, windowEnd: e.target.value })}
+                  className="w-[92px] rounded-xl text-sm"
+                />
+              </div>
+            </FormRow>
+          )}
+
+          <FormRow label="Important" htmlFor="isImportantChore">
+            <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
+            <Switch
+              id="isImportantChore"
+              checked={formData.isImportant}
+              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
+              className="data-[state=checked]:bg-yellow-500"
+            />
+          </FormRow>
+        </>
+      )}
+
+      {/* Recurring */}
+      <FormRow label="Recurring" htmlFor="isRecurring">
+        <Switch
+          id="isRecurring"
+          checked={formData.isRecurring}
+          onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
+          className="data-[state=checked]:bg-green-500"
+        />
+      </FormRow>
+
+      {formData.isRecurring && (
+        <FormRow label="Days">
+          <div className="flex gap-1.5">
+            {daysOfWeek.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    ...formData,
+                    recurringDays: formData.recurringDays.includes(id)
+                      ? formData.recurringDays.filter((day) => day !== id)
+                      : [...formData.recurringDays, id],
+                  });
+                }}
+                className={`
+                  h-9 w-9 rounded-full font-semibold text-xs transition-all
+                  ${formData.recurringDays.includes(id)
+                    ? 'bg-foreground text-background'
+                    : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }
+                `}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        </form>
-      </Card>
-    </div>
+        </FormRow>
+      )}
+
+      {/* Reward */}
+      <FormRow label="Reward" htmlFor="coins">
+        <Select
+          value={formData.coins}
+          onValueChange={(value) => setFormData({ ...formData, coins: value })}
+        >
+          <SelectTrigger className="w-[130px] rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">0 coins</SelectItem>
+            <SelectItem value="5">5 coins</SelectItem>
+            <SelectItem value="10">10 coins</SelectItem>
+            <SelectItem value="15">15 coins</SelectItem>
+            <SelectItem value="20">20 coins</SelectItem>
+          </SelectContent>
+        </Select>
+      </FormRow>
+
+      {/* Submit */}
+      <div className="pt-3 space-y-2">
+        <Button
+          type="submit"
+          className="w-full rounded-full h-12 text-base font-medium shadow-sm"
+          style={{ background: 'hsl(180 50% 60%)', color: 'white' }}
+        >
+          {isEdit ? (isChore ? 'Update Chore' : 'Update Task') : (isChore ? 'Add Chore' : 'Add Task')}
+        </Button>
+
+        {/* Delete */}
+        {isEdit && onDelete && task?.id && !isSystemEvent && (
+          <>
+            {!showDeleteConfirm ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full rounded-full h-10 text-sm text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+              >
+                Delete {isChore ? 'Chore' : 'Task'}
+              </Button>
+            ) : (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+                <p className="text-xs text-muted-foreground text-center">
+                  Delete "{formData.name}"?
+                </p>
+                {task.is_recurring && task.recurring_days && task.recurring_days.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      const dayName = format(currentDate, 'EEEE').toLowerCase();
+                      onDelete(task.id, 'this-day', dayName);
+                    }}
+                    className="w-full h-9 text-xs rounded-lg hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    Remove from {format(currentDate, 'EEEE')}s only
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onDelete(task.id, 'all')}
+                  className="w-full h-9 text-xs rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-400"
+                >
+                  {task.is_recurring ? 'Delete from all days' : 'Delete permanently'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="w-full h-9 text-xs rounded-lg text-muted-foreground"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </form>
   );
 };
 

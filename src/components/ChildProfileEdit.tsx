@@ -14,40 +14,51 @@ import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 
 interface ChildProfileEditProps {
   child: Child;
+  onUpdateChild?: (id: string, updates: Partial<Child>) => Promise<any>;
+  onDeleteChild?: (id: string) => Promise<void>;
 }
 
-const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
+const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileEditProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: child.name,
     age: child.age?.toString() || "",
     petType: child.petType,
     wake_time: child.wake_time || "07:00",
+    wake_duration: child.wake_duration?.toString() || "15",
     breakfast_time: child.breakfast_time || "07:30",
-    school_start_time: child.school_start_time || "08:30",
+    breakfast_duration: child.breakfast_duration?.toString() || "30",
     lunch_time: child.lunch_time || "12:00",
-    school_end_time: child.school_end_time || "15:00",
+    lunch_duration: child.lunch_duration?.toString() || "45",
     dinner_time: child.dinner_time || "18:00",
+    dinner_duration: child.dinner_duration?.toString() || "45",
     bedtime: child.bedtime || "20:00",
+    bedtime_duration: child.bedtime_duration?.toString() || "60",
   });
-  const { updateChild, deleteChild } = useChildren();
+  const childrenHook = useChildren();
+  const updateChild = onUpdateChild || childrenHook.updateChild;
+  const deleteChild = onDeleteChild || childrenHook.deleteChild;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      // First update the child profile
+      // Update the child profile (exclude school_start_time/school_end_time
+      // since those are managed by SchoolScheduleManager)
       await updateChild(child.id, {
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
         petType: formData.petType,
         wake_time: formData.wake_time,
+        wake_duration: parseInt(formData.wake_duration) || 15,
         breakfast_time: formData.breakfast_time,
-        school_start_time: formData.school_start_time,
+        breakfast_duration: parseInt(formData.breakfast_duration) || 30,
         lunch_time: formData.lunch_time,
-        school_end_time: formData.school_end_time,
+        lunch_duration: parseInt(formData.lunch_duration) || 45,
         dinner_time: formData.dinner_time,
+        dinner_duration: parseInt(formData.dinner_duration) || 45,
         bedtime: formData.bedtime,
+        bedtime_duration: parseInt(formData.bedtime_duration) || 60,
       });
 
       // Then update all system task instances with the new times
@@ -59,9 +70,6 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
       }
       if (formData.breakfast_time !== child.breakfast_time) {
         systemTaskUpdates.breakfast_time = formData.breakfast_time;
-      }
-      if (formData.school_start_time !== child.school_start_time) {
-        systemTaskUpdates.school_start_time = formData.school_start_time;
       }
       if (formData.lunch_time !== child.lunch_time) {
         systemTaskUpdates.lunch_time = formData.lunch_time;
@@ -97,8 +105,8 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Edit className="w-4 h-4 mr-2" />
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <Edit className="w-3.5 h-3.5" />
           Edit Profile
         </Button>
       </DialogTrigger>
@@ -149,8 +157,8 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
           <div>
             <Label htmlFor="petType">Pet Type *</Label>
             <Select 
-              value={formData.petType} 
-              onValueChange={(value: "fox" | "panda") => setFormData({ ...formData, petType: value })}
+              value={formData.petType}
+              onValueChange={(value: "fox" | "panda" | "owl") => setFormData({ ...formData, petType: value })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -158,6 +166,7 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
               <SelectContent>
                 <SelectItem value="fox">Arctic Fox - Clever and energetic</SelectItem>
                 <SelectItem value="panda">Red Panda - Playful and curious</SelectItem>
+                <SelectItem value="owl">Snowy Owl - Wise and gentle</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -176,6 +185,15 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
                   className="text-sm"
                 />
+                <Select value={formData.wake_duration} onValueChange={(v) => setFormData({ ...formData, wake_duration: v })}>
+                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 min</SelectItem>
+                    <SelectItem value="15">15 min</SelectItem>
+                    <SelectItem value="20">20 min</SelectItem>
+                    <SelectItem value="30">30 min</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="breakfast_time" className="text-xs">Breakfast</Label>
@@ -186,6 +204,16 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
                   className="text-sm"
                 />
+                <Select value={formData.breakfast_duration} onValueChange={(v) => setFormData({ ...formData, breakfast_duration: v })}>
+                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 min</SelectItem>
+                    <SelectItem value="20">20 min</SelectItem>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="45">45 min</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -223,6 +251,14 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
                   className="text-sm"
                 />
+                <Select value={formData.lunch_duration} onValueChange={(v) => setFormData({ ...formData, lunch_duration: v })}>
+                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="45">45 min</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -236,6 +272,15 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   onChange={(e) => setFormData({ ...formData, dinner_time: e.target.value })}
                   className="text-sm"
                 />
+                <Select value={formData.dinner_duration} onValueChange={(v) => setFormData({ ...formData, dinner_duration: v })}>
+                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="45">45 min</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="90">1.5 hours</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="bedtime" className="text-xs">Bedtime</Label>
@@ -246,6 +291,15 @@ const ChildProfileEdit = ({ child }: ChildProfileEditProps) => {
                   onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
                   className="text-sm"
                 />
+                <Select value={formData.bedtime_duration} onValueChange={(v) => setFormData({ ...formData, bedtime_duration: v })}>
+                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="45">45 min</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="90">1.5 hours</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

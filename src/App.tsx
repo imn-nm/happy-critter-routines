@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import AuthProvider from "@/components/AuthProvider";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -11,9 +11,13 @@ import ChildSetup from "./pages/ChildSetup";
 import ChildInterface from "./pages/ChildInterface";
 import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
-import ChildReports from "./pages/ChildReports";
 import NotFound from "./pages/NotFound";
 import ChildrenSideBySide from "./pages/ChildrenSideBySide";
+
+const ReportsRedirect = () => {
+  const { childId } = useParams();
+  return <Navigate to={`/child-dashboard/${childId}`} replace />;
+};
 
 const queryClient = new QueryClient();
 
@@ -32,7 +36,7 @@ const App = () => (
             <Route path="/child/:childId" element={<ChildInterface />} />
             <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
             <Route path="/tasks" element={<TaskManagement />} />
-            <Route path="/reports/:childId" element={<ChildReports />} />
+            <Route path="/reports/:childId" element={<ReportsRedirect />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

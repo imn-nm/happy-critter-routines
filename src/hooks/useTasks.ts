@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getPSTDateString } from '@/utils/pstDate';
 
 export interface Task {
   id: string;
   child_id: string;
   name: string;
-  type: 'scheduled' | 'regular' | 'flexible';
+  type: 'scheduled' | 'regular' | 'flexible' | 'floating';
   scheduled_time?: string;
   duration?: number;
   coins: number;
@@ -16,6 +17,9 @@ export interface Task {
   sort_order: number;
   is_active: boolean;
   task_date?: string;
+  is_important?: boolean;
+  window_start?: string;
+  window_end?: string;
   created_at: string;
   updated_at: string;
   isCompleted?: boolean; // For UI state
@@ -64,9 +68,9 @@ export const useTasks = (childId?: string) => {
 
   const fetchTodayCompletions = async () => {
     if (!childId) return;
-    
+
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPSTDateString();
       const { data, error } = await supabase
         .from('task_completions')
         .select('*')
@@ -82,9 +86,20 @@ export const useTasks = (childId?: string) => {
 
   const addTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      // Strip out fields that don't exist in the database schema
+      const { task_date, isCompleted, bonusTime, ...rest } = taskData as any;
+
+      // Remove undefined values — Supabase insert doesn't handle them well
+      const dbData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(rest)) {
+        if (value !== undefined) {
+          dbData[key] = value;
+        }
+      }
+
       const { data, error } = await supabase
         .from('tasks')
-        .insert([taskData])
+        .insert([dbData])
         .select()
         .single();
 
@@ -110,14 +125,26 @@ export const useTasks = (childId?: string) => {
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     try {
-      // Filter out UI-only properties before sending to database
-      const { isCompleted, ...dbUpdates } = updates;
-      
+      // Filter out UI-only properties and non-existent columns before sending to database
+      const { isCompleted, task_date, bonusTime, ...rest } = updates as any;
+
+      // Strip undefined values — Supabase needs explicit null to clear a field,
+      // and undefined keys can cause silent failures
+      const dbUpdates: Record<string, any> = {};
+      for (const [key, value] of Object.entries(rest)) {
+        if (value !== undefined) {
+          dbUpdates[key] = value;
+        } else {
+          // Convert undefined to null so the DB actually clears the field
+          dbUpdates[key] = null;
+        }
+      }
+
       // Optimistically update UI first
-      setTasks(prev => prev.map(task => 
+      setTasks(prev => prev.map(task =>
         task.id === id ? { ...task, ...updates } : task
       ));
-      
+
       const { data, error } = await supabase
         .from('tasks')
         .update(dbUpdates)
@@ -126,7 +153,7 @@ export const useTasks = (childId?: string) => {
         .single();
 
       if (error) throw error;
-      
+
       // Update with server response
       setTasks(prev => prev.map(task => task.id === id ? data as Task : task));
       return data;
@@ -181,6 +208,7 @@ export const useTasks = (childId?: string) => {
           task_id: taskId,
           coins_earned: coinsEarned,
           duration_spent: durationSpent,
+          date: getPSTDateString(),
         }])
         .select()
         .single();
@@ -245,11 +273,14 @@ export const useTasks = (childId?: string) => {
     }));
   };
 
+  // Track the PST date so we can refetch when the day rolls over
+  const lastDateRef = useRef(getPSTDateString());
+
   useEffect(() => {
     if (childId) {
       fetchTasks();
       fetchTodayCompletions();
-      
+
       // Set up real-time subscription for tasks
       const tasksChannel = supabase
         .channel(`tasks-changes-${childId}`)
@@ -263,13 +294,12 @@ export const useTasks = (childId?: string) => {
           },
           (payload) => {
             console.log('Real-time task change for child', childId, ':', payload);
-            // Only update if it's for this specific child
             if (payload.eventType === 'DELETE' && payload.old) {
               setTasks(prev => prev.filter(task => task.id !== payload.old.id));
             } else if (payload.eventType === 'INSERT' && payload.new) {
               setTasks(prev => [...prev, payload.new as Task]);
             } else if (payload.eventType === 'UPDATE' && payload.new) {
-              setTasks(prev => prev.map(task => 
+              setTasks(prev => prev.map(task =>
                 task.id === payload.new.id ? payload.new as Task : task
               ));
             }
@@ -277,8 +307,31 @@ export const useTasks = (childId?: string) => {
         )
         .subscribe();
 
+      // Check every 30s if the PST date rolled over; if so, refetch completions
+      const dateCheckInterval = setInterval(() => {
+        const currentDate = getPSTDateString();
+        if (currentDate !== lastDateRef.current) {
+          lastDateRef.current = currentDate;
+          fetchTodayCompletions();
+        }
+      }, 30_000);
+
+      // Refetch when tab becomes visible again (fixes stale data after overnight)
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible') {
+          const currentDate = getPSTDateString();
+          if (currentDate !== lastDateRef.current) {
+            lastDateRef.current = currentDate;
+          }
+          fetchTodayCompletions();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+
       return () => {
         supabase.removeChannel(tasksChannel);
+        clearInterval(dateCheckInterval);
+        document.removeEventListener('visibilitychange', handleVisibility);
       };
     }
   }, [childId]);

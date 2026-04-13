@@ -18,7 +18,7 @@ interface SchoolScheduleManagerProps {
     school_end_time?: string;
     school_duration?: number;
     school_schedule_overrides: Record<string, { time: string; duration: number } | null>;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolScheduleManagerProps) => {
@@ -43,7 +43,7 @@ const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolSched
     return schedule;
   }, [currentSchedule]);
 
-  const handleSave = (daySchedules: Record<string, { time: string; duration: number } | null>) => {
+  const handleSave = async (daySchedules: Record<string, { time: string; duration: number } | null>) => {
     // Extract enabled days (days that are not null)
     const enabledDays = Object.keys(daySchedules).filter(day => daySchedules[day] !== null);
 
@@ -51,7 +51,7 @@ const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolSched
     // Use the first enabled day as the default
     const firstEnabled = enabledDays.length > 0 ? daySchedules[enabledDays[0]] : null;
 
-    onSave({
+    await onSave({
       school_days: enabledDays,
       school_start_time: firstEnabled?.time,
       school_duration: firstEnabled?.duration,

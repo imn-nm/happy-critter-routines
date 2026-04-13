@@ -1,20 +1,18 @@
 import { cn } from "@/lib/utils";
-import owlAvatar from "@/assets/owl-avatar.png";
+import SvgPet from "./SvgPet";
+import owlAvatar from "@/assets/owl.png";
 import foxAvatar from "@/assets/fox-avatar.png";
 import penguinAvatar from "@/assets/penguin-avatar.png";
 
 // Fox emotion images
 import foxVeryHappy from "@/assets/fox_veryhappy.png";
 import foxHappy from "@/assets/fox_happy.png";
-import foxSad from "@/assets/fox_sad.png";
-
 // Red Panda emotion images
 import pandaVeryHappy from "@/assets/panda_veryhappy.png";
 import pandaHappy from "@/assets/panda_happy.png";
-import pandaSad from "@/assets/panda_sad.png";
 
 export type PetType = "fox" | "panda" | "owl" | "penguin";
-export type PetEmotion = "happy" | "playful" | "neutral" | "sad" | "concerned" | "sleepy" | "excited";
+export type PetEmotion = "encouraging" | "happy" | "excited" | "resting";
 
 interface PetAvatarProps {
   petType: PetType;
@@ -24,50 +22,37 @@ interface PetAvatarProps {
   className?: string;
   completedTasks?: number;
   totalTasks?: number;
+  useSvg?: boolean;
 }
 
-const PetAvatar = ({ petType, happiness, emotion, size = "md", className, completedTasks = 0, totalTasks = 0 }: PetAvatarProps) => {
+const PetAvatar = ({ petType, happiness, emotion, size = "md", className, completedTasks = 0, totalTasks = 0, useSvg = true }: PetAvatarProps) => {
   // Emotion/image selection is based on explicit emotion or happiness now.
 
   const getEmotionBasedImage = () => {
-    // Prefer explicit emotion or happiness for expressive pets
     if (petType === 'fox' || petType === 'panda') {
-      type Level = 'very' | 'happy' | 'sad';
+      type Level = 'very' | 'happy';
       let level: Level;
 
       if (emotion) {
         switch (emotion) {
-          case 'playful':
           case 'excited':
             level = 'very';
             break;
+          case 'encouraging':
           case 'happy':
-          case 'neutral':
-          case 'sleepy':
-            level = 'happy';
-            break;
-          case 'concerned':
-          case 'sad':
-            level = 'sad';
-            break;
+          case 'resting':
           default:
-            level = happiness >= 80 ? 'very' : happiness >= 50 ? 'happy' : 'sad';
+            level = 'happy';
         }
       } else {
-        // Fall back to happiness if no explicit emotion
-        level = happiness >= 80 ? 'very' : happiness >= 50 ? 'happy' : 'sad';
+        level = happiness >= 80 ? 'very' : 'happy';
       }
 
       if (petType === 'fox') {
-        if (level === 'very') return foxVeryHappy;
-        if (level === 'happy') return foxHappy;
-        return foxSad;
+        return level === 'very' ? foxVeryHappy : foxHappy;
       }
-
-      // petType === 'panda'
-      if (level === 'very') return pandaVeryHappy;
-      if (level === 'happy') return pandaHappy;
-      return pandaSad;
+      // panda
+      return level === 'very' ? pandaVeryHappy : pandaHappy;
     }
 
     // Fallback for owl and penguin - use static avatars
@@ -93,83 +78,80 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className, comple
   const getEmotionIndicator = () => {
     if (!shouldShowEmojiIndicator()) return null;
 
-    // If emotion is explicitly set, use it
     if (emotion) {
       switch (emotion) {
-        case "playful": return "😄";
+        case "encouraging": return "💪";
         case "happy": return "😊";
         case "excited": return "🤗";
-        case "neutral": return "😐";
-        case "concerned": return "😟";
-        case "sad": return "😢";
-        case "sleepy": return "😴";
+        case "resting": return "😴";
         default: return "😊";
       }
     }
 
-    // Fallback to happiness-based emotions
     if (happiness >= 80) return "😊";
     if (happiness >= 60) return "🙂";
-    if (happiness >= 40) return "😐";
-    if (happiness >= 20) return "😞";
-    return "😢";
+    return "💪";
   };
 
   const getEmotionColor = () => {
-    // If emotion is explicitly set, use emotion-based colors
     if (emotion) {
       switch (emotion) {
-        case "playful": return "#8B5CF6"; // purple-500
-        case "happy": return "#10B981"; // emerald-500
-        case "excited": return "#F59E0B"; // amber-500
-        case "neutral": return "#6B7280"; // gray-500
-        case "concerned": return "#F59E0B"; // amber-500
-        case "sad": return "#EF4444"; // red-500
-        case "sleepy": return "#6366F1"; // indigo-500
-        default: return "#10B981"; // emerald-500
+        case "encouraging": return "#F59E0B"; // amber
+        case "happy": return "#10B981"; // green
+        case "excited": return "#8B5CF6"; // purple
+        case "resting": return "#6366F1"; // indigo
+        default: return "#10B981";
       }
     }
-    
-    // Fallback to happiness-based colors
-    if (happiness >= 80) return "#10B981"; // emerald-500
-    if (happiness >= 60) return "#F59E0B"; // amber-500
-    if (happiness >= 40) return "#EF4444"; // red-500
-    return "#DC2626"; // red-600
+
+    if (happiness >= 80) return "#10B981";
+    if (happiness >= 60) return "#F59E0B";
+    return "#F59E0B";
   };
+
+  // Map emotion to SvgPet mood
+  const getSvgMood = (): "idle" | "happy" | "excited" | "sleep" => {
+    switch (emotion) {
+      case "excited": return "excited";
+      case "happy": return "happy";
+      case "resting": return "sleep";
+      case "encouraging":
+      default: return "idle";
+    }
+  };
+
+  const svgSizeMap = { sm: 48, md: 80, lg: 128, xl: 192 };
+  const shouldUseSvg = useSvg && (petType === 'fox' || petType === 'panda');
 
   return (
     <div className={cn("relative", className)}>
-      <div 
+      <div
         className={cn(
-          "rounded-full bg-white shadow-lg border-4 overflow-hidden transition-all duration-300",
-          sizeClasses[size]
+          "transition-all duration-300 flex items-center justify-center",
+          shouldUseSvg
+            ? sizeClasses[size]
+            : cn("shadow-lg overflow-hidden", sizeClasses[size])
         )}
-        style={{ borderColor: getEmotionColor() }}
       >
-        <img
-          src={getEmotionBasedImage()}
-          alt={`${petType} pet`}
-          className="w-full h-full object-cover"
-        />
+        {shouldUseSvg ? (
+          <SvgPet petType={petType as "fox" | "panda"} mood={getSvgMood()} size={svgSizeMap[size]} />
+        ) : (
+          <img
+            src={getEmotionBasedImage()}
+            alt={`${petType} pet`}
+            className="w-full h-full object-cover"
+          />
+        )}
       </div>
       
       {/* Emotion indicator - only for non-Fox/Panda pets */}
       {shouldShowEmojiIndicator() && (
-        <div className="absolute -top-1 -right-1 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md text-sm">
+        <div className="absolute -top-1 -right-1 glass-strong rounded-full w-8 h-8 flex items-center justify-center shadow-md text-sm">
           {getEmotionIndicator()}
         </div>
       )}
       
-      {/* Happiness bar */}
-      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-full bg-gray-200 rounded-full h-2">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${happiness}%`,
-            backgroundColor: getEmotionColor(),
-          }}
-        />
-      </div>
+      {/* Happiness bar - removed, no longer needed */}
     </div>
   );
 };

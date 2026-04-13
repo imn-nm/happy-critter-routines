@@ -18,6 +18,10 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				heading: ['Fredoka', 'ui-rounded', 'sans-serif'],
+				body: ['Nunito', 'ui-rounded', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

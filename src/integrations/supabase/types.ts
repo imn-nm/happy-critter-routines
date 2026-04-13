@@ -40,6 +40,7 @@ export type Database = {
           parent_id: string
           pet_happiness: number
           pet_type: string
+          rest_day_date: string | null
           school_days: string[] | null
           school_duration: number | null
           school_end_time: string | null
@@ -76,6 +77,7 @@ export type Database = {
           parent_id: string
           pet_happiness?: number
           pet_type: string
+          rest_day_date?: string | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           parent_id?: string
           pet_happiness?: number
           pet_type?: string
+          rest_day_date?: string | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null

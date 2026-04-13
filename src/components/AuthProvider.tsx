@@ -10,41 +10,38 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-primary p-4 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center space-y-4">
-          <div className="text-white text-xl">Setting up your account...</div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-64 bg-white/20" />
-            <Skeleton className="h-4 w-48 bg-white/20" />
-            <Skeleton className="h-4 w-56 bg-white/20" />
+          <div className="text-foreground text-lg font-medium text-glow">Setting up your account...</div>
+          <div className="space-y-2.5 max-w-xs mx-auto">
+            <Skeleton className="h-3 w-64 bg-white/10 rounded-full" />
+            <Skeleton className="h-3 w-48 bg-white/10 rounded-full" />
+            <Skeleton className="h-3 w-56 bg-white/10 rounded-full" />
           </div>
         </div>
       </div>
     );
   }
 
-  // Show setup instructions if no user
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-primary p-4 flex items-center justify-center">
-        <div className="max-w-md mx-auto text-center space-y-6">
-          <div className="text-white">
-            <h1 className="text-2xl font-bold mb-4">Authentication Setup Required</h1>
-            <p className="mb-6">To use Taskie, please disable email confirmation in your Supabase settings:</p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-sm mx-auto text-center space-y-5">
+          <div>
+            <h1 className="text-xl font-bold text-foreground mb-2 text-glow">Authentication Setup</h1>
+            <p className="text-sm text-muted-foreground">Disable email confirmation in Supabase to continue:</p>
           </div>
-          
-          <div className="bg-white/10 p-4 rounded-lg text-left text-white text-sm">
-            <ol className="space-y-2">
-              <li>1. Go to your Supabase Dashboard</li>
-              <li>2. Navigate to Authentication → Settings</li>
-              <li>3. Disable "Confirm email"</li>
-              <li>4. Save settings and refresh this page</li>
-            </ol>
+
+          <div className="glass-card rounded-2xl p-4 text-left text-sm text-foreground/80 space-y-1.5">
+            <p>1. Go to your Supabase Dashboard</p>
+            <p>2. Navigate to Authentication &rarr; Settings</p>
+            <p>3. Disable "Confirm email"</p>
+            <p>4. Save settings and refresh</p>
           </div>
-          
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-white text-primary px-6 py-2 rounded-lg font-medium hover:bg-white/90 transition-colors"
+
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-primary text-primary-foreground px-6 py-2.5 rounded-2xl text-sm font-semibold hover:bg-primary/90 transition-all glow-purple"
           >
             Refresh Page
           </button>

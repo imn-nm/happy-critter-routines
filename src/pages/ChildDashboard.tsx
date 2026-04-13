@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Gift, Calendar, Plus, CalendarDays } from "lucide-react";
+import { ArrowLeft, Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, Eye, Clock, TrendingUp, Award } from "lucide-react";
 import { format } from "date-fns";
+import { Switch } from "@/components/ui/switch";
+import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useToast } from "@/hooks/use-toast";
@@ -13,404 +14,319 @@ import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TaskForm from "@/components/TaskForm";
 import MonthView from "@/components/MonthView";
+import WeekView from "@/components/WeekView";
+import ChildProfileEdit from "@/components/ChildProfileEdit";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { children, loading, updateChild } = useChildren();
-  
-  // Get the most up-to-date child data directly from children state
+  const { children, loading, updateChild, updateChildCoins } = useChildren();
+
   const child = children.find(c => c.id === childId) || null;
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(getPSTDate());
   const { toast } = useToast();
 
-  const { 
-    tasks, 
-    addTask, 
-    updateTask, 
-    deleteTask, 
-    reorderTasks, 
-    refetch,
-    getTasksWithCompletionStatus,
-    loading: tasksLoading 
+  const {
+    tasks, addTask, updateTask, deleteTask, reorderTasks, refetch,
+    getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
 
-  // No longer needed - getting child directly from children state
+  const handleAddTask = () => { setEditingTask(null); setShowTaskForm(true); };
+  const handleEditTask = (task) => { setEditingTask(task); setShowTaskForm(true); };
 
-  const handleAddTask = () => {
-    console.log('ChildDashboard: Opening task form with currentDate:', currentDate, 'formatted:', format(currentDate, 'yyyy-MM-dd'));
-    setEditingTask(null);
-    setShowTaskForm(true);
-  };
-
-  const handleEditTask = (task) => {
-    setEditingTask(task);
-    setShowTaskForm(true);
+  const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
+  const systemNameToKey: Record<string, string> = {
+    'Wake Up': 'wake', 'Breakfast': 'breakfast', 'School': 'school',
+    'Lunch': 'lunch', 'Dinner': 'dinner', 'Bedtime': 'bedtime',
   };
 
   const handleSaveTask = async (taskData) => {
     try {
       if (editingTask) {
-        // Check if this is a system event (has non-UUID ID)
-        const isSystemEvent = editingTask.id && !editingTask.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-        
-        if (isSystemEvent) {
-          console.log('Editing system event:', editingTask.id, 'with data:', taskData);
-          
-          // For system events, update the child's schedule
-          const timeFieldMap = {
-            'wake': 'wake_time',
-            'breakfast': 'breakfast_time',
-            'school': 'school_start_time',
-            'lunch': 'lunch_time',
-            'snack': 'snack_time',
-            'dinner': 'dinner_time',
-            'bedtime': 'bedtime',
-          };
-          
-          const daysFieldMap = {
-            'wake': 'wake_days',
-            'breakfast': 'breakfast_days',
-            'school': 'school_days',
-            'lunch': 'lunch_days',
-            'snack': 'snack_days',
-            'dinner': 'dinner_days',
-            'bedtime': 'bedtime_days',
-          };
-          
-          const durationFieldMap = {
-            'wake': 'wake_duration',
-            'breakfast': 'breakfast_duration',
-            'school': 'school_duration',
-            'lunch': 'lunch_duration',
-            'snack': 'snack_duration',
-            'dinner': 'dinner_duration',
-            'bedtime': 'bedtime_duration',
-          };
-          
-          const timeField = timeFieldMap[editingTask.id];
-          const daysField = daysFieldMap[editingTask.id];
-          const durationField = durationFieldMap[editingTask.id];
-          
-          const updateData = {};
-          if (timeField && taskData.scheduled_time) {
-            console.log(`Setting ${timeField} to ${taskData.scheduled_time}`);
-            updateData[timeField] = taskData.scheduled_time;
-          }
-          if (daysField && taskData.recurring_days) {
-            console.log(`Setting ${daysField} to`, taskData.recurring_days);
-            updateData[daysField] = taskData.recurring_days;
-          }
-          if (durationField && taskData.duration) {
-            console.log(`Setting ${durationField} to ${taskData.duration}`);
-            updateData[durationField] = taskData.duration;
-          }
-          
-          console.log('System event update data:', updateData);
-          
+        const systemKey = systemNameToKey[editingTask.name];
+        if (systemKey) {
+          // System task — update only the children table (schedule fields)
+          // System tasks don't have rows in the tasks table; their IDs are synthetic (e.g. "system-dinner-wednesday")
+          const timeFieldMap: Record<string, string> = { 'wake': 'wake_time', 'breakfast': 'breakfast_time', 'school': 'school_start_time', 'lunch': 'lunch_time', 'dinner': 'dinner_time', 'bedtime': 'bedtime' };
+          const daysFieldMap: Record<string, string> = { 'wake': 'wake_days', 'breakfast': 'breakfast_days', 'school': 'school_days', 'lunch': 'lunch_days', 'dinner': 'dinner_days', 'bedtime': 'bedtime_days' };
+          const durationFieldMap: Record<string, string> = { 'wake': 'wake_duration', 'breakfast': 'breakfast_duration', 'school': 'school_duration', 'lunch': 'lunch_duration', 'dinner': 'dinner_duration', 'bedtime': 'bedtime_duration' };
+          const updateData: Record<string, any> = {};
+          if (timeFieldMap[systemKey] && taskData.scheduled_time) updateData[timeFieldMap[systemKey]] = taskData.scheduled_time;
+          if (daysFieldMap[systemKey] && taskData.recurring_days) updateData[daysFieldMap[systemKey]] = taskData.recurring_days;
+          if (durationFieldMap[systemKey] && taskData.duration != null) updateData[durationFieldMap[systemKey]] = taskData.duration;
           if (Object.keys(updateData).length > 0) {
             await updateChild(child.id, updateData);
-            console.log('Child updated with system event changes');
-            
-            toast({
-              title: "Schedule Updated",
-              description: `${editingTask.name} schedule has been updated.`,
-            });
-          } else {
-            toast({
-              title: "System Event Updated",
-              description: "System event has been updated successfully.",
-            });
           }
+          await refetch();
+          toast({ title: "Schedule Updated", description: `${editingTask.name} updated.` });
         } else {
-          // Regular task update - ensure we have the proper task structure
-          const updateData = {
-            ...taskData,
-            id: editingTask.id,
-            child_id: editingTask.child_id,
-            created_at: editingTask.created_at,
-            updated_at: new Date().toISOString(),
-          };
-          await updateTask(editingTask.id, updateData);
-          toast({
-            title: "Task updated",
-            description: "Task has been updated successfully.",
-          });
+          await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
+          toast({ title: "Task updated" });
         }
       } else {
-        await addTask({ ...taskData, child_id: childId });
-        toast({
-          title: "Task created",
-          description: "New task has been created successfully.",
-        });
+        // If no scheduled_time, auto-calculate based on existing schedule
+        const finalTaskData = { ...taskData, child_id: childId };
+        if (!finalTaskData.scheduled_time && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
+          const existingTasks = tasks.filter(t => t.is_active && t.scheduled_time);
+          const occupied = existingTasks.map(t => {
+            const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
+            const start = h * 60 + m;
+            return { start, end: start + (t.duration || 30) };
+          }).sort((a, b) => a.start - b.start);
+
+          const duration = finalTaskData.duration || 30;
+          let placed = false;
+          for (const block of occupied) {
+            const candidate = block.end;
+            const candidateEnd = candidate + duration;
+            const overlaps = occupied.some(b => candidate < b.end && candidateEnd > b.start);
+            if (!overlaps) {
+              const h = Math.floor(candidate / 60);
+              const m = candidate % 60;
+              finalTaskData.scheduled_time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+              placed = true;
+              break;
+            }
+          }
+          if (!placed && occupied.length > 0) {
+            const last = occupied[occupied.length - 1];
+            const h = Math.floor(last.end / 60);
+            const m = last.end % 60;
+            finalTaskData.scheduled_time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+          }
+        }
+        await addTask(finalTaskData);
+        toast({ title: "Task created" });
       }
-      setShowTaskForm(false);
-      setEditingTask(null);
+      setShowTaskForm(false); setEditingTask(null);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save task. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save task.", variant: "destructive" });
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
+  const handleDeleteTask = async (taskId: string, mode: 'all' | 'this-day' = 'all', dayName?: string) => {
     try {
-      await deleteTask(taskId);
-      toast({
-        title: "Task deleted",
-        description: "Task has been deleted successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete task. Please try again.",
-        variant: "destructive",
-      });
+      if (mode === 'this-day' && dayName) {
+        // Remove just this day from recurring_days
+        const task = tasks.find(t => t.id === taskId);
+        if (task && task.recurring_days) {
+          const updatedDays = task.recurring_days.filter(d => d !== dayName);
+          if (updatedDays.length === 0) {
+            // No days left, delete the whole task
+            await deleteTask(taskId);
+            toast({ title: "Deleted", description: `${task.name} removed (no days remaining).` });
+          } else {
+            await updateTask(taskId, { ...task, recurring_days: updatedDays });
+            toast({ title: "Updated", description: `${task.name} removed from ${dayName}s.` });
+          }
+        }
+      } else {
+        await deleteTask(taskId);
+        toast({ title: "Deleted" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
     }
   };
 
-  const handleTasksReorder = async (reorderedTasks) => {
-    try {
-      await reorderTasks(reorderedTasks);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to reorder tasks. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-primary p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-8 text-white">Loading...</div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground text-sm">Loading...</p></div>;
 
   if (!child) {
     return (
-      <div className="min-h-screen bg-gradient-primary p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-16">
-            <h1 className="text-3xl font-bold text-white mb-4">Child not found</h1>
-            <Button onClick={() => navigate("/dashboard")} variant="accent">
-              Back to Dashboard
-            </Button>
-          </div>
+      <div className="min-h-screen p-4">
+        <div className="max-w-md mx-auto text-center py-16">
+          <h1 className="text-xl font-bold text-foreground mb-3">Child not found</h1>
+          <Button onClick={() => navigate("/dashboard")} variant="outline" className="rounded-full">Back</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-2 sm:p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen p-3 sm:p-4 pb-8">
+      <div className="max-w-4xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => navigate("/dashboard")}
-            className="text-foreground hover:bg-white/50 h-10 w-10 rounded-full bg-white/30 backdrop-blur-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-            {child.name}'s Dashboard
-          </h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="rounded-xl">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <h1 className="text-lg font-bold text-foreground text-glow">{child.name}'s Dashboard</h1>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/")} className="gap-1.5 rounded-xl">
+              <Eye className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Child View</span>
+            </Button>
+            <ChildProfileEdit child={child} onUpdateChild={updateChild} />
+          </div>
         </div>
 
-        {/* Child Summary Card */}
-        <Card className="p-4 mb-4 bg-white rounded-3xl shadow-sm border-0">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground mb-1">{child.name}</h2>
-            <p className="text-sm text-muted-foreground mb-4">Age: {child.age || 'Not specified'}</p>
-          </div>
-          <div className="flex items-center justify-around gap-4 pt-3 border-t border-border/50">
-            <div className="text-center flex-1">
-              <p className="text-xs text-muted-foreground mb-1">Current Coins</p>
-              <p className="text-3xl font-bold" style={{ color: 'hsl(var(--warning))' }}>{child.currentCoins}</p>
+        {/* Summary Card */}
+        <div className="glass-card rounded-3xl p-4">
+          {/* Stats Row */}
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            <div className="text-center">
+              <Award className="w-4 h-4 text-yellow-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-foreground">{child.currentCoins}</p>
+              <p className="text-xs text-muted-foreground">Coins</p>
             </div>
-            <div className="w-px h-12 bg-border/50"></div>
-            <div className="text-center flex-1">
-              <p className="text-xs text-muted-foreground mb-1">Pet Happiness</p>
-              <p className="text-3xl font-bold" style={{ color: 'hsl(var(--success))' }}>{child.petHappiness}%</p>
+            <div className="text-center">
+              <TrendingUp className="w-4 h-4 text-green-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-foreground">{child.petHappiness}%</p>
+              <p className="text-xs text-muted-foreground">Happiness</p>
+            </div>
+            <div className="text-center">
+              <Clock className="w-4 h-4 text-purple-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-foreground">{tasks.filter(t => t.is_active).length}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+            </div>
+            <div className="text-center">
+              <Calendar className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-foreground">{tasks.length}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
           </div>
-        </Card>
 
+          {/* Coin Controls & Rest Day */}
+          <div className="flex items-center justify-between pt-3 border-t border-white/5">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 rounded-full glass hover:bg-red-500/20"
+                onClick={async () => {
+                  if (child.currentCoins <= 0) return;
+                  await updateChildCoins(child.id, child.currentCoins - 1);
+                  toast({ title: "Coin removed", description: `${child.name} now has ${child.currentCoins - 1} coins.` });
+                }}
+                disabled={child.currentCoins <= 0}
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </Button>
+              <div className="flex items-center gap-1.5">
+                <Coins className="w-4 h-4 text-warning" />
+                <span className="text-sm font-medium text-muted-foreground">Adjust coins</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 rounded-full glass hover:bg-green-500/20"
+                onClick={async () => {
+                  await updateChildCoins(child.id, child.currentCoins + 1);
+                  toast({ title: "Coin awarded!", description: `${child.name} now has ${child.currentCoins + 1} coins.` });
+                }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 glass rounded-xl px-3 py-1.5">
+              <Moon className="w-3.5 h-3.5 text-primary-light" />
+              <span className="text-xs font-medium">Rest Day</span>
+              <Switch
+                checked={child.rest_day_date === getPSTDateString()}
+                onCheckedChange={async (checked) => {
+                  await updateChild(child.id, { rest_day_date: checked ? getPSTDateString() : null });
+                  toast({ title: checked ? "Rest day on" : "Rest day off" });
+                }}
+              />
+            </div>
+          </div>
+        </div>
 
-        {/* Management Tabs */}
-        <Tabs defaultValue="timeline" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 h-auto bg-white rounded-2xl p-1 border-0 shadow-sm">
-            <TabsTrigger 
-              value="timeline" 
-              className="flex flex-col items-center gap-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
-            >
-              <Calendar className="w-5 h-5" />
-              <span className="text-xs font-medium">Time</span>
+        {/* Tabs */}
+        <Tabs defaultValue="timeline" className="space-y-3">
+          <TabsList className="grid w-full grid-cols-4 h-auto glass rounded-2xl p-1">
+            <TabsTrigger value="timeline" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Calendar className="w-3.5 h-3.5" /> Timeline
             </TabsTrigger>
-            <TabsTrigger 
-              value="month" 
-              className="flex flex-col items-center gap-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
-            >
-              <CalendarDays className="w-5 h-5" />
-              <span className="text-xs font-medium">Calendar</span>
+            <TabsTrigger value="week" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <CalendarDays className="w-3.5 h-3.5" /> Week
             </TabsTrigger>
-            <TabsTrigger 
-              value="rewards" 
-              className="flex flex-col items-center gap-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
-            >
-              <Gift className="w-5 h-5" />
-              <span className="text-xs font-medium">Gifts</span>
+            <TabsTrigger value="month" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <CalendarDays className="w-3.5 h-3.5" /> Calendar
+            </TabsTrigger>
+            <TabsTrigger value="rewards" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Gift className="w-3.5 h-3.5" /> Rewards
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="timeline" className="space-y-2 sm:space-y-4">
+          <TabsContent value="timeline" className="space-y-2">
             <TimelineScheduleView
-              child={child}
-              currentDate={currentDate}
+              child={child} currentDate={currentDate}
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
-              onAddTask={handleAddTask}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
+              onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
               onReorderTasks={async (reorderedTasks) => {
-                console.log('=== CHILD DASHBOARD REORDER HANDLER START ===');
-                console.log('Received reorderedTasks:', reorderedTasks.map(t => ({ id: t.id, name: t.name, time: t.scheduled_time })));
-                
                 try {
-                  // Update each task with smart snapping times and sort order
-                  let currentTime = 0; // Will be set based on previous events
-                  
+                  // Build occupied slots from system/fixed tasks (not being reordered)
+                  const reorderedIds = new Set(reorderedTasks.map(t => t.id));
+                  const fixedSlots = tasks
+                    .filter(t => t.is_active && t.scheduled_time && !reorderedIds.has(t.id))
+                    .map(t => {
+                      const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
+                      const start = h * 60 + m;
+                      return { start, end: start + (t.duration || 30) };
+                    })
+                    .sort((a, b) => a.start - b.start);
+
+                  // Place each reordered task sequentially, finding next available slot
+                  const placedSlots = [...fixedSlots];
                   const updatePromises = reorderedTasks.map((task, index) => {
-                    let newTime: string;
-                    
-                    if (index === 0) {
-                      // First task: find the last scheduled event before this task group
-                      // For now, snap to after school (15:30) as a reasonable default
-                      const schoolEndTime = 15 * 60 + 30; // 15:30 in minutes
-                      currentTime = schoolEndTime;
-                    } else {
-                      // Subsequent tasks: snap to end of previous task
-                      const prevTask = reorderedTasks[index - 1];
-                      const prevDuration = prevTask.duration || 30; // Default 30 min
-                      currentTime += prevDuration;
+                    const duration = task.duration || 30;
+                    // Find first gap that fits this task
+                    let bestStart = 0;
+                    const sorted = [...placedSlots].sort((a, b) => a.start - b.start);
+                    for (const slot of sorted) {
+                      if (bestStart + duration <= slot.start) break;
+                      bestStart = Math.max(bestStart, slot.end);
                     }
-                    
-                    const hours = Math.floor(currentTime / 60);
-                    const minutes = currentTime % 60;
-                    newTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-                    
-                    console.log(`Preparing to update task ${task.name}:`, { 
-                      id: task.id, 
-                      oldTime: task.scheduled_time,
-                      newTime: newTime, 
-                      newSortOrder: index,
-                      duration: task.duration || 30,
-                      currentTimeMinutes: currentTime
-                    });
-                    
-                    return updateTask(task.id, { 
-                      scheduled_time: newTime,
-                      sort_order: index 
+                    placedSlots.push({ start: bestStart, end: bestStart + duration });
+                    const h = Math.floor(bestStart / 60), m = bestStart % 60;
+                    return updateTask(task.id, {
+                      scheduled_time: `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:00`,
+                      sort_order: index
                     });
                   });
-                  
-                  console.log('Executing Promise.all for task updates...');
-                  await Promise.all(updatePromises);
-                  console.log('All tasks updated successfully');
-                  
-                  // Force refetch to update UI
-                  console.log('Forcing refetch...');
-                  await refetch();
-                  console.log('Refetch complete');
-                  
-                  toast({
-                    title: "Tasks reordered",
-                    description: "Task schedule has been updated to prevent overlaps.",
-                  });
-                } catch (error) {
-                  console.error('Failed to reorder tasks:', error);
-                  toast({
-                    title: "Error", 
-                    description: "Failed to reorder tasks. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-                console.log('=== CHILD DASHBOARD REORDER HANDLER END ===');
+                  await Promise.all(updatePromises); await refetch();
+                  toast({ title: "Reordered" });
+                } catch { toast({ title: "Error", variant: "destructive" }); }
               }}
               onTaskTimeUpdate={async (taskId, newTime) => {
-                console.log('Drag drop: updating task', taskId, 'to time', newTime);
-                
-                try {
-                  await updateTask(taskId, { scheduled_time: newTime });
-                  console.log('Task updated successfully');
-                  // Force immediate refetch to ensure UI updates
-                  await refetch();
-                  toast({
-                    title: "Task updated",
-                    description: "Task time has been updated successfully.",
-                  });
-                } catch (error) {
-                  console.error('Failed to update task:', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to update task time. Please try again.",
-                    variant: "destructive",
-                  });
-                }
+                try { await updateTask(taskId, { scheduled_time: newTime }); await refetch(); toast({ title: "Updated" }); }
+                catch { toast({ title: "Error", variant: "destructive" }); }
               }}
             />
           </TabsContent>
 
+          <TabsContent value="week">
+            <WeekView child={child} tasks={tasks} onTasksReorder={() => {}} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+          </TabsContent>
 
           <TabsContent value="month">
-            <MonthView 
-              child={child}
-              tasks={tasks}
-              getTasksWithCompletionStatus={getTasksWithCompletionStatus}
-              onAddTask={(date) => {
-                setCurrentDate(date);
-                handleAddTask();
-              }}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-            />
+            <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
+              onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
+              onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
           </TabsContent>
 
-          <TabsContent value="rewards">
-            <RewardsManagement child={child} />
-          </TabsContent>
+          <TabsContent value="rewards"><RewardsManagement child={child} /></TabsContent>
         </Tabs>
 
-        {/* Task Form Dialog */}
         <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogTitle className="sr-only">
-              {editingTask ? "Edit Task" : "Add New Task"}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              {editingTask ? "Edit the task details below" : "Fill in the form below to create a new task"}
-            </DialogDescription>
+          <DialogContent className="max-w-[480px] w-[95vw] glass-card border-border/50 rounded-2xl" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+            <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
+            <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
             <TaskForm
               key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}`}
-              task={editingTask}
-              onSave={handleSaveTask}
-              onCancel={() => {
+              task={editingTask} onSave={handleSaveTask}
+              onCancel={() => { setShowTaskForm(false); setEditingTask(null); }}
+              onDelete={(taskId, mode, dayName) => {
+                handleDeleteTask(taskId, mode, dayName);
                 setShowTaskForm(false);
                 setEditingTask(null);
               }}
-              isEdit={!!editingTask}
-              currentDate={currentDate}
-            />
+              isEdit={!!editingTask} currentDate={currentDate} />
           </DialogContent>
         </Dialog>
       </div>
