@@ -110,83 +110,86 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           Edit Profile
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit {child.name}'s Profile</DialogTitle>
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 flex-shrink-0">
+          <DialogTitle className="text-lg">Edit {child.name}'s Profile</DialogTitle>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6 space-y-5">
           {/* Pet Avatar Preview */}
           <div className="text-center">
-            <PetAvatar 
-              petType={formData.petType} 
-              happiness={child.petHappiness} 
+            <PetAvatar
+              petType={formData.petType}
+              happiness={child.petHappiness}
               size="lg"
-              className="mx-auto mb-2"
+              className="mx-auto mb-1"
             />
-            <p className="text-sm text-muted-foreground">Preview of {child.name}'s pet</p>
+            <p className="text-xs text-muted-foreground">Preview of {child.name}'s pet</p>
           </div>
 
-          {/* Name */}
-          <div>
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Child's name"
-              required
-            />
-          </div>
-
-          {/* Age */}
-          <div>
-            <Label htmlFor="age">Age</Label>
-            <Input
-              id="age"
-              type="number"
-              min="1"
-              max="18"
-              value={formData.age}
-              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-              placeholder="Age (optional)"
-            />
+          {/* Name & Age row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <Label htmlFor="name" className="text-xs">Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Child's name"
+                required
+                className="h-10"
+              />
+            </div>
+            <div>
+              <Label htmlFor="age" className="text-xs">Age</Label>
+              <Input
+                id="age"
+                type="number"
+                min="1"
+                max="18"
+                value={formData.age}
+                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                placeholder="—"
+                className="h-10"
+              />
+            </div>
           </div>
 
           {/* Pet Type */}
           <div>
-            <Label htmlFor="petType">Pet Type *</Label>
-            <Select 
+            <Label htmlFor="petType" className="text-xs">Pet Type *</Label>
+            <Select
               value={formData.petType}
               onValueChange={(value: "fox" | "panda" | "owl") => setFormData({ ...formData, petType: value })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fox">Arctic Fox - Clever and energetic</SelectItem>
-                <SelectItem value="panda">Red Panda - Playful and curious</SelectItem>
-                <SelectItem value="owl">Snowy Owl - Wise and gentle</SelectItem>
+                <SelectItem value="fox">Arctic Fox</SelectItem>
+                <SelectItem value="panda">Red Panda</SelectItem>
+                <SelectItem value="owl">Snowy Owl</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Schedule Times */}
-          <div className="space-y-4 border-t pt-4">
+          <div className="space-y-3 border-t pt-4">
             <h4 className="font-medium text-sm">Daily Schedule</h4>
-            
+
+            {/* Wake Up & Breakfast */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="wake_time" className="text-xs">Wake Up</Label>
                 <Input
                   id="wake_time"
                   type="time"
                   value={formData.wake_time}
                   onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
-                  className="text-sm"
+                  className="text-sm h-10"
                 />
                 <Select value={formData.wake_duration} onValueChange={(v) => setFormData({ ...formData, wake_duration: v })}>
-                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="10">10 min</SelectItem>
                     <SelectItem value="15">15 min</SelectItem>
@@ -195,17 +198,17 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="breakfast_time" className="text-xs">Breakfast</Label>
                 <Input
                   id="breakfast_time"
                   type="time"
                   value={formData.breakfast_time}
                   onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
-                  className="text-sm"
+                  className="text-sm h-10"
                 />
                 <Select value={formData.breakfast_duration} onValueChange={(v) => setFormData({ ...formData, breakfast_duration: v })}>
-                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="15">15 min</SelectItem>
                     <SelectItem value="20">20 min</SelectItem>
@@ -219,7 +222,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
             {/* School Schedule Manager */}
             <div>
-              <Label className="text-xs mb-2 block">School Schedule</Label>
+              <Label className="text-xs mb-1 block">School Schedule</Label>
               <SchoolScheduleManager
                 childId={child.id}
                 currentSchedule={{
@@ -241,18 +244,19 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
               />
             </div>
 
+            {/* Lunch & Dinner */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="lunch_time" className="text-xs">Lunch</Label>
                 <Input
                   id="lunch_time"
                   type="time"
                   value={formData.lunch_time}
                   onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
-                  className="text-sm"
+                  className="text-sm h-10"
                 />
                 <Select value={formData.lunch_duration} onValueChange={(v) => setFormData({ ...formData, lunch_duration: v })}>
-                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="30">30 min</SelectItem>
                     <SelectItem value="45">45 min</SelectItem>
@@ -260,10 +264,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="dinner_time" className="text-xs">Dinner</Label>
                 <Input
                   id="dinner_time"
@@ -273,7 +274,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                   className="text-sm"
                 />
                 <Select value={formData.dinner_duration} onValueChange={(v) => setFormData({ ...formData, dinner_duration: v })}>
-                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="30">30 min</SelectItem>
                     <SelectItem value="45">45 min</SelectItem>
@@ -282,17 +283,21 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+            </div>
+
+            {/* Bedtime */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
                 <Label htmlFor="bedtime" className="text-xs">Bedtime</Label>
                 <Input
                   id="bedtime"
                   type="time"
                   value={formData.bedtime}
                   onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
-                  className="text-sm"
+                  className="text-sm h-10"
                 />
                 <Select value={formData.bedtime_duration} onValueChange={(v) => setFormData({ ...formData, bedtime_duration: v })}>
-                  <SelectTrigger className="mt-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="30">30 min</SelectItem>
                     <SelectItem value="45">45 min</SelectItem>
@@ -304,49 +309,46 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
+          {/* Action Buttons — sticky at bottom */}
+          <div className="flex gap-2 pt-3 sticky bottom-0 bg-background/95 backdrop-blur-sm -mx-4 px-4 pb-1 sm:-mx-6 sm:px-6 border-t">
+            <Button type="submit" className="flex-1 h-11">
+              <Save className="w-4 h-4 mr-1.5" />
+              Save
             </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setIsOpen(false)}
+              className="h-11 px-4"
             >
-              <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
           </div>
 
           {/* Delete Section */}
-          <div className="border-t pt-4 mt-4">
-            <p className="text-sm text-muted-foreground mb-3">
-              Danger Zone: This action cannot be undone.
-            </p>
+          <div className="border-t pt-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="w-full">
-                  <Trash2 className="w-4 h-4 mr-2" />
+                <Button variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 h-10">
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                   Delete {child.name}'s Profile
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete {child.name}'s Profile?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete {child.name}'s profile, 
-                    including all their tasks, progress, and rewards. Are you sure you want to continue?
+                    This will permanently delete {child.name}'s profile,
+                    including all tasks, progress, and rewards.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel className="h-11">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
                     onClick={handleDelete}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-11"
                   >
-                    Yes, Delete Profile
+                    Yes, Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
