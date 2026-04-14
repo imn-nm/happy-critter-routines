@@ -15,6 +15,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -36,7 +37,7 @@ interface TimelineScheduleViewProps {
   onAddTask?: (prefillTime?: string) => void;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
-  onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
+  onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
 }
 
@@ -138,11 +139,14 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
     animateLayoutChanges: () => false,
   });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
     transition: isDragging ? 'none' : transition,
-    zIndex: isDragging ? 1000 : 'auto' as any,
+    zIndex: isDragging ? 1000 : 'auto',
     opacity: isDragging ? 0.85 : 1,
+    touchAction: isDraggable ? 'none' : undefined,
+    WebkitUserSelect: isDragging ? 'none' : undefined,
+    userSelect: isDragging ? 'none' : undefined,
   };
 
   const formatTime = (timeStr: string) => {
@@ -581,7 +585,13 @@ const TimelineScheduleView = ({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 3,
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -683,11 +693,21 @@ const TimelineScheduleView = ({
       };
     });
 
+  // Resolve day-specific overrides for a task
+  const getTaskTimeForDay = (task: any): { time: string; duration: number } => {
+    const override = task.schedule_overrides?.[dayOfWeek];
+    return {
+      time: override?.scheduled_time || task.scheduled_time || '09:00',
+      duration: override?.duration ?? task.duration ?? 30,
+    };
+  };
+
   const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task =>
     task.type === 'scheduled' && !systemTaskNames.includes(task.name)
   ).map(task => {
-    const taskTime = task.scheduled_time || '09:00';
-    const taskDuration = task.duration || 60;
+    const resolved = getTaskTimeForDay(task);
+    const taskTime = resolved.time;
+    const taskDuration = resolved.duration;
     return {
       id: task.id,
       name: task.name,
@@ -733,13 +753,14 @@ const TimelineScheduleView = ({
       })
       .sort((a, b) => a.start - b.start);
 
-    // Also include already-placed draggable tasks
+    // Also include already-placed draggable tasks (using day-specific overrides)
     const placed = draggableTasks
-      .filter(t => t.scheduled_time)
+      .filter(t => t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
       .map(t => {
-        const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
+        const resolved = getTaskTimeForDay(t);
+        const [h, m] = resolved.time.split(':').map(Number);
         const start = h * 60 + m;
-        return { start, end: start + (t.duration || 30) };
+        return { start, end: start + resolved.duration };
       });
 
     const allOccupied = [...occupied, ...placed].sort((a, b) => a.start - b.start);
@@ -768,10 +789,11 @@ const TimelineScheduleView = ({
     return '09:00';
   };
 
-  // Use actual scheduled times for draggable tasks, or auto-place them in gaps
+  // Use day-specific overrides or actual scheduled times for draggable tasks, or auto-place them in gaps
   const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
-    const taskDuration = task.duration || 30;
-    const taskTime = task.scheduled_time || findNextAvailableTime(taskDuration);
+    const resolved = getTaskTimeForDay(task);
+    const taskDuration = resolved.duration;
+    const taskTime = (task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || findNextAvailableTime(taskDuration);
     return {
       id: task.id,
       name: task.name,
@@ -966,7 +988,7 @@ const TimelineScheduleView = ({
     const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
     if (tickMatch && onTaskTimeUpdate) {
       const tickMinutes = parseInt(tickMatch[1]);
-      onTaskTimeUpdate(activeTask.id, minutesToTimeStr(tickMinutes));
+      onTaskTimeUpdate(activeTask.id, minutesToTimeStr(tickMinutes), dayOfWeek);
       return;
     }
 
@@ -974,7 +996,7 @@ const TimelineScheduleView = ({
     if (onTaskTimeUpdate) {
       const landingMinutes = calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
       if (landingMinutes != null) {
-        onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes));
+        onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes), dayOfWeek);
       }
     }
   };

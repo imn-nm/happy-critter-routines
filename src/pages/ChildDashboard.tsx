@@ -35,7 +35,24 @@ const ChildDashboard = () => {
   } = useTasks(childId || '');
 
   const handleAddTask = (time?: string) => { setEditingTask(null); setPrefillTime(time); setShowTaskForm(true); };
-  const handleEditTask = (task) => { setPrefillTime(undefined); setEditingTask(task); setShowTaskForm(true); };
+  const handleEditTask = (task) => {
+    setPrefillTime(undefined);
+    // For recurring tasks, merge day-specific overrides into the task so the form shows correct values
+    if (task.is_recurring && task.schedule_overrides) {
+      const dayName = format(currentDate, 'EEEE').toLowerCase();
+      const override = task.schedule_overrides[dayName];
+      if (override) {
+        const merged = { ...task };
+        if (override.scheduled_time) merged.scheduled_time = override.scheduled_time;
+        if (override.duration != null) merged.duration = override.duration;
+        setEditingTask(merged);
+        setShowTaskForm(true);
+        return;
+      }
+    }
+    setEditingTask(task);
+    setShowTaskForm(true);
+  };
 
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
   const systemNameToKey: Record<string, string> = {
@@ -62,6 +79,36 @@ const ChildDashboard = () => {
           }
           await refetch();
           toast({ title: "Schedule Updated", description: `${editingTask.name} updated.` });
+        } else if (editingTask.is_recurring) {
+          // Recurring task: save time/duration changes as day-specific overrides
+          const dayName = format(currentDate, 'EEEE').toLowerCase();
+          const existingOverrides = editingTask.schedule_overrides || {};
+          const dayOverride: Record<string, any> = { ...existingOverrides[dayName] };
+
+          // Only override fields that differ from base task
+          if (taskData.scheduled_time && taskData.scheduled_time !== editingTask.scheduled_time) {
+            dayOverride.scheduled_time = taskData.scheduled_time;
+          }
+          if (taskData.duration != null && taskData.duration !== editingTask.duration) {
+            dayOverride.duration = taskData.duration;
+          }
+
+          // Update base fields that apply to all days (name, coins, recurring_days, etc.)
+          const baseUpdates: Record<string, any> = {
+            id: editingTask.id, child_id: editingTask.child_id,
+            created_at: editingTask.created_at, updated_at: new Date().toISOString(),
+            name: taskData.name, coins: taskData.coins,
+            is_recurring: taskData.is_recurring, recurring_days: taskData.recurring_days,
+            description: taskData.description, is_important: taskData.is_important,
+          };
+
+          // Write override if we have day-specific changes
+          if (Object.keys(dayOverride).length > 0) {
+            baseUpdates.schedule_overrides = { ...existingOverrides, [dayName]: dayOverride };
+          }
+
+          await updateTask(editingTask.id, baseUpdates);
+          toast({ title: "Task updated", description: `Changes applied to ${format(currentDate, 'EEEE')}.` });
         } else {
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
           toast({ title: "Task updated" });
@@ -294,9 +341,19 @@ const ChildDashboard = () => {
                   toast({ title: "Reordered" });
                 } catch { toast({ title: "Error", variant: "destructive" }); }
               }}
-              onTaskTimeUpdate={async (taskId, newTime) => {
-                try { await updateTask(taskId, { scheduled_time: newTime }); await refetch(); toast({ title: "Updated" }); }
-                catch { toast({ title: "Error", variant: "destructive" }); }
+              onTaskTimeUpdate={async (taskId, newTime, dayName) => {
+                try {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (task?.is_recurring && dayName) {
+                    // Write to day-specific override instead of base task
+                    const overrides = { ...(task.schedule_overrides || {}), [dayName]: { scheduled_time: newTime, duration: task.schedule_overrides?.[dayName]?.duration ?? task.duration } };
+                    await updateTask(taskId, { schedule_overrides: overrides });
+                  } else {
+                    await updateTask(taskId, { scheduled_time: newTime });
+                  }
+                  await refetch();
+                  toast({ title: "Updated" });
+                } catch { toast({ title: "Error", variant: "destructive" }); }
               }}
             />
           </TabsContent>

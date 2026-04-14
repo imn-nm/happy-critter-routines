@@ -15,6 +15,7 @@ export interface Task {
   is_important?: boolean;
   window_start?: string;
   window_end?: string;
+  schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   created_at: string;
   updated_at: string;
 }
