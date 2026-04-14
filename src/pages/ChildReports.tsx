@@ -63,17 +63,17 @@ const ChildReports = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {[
             { label: "Coins", value: child.currentCoins, icon: Award, color: "text-yellow-400" },
             { label: "Happiness", value: `${child.petHappiness}%`, icon: TrendingUp, color: "text-green-400" },
             { label: "Active", value: tasks.filter(t => t.is_active).length, icon: Clock, color: "text-purple-400" },
             { label: "Total", value: tasks.length, icon: Calendar, color: "text-blue-400" },
           ].map((stat) => (
-            <div key={stat.label} className="glass-card rounded-2xl p-4 text-center">
-              <stat.icon className={`w-5 h-5 ${stat.color} mx-auto mb-1.5`} />
-              <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+            <div key={stat.label} className="glass-card rounded-2xl p-2.5 sm:p-4 text-center">
+              <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color} mx-auto mb-1`} />
+              <p className="text-lg sm:text-2xl font-bold text-foreground">{stat.value}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{stat.label}</p>
             </div>
           ))}
         </div>
@@ -81,17 +81,17 @@ const ChildReports = () => {
         {/* Tabs */}
         <Tabs defaultValue="timeline" className="space-y-4">
           <TabsList className="grid w-full grid-cols-4 h-auto glass rounded-2xl p-1">
-            <TabsTrigger value="timeline" className="flex items-center gap-1.5 py-2.5 text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Clock className="w-3.5 h-3.5" /> Daily
+            <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Clock className="w-3.5 h-3.5 hidden sm:block" /> Daily
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-1.5 py-2.5 text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Calendar className="w-3.5 h-3.5" /> Week
+            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Calendar className="w-3.5 h-3.5 hidden sm:block" /> Week
             </TabsTrigger>
-            <TabsTrigger value="month" className="flex items-center gap-1.5 py-2.5 text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <TrendingUp className="w-3.5 h-3.5" /> Month
+            <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <TrendingUp className="w-3.5 h-3.5 hidden sm:block" /> Month
             </TabsTrigger>
-            <TabsTrigger value="rewards" className="flex items-center gap-1.5 py-2.5 text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Gift className="w-3.5 h-3.5" /> Rewards
+            <TabsTrigger value="rewards" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Gift className="w-3.5 h-3.5 hidden sm:block" /> Rewards
             </TabsTrigger>
           </TabsList>
 

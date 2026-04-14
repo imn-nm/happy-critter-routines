@@ -168,32 +168,32 @@ const ChildDashboard = () => {
         {/* Summary Card */}
         <div className="glass-card rounded-3xl p-4">
           {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-3 mb-3">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-3">
             <div className="text-center">
-              <Award className="w-4 h-4 text-yellow-400 mx-auto mb-1" />
-              <p className="text-xl font-bold text-foreground">{child.currentCoins}</p>
-              <p className="text-xs text-muted-foreground">Coins</p>
+              <Award className="w-4 h-4 text-yellow-400 mx-auto mb-0.5" />
+              <p className="text-lg sm:text-xl font-bold text-foreground">{child.currentCoins}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Coins</p>
             </div>
             <div className="text-center">
-              <TrendingUp className="w-4 h-4 text-green-400 mx-auto mb-1" />
-              <p className="text-xl font-bold text-foreground">{child.petHappiness}%</p>
-              <p className="text-xs text-muted-foreground">Happiness</p>
+              <TrendingUp className="w-4 h-4 text-green-400 mx-auto mb-0.5" />
+              <p className="text-lg sm:text-xl font-bold text-foreground">{child.petHappiness}%</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Happiness</p>
             </div>
             <div className="text-center">
-              <Clock className="w-4 h-4 text-purple-400 mx-auto mb-1" />
-              <p className="text-xl font-bold text-foreground">{tasks.filter(t => t.is_active).length}</p>
-              <p className="text-xs text-muted-foreground">Active</p>
+              <Clock className="w-4 h-4 text-purple-400 mx-auto mb-0.5" />
+              <p className="text-lg sm:text-xl font-bold text-foreground">{tasks.filter(t => t.is_active).length}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Active</p>
             </div>
             <div className="text-center">
-              <Calendar className="w-4 h-4 text-blue-400 mx-auto mb-1" />
-              <p className="text-xl font-bold text-foreground">{tasks.length}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
+              <Calendar className="w-4 h-4 text-blue-400 mx-auto mb-0.5" />
+              <p className="text-lg sm:text-xl font-bold text-foreground">{tasks.length}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
             </div>
           </div>
 
           {/* Coin Controls & Rest Day */}
-          <div className="flex items-center justify-between pt-3 border-t border-white/5">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/5">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
@@ -207,9 +207,9 @@ const ChildDashboard = () => {
               >
                 <Minus className="w-3.5 h-3.5" />
               </Button>
-              <div className="flex items-center gap-1.5">
-                <Coins className="w-4 h-4 text-warning" />
-                <span className="text-sm font-medium text-muted-foreground">Adjust coins</span>
+              <div className="flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-warning" />
+                <span className="text-xs font-medium text-muted-foreground">Adjust coins</span>
               </div>
               <Button
                 variant="ghost"
@@ -223,9 +223,9 @@ const ChildDashboard = () => {
                 <Plus className="w-3.5 h-3.5" />
               </Button>
             </div>
-            <div className="flex items-center gap-2 glass rounded-xl px-3 py-1.5">
+            <div className="flex items-center gap-1.5 glass rounded-xl px-2.5 py-1.5">
               <Moon className="w-3.5 h-3.5 text-primary-light" />
-              <span className="text-xs font-medium">Rest Day</span>
+              <span className="text-[11px] font-medium">Rest Day</span>
               <Switch
                 checked={child.rest_day_date === getPSTDateString()}
                 onCheckedChange={async (checked) => {
@@ -240,17 +240,17 @@ const ChildDashboard = () => {
         {/* Tabs */}
         <Tabs defaultValue="timeline" className="space-y-3">
           <TabsList className="grid w-full grid-cols-4 h-auto glass rounded-2xl p-1">
-            <TabsTrigger value="timeline" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Calendar className="w-3.5 h-3.5" /> Timeline
+            <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Calendar className="w-3.5 h-3.5 hidden sm:block" /> Timeline
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <CalendarDays className="w-3.5 h-3.5" /> Week
+            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <CalendarDays className="w-3.5 h-3.5 hidden sm:block" /> Week
             </TabsTrigger>
-            <TabsTrigger value="month" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <CalendarDays className="w-3.5 h-3.5" /> Calendar
+            <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <CalendarDays className="w-3.5 h-3.5 hidden sm:block" /> Calendar
             </TabsTrigger>
-            <TabsTrigger value="rewards" className="flex items-center gap-1.5 py-2.5 rounded-xl text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Gift className="w-3.5 h-3.5" /> Rewards
+            <TabsTrigger value="rewards" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
+              <Gift className="w-3.5 h-3.5 hidden sm:block" /> Rewards
             </TabsTrigger>
           </TabsList>
 

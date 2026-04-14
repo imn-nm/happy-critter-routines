@@ -143,7 +143,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 type="time"
                 value={formData.scheduledTime}
                 onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                className="w-[130px] rounded-xl mr-3"
+                className="w-full sm:w-[130px] rounded-xl mr-3"
               />
             )}
             <Switch
@@ -162,7 +162,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 setFormData({ ...formData, durationHours: Math.floor(m / 60).toString(), durationMinutes: (m % 60).toString() });
               }}
             >
-              <SelectTrigger className="w-[130px] rounded-xl">
+              <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
                 <SelectValue>
                   {formData.durationHours || formData.durationMinutes
                     ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
@@ -205,7 +205,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               value={formData.choreAnytime ? 'anytime' : 'window'}
               onValueChange={(value) => setFormData({ ...formData, choreAnytime: value === 'anytime' })}
             >
-              <SelectTrigger className="w-[130px] rounded-xl">
+              <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
                 <SelectValue>{formData.choreAnytime ? 'Anytime' : 'Time window'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -222,14 +222,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   type="time"
                   value={formData.windowStart}
                   onChange={(e) => setFormData({ ...formData, windowStart: e.target.value })}
-                  className="w-[92px] rounded-xl text-sm"
+                  className="w-20 sm:w-[92px] rounded-xl text-sm"
                 />
                 <span className="text-muted-foreground text-xs">to</span>
                 <Input
                   type="time"
                   value={formData.windowEnd}
                   onChange={(e) => setFormData({ ...formData, windowEnd: e.target.value })}
-                  className="w-[92px] rounded-xl text-sm"
+                  className="w-20 sm:w-[92px] rounded-xl text-sm"
                 />
               </div>
             </FormRow>
@@ -293,7 +293,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           value={formData.coins}
           onValueChange={(value) => setFormData({ ...formData, coins: value })}
         >
-          <SelectTrigger className="w-[130px] rounded-xl">
+          <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
