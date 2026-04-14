@@ -20,7 +20,6 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
@@ -432,7 +431,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (event.task?.is_recurring && event.task?.recurring_days?.length > 1) {
+                        if (event.task?.is_recurring || (event.task?.recurring_days && event.task?.recurring_days.length > 0)) {
                           setShowDeleteConfirm(true);
                         } else {
                           onDeleteTask(event.task.id, 'all');
@@ -526,7 +525,6 @@ const TimelineScheduleView = ({
   // Toggle completion for the selected day
   const handleToggleCompletion = (taskId: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
-    console.log('TimelineScheduleView: handleToggleCompletion called', { taskId, dateStr, selectedDay });
     toggleCompletion(taskId, dateStr);
   };
 
@@ -547,11 +545,10 @@ const TimelineScheduleView = ({
     const taskEndMinutes = taskH * 60 + taskM + taskDuration;
 
     if (isCompleted && completion) {
-      const completedAt = new Date(completion.completed_at);
-      // Build task end date from selectedDay to avoid UTC midnight timezone shift
-      const taskEndDate = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate(),
-        Math.floor(taskEndMinutes / 60), taskEndMinutes % 60, 0);
-      if (isBefore(completedAt, taskEndDate) || completedAt.getTime() === taskEndDate.getTime()) {
+      // Compare in PST: convert completedAt to PST minutes-of-day
+      const completedAtPST = new Date(new Date(completion.completed_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      const completedMinutes = completedAtPST.getHours() * 60 + completedAtPST.getMinutes();
+      if (completedMinutes <= taskEndMinutes) {
         return 'on-time';
       } else {
         return 'late';
@@ -591,31 +588,24 @@ const TimelineScheduleView = ({
     const dateString = format(date, 'yyyy-MM-dd');
     
     return tasksWithCompletion.filter(task => {
-      console.log(`TimelineScheduleView: Filtering task "${task.name}" for ${dayName} (${dateString}):`, {
-        isRecurring: task.is_recurring,
-        taskDate: task.task_date,
-        recurringDays: task.recurring_days,
-        createdAt: task.created_at
-      });
       
       // For recurring tasks, check if today is in their recurring days
       if (task.is_recurring && task.recurring_days) {
-        const includes = task.recurring_days.includes(dayName);
-        console.log(`Recurring task "${task.name}" includes ${dayName}:`, includes);
-        return includes;
+        return task.recurring_days.includes(dayName);
       }
       
       // For non-recurring tasks, check if today matches their task_date
       if (!task.is_recurring && task.task_date) {
-        const matches = task.task_date === dateString;
-        console.log(`Non-recurring task "${task.name}" matches ${dateString}:`, matches);
-        return matches;
+        return task.task_date === dateString;
       }
       
-      // Non-recurring tasks without a specific task_date show every day
+      // Non-recurring tasks without a specific task_date: use created_at date as fallback
       if (!task.is_recurring && !task.task_date) {
-        console.log(`Non-recurring task "${task.name}" without task_date: showing every day`);
-        return true;
+        if (task.created_at) {
+          const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+          return createdDate === dateString;
+        }
+        return false;
       }
       
       return false;
@@ -960,20 +950,6 @@ const TimelineScheduleView = ({
 
     const taskDuration = activeTask.duration || 30;
 
-    // Reordering between draggable tasks
-    const overDraggableTask = draggableTasks.find(task => task.id === over.id);
-    if (overDraggableTask && onReorderTasks) {
-      const oldIndex = draggableTasks.findIndex(task => task.id === active.id);
-      let newIndex = draggableTasks.findIndex(task => task.id === over.id);
-      if (dropPosition === 'after') newIndex = newIndex + 1;
-      newIndex = Math.min(newIndex, draggableTasks.length);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reorderedTasks = arrayMove(draggableTasks, oldIndex, newIndex);
-        onReorderTasks(reorderedTasks);
-      }
-      return;
-    }
-
     // Drop on a specific 15-min tick slot (e.g. "tick-300" = 5:00pm)
     const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
     if (tickMatch && onTaskTimeUpdate) {
@@ -982,8 +958,7 @@ const TimelineScheduleView = ({
       return;
     }
 
-    // Time-based drop (on fixed events, gaps, or any timeline slot)
-    // Update the display position for all draggable tasks.
+    // Time-based drop (on any timeline event, gap, or draggable task)
     if (onTaskTimeUpdate) {
       const landingMinutes = calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
       if (landingMinutes != null) {

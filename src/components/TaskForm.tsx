@@ -33,7 +33,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [formData, setFormData] = useState({
     name: task?.name || "",
     mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
-    scheduledTime: task?.type === 'scheduled' ? (task?.scheduled_time || "") : "",
+    scheduledTime: task?.scheduled_time || "",
     choreAnytime: task?.type === 'floating' && !task?.window_start,
     durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
     durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
@@ -76,7 +76,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       child_id: task?.child_id || '',
       name: formData.name,
       type: derivedType,
-      scheduled_time: !isChore && formData.scheduledTime ? formData.scheduledTime : (task?.scheduled_time || undefined),
+      scheduled_time: !isChore && formData.scheduledTime ? formData.scheduledTime : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
       is_recurring: formData.isRecurring,
