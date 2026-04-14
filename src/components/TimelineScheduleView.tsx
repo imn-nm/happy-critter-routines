@@ -33,7 +33,7 @@ interface TimelineScheduleViewProps {
   child: Child;
   currentDate?: Date;
   getTasksWithCompletionStatus: () => any[];
-  onAddTask?: () => void;
+  onAddTask?: (prefillTime?: string) => void;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string) => void;
@@ -64,6 +64,7 @@ interface SortableTimelineEventProps {
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   onToggleCompletion?: (taskId: string) => void;
+  onAddTask?: (prefillTime?: string) => void;
   isActive?: boolean;
   isToday?: boolean;
   selectedDay: Date;
@@ -119,7 +120,7 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
   );
 };
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDraggable = event.type === 'flexible' || event.type === 'regular';
   const isGap = event.type === 'gap';
@@ -268,16 +269,27 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
               </div>
             );
           })() : (
-            /* Default compact view when not dragging */
-            <div className="flex items-center gap-2 py-1">
+            /* Default compact view when not dragging — tappable to add task */
+            <div
+              className="flex items-center gap-2 py-1 group/gap cursor-pointer"
+              onClick={() => onAddTask?.(event.time)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAddTask?.(event.time); } }}
+            >
               <div className="text-xs text-muted-foreground/40 w-16 text-right flex flex-col flex-shrink-0">
                 <span>{formatTime(event.time)}</span>
                 <span className="text-[10px]">{calculateEndTime(event.time, event.duration)}</span>
               </div>
-              <div className="flex-1 bg-muted/20 rounded-xl p-2.5 border border-dashed border-muted-foreground/15">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground/50 font-medium">Free Time</span>
-                  <span className="text-[10px] text-muted-foreground/40">{formatDuration(event.duration)}</span>
+              <div className="flex-1 bg-muted/20 rounded-xl p-2.5 sm:p-3 border border-dashed border-muted-foreground/15 transition-all duration-150 group-hover/gap:border-primary/40 group-hover/gap:bg-primary/5 group-active/gap:scale-[0.98] active:bg-primary/10 min-h-[44px] flex items-center">
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-xs text-muted-foreground/50 font-medium group-hover/gap:text-primary/70 transition-colors">Free Time</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground/40">{formatDuration(event.duration)}</span>
+                    <span className="text-xs text-primary/0 group-hover/gap:text-primary/60 transition-all duration-150">
+                      <Plus className="w-4 h-4" />
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1191,6 +1203,7 @@ const TimelineScheduleView = ({
                               onEditTask={onEditTask}
                               onDeleteTask={onDeleteTask}
                               onToggleCompletion={handleToggleCompletion}
+                              onAddTask={onAddTask}
                               isActive={isActiveEvent}
                               isToday={isToday(selectedDay)}
                               selectedDay={selectedDay}

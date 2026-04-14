@@ -25,6 +25,7 @@ const ChildDashboard = () => {
   const child = children.find(c => c.id === childId) || null;
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const { toast } = useToast();
 
@@ -33,8 +34,8 @@ const ChildDashboard = () => {
     getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
 
-  const handleAddTask = () => { setEditingTask(null); setShowTaskForm(true); };
-  const handleEditTask = (task) => { setEditingTask(task); setShowTaskForm(true); };
+  const handleAddTask = (time?: string) => { setEditingTask(null); setPrefillTime(time); setShowTaskForm(true); };
+  const handleEditTask = (task) => { setPrefillTime(undefined); setEditingTask(task); setShowTaskForm(true); };
 
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
   const systemNameToKey: Record<string, string> = {
@@ -318,15 +319,16 @@ const ChildDashboard = () => {
             <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
             <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
             <TaskForm
-              key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}`}
+              key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}`}
               task={editingTask} onSave={handleSaveTask}
-              onCancel={() => { setShowTaskForm(false); setEditingTask(null); }}
+              onCancel={() => { setShowTaskForm(false); setEditingTask(null); setPrefillTime(undefined); }}
               onDelete={(taskId, mode, dayName) => {
                 handleDeleteTask(taskId, mode, dayName);
                 setShowTaskForm(false);
                 setEditingTask(null);
               }}
-              isEdit={!!editingTask} currentDate={currentDate} />
+              isEdit={!!editingTask} currentDate={currentDate}
+              prefillTime={prefillTime} />
           </DialogContent>
         </Dialog>
       </div>

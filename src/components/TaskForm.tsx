@@ -14,6 +14,7 @@ interface TaskFormProps {
   onDelete?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   isEdit?: boolean;
   currentDate: Date;
+  prefillTime?: string;
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
@@ -24,7 +25,7 @@ const FormRow = ({ label, htmlFor, children }: { label: string; htmlFor?: string
   </div>
 );
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
@@ -33,7 +34,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [formData, setFormData] = useState({
     name: task?.name || "",
     mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
-    scheduledTime: task?.scheduled_time || "",
+    scheduledTime: task?.scheduled_time || prefillTime || "",
     choreAnytime: task?.type === 'floating' && !task?.window_start,
     durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
     durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
