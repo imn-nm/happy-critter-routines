@@ -172,14 +172,23 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Build today's schedule
   const getTodaysSchedule = () => {
     const currentDay = getPSTDayName();
+    const todayStr = getPSTDateString();
 
+    // Match parent dashboard's filter: recurring-today OR non-recurring matching today's date
+    // (either via task_date or created_at when task_date is absent).
     let todaysTasks = tasksWithCompletion.filter(task => {
-      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const isRecurringToday = task.is_recurring && task.recurring_days?.includes(currentDay);
-      const isNonRecurringWithoutDate = !task.is_recurring && !task.task_date;
-      const isScheduledForToday = isRecurringToday || isNonRecurringWithoutDate;
-      const isFlexible = task.type === 'flexible';
-      return isScheduledForToday && (hasScheduledTime || isFlexible);
+      if (task.is_active === false) return false;
+      if (task.is_recurring && task.recurring_days) {
+        return task.recurring_days.includes(currentDay);
+      }
+      if (!task.is_recurring && task.task_date) {
+        return task.task_date === todayStr;
+      }
+      if (!task.is_recurring && !task.task_date && task.created_at) {
+        const createdDate = new Date(task.created_at).toISOString().slice(0, 10);
+        return createdDate === todayStr;
+      }
+      return false;
     });
 
     if (todaysHoliday) {
@@ -192,13 +201,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
     const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
     const tasksWithDaySpecificTimes = todaysTasks.map(task => {
+      // System tasks: pull per-day time/duration from the child record.
       if (child && systemTaskNames.includes(task.name)) {
         const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay);
         if (daySpecificSchedule) {
           return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration };
         }
       }
+      // Non-system tasks: apply day-specific schedule_overrides written by the parent dashboard.
+      const override = task.schedule_overrides?.[currentDay];
+      if (override) {
+        return {
+          ...task,
+          scheduled_time: override.scheduled_time || task.scheduled_time,
+          duration: override.duration ?? task.duration,
+        };
+      }
       return task;
+    }).filter(task => {
+      // Drop tasks with no resolvable time unless they're flexible/floating (anytime).
+      const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
+      const isAnytime = task.type === 'flexible' || task.type === 'floating';
+      return hasTime || isAnytime;
     });
 
     const sortedTasks = tasksWithDaySpecificTimes.sort((a, b) => {
@@ -303,6 +327,44 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   };
 
   const { current: activeTask, upcoming: upcomingTasks, freeTimeUntil } = categorizeTasks();
+
+  // The "focus" task — the in-progress task if any, otherwise the next upcoming task.
+  // Used to highlight the "current" row in Today's Schedule so both children see
+  // a consistent view regardless of whether a task is actively running.
+  const focusTask = activeTask || upcomingTasks[0] || null;
+
+  // Compute countdown for the free-time window (when no task is currently active).
+  // total = length of the free-time window, remaining = seconds until the next task starts.
+  const getFreeTimeCountdown = () => {
+    if (activeTask || !upcomingTasks[0]) return null;
+    const nextTask = upcomingTasks[0];
+    if (!nextTask.scheduled_time) return null;
+
+    const now = getCurrentTime();
+    const [nh, nm] = nextTask.scheduled_time.split(':').map(Number);
+    const nextStart = new Date(now);
+    nextStart.setHours(nh, nm, 0, 0);
+
+    // Window start = end of previous completed/passed task, or start of day (6am fallback)
+    const incomplete = todaysSchedule.filter(t => !t.isCompleted);
+    const nextIdx = incomplete.findIndex(t => t.id === nextTask.id);
+    let windowStart: Date;
+    if (nextIdx > 0) {
+      const prev = incomplete[nextIdx - 1];
+      const [ph, pm] = (prev.scheduled_time || '06:00').split(':').map(Number);
+      windowStart = new Date(now);
+      windowStart.setHours(ph, pm + (prev.duration || 0), 0, 0);
+    } else {
+      windowStart = new Date(now);
+      windowStart.setHours(6, 0, 0, 0);
+    }
+
+    const total = Math.max(60, Math.floor((nextStart.getTime() - windowStart.getTime()) / 1000));
+    const remaining = Math.max(0, Math.floor((nextStart.getTime() - now.getTime()) / 1000));
+    return { total, remaining, nextTask };
+  };
+
+  const freeTimeCountdown = getFreeTimeCountdown();
 
   const getTodaysTaskCompletion = () => {
     const completedCount = todaysSchedule.filter(task => task.isCompleted).length;
@@ -542,13 +604,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           );
         })()}
 
-        {/* Free Time — no active task but upcoming ones exist */}
-        {!activeTask && freeTimeUntil && upcomingTasks.length > 0 && (
-          <div className="glass-card rounded-3xl p-6 mb-4 text-center">
-            <div className="text-3xl mb-2">🎮</div>
-            <h2 className="text-lg font-bold text-foreground mb-1">Free Time!</h2>
-            <p className="text-sm text-muted-foreground">
-              Next up at {formatTime(freeTimeUntil)}
+        {/* Free Time — no active task but upcoming ones exist.
+            Show a CircularTimer counting down to the next task so the layout
+            matches the active-task view. */}
+        {!activeTask && freeTimeCountdown && (
+          <div className="glass-card rounded-3xl p-6 mb-4 glow-purple">
+            <div className="flex items-center justify-center gap-1.5 mb-3">
+              <span className="text-xs text-muted-foreground font-medium">🎮 Free Time — next up</span>
+            </div>
+            <h2 className="text-2xl font-bold text-center text-foreground mb-5 text-glow">
+              {freeTimeCountdown.nextTask.name}
+            </h2>
+            <div className="flex justify-center mb-6">
+              <CircularTimer
+                totalSeconds={freeTimeCountdown.total}
+                remainingSeconds={freeTimeCountdown.remaining}
+                status="on-track"
+                size="lg"
+                isRunning={true}
+              />
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Starts at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
             </p>
           </div>
         )}
@@ -741,7 +818,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 ) : (
                   <VisualTimeline
                     schedule={todaysSchedule}
-                    currentTaskId={activeTask?.id}
+                    currentTaskId={focusTask?.id}
                     overtimeMinutes={0}
                   />
                 )}

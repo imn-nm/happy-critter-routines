@@ -19,9 +19,9 @@ interface TaskFormProps {
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
 const FormRow = ({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) => (
-  <div className="flex items-center h-10">
-    <Label htmlFor={htmlFor} className="text-sm text-muted-foreground w-24 flex-shrink-0">{label}</Label>
-    <div className="flex-1 flex items-center justify-end">{children}</div>
+  <div className="flex items-center h-10 w-full min-w-0 gap-2">
+    <Label htmlFor={htmlFor} className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">{label}</Label>
+    <div className="flex-1 min-w-0 flex items-center justify-end gap-2">{children}</div>
   </div>
 );
 
@@ -96,7 +96,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const currentType = deriveType();
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+    <form onSubmit={handleSubmit} className="space-y-4 pt-1 w-full min-w-0 overflow-hidden">
       {/* Task / Chore Toggle */}
       {!isSystemEvent && (
         <div className="flex rounded-xl border border-border/50 overflow-hidden">
@@ -259,7 +259,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {formData.isRecurring && (
         <FormRow label="Days">
-          <div className="flex gap-1.5">
+          <div className="flex gap-1 sm:gap-1.5">
             {daysOfWeek.map(({ id, label }) => (
               <button
                 key={id}
@@ -273,7 +273,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   });
                 }}
                 className={`
-                  h-9 w-9 rounded-full font-semibold text-xs transition-all
+                  h-8 w-8 sm:h-9 sm:w-9 rounded-full font-semibold text-xs transition-all shrink-0
                   ${formData.recurringDays.includes(id)
                     ? 'bg-foreground text-background'
                     : 'bg-muted text-muted-foreground hover:text-foreground'

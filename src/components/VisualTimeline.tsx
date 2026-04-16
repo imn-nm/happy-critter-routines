@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Coins } from "lucide-react";
 
 interface ScheduleItem {
   id: string;
@@ -7,6 +8,7 @@ interface ScheduleItem {
   scheduled_time?: string;
   duration?: number;
   isCompleted?: boolean;
+  coins?: number;
 }
 
 interface VisualTimelineProps {
@@ -24,19 +26,6 @@ const VisualTimeline = ({ schedule, currentTaskId, overtimeMinutes = 0, classNam
     const ampm = hour >= 12 ? 'pm' : 'am';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
     return `${displayHour}:${minutes}${ampm}`;
-  };
-
-  const getTypeBadge = (type?: string) => {
-    switch (type) {
-      case 'scheduled':
-        return { label: 'Fixed', color: 'bg-blue-100 text-blue-700' };
-      case 'flexible':
-        return { label: 'Flex', color: 'bg-orange-100 text-orange-700' };
-      case 'regular':
-        return { label: 'Anytime', color: 'bg-purple-100 text-purple-700' };
-      default:
-        return null;
-    }
   };
 
   // Calculate compressed durations when overtime
@@ -72,13 +61,11 @@ const VisualTimeline = ({ schedule, currentTaskId, overtimeMinutes = 0, classNam
         const effectiveDuration = getEffectiveDuration(item);
         const originalDuration = item.duration || 30;
         const isCompressed = effectiveDuration < originalDuration;
-        const blockHeight = Math.max(effectiveDuration * 2.8, 36);
-        const badge = getTypeBadge(item.type);
 
         const dotColor = isDone ? 'bg-green-500' : isCurrent ? 'bg-primary' : 'bg-white/30';
 
         return (
-          <div key={item.id} className="flex gap-3" style={{ minHeight: `${blockHeight}px` }}>
+          <div key={item.id} className="flex gap-3 min-h-[56px]">
             {/* Left: time + vertical line + dot */}
             <div className="flex flex-col items-center w-16 shrink-0">
               <span className={cn(
@@ -106,9 +93,10 @@ const VisualTimeline = ({ schedule, currentTaskId, overtimeMinutes = 0, classNam
                   {item.name}
                   {isCurrent && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-primary text-primary-foreground">Now</span>}
                 </span>
-                {badge && (
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", badge.color)}>
-                    {badge.label}
+                {item.coins != null && item.coins > 0 && !isDone && (
+                  <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-yellow-400/20 text-yellow-300 shrink-0">
+                    <Coins className="w-3 h-3" />
+                    {item.coins}
                   </span>
                 )}
               </div>

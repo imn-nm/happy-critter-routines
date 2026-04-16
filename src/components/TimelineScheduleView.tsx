@@ -7,7 +7,9 @@ import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, PartyPopper
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
-import { Child } from '@/hooks/useChildren';
+import { Child, useChildren } from '@/hooks/useChildren';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
@@ -140,14 +142,19 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
   });
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
-    transition: isDragging ? 'none' : transition,
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: isDragging ? 1.03 : 1, scaleY: isDragging ? 1.03 : 1 } : null),
+    transition: isDragging ? 'none' : (transition || 'transform 200ms ease, box-shadow 200ms ease'),
     zIndex: isDragging ? 1000 : 'auto',
-    opacity: isDragging ? 0.85 : 1,
-    touchAction: isDraggable ? 'none' : undefined,
+    opacity: isDragging ? 0.95 : 1,
+    boxShadow: isDragging ? '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)' : undefined,
+    // Let short taps scroll the page; dnd-kit's delay-based TouchSensor handles long-press activation.
+    touchAction: isDragging ? 'none' : undefined,
     WebkitUserSelect: isDragging ? 'none' : undefined,
     userSelect: isDragging ? 'none' : undefined,
   };
+
+  // iOS-style long-press drag: apply listeners to the whole tile when draggable.
+  const dragBindings = isDraggable ? { ...attributes, ...listeners } : {};
 
   const formatTime = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':');
@@ -322,16 +329,44 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           </div>
 
           {/* Task Card */}
-          <div className={cn(
-            "flex-1 rounded-lg p-3 border transition-colors",
-            isCurrent
-              ? "border-primary/30 bg-primary/5"
-              : event.isCompleted
-                ? "border-green-500/30 bg-green-500/5"
-                : (event.status === 'overdue' && event.task?.is_important)
-                  ? "border-red-500/30 bg-red-500/5"
-                  : "border-border/50"
-          )}>
+          <div
+            {...dragBindings}
+            onClick={() => {
+              if (isDragging) return;
+              onEditTask?.(event.task || {
+                id: event.id,
+                name: event.name,
+                scheduled_time: event.time,
+                duration: event.duration,
+                type: event.type,
+                coins: event.coins || 0,
+                recurring_days: event.recurring_days || [],
+                is_important: event.task?.is_important || false,
+                window_start: event.task?.window_start,
+                window_end: event.task?.window_end,
+              });
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onEditTask?.(event.task);
+              }
+            }}
+            className={cn(
+              "flex-1 min-w-0 rounded-lg p-3 border transition-colors cursor-pointer hover:bg-white/5",
+              isDraggable && "active:cursor-grabbing select-none",
+              isDragging && "cursor-grabbing",
+              isCurrent
+                ? "border-primary/30 bg-primary/5"
+                : event.isCompleted
+                  ? "border-green-500/30 bg-green-500/5"
+                  : (event.status === 'overdue' && event.task?.is_important)
+                    ? "border-red-500/30 bg-red-500/5"
+                    : "border-border/50"
+            )}
+          >
             <div className="flex items-center gap-3">
               {/* Icon */}
               <div className={cn(
@@ -350,15 +385,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   {isDraggable && (
-                    <span
-                      {...attributes}
-                      {...listeners}
-                      className="cursor-grab active:cursor-grabbing touch-none p-0.5 rounded hover:bg-white/10 transition-colors"
-                      aria-label="Drag handle"
-                      role="button"
-                    >
-                      <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    </span>
+                    <GripVertical
+                      className="w-4 h-4 text-muted-foreground/60 flex-shrink-0"
+                      aria-hidden="true"
+                    />
                   )}
                   <span className={cn(
                     "font-medium truncate text-sm",
@@ -419,86 +449,6 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                     </Button>
                   );
                 })()}
-                {onEditTask && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEditTask(event.task || {
-                      id: event.id,
-                      name: event.name,
-                      scheduled_time: event.time,
-                      duration: event.duration,
-                      type: event.type,
-                      coins: event.coins || 0,
-                      recurring_days: event.recurring_days || [],
-                      is_important: event.task?.is_important || false,
-                      window_start: event.task?.window_start,
-                      window_end: event.task?.window_end,
-                    })}
-                    className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                )}
-                {onDeleteTask && event.task && (
-                  <div className="relative">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (event.task?.is_recurring || (event.task?.recurring_days && event.task?.recurring_days.length > 0)) {
-                          setShowDeleteConfirm(true);
-                        } else {
-                          onDeleteTask(event.task.id, 'all');
-                        }
-                      }}
-                      className="h-8 w-8 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                    {showDeleteConfirm && (
-                      <div className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-xl border border-border/50 p-3 space-y-2 shadow-xl"
-                        style={{ background: 'rgba(20, 15, 35, 0.95)', backdropFilter: 'blur(16px)' }}
-                      >
-                        <p className="text-xs text-muted-foreground mb-2">Delete "{event.name}"?</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-xs h-8 hover:bg-red-500/10 hover:text-red-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const dayName = format(selectedDay, 'EEEE').toLowerCase();
-                            onDeleteTask(event.task.id, 'this-day', dayName);
-                            setShowDeleteConfirm(false);
-                          }}
-                        >
-                          Remove from {format(selectedDay, 'EEEE')}s only
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-xs h-8 hover:bg-red-500/10 hover:text-red-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteTask(event.task.id, 'all');
-                            setShowDeleteConfirm(false);
-                          }}
-                        >
-                          Delete from all days
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-xs h-8 text-muted-foreground"
-                          onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -530,6 +480,9 @@ const TimelineScheduleView = ({
   const [selectedDay, setSelectedDay] = useState(currentDate);
   const { holidays, isHoliday } = useHolidays(child.id);
   const { completions, toggleCompletion } = useCompletions(child.id);
+  const { updateChildCoins } = useChildren();
+  const { toast } = useToast();
+  const [completionPrompt, setCompletionPrompt] = useState<{ taskId: string; taskName: string; coins: number } | null>(null);
 
   useEffect(() => {
     setSelectedDay(currentDate);
@@ -538,10 +491,38 @@ const TimelineScheduleView = ({
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
-  // Toggle completion for the selected day
+  // Toggle completion for the selected day.
+  // When marking complete, ask whether it was on-time or late; on-time awards the task's coins.
+  // Un-marking (already completed) just removes the completion.
   const handleToggleCompletion = (taskId: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
-    toggleCompletion(taskId, dateStr);
+    const alreadyCompleted = completions.some(c => c.task_id === taskId && c.date === dateStr);
+    if (alreadyCompleted) {
+      toggleCompletion(taskId, dateStr);
+      return;
+    }
+    // Find task info for the prompt
+    const all = [...fixedEvents, ...draggableEvents];
+    const ev = all.find(e => e.id === taskId);
+    setCompletionPrompt({
+      taskId,
+      taskName: ev?.name || 'Task',
+      coins: ev?.coins || ev?.task?.coins || 0,
+    });
+  };
+
+  const confirmCompletion = async (onTime: boolean) => {
+    if (!completionPrompt) return;
+    const { taskId, taskName, coins } = completionPrompt;
+    const dateStr = format(selectedDay, 'yyyy-MM-dd');
+    setCompletionPrompt(null);
+    await toggleCompletion(taskId, dateStr);
+    if (onTime && coins > 0) {
+      await updateChildCoins(child.id, (child.currentCoins || 0) + coins);
+      toast({ title: `+${coins} coin${coins === 1 ? '' : 's'}!`, description: `${taskName} completed on time.` });
+    } else {
+      toast({ title: onTime ? 'Completed on time' : 'Completed late', description: taskName });
+    }
   };
 
   // Check if selected day is a holiday
@@ -589,9 +570,10 @@ const TimelineScheduleView = ({
       },
     }),
     useSensor(TouchSensor, {
+      // iOS-style long-press: ~250ms hold anywhere on the tile picks it up.
       activationConstraint: {
-        delay: 200,
-        tolerance: 5,
+        delay: 250,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -1029,7 +1011,7 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-3 sm:p-4 glass-card rounded-3xl border-0">
+    <Card className="p-3 sm:p-4 glass-card rounded-3xl border-0 overflow-hidden max-w-full">
       {/* Add Task Button at top */}
       {onAddTask && (
         <Button 
@@ -1147,7 +1129,7 @@ const TimelineScheduleView = ({
         const totalEvents = allEvents.length || 1;
 
         return (
-          <div className="flex gap-2 relative">
+          <div className="flex gap-2 relative w-full min-w-0 overflow-hidden">
             {/* Main timeline column */}
             <div className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
               <DndContext
@@ -1353,6 +1335,40 @@ const TimelineScheduleView = ({
         );
       })()}
 
+      <Dialog open={!!completionPrompt} onOpenChange={(open) => { if (!open) setCompletionPrompt(null); }}>
+        <DialogContent className="max-w-[380px] w-[90vw] glass-card border-border/50 rounded-2xl">
+          <DialogTitle className="text-lg font-bold text-center">Mark "{completionPrompt?.taskName}" as done</DialogTitle>
+          <DialogDescription className="sr-only">Choose whether the task was completed on time or late.</DialogDescription>
+          <p className="text-sm text-muted-foreground text-center -mt-1">
+            Was it completed on time?
+            {completionPrompt && completionPrompt.coins > 0 && (
+              <span className="block mt-1 text-xs text-yellow-400">On-time earns {completionPrompt.coins} coin{completionPrompt.coins === 1 ? '' : 's'}.</span>
+            )}
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={() => confirmCompletion(true)}
+              className="w-full h-11 rounded-xl bg-green-500 hover:bg-green-500/90 text-white font-semibold"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" /> On time
+            </Button>
+            <Button
+              onClick={() => confirmCompletion(false)}
+              variant="outline"
+              className="w-full h-11 rounded-xl font-semibold"
+            >
+              <AlertCircle className="w-4 h-4 mr-2" /> Late
+            </Button>
+            <Button
+              onClick={() => setCompletionPrompt(null)}
+              variant="ghost"
+              className="w-full h-9 rounded-xl text-muted-foreground"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
