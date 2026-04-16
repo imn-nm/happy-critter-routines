@@ -40,9 +40,12 @@ const WeekView = ({ child, tasks, onEditTask }: WeekViewProps) => {
   const getTasksForDay = (date: Date) => {
     const dayName = format(date, 'EEEE').toLowerCase();
     const dateStr = format(date, 'yyyy-MM-dd');
+    const dayHoliday = holidays?.find(h => h.date === dateStr);
 
     const dayTasks = (tasks || []).filter(task => {
       if (!task.is_active) return false;
+      // Drop school on no-school holidays
+      if (dayHoliday?.is_no_school && task.name === 'School') return false;
       if (task.is_recurring && task.recurring_days) {
         return task.recurring_days.includes(dayName);
       }
@@ -53,16 +56,43 @@ const WeekView = ({ child, tasks, onEditTask }: WeekViewProps) => {
     });
 
     const resolved = dayTasks.map(task => {
+      // System tasks: pull per-day schedule from the child record
       if (systemTaskNames.includes(task.name)) {
         const override = getSystemTaskScheduleForDay(child, task.name, dayName);
         if (override) {
           return { ...task, scheduled_time: override.time, duration: override.duration };
         }
+        return task;
+      }
+      // Non-system tasks: apply day-specific schedule_overrides
+      const override = task.schedule_overrides?.[dayName];
+      if (override) {
+        return {
+          ...task,
+          scheduled_time: override.scheduled_time || task.scheduled_time,
+          duration: override.duration ?? task.duration,
+        };
       }
       return task;
     });
 
-    return resolved.sort((a, b) => {
+    // Filter out lunch when it overlaps school
+    const schoolTask = resolved.find(t => t.name === 'School');
+    const withoutOverlap = schoolTask && schoolTask.scheduled_time && schoolTask.duration
+      ? (() => {
+          const [sh, sm] = schoolTask.scheduled_time.slice(0, 5).split(':').map(Number);
+          const schoolStart = sh * 60 + sm;
+          const schoolEnd = schoolStart + schoolTask.duration;
+          return resolved.filter(t => {
+            if (t.name !== 'Lunch' || !t.scheduled_time) return true;
+            const [lh, lm] = t.scheduled_time.slice(0, 5).split(':').map(Number);
+            const lunchStart = lh * 60 + lm;
+            return lunchStart < schoolStart || lunchStart >= schoolEnd;
+          });
+        })()
+      : resolved;
+
+    return withoutOverlap.sort((a, b) => {
       const timeA = (a.scheduled_time || '23:59').slice(0, 5);
       const timeB = (b.scheduled_time || '23:59').slice(0, 5);
       if (timeA !== timeB) return timeA.localeCompare(timeB);
@@ -136,13 +166,6 @@ const WeekView = ({ child, tasks, onEditTask }: WeekViewProps) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const dayHoliday = holidays?.find(h => h.date === dateStr);
           const isToday = isSameDay(day, today);
-          const { custom } = getTimeBlocks(dayTasks);
-
-          // Build a condensed schedule summary
-          const wakeTask = dayTasks.find(t => t.name === 'Wake Up');
-          const bedtimeTask = dayTasks.find(t => t.name === 'Bedtime');
-          const schoolTask = dayTasks.find(t => t.name === 'School');
-          const hasSchool = !!schoolTask;
 
           return (
             <div
@@ -185,20 +208,12 @@ const WeekView = ({ child, tasks, onEditTask }: WeekViewProps) => {
                 </div>
               )}
 
-              {/* Schedule summary line */}
-              {wakeTask && bedtimeTask && (
-                <div className="text-[10px] text-muted-foreground/70 mb-1.5">
-                  {formatTime(wakeTask.scheduled_time || '')} – {formatTime(bedtimeTask.scheduled_time || '')}
-                  {hasSchool && <span className="ml-1 text-blue-400">· School</span>}
-                </div>
-              )}
-
-              {/* Custom tasks (non-system) */}
-              {custom.length === 0 && !dayHoliday ? (
-                <p className="text-[10px] text-muted-foreground/40 italic mt-1">No extra tasks</p>
+              {/* Every task for the day, sorted by time */}
+              {dayTasks.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground/40 italic mt-1">No tasks</p>
               ) : (
                 <div className="space-y-0.5">
-                  {custom.map(task => (
+                  {dayTasks.map(task => (
                     <button
                       key={task.id}
                       onClick={() => onEditTask(task)}
