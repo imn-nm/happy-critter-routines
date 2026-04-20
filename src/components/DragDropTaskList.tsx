@@ -3,6 +3,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -51,9 +52,14 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
     isDragging,
   } = useSortable({ id: task.id, disabled: !isDraggable });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? 'none' : transition,
+    zIndex: isDragging ? 1000 : 'auto',
+    opacity: isDragging ? 0.9 : 1,
+    touchAction: isDraggable ? (isDragging ? 'none' : 'manipulation') : undefined,
+    WebkitUserSelect: isDragging ? 'none' : undefined,
+    userSelect: isDragging ? 'none' : undefined,
   };
 
   const taskCardTask = convertToTaskCardTask(task);
@@ -72,6 +78,7 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground transition-colors"
+          style={{ touchAction: 'none' }}
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -114,7 +121,12 @@ interface DragDropTaskListProps {
 
 const DragDropTaskList = ({ tasks, onTasksReorder, onEditTask, onDeleteTask }: DragDropTaskListProps) => {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })

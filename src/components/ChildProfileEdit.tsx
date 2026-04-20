@@ -174,55 +174,56 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           </div>
 
           {/* Schedule Times */}
-          <div className="space-y-3 border-t pt-4">
-            <h4 className="font-medium text-sm">Daily Schedule</h4>
+          <div className="space-y-2 border-t pt-4">
+            <h4 className="font-medium text-sm mb-3">Daily Schedule</h4>
 
-            {/* Wake Up & Breakfast */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="wake_time" className="text-xs">Wake Up</Label>
-                <Input
-                  id="wake_time"
-                  type="time"
-                  value={formData.wake_time}
-                  onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
-                  className="text-sm h-10"
-                />
-                <Select value={formData.wake_duration} onValueChange={(v) => setFormData({ ...formData, wake_duration: v })}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 min</SelectItem>
-                    <SelectItem value="15">15 min</SelectItem>
-                    <SelectItem value="20">20 min</SelectItem>
-                    <SelectItem value="30">30 min</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="breakfast_time" className="text-xs">Breakfast</Label>
-                <Input
-                  id="breakfast_time"
-                  type="time"
-                  value={formData.breakfast_time}
-                  onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
-                  className="text-sm h-10"
-                />
-                <Select value={formData.breakfast_duration} onValueChange={(v) => setFormData({ ...formData, breakfast_duration: v })}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 min</SelectItem>
-                    <SelectItem value="20">20 min</SelectItem>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Schedule rows: label | time input | duration select */}
+            {/* Wake Up */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="wake_time" className="text-xs w-20 shrink-0 text-muted-foreground">Wake Up</Label>
+              <Input
+                id="wake_time"
+                type="time"
+                value={formData.wake_time}
+                onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
+                className="flex-1 h-10 text-sm min-w-0"
+              />
+              <Select value={formData.wake_duration} onValueChange={(v) => setFormData({ ...formData, wake_duration: v })}>
+                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 min</SelectItem>
+                  <SelectItem value="15">15 min</SelectItem>
+                  <SelectItem value="20">20 min</SelectItem>
+                  <SelectItem value="30">30 min</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Breakfast */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="breakfast_time" className="text-xs w-20 shrink-0 text-muted-foreground">Breakfast</Label>
+              <Input
+                id="breakfast_time"
+                type="time"
+                value={formData.breakfast_time}
+                onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
+                className="flex-1 h-10 text-sm min-w-0"
+              />
+              <Select value={formData.breakfast_duration} onValueChange={(v) => setFormData({ ...formData, breakfast_duration: v })}>
+                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 min</SelectItem>
+                  <SelectItem value="20">20 min</SelectItem>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* School Schedule Manager */}
-            <div>
-              <Label className="text-xs mb-1 block">School Schedule</Label>
+            <div className="py-1">
+              <Label className="text-xs mb-1 block text-muted-foreground">School Schedule</Label>
               <SchoolScheduleManager
                 childId={child.id}
                 currentSchedule={{
@@ -244,68 +245,66 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
               />
             </div>
 
-            {/* Lunch & Dinner */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="lunch_time" className="text-xs">Lunch</Label>
-                <Input
-                  id="lunch_time"
-                  type="time"
-                  value={formData.lunch_time}
-                  onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
-                  className="text-sm h-10"
-                />
-                <Select value={formData.lunch_duration} onValueChange={(v) => setFormData({ ...formData, lunch_duration: v })}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="dinner_time" className="text-xs">Dinner</Label>
-                <Input
-                  id="dinner_time"
-                  type="time"
-                  value={formData.dinner_time}
-                  onChange={(e) => setFormData({ ...formData, dinner_time: e.target.value })}
-                  className="text-sm"
-                />
-                <Select value={formData.dinner_duration} onValueChange={(v) => setFormData({ ...formData, dinner_duration: v })}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="90">1.5 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Lunch */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="lunch_time" className="text-xs w-20 shrink-0 text-muted-foreground">Lunch</Label>
+              <Input
+                id="lunch_time"
+                type="time"
+                value={formData.lunch_time}
+                onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
+                className="flex-1 h-10 text-sm min-w-0"
+              />
+              <Select value={formData.lunch_duration} onValueChange={(v) => setFormData({ ...formData, lunch_duration: v })}>
+                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Dinner */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="dinner_time" className="text-xs w-20 shrink-0 text-muted-foreground">Dinner</Label>
+              <Input
+                id="dinner_time"
+                type="time"
+                value={formData.dinner_time}
+                onChange={(e) => setFormData({ ...formData, dinner_time: e.target.value })}
+                className="flex-1 h-10 text-sm min-w-0"
+              />
+              <Select value={formData.dinner_duration} onValueChange={(v) => setFormData({ ...formData, dinner_duration: v })}>
+                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Bedtime */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="bedtime" className="text-xs">Bedtime</Label>
-                <Input
-                  id="bedtime"
-                  type="time"
-                  value={formData.bedtime}
-                  onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
-                  className="text-sm h-10"
-                />
-                <Select value={formData.bedtime_duration} onValueChange={(v) => setFormData({ ...formData, bedtime_duration: v })}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="90">1.5 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="bedtime" className="text-xs w-20 shrink-0 text-muted-foreground">Bedtime</Label>
+              <Input
+                id="bedtime"
+                type="time"
+                value={formData.bedtime}
+                onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
+                className="flex-1 h-10 text-sm min-w-0"
+              />
+              <Select value={formData.bedtime_duration} onValueChange={(v) => setFormData({ ...formData, bedtime_duration: v })}>
+                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
