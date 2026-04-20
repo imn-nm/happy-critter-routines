@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, Clock, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks } from 'lucide-react';
+import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -148,10 +148,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
     zIndex: isDragging ? 1000 : 'auto',
     opacity: isDragging ? 0.95 : 1,
     boxShadow: isDragging ? '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)' : undefined,
-    // Mobile: `manipulation` lets short taps/scrolls pass through while still giving the
-    // delay-based TouchSensor a chance to activate on long-press. `none` locks the gesture
-    // once dragging starts so iOS doesn't try to scroll underneath the lifted tile.
-    touchAction: isDraggable ? (isDragging ? 'none' : 'manipulation') : undefined,
+    // Mobile: only lock touch-action during the actual drag so iOS doesn't try to
+    // scroll underneath the lifted tile. When not dragging, leave it alone so the
+    // page scrolls normally — the long-press drag is triggered by the handle icon
+    // only (which has its own touch-action: none).
+    touchAction: isDragging ? 'none' : undefined,
     WebkitUserSelect: isDragging ? 'none' : undefined,
     userSelect: isDragging ? 'none' : undefined,
     // Prevent the iOS callout/selection menu on long-press
@@ -333,9 +334,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             )}
           </div>
 
-          {/* Task Card */}
+          {/* Task Card — the tile itself is NOT draggable so the page scrolls normally.
+              Drag bindings live on the handle icon (below) so only long-press on the
+              handle picks up the tile. */}
           <div
-            {...dragBindings}
             onClick={() => {
               if (isDragging) return;
               onEditTask?.(event.task || {
@@ -359,18 +361,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 onEditTask?.(event.task);
               }
             }}
-            // touch-action MUST be on this element (where drag listeners live) since the property
-            // doesn't inherit. `manipulation` keeps scroll/tap working until the TouchSensor's
-            // long-press delay fires; `none` during drag stops iOS from reclaiming the gesture.
-            style={isDraggable ? {
-              touchAction: isDragging ? 'none' : 'manipulation',
-              WebkitTouchCallout: 'none',
-              WebkitUserSelect: 'none',
-              userSelect: 'none',
-            } : undefined}
             className={cn(
               "flex-1 min-w-0 rounded-lg p-3 border transition-colors cursor-pointer hover:bg-white/5",
-              isDraggable && "active:cursor-grabbing select-none",
               isDragging && "cursor-grabbing",
               isCurrent
                 ? "border-primary/30 bg-primary/5"
@@ -382,28 +374,39 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             )}
           >
             <div className="flex items-center gap-3">
-              {/* Icon */}
-              <div className={cn(
-                "p-2 rounded-full shrink-0",
-                event.isCompleted
-                  ? "bg-green-500/20 text-green-400"
-                  : isCurrent
-                    ? "bg-primary/20 text-primary"
-                    : (event.status === 'overdue' && event.task?.is_important)
-                      ? "bg-red-500/20 text-red-400"
-                      : "bg-blue-500/20 text-blue-400"
-              )}>
-                {event.isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-              </div>
+              {/* Leading icon: checkmark for completed, drag handle for draggable tasks.
+                  Drag bindings & touch-action live ONLY here so the rest of the tile
+                  remains scrollable. Long-press on this handle picks up the tile. */}
+              {event.isCompleted ? (
+                <div className="p-2 rounded-full shrink-0 bg-green-500/20 text-green-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              ) : isDraggable ? (
+                <div
+                  {...dragBindings}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Drag to reschedule"
+                  style={{
+                    touchAction: 'none',
+                    WebkitTouchCallout: 'none',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none',
+                  }}
+                  className={cn(
+                    "p-2 rounded-full shrink-0 cursor-grab active:cursor-grabbing transition-colors",
+                    isCurrent
+                      ? "bg-primary/20 text-primary hover:bg-primary/30"
+                      : (event.status === 'overdue' && event.task?.is_important)
+                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                  )}
+                >
+                  <GripVertical className="w-4 h-4" />
+                </div>
+              ) : null}
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  {isDraggable && (
-                    <GripVertical
-                      className="w-4 h-4 text-muted-foreground/60 flex-shrink-0"
-                      aria-hidden="true"
-                    />
-                  )}
                   <span className={cn(
                     "font-medium truncate text-sm",
                     event.isCompleted && "line-through text-muted-foreground",
