@@ -4,8 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Save, Copy, Minus, Plus } from 'lucide-react';
+import { Clock, Save, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface DaySpecificTaskEditorProps {
@@ -79,18 +78,22 @@ const DaySpecificTaskEditor = ({
     return `${hours}h ${mins}m`;
   };
 
-  // Duration preset options in minutes
-  const durationPresets = [
-    { value: '300', label: '5h' },
-    { value: '330', label: '5h 30m' },
-    { value: '360', label: '6h' },
-    { value: '390', label: '6h 30m' },
-    { value: '420', label: '7h' },
-    { value: '450', label: '7h 30m' },
-    { value: '480', label: '8h' },
-    { value: '510', label: '8h 30m' },
-    { value: '540', label: '9h' },
-  ];
+  const addMinutesToTime = (timeStr: string, minutesToAdd: number) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const total = hours * 60 + minutes + minutesToAdd;
+    const wrapped = ((total % 1440) + 1440) % 1440;
+    const h = Math.floor(wrapped / 60);
+    const m = wrapped % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
+  const diffInMinutes = (start: string, end: string) => {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    let diff = (eh * 60 + em) - (sh * 60 + sm);
+    if (diff <= 0) diff += 1440; // wrap to next day
+    return diff;
+  };
 
   const handleTimeChange = (day: string, time: string) => {
     setSchedules(prev => ({
@@ -220,44 +223,26 @@ const DaySpecificTaskEditor = ({
                     />
                   </div>
 
-                  {/* Duration - Select dropdown */}
+                  {/* End Time */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Duration</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-11 w-11 rounded-xl flex-shrink-0"
-                        onClick={() => handleDurationChange(selectedDay, currentDaySchedule.duration - 30)}
-                        disabled={currentDaySchedule.duration <= 60}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <Select
-                        value={currentDaySchedule.duration.toString()}
-                        onValueChange={(v) => handleDurationChange(selectedDay, parseInt(v))}
-                      >
-                        <SelectTrigger className="h-11 flex-1 text-center text-base font-medium">
-                          <SelectValue>{formatDuration(currentDaySchedule.duration)}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {durationPresets.map(p => (
-                            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-11 w-11 rounded-xl flex-shrink-0"
-                        onClick={() => handleDurationChange(selectedDay, currentDaySchedule.duration + 30)}
-                        disabled={currentDaySchedule.duration >= 720}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      End Time
+                    </Label>
+                    <Input
+                      type="time"
+                      value={addMinutesToTime(currentDaySchedule.time, currentDaySchedule.duration)}
+                      onChange={(e) => {
+                        const newEnd = e.target.value;
+                        if (!newEnd) return;
+                        const newDuration = diffInMinutes(currentDaySchedule.time, newEnd);
+                        handleDurationChange(selectedDay, newDuration);
+                      }}
+                      className="h-11 text-base w-full"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Duration: {formatDuration(currentDaySchedule.duration)}
+                    </p>
                   </div>
 
                   {/* Copy to All Button */}

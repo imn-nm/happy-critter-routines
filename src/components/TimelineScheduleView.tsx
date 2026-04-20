@@ -125,8 +125,9 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
 
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const isDraggable = event.type === 'flexible' || event.type === 'regular';
+  // Draggable: every user task (scheduled/regular/flexible). System tasks and gaps stay fixed.
   const isGap = event.type === 'gap';
+  const isDraggable = !isGap && event.type !== 'system';
   
   const {
     attributes,
@@ -147,10 +148,14 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
     zIndex: isDragging ? 1000 : 'auto',
     opacity: isDragging ? 0.95 : 1,
     boxShadow: isDragging ? '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)' : undefined,
-    // Let short taps scroll the page; dnd-kit's delay-based TouchSensor handles long-press activation.
-    touchAction: isDragging ? 'none' : undefined,
+    // Mobile: `manipulation` lets short taps/scrolls pass through while still giving the
+    // delay-based TouchSensor a chance to activate on long-press. `none` locks the gesture
+    // once dragging starts so iOS doesn't try to scroll underneath the lifted tile.
+    touchAction: isDraggable ? (isDragging ? 'none' : 'manipulation') : undefined,
     WebkitUserSelect: isDragging ? 'none' : undefined,
     userSelect: isDragging ? 'none' : undefined,
+    // Prevent the iOS callout/selection menu on long-press
+    WebkitTouchCallout: isDraggable ? 'none' : undefined,
   };
 
   // iOS-style long-press drag: apply listeners to the whole tile when draggable.
@@ -354,6 +359,15 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 onEditTask?.(event.task);
               }
             }}
+            // touch-action MUST be on this element (where drag listeners live) since the property
+            // doesn't inherit. `manipulation` keeps scroll/tap working until the TouchSensor's
+            // long-press delay fires; `none` during drag stops iOS from reclaiming the gesture.
+            style={isDraggable ? {
+              touchAction: isDragging ? 'none' : 'manipulation',
+              WebkitTouchCallout: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+            } : undefined}
             className={cn(
               "flex-1 min-w-0 rounded-lg p-3 border transition-colors cursor-pointer hover:bg-white/5",
               isDraggable && "active:cursor-grabbing select-none",
@@ -684,28 +698,6 @@ const TimelineScheduleView = ({
     };
   };
 
-  const scheduledTaskEvents: TimelineEvent[] = dayTasks.filter(task =>
-    task.type === 'scheduled' && !systemTaskNames.includes(task.name)
-  ).map(task => {
-    const resolved = getTaskTimeForDay(task);
-    const taskTime = resolved.time;
-    const taskDuration = resolved.duration;
-    return {
-      id: task.id,
-      name: task.name,
-      time: taskTime,
-      duration: taskDuration,
-      type: task.type,
-      color: 'bg-purple-600',
-      task: task,
-      coins: task.coins,
-      isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
-      isLate: false,
-      status: calculateTaskStatus(task, taskTime, taskDuration),
-      completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
-    };
-  });
-
   // Floating/chore tasks — displayed separately in a sidebar panel
   const choreTasks = dayTasks.filter(task =>
     task.type === 'floating' && !systemTaskNames.includes(task.name)
@@ -714,11 +706,12 @@ const TimelineScheduleView = ({
     isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
   }));
 
-  const fixedEvents: TimelineEvent[] = [...systemEventsOnly, ...scheduledTaskEvents];
+  // Only system events are fixed. All user-created tasks (scheduled/regular/flexible)
+  // are draggable so the parent can reorder them directly on the timeline.
+  const fixedEvents: TimelineEvent[] = [...systemEventsOnly];
 
-  // Draggable tasks (flexible and regular) - we'll calculate their times based on snapping logic
-  const draggableTasks = dayTasks.filter(task => 
-    (task.type === 'flexible' || task.type === 'regular') && !systemTaskNames.includes(task.name)
+  const draggableTasks = dayTasks.filter(task =>
+    task.type !== 'floating' && !systemTaskNames.includes(task.name)
   );
   
   // Removed unused sortedFixedEvents and calculateSnappedTimes functions
@@ -1140,7 +1133,7 @@ const TimelineScheduleView = ({
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={allEvents.filter(e => e.type === 'flexible' || e.type === 'regular').map(e => e.id)}
+                  items={allEvents.filter(e => e.type !== 'gap' && e.type !== 'system').map(e => e.id)}
                   strategy={() => null}
                 >
                   <div className="space-y-2 sm:space-y-4">

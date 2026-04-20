@@ -9,12 +9,13 @@ import { type Task } from "@/types/Task";
 
 interface TaskFormProps {
   task?: Task;
-  onSave: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => void;
+  onSave: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'> & { _additionalChildIds?: string[] }) => void;
   onCancel: () => void;
   onDelete?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   isEdit?: boolean;
   currentDate: Date;
   prefillTime?: string;
+  otherChildren?: { id: string; name: string }[];
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
@@ -25,8 +26,9 @@ const FormRow = ({ label, htmlFor, children }: { label: string; htmlFor?: string
   </div>
 );
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [] }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
@@ -62,7 +64,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const deriveType = (): Task['type'] => {
     if (isChore) return 'floating';
-    if (formData.scheduledTime) return 'scheduled';
+    if (typeof formData.scheduledTime === 'string' && formData.scheduledTime) return 'scheduled';
     const totalMinutes = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
     if (totalMinutes > 0) return 'regular';
     return 'flexible';
@@ -72,12 +74,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     e.preventDefault();
     const totalMinutes = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
     const derivedType = deriveType();
+    // Guard against non-string scheduledTime (e.g., if a SyntheticEvent slipped into state).
+    const scheduledTimeStr = typeof formData.scheduledTime === 'string' ? formData.scheduledTime : '';
 
     const newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
       child_id: task?.child_id || '',
       name: formData.name,
       type: derivedType,
-      scheduled_time: !isChore && formData.scheduledTime ? formData.scheduledTime : undefined,
+      scheduled_time: !isChore && scheduledTimeStr ? scheduledTimeStr : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
       is_recurring: formData.isRecurring,
@@ -90,10 +94,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       window_start: derivedType === 'floating' && !formData.choreAnytime ? formData.windowStart : undefined,
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
     };
-    onSave(newTask);
+    onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
 
   const currentType = deriveType();
+
+  const needsDays = formData.isRecurring && formData.recurringDays.length === 0;
+  const canSubmit = formData.name.trim().length > 0 && !needsDays;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pt-1 w-full min-w-0 overflow-hidden">
@@ -258,33 +265,40 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       </FormRow>
 
       {formData.isRecurring && (
-        <FormRow label="Days">
-          <div className="flex gap-1 sm:gap-1.5">
-            {daysOfWeek.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    ...formData,
-                    recurringDays: formData.recurringDays.includes(id)
-                      ? formData.recurringDays.filter((day) => day !== id)
-                      : [...formData.recurringDays, id],
-                  });
-                }}
-                className={`
-                  h-8 w-8 sm:h-9 sm:w-9 rounded-full font-semibold text-xs transition-all shrink-0
-                  ${formData.recurringDays.includes(id)
-                    ? 'bg-foreground text-background'
-                    : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }
-                `}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </FormRow>
+        <>
+          <FormRow label="Days">
+            <div className="flex gap-1 sm:gap-1.5">
+              {daysOfWeek.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      recurringDays: formData.recurringDays.includes(id)
+                        ? formData.recurringDays.filter((day) => day !== id)
+                        : [...formData.recurringDays, id],
+                    });
+                  }}
+                  className={`
+                    h-8 w-8 sm:h-9 sm:w-9 rounded-full font-semibold text-xs transition-all shrink-0
+                    ${formData.recurringDays.includes(id)
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }
+                  `}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </FormRow>
+          {needsDays && (
+            <p className="text-xs text-destructive -mt-2 pl-[88px] sm:pl-[104px]">
+              Pick at least one day.
+            </p>
+          )}
+        </>
       )}
 
       {/* Reward */}
@@ -306,11 +320,41 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </Select>
       </FormRow>
 
+      {/* Also add to other children — create mode only */}
+      {!isEdit && otherChildren.length > 0 && (
+        <FormRow label="Also add to">
+          <div className="flex flex-wrap gap-1.5 justify-end">
+            {otherChildren.map(c => {
+              const checked = additionalChildIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setAdditionalChildIds(prev =>
+                    prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                  )}
+                  className={`
+                    h-8 px-3 rounded-full text-xs font-medium transition-all
+                    ${checked
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }
+                  `}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        </FormRow>
+      )}
+
       {/* Submit */}
       <div className="pt-3 space-y-2">
         <Button
           type="submit"
-          className="w-full rounded-full h-12 text-base font-medium shadow-sm"
+          disabled={!canSubmit}
+          className="w-full rounded-full h-12 text-base font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: 'hsl(180 50% 60%)', color: 'white' }}
         >
           {isEdit ? (isChore ? 'Update Chore' : 'Update Task') : (isChore ? 'Add Chore' : 'Add Task')}

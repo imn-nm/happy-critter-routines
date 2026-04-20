@@ -16,6 +16,7 @@ import TaskForm from "@/components/TaskForm";
 import MonthView from "@/components/MonthView";
 import WeekView from "@/components/WeekView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
+import { supabase } from "@/integrations/supabase/client";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -61,6 +62,9 @@ const ChildDashboard = () => {
   };
 
   const handleSaveTask = async (taskData) => {
+    // Strip form-only field: selected additional children to copy this task to
+    const { _additionalChildIds, ...cleanedTaskData } = taskData || {};
+    taskData = cleanedTaskData;
     try {
       if (editingTask) {
         const systemKey = systemNameToKey[editingTask.name];
@@ -80,35 +84,23 @@ const ChildDashboard = () => {
           await refetch();
           toast({ title: "Schedule Updated", description: `${editingTask.name} updated.` });
         } else if (editingTask.is_recurring) {
-          // Recurring task: save time/duration changes as day-specific overrides
+          // Recurring task: inline edit updates the base fields (applies to all days).
+          // For day-specific variations, the DaySpecificTaskEditor is the dedicated tool.
+          // Clear the current day's override so the new base takes effect here too.
           const dayName = format(currentDate, 'EEEE').toLowerCase();
           const existingOverrides = editingTask.schedule_overrides || {};
-          const dayOverride: Record<string, any> = { ...existingOverrides[dayName] };
+          const { [dayName]: _removed, ...remainingOverrides } = existingOverrides;
+          const nextOverrides = Object.keys(remainingOverrides).length > 0 ? remainingOverrides : null;
 
-          // Only override fields that differ from base task
-          if (taskData.scheduled_time && taskData.scheduled_time !== editingTask.scheduled_time) {
-            dayOverride.scheduled_time = taskData.scheduled_time;
-          }
-          if (taskData.duration != null && taskData.duration !== editingTask.duration) {
-            dayOverride.duration = taskData.duration;
-          }
-
-          // Update base fields that apply to all days (name, coins, recurring_days, etc.)
-          const baseUpdates: Record<string, any> = {
-            id: editingTask.id, child_id: editingTask.child_id,
-            created_at: editingTask.created_at, updated_at: new Date().toISOString(),
-            name: taskData.name, coins: taskData.coins,
-            is_recurring: taskData.is_recurring, recurring_days: taskData.recurring_days,
-            description: taskData.description, is_important: taskData.is_important,
-          };
-
-          // Write override if we have day-specific changes
-          if (Object.keys(dayOverride).length > 0) {
-            baseUpdates.schedule_overrides = { ...existingOverrides, [dayName]: dayOverride };
-          }
-
-          await updateTask(editingTask.id, baseUpdates);
-          toast({ title: "Task updated", description: `Changes applied to ${format(currentDate, 'EEEE')}.` });
+          await updateTask(editingTask.id, {
+            ...taskData,
+            id: editingTask.id,
+            child_id: editingTask.child_id,
+            created_at: editingTask.created_at,
+            updated_at: new Date().toISOString(),
+            schedule_overrides: nextOverrides,
+          } as any);
+          toast({ title: "Task updated" });
         } else {
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
           toast({ title: "Task updated" });
@@ -146,7 +138,24 @@ const ChildDashboard = () => {
           }
         }
         await addTask(finalTaskData);
-        toast({ title: "Task created" });
+
+        // Also create the same task for any other selected children
+        if (_additionalChildIds && _additionalChildIds.length > 0) {
+          const { child_id: _ignored, ...taskForOthers } = finalTaskData;
+          const rows = _additionalChildIds.map((otherId: string) => {
+            const { isCompleted, task_date, bonusTime, ...rest } = taskForOthers as any;
+            const row: Record<string, any> = { child_id: otherId };
+            for (const [k, v] of Object.entries(rest)) {
+              if (v !== undefined) row[k] = v;
+            }
+            return row;
+          });
+          const { error: insertError } = await supabase.from('tasks').insert(rows);
+          if (insertError) throw insertError;
+          toast({ title: "Task created", description: `Also added to ${_additionalChildIds.length} other ${_additionalChildIds.length === 1 ? 'child' : 'children'}.` });
+        } else {
+          toast({ title: "Task created" });
+        }
       }
       setShowTaskForm(false); setEditingTask(null);
     } catch (error) {
@@ -385,7 +394,8 @@ const ChildDashboard = () => {
                 setEditingTask(null);
               }}
               isEdit={!!editingTask} currentDate={currentDate}
-              prefillTime={prefillTime} />
+              prefillTime={prefillTime}
+              otherChildren={children.filter(c => c.id !== childId).map(c => ({ id: c.id, name: c.name }))} />
           </DialogContent>
         </Dialog>
       </div>
