@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export type TimerStatus = "on-track" | "behind" | "ahead" | "critical" | "overtime";
@@ -22,7 +22,11 @@ const CircularTimer = ({
   onComplete,
   status = "on-track"
 }: CircularTimerProps) => {
-  const [remainingSeconds, setRemainingSeconds] = useState(Math.max(0, initialRemainingSeconds));
+  const allowNegative = status === "overtime";
+  const [remainingSeconds, setRemainingSeconds] = useState(
+    allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds)
+  );
+  const hasCompletedRef = useRef(false);
   const progress = totalSeconds > 0 ? Math.min(1, (totalSeconds - remainingSeconds) / totalSeconds) : 0;
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference * (1 - progress);
@@ -50,40 +54,45 @@ const CircularTimer = ({
 
   const getTrackColor = () => "rgba(139, 92, 246, 0.2)"; // Subtle purple on dark
 
-  // Timer countdown — stops at zero and fires onComplete
+  // Timer countdown — fires onComplete once when crossing zero.
+  // When allowNegative, the counter keeps running past zero (overtime).
   useEffect(() => {
     if (!isRunning) return;
 
     const interval = setInterval(() => {
       setRemainingSeconds(prev => {
-        if (prev <= 0) return 0;
         const next = prev - 1;
-        if (next <= 0) {
+        if (prev > 0 && next <= 0 && !hasCompletedRef.current) {
+          hasCompletedRef.current = true;
           onComplete?.();
-          return 0;
         }
+        if (!allowNegative) return Math.max(0, next);
         return next;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, onComplete]);
+  }, [isRunning, onComplete, allowNegative]);
 
   // Reset timer when initial value changes
   useEffect(() => {
-    setRemainingSeconds(Math.max(0, initialRemainingSeconds));
-  }, [initialRemainingSeconds]);
+    setRemainingSeconds(allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds));
+    // If we reset to a positive value, allow onComplete to fire again next crossing.
+    if (initialRemainingSeconds > 0) hasCompletedRef.current = false;
+  }, [initialRemainingSeconds, allowNegative]);
 
   const formatTime = (seconds: number) => {
-    const s = Math.max(0, seconds);
+    const negative = seconds < 0;
+    const s = Math.abs(seconds);
     const hours = Math.floor(s / 3600);
     const minutes = Math.floor((s % 3600) / 60);
     const secs = s % 60;
+    const sign = negative ? '-' : '';
 
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${sign}${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -124,7 +133,8 @@ const CircularTimer = ({
         <div className="text-center px-2">
           <div
             className={cn(
-              "font-bold leading-none text-foreground",
+              "font-bold leading-none",
+              remainingSeconds < 0 ? "text-red-400" : "text-foreground",
               size === "sm" && "text-xs",
               size === "md" && "text-base",
               size === "lg" && "text-xl"

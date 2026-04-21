@@ -6,7 +6,7 @@ import OwlCelebration from "@/components/OwlCelebration";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
-import { ArrowLeft, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, CheckCircle2, ListChecks } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, CheckCircle2, ListChecks, AlertCircle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -298,6 +298,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
     let current: (typeof incompleteTasks)[0] | null = null;
     const upcoming: typeof incompleteTasks = [];
+    const overdueImportant: typeof incompleteTasks = [];
     let freeTimeUntil = '';
 
     for (const task of incompleteTasks) {
@@ -308,8 +309,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       const endMinutes = taskStartMinutes + taskDuration;
       const taskEndTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
-      // Skip any task whose window has fully passed
-      if (currentTimeString >= taskEndTime) continue;
+      // Task's window has fully passed
+      if (currentTimeString >= taskEndTime) {
+        // Important tasks stay in play — the child still has to do them.
+        if (task.is_important) overdueImportant.push(task);
+        continue;
+      }
 
       // Task is "current" if we're within its time window (start <= now < end)
       if (!current && nowMinutes >= taskStartMinutes && nowMinutes < endMinutes) {
@@ -321,6 +326,22 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           freeTimeUntil = taskTime;
         }
       }
+    }
+
+    // Overdue important tasks take precedence over any in-window task. The
+    // child can't move on until they mark the oldest overdue important as Done.
+    // This is what drives the "shrinking free time" visual — as time passes,
+    // the overdue task's negative timer grows while upcoming tasks wait.
+    if (overdueImportant.length > 0) {
+      const sorted = [...overdueImportant].sort((a, b) =>
+        (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
+      );
+      // Any previously-current (within-window) task gets pushed to upcoming —
+      // it's scheduled but waiting on the overdue important to be resolved.
+      if (current) upcoming.unshift(current);
+      current = sorted[0];
+      // Other overdue importants show up at the top of the upcoming list.
+      for (const task of sorted.slice(1).reverse()) upcoming.unshift(task);
     }
 
     return { current, upcoming: upcoming.slice(0, 3), freeTimeUntil };
@@ -371,7 +392,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return { completed: completedCount, total: todaysSchedule.length };
   };
 
-  // Calculate remaining time for active task
+  // Is the current active task overdue — its scheduled window has fully passed
+  // but it's still in play (only important tasks reach this state; others
+  // auto-advance to the next task).
+  const isActiveTaskOverdue = () => {
+    if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return false;
+    const nowStr = getPSTTimeString();
+    const [h, m] = activeTask.scheduled_time.split(':').map(Number);
+    const endMin = h * 60 + m + activeTask.duration;
+    const endStr = `${Math.floor(endMin / 60).toString().padStart(2, '0')}:${(endMin % 60).toString().padStart(2, '0')}`;
+    return nowStr >= endStr;
+  };
+
+  // Calculate remaining time for active task. For important tasks the value
+  // is allowed to go negative — the timer keeps counting into overtime so the
+  // child sees the shrinking free-time window visually.
   const getActiveTaskRemainingTime = () => {
     if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
 
@@ -385,10 +420,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const totalDuration = activeTask.duration * 60 + bonus;
 
     const taskEndDate = new Date(taskStartDate.getTime() + totalDuration * 1000);
-    const timeDiff = taskEndDate.getTime() - currentTime.getTime();
+    const seconds = Math.floor((taskEndDate.getTime() - currentTime.getTime()) / 1000);
 
-    // Clamp to 0 — no negative (no overtime)
-    return Math.max(0, Math.floor(timeDiff / 1000));
+    // Important tasks run into negative (overtime) until the child taps Done.
+    if (activeTask.is_important) return seconds;
+    // Non-important tasks clamp at zero; handleTimerComplete auto-advances.
+    return Math.max(0, seconds);
   };
 
   const getTimerStatus = (): TimerStatus => {
@@ -563,29 +600,49 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const remaining = getActiveTaskRemainingTime();
           const totalSecs = activeTask.duration ? activeTask.duration * 60 + (bonusTimeMap[activeTask.id] || 0) : 1800;
           const isImportantAndDone = activeTask.is_important && remaining <= 0;
+          const overdue = isActiveTaskOverdue();
 
           return (
-            <div className="glass-card rounded-3xl p-6 mb-4 glow-purple">
-              {/* Important indicator */}
-              {activeTask.is_important && (
+            <div
+              className={`glass-card rounded-3xl p-6 mb-4 ${
+                overdue ? 'ring-2 ring-red-500/60 shadow-[0_0_30px_rgba(239,68,68,0.35)]' : 'glow-purple'
+              }`}
+            >
+              {/* Overdue banner takes precedence over the regular "important" hint */}
+              {overdue ? (
+                <div className="flex items-center justify-center gap-1.5 mb-3">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-xs text-red-400 font-semibold">Overdue — please do this now</span>
+                </div>
+              ) : activeTask.is_important && (
                 <div className="flex items-center justify-center gap-1.5 mb-3">
                   <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                   <span className="text-xs text-yellow-400 font-medium">Important — tap Next when done</span>
                 </div>
               )}
 
-              <h2 className="text-2xl font-bold text-center text-foreground mb-5 text-glow">{activeTask.name}</h2>
+              <h2 className={`text-2xl font-bold text-center mb-5 text-glow ${overdue ? 'text-red-400' : 'text-foreground'}`}>
+                {activeTask.name}
+              </h2>
 
               <div className="flex justify-center mb-6">
                 <CircularTimer
                   totalSeconds={totalSecs}
                   remainingSeconds={remaining}
-                  status={getTimerStatus()}
+                  status={overdue ? 'overtime' : getTimerStatus()}
                   size="lg"
                   isRunning={true}
                   onComplete={handleTimerComplete}
                 />
               </div>
+
+              {overdue && upcomingTasks[0] && (
+                <p className="text-center text-xs text-red-300/90 mb-3">
+                  Free time is shrinking — next up is{' '}
+                  <span className="font-semibold text-red-200">{upcomingTasks[0].name}</span> at{' '}
+                  {formatTime(upcomingTasks[0].scheduled_time || '')}
+                </p>
+              )}
 
               {/* Next button with micro animation */}
               <Button
@@ -593,10 +650,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 variant="accent"
                 className={`w-full rounded-2xl h-14 text-lg font-bold transition-all duration-200 ${
                   nextTapped ? 'scale-95 opacity-70' : ''
-                } ${isImportantAndDone ? 'animate-pulse ring-2 ring-yellow-400/50' : ''}`}
+                } ${isImportantAndDone ? 'animate-pulse ring-2 ring-yellow-400/50' : ''} ${
+                  overdue ? 'ring-2 ring-red-500/60' : ''
+                }`}
               >
                 <span className="flex items-center gap-2">
-                  Next
+                  {overdue ? 'Done' : 'Next'}
                   <ChevronRight className={`w-5 h-5 transition-transform duration-200 ${nextTapped ? 'translate-x-1' : ''}`} />
                 </span>
               </Button>
@@ -605,15 +664,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         })()}
 
         {/* Free Time — no active task but upcoming ones exist.
-            Show a CircularTimer counting down to the next task so the layout
-            matches the active-task view. */}
+            Mirror the active-task layout exactly: big title = current state
+            ("Free Time"), timer counts down to the next task, and the
+            upcoming task is shown as a small description below the timer. */}
         {!activeTask && freeTimeCountdown && (
           <div className="glass-card rounded-3xl p-6 mb-4 glow-purple">
-            <div className="flex items-center justify-center gap-1.5 mb-3">
-              <span className="text-xs text-muted-foreground font-medium">🎮 Free Time — next up</span>
-            </div>
             <h2 className="text-2xl font-bold text-center text-foreground mb-5 text-glow">
-              {freeTimeCountdown.nextTask.name}
+              🎮 Free Time
             </h2>
             <div className="flex justify-center mb-6">
               <CircularTimer
@@ -625,7 +682,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               />
             </div>
             <p className="text-center text-sm text-muted-foreground">
-              Starts at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
+              Next: <span className="font-medium text-foreground">{freeTimeCountdown.nextTask.name}</span> at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
             </p>
           </div>
         )}

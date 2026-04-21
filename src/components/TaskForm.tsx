@@ -90,7 +90,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       sort_order: task?.sort_order || 0,
       is_active: task?.is_active ?? true,
       task_date: !formData.isRecurring ? formData.taskDate : undefined,
-      is_important: (derivedType === 'regular' || derivedType === 'floating') ? formData.isImportant : false,
+      is_important: formData.isImportant,
       window_start: derivedType === 'floating' && !formData.choreAnytime ? formData.windowStart : undefined,
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
     };
@@ -190,17 +190,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </Select>
           </FormRow>
 
-          {currentType === 'regular' && (
-            <FormRow label="Important" htmlFor="isImportant">
-              <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
-              <Switch
-                id="isImportant"
-                checked={formData.isImportant}
-                onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
-                className="data-[state=checked]:bg-yellow-500"
-              />
-            </FormRow>
-          )}
+          <FormRow label="Important" htmlFor="isImportant">
+            <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
+            <Switch
+              id="isImportant"
+              checked={formData.isImportant}
+              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
+              className="data-[state=checked]:bg-yellow-500"
+            />
+          </FormRow>
         </>
       )}
 
