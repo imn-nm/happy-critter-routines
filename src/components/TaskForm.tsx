@@ -166,11 +166,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       )}
 
       {/* Title */}
-      <FormRow
-        label="Title"
-        htmlFor="taskName"
-        hint={isChore ? "What your child should do." : "Shown big on your child's screen when this task is active."}
-      >
+      <FormRow label="Title" htmlFor="taskName">
         <Input
           id="taskName"
           value={formData.name}
@@ -206,10 +202,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             />
           </FormRow>
 
-          <FormRow
-            label="Duration"
-            hint="How long the timer runs on your child's screen."
-          >
+          <FormRow label="Duration">
             <Select
               value={`${(parseInt(formData.durationHours || '0') * 60 + parseInt(formData.durationMinutes || '0'))}`}
               onValueChange={(value) => {
@@ -271,7 +264,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         <>
           <FormRow
             label="When"
-            hint="Anytime today, or only within a chosen time window."
           >
             <Select
               value={formData.choreAnytime ? 'anytime' : 'window'}
@@ -342,7 +334,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       <FormRow
         label="Recurring"
         htmlFor="isRecurring"
-        hint="Repeat on chosen days of the week. Off means this task is just for one day."
       >
         <Switch
           id="isRecurring"
@@ -396,7 +387,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       <FormRow
         label="Reward"
         htmlFor="coins"
-        hint="Coins your child earns when they finish this. They can spend coins on rewards you've set up."
       >
         <Select
           value={formData.coins}
