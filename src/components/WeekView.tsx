@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, Gamepad2 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
@@ -227,6 +227,9 @@ const WeekView = ({ child, tasks, onEditTask }: WeekViewProps) => {
                           </span>
                           {task.is_important && (
                             <Star className="w-2.5 h-2.5 text-yellow-400 shrink-0" />
+                          )}
+                          {task.is_fun_time && (
+                            <Gamepad2 className="w-2.5 h-2.5 text-purple-400 shrink-0" />
                           )}
                         </div>
                         <span className="text-[10px] text-muted-foreground">

@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import PetAvatar from "@/components/PetAvatar";
 import OwlCelebration from "@/components/OwlCelebration";
+import TimeSqueeze from "@/components/TimeSqueeze";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
-import { ArrowLeft, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, CheckCircle2, ListChecks, AlertCircle } from "lucide-react";
+import { ArrowLeft, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, CheckCircle2, ListChecks, AlertCircle, Gamepad2 } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -37,6 +38,37 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
   const [, setTick] = useState(0);
   const [autoAdvancing, setAutoAdvancing] = useState(false);
+
+  // Per-day subtask completion state, keyed by taskId → set of subtask ids checked.
+  // Persisted to localStorage so refresh/tab-switch doesn't lose state within the day.
+  const subtaskStorageKey = `subtasks:${childId}:${getPSTDateString()}`;
+  const [checkedSubtasks, setCheckedSubtasks] = useState<Record<string, string[]>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = window.localStorage.getItem(subtaskStorageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(subtaskStorageKey, JSON.stringify(checkedSubtasks));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [checkedSubtasks, subtaskStorageKey]);
+
+  const toggleSubtask = (taskId: string, subtaskId: string) => {
+    setCheckedSubtasks(prev => {
+      const current = prev[taskId] ?? [];
+      const next = current.includes(subtaskId)
+        ? current.filter(id => id !== subtaskId)
+        : [...current, subtaskId];
+      return { ...prev, [taskId]: next };
+    });
+  };
 
   const child = children.find(c => c.id === childId);
   const tasksWithCompletion = getTasksWithCompletionStatus();
@@ -139,9 +171,31 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   };
 
   const calculatePetEmotion = (): 'encouraging' | 'happy' | 'excited' | 'resting' => {
+    // During a squeeze, stay in encouraging mode regardless of progress
+    if (activeTask && isActiveTaskOverdue() && activeTask.is_important) return 'encouraging';
     if (progressPercent >= 60) return 'excited';
     if (completedTasks > 0) return 'happy';
     return 'encouraging';
+  };
+
+  // Context-aware pet message. Returns null when no special message is needed.
+  const getPetMessage = (): string | null => {
+    if (!activeTask || !isActiveTaskOverdue() || !activeTask.is_important) return null;
+    const nextFunTask = findNextFunTimeTask(activeTask);
+    if (!nextFunTask || !nextFunTask.duration) return null;
+
+    const overdueS = getOverdueSeconds();
+    const funTotalS = nextFunTask.duration * 60;
+    const pctLost = funTotalS > 0 ? overdueS / funTotalS : 1;
+    const activity = nextFunTask.name;
+
+    if (pctLost < 0.33) {
+      return `Come on, you've got this! Finish up and we can ${activity}!`;
+    } else if (pctLost < 0.66) {
+      return `We're losing ${activity} time! Let's go, almost there!`;
+    } else {
+      return `${activity} time is almost gone — hurry, we can still save a little!`;
+    }
   };
 
   const getTaskIcon = (taskName: string) => {
@@ -185,7 +239,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         return task.task_date === todayStr;
       }
       if (!task.is_recurring && !task.task_date && task.created_at) {
-        const createdDate = new Date(task.created_at).toISOString().slice(0, 10);
+        const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
         return createdDate === todayStr;
       }
       return false;
@@ -217,17 +271,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           duration: override.duration ?? task.duration,
         };
       }
+      // Use window_start as a placement hint when there's no scheduled time
+      if (!task.scheduled_time && task.window_start) {
+        return { ...task, scheduled_time: task.window_start };
+      }
       return task;
     }).filter(task => {
-      // Drop tasks with no resolvable time unless they're flexible/floating (anytime).
+      // Drop tasks with no resolvable time unless they're anytime tasks (flexible/floating/regular).
       const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
-      const isAnytime = task.type === 'flexible' || task.type === 'floating';
+      const isAnytime = task.type === 'flexible' || task.type === 'floating' || task.type === 'regular';
       return hasTime || isAnytime;
     });
 
     const sortedTasks = tasksWithDaySpecificTimes.sort((a, b) => {
-      const timeA = (a.scheduled_time || '00:00').slice(0, 5);
-      const timeB = (b.scheduled_time || '00:00').slice(0, 5);
+      const timeA = (a.scheduled_time || a.window_start || '00:00').slice(0, 5);
+      const timeB = (b.scheduled_time || b.window_start || '00:00').slice(0, 5);
       return timeA.localeCompare(timeB);
     });
 
@@ -449,6 +507,32 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return null;
   };
 
+  // Find the next fun-time task that appears after the given task on today's schedule.
+  // Used for the "Time Squeeze" visualization when an important task goes overdue.
+  const findNextFunTimeTask = (afterTask: typeof activeTask) => {
+    if (!afterTask) return null;
+    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted && t.is_active !== false);
+    const afterTime = afterTask.scheduled_time || '00:00';
+    // Find first fun-time task scheduled after the overdue task's start time
+    const candidates = incompleteTasks.filter(t =>
+      t.is_fun_time &&
+      (t.scheduled_time || '00:00') > afterTime
+    );
+    if (candidates.length === 0) return null;
+    return candidates.reduce((a, b) =>
+      (a.scheduled_time || '00:00') <= (b.scheduled_time || '00:00') ? a : b
+    );
+  };
+
+  // How many seconds the active task is currently overdue (0 if not overdue).
+  const getOverdueSeconds = () => {
+    if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
+    const now = getCurrentTime();
+    const [h, m] = activeTask.scheduled_time.split(':').map(Number);
+    const endMs = new Date(now).setHours(h, m + activeTask.duration, 0, 0);
+    return Math.max(0, Math.floor((now.getTime() - endMs) / 1000));
+  };
+
   // Handle "Next" tap — complete task, give bonus time to next flex task
   const handleNextTap = async () => {
     if (!activeTask) return;
@@ -576,6 +660,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               <Coins className="w-4 h-4 text-warning" />
               <span className="text-sm font-bold text-foreground">{child.currentCoins}</span>
             </div>
+            {getPetMessage() && (
+              <div className="mt-3 max-w-xs glass rounded-2xl px-4 py-2.5 text-center">
+                <p className="text-xs text-foreground/90 leading-relaxed">{getPetMessage()}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -636,13 +725,74 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 />
               </div>
 
-              {overdue && upcomingTasks[0] && (
-                <p className="text-center text-xs text-red-300/90 mb-3">
-                  Free time is shrinking — next up is{' '}
-                  <span className="font-semibold text-red-200">{upcomingTasks[0].name}</span> at{' '}
-                  {formatTime(upcomingTasks[0].scheduled_time || '')}
-                </p>
-              )}
+              {/* Subtasks checklist */}
+              {activeTask.subtasks && activeTask.subtasks.length > 0 && (() => {
+                const checkedIds = checkedSubtasks[activeTask.id] ?? [];
+                const doneCount = activeTask.subtasks.filter(s => checkedIds.includes(s.id)).length;
+                return (
+                  <div className="mb-6 glass rounded-2xl p-4 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <ListChecks className="w-4 h-4 text-primary" />
+                        <span className="text-xs font-semibold text-foreground/90 uppercase tracking-wide">Checklist</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-medium">
+                        {doneCount}/{activeTask.subtasks.length}
+                      </span>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {activeTask.subtasks.map(sub => {
+                        const isChecked = checkedIds.includes(sub.id);
+                        return (
+                          <li key={sub.id}>
+                            <button
+                              type="button"
+                              onClick={() => toggleSubtask(activeTask.id, sub.id)}
+                              className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all ${
+                                isChecked
+                                  ? 'bg-primary/10 text-muted-foreground'
+                                  : 'bg-white/5 hover:bg-white/10 text-foreground'
+                              }`}
+                            >
+                              <span
+                                className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                                  isChecked
+                                    ? 'bg-primary border-primary'
+                                    : 'border-muted-foreground/40'
+                                }`}
+                              >
+                                {isChecked && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                              </span>
+                              <span className={`text-sm flex-1 ${isChecked ? 'line-through' : ''}`}>
+                                {sub.text}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })()}
+
+              {overdue && activeTask.is_important && (() => {
+                const nextFunTask = findNextFunTimeTask(activeTask);
+                if (!nextFunTask || !nextFunTask.duration) return null;
+                const overdueS = getOverdueSeconds();
+                const funTotalS = nextFunTask.duration * 60;
+                const funRemainingS = Math.max(0, funTotalS - overdueS);
+                return (
+                  <div className="mb-6">
+                    <TimeSqueeze
+                      overdueTaskName={activeTask.name}
+                      overdueSeconds={overdueS}
+                      funTimeTaskName={nextFunTask.name}
+                      funTimeTotalSeconds={funTotalS}
+                      funTimeRemainingSeconds={funRemainingS}
+                    />
+                  </div>
+                );
+              })()}
 
               {/* Next button with micro animation */}
               <Button
@@ -650,7 +800,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 variant="accent"
                 className={`w-full rounded-2xl h-14 text-lg font-bold transition-all duration-200 ${
                   nextTapped ? 'scale-95 opacity-70' : ''
-                } ${isImportantAndDone ? 'animate-pulse ring-2 ring-yellow-400/50' : ''} ${
+                } ${isImportantAndDone && !overdue ? 'animate-pulse ring-2 ring-yellow-400/50' : ''} ${
                   overdue ? 'ring-2 ring-red-500/60' : ''
                 }`}
               >
@@ -711,6 +861,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       </div>
                       <div className="flex items-center gap-2">
                         {task.is_important && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
+                        {task.is_fun_time && <Gamepad2 className="w-3 h-3 text-purple-400" />}
                         <span className="text-xs text-muted-foreground font-medium">{formatTime(task.scheduled_time)}</span>
                       </div>
                     </div>

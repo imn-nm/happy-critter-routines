@@ -106,9 +106,11 @@ const ChildDashboard = () => {
           toast({ title: "Task updated" });
         }
       } else {
-        // If no scheduled_time, auto-calculate based on existing schedule
+        // If no scheduled_time, auto-calculate based on existing schedule.
+        // Skip auto-calc when window_start is present — that's a placement hint
+        // from the user tapping a specific gap, and it should be respected.
         const finalTaskData = { ...taskData, child_id: childId };
-        if (!finalTaskData.scheduled_time && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
+        if (!finalTaskData.scheduled_time && !finalTaskData.window_start && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
           const existingTasks = tasks.filter(t => t.is_active && t.scheduled_time);
           const occupied = existingTasks.map(t => {
             const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);

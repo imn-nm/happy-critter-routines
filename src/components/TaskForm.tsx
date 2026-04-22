@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { format } from "date-fns";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { type Task } from "@/types/Task";
+import { type Task, type Subtask } from "@/types/Task";
 
 interface TaskFormProps {
   task?: Task;
@@ -19,10 +20,17 @@ interface TaskFormProps {
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
-const FormRow = ({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) => (
-  <div className="flex items-center h-10 w-full min-w-0 gap-2">
-    <Label htmlFor={htmlFor} className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">{label}</Label>
-    <div className="flex-1 min-w-0 flex items-center justify-end gap-2">{children}</div>
+const FormRow = ({ label, htmlFor, hint, children }: { label: string; htmlFor?: string; hint?: string; children: React.ReactNode }) => (
+  <div className="w-full min-w-0">
+    <div className="flex items-center h-10 w-full min-w-0 gap-2">
+      <Label htmlFor={htmlFor} className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">{label}</Label>
+      <div className="flex-1 min-w-0 flex items-center justify-end gap-2">{children}</div>
+    </div>
+    {hint && (
+      <p className="text-[11px] text-muted-foreground/60 leading-snug mt-0.5">
+        {hint}
+      </p>
+    )}
   </div>
 );
 
@@ -46,9 +54,33 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     recurringDays: task?.recurring_days || [] as string[],
     taskDate: initialTaskDate,
     isImportant: task?.is_important ?? false,
+    isFunTime: task?.is_fun_time ?? false,
     windowStart: task?.window_start || "15:00",
     windowEnd: task?.window_end || "18:00",
+    subtasks: (task?.subtasks ?? []) as Subtask[],
   });
+  const [newSubtaskText, setNewSubtaskText] = useState("");
+
+  const addSubtask = () => {
+    const text = newSubtaskText.trim();
+    if (!text) return;
+    setFormData(prev => ({
+      ...prev,
+      subtasks: [...prev.subtasks, { id: crypto.randomUUID(), text }],
+    }));
+    setNewSubtaskText("");
+  };
+
+  const removeSubtask = (id: string) => {
+    setFormData(prev => ({ ...prev, subtasks: prev.subtasks.filter(s => s.id !== id) }));
+  };
+
+  const updateSubtaskText = (id: string, text: string) => {
+    setFormData(prev => ({
+      ...prev,
+      subtasks: prev.subtasks.map(s => (s.id === id ? { ...s, text } : s)),
+    }));
+  };
 
   const daysOfWeek = [
     { id: "sunday", label: "S" },
@@ -91,8 +123,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       is_active: task?.is_active ?? true,
       task_date: !formData.isRecurring ? formData.taskDate : undefined,
       is_important: formData.isImportant,
-      window_start: derivedType === 'floating' && !formData.choreAnytime ? formData.windowStart : undefined,
+      is_fun_time: formData.isFunTime,
+      window_start: derivedType === 'floating' && !formData.choreAnytime
+        ? formData.windowStart
+        // Non-chore task added from a gap without a set time — keep the gap time as a placement hint.
+        : (!isChore && !scheduledTimeStr && prefillTime ? prefillTime : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
+      subtasks: formData.subtasks.length > 0 ? formData.subtasks : undefined,
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
@@ -103,7 +140,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const canSubmit = formData.name.trim().length > 0 && !needsDays;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pt-1 w-full min-w-0 overflow-hidden">
+    <form onSubmit={handleSubmit} className="space-y-3 pt-1 w-full min-w-0 overflow-hidden">
       {/* Task / Chore Toggle */}
       {!isSystemEvent && (
         <div className="flex rounded-xl border border-border/50 overflow-hidden">
@@ -129,7 +166,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       )}
 
       {/* Title */}
-      <FormRow label="Title" htmlFor="taskName">
+      <FormRow
+        label="Title"
+        htmlFor="taskName"
+        hint={isChore ? "What your child should do." : "Shown big on your child's screen when this task is active."}
+      >
         <Input
           id="taskName"
           value={formData.name}
@@ -144,7 +185,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === TASK MODE === */}
       {!isChore && (
         <>
-          <FormRow label="Set Time" htmlFor="scheduledTimeToggle">
+          <FormRow
+            label="Set Time"
+            htmlFor="scheduledTimeToggle"
+            hint="Pin this task to a specific time of day. Off means it floats in free time."
+          >
             {formData.scheduledTime && (
               <Input
                 type="time"
@@ -161,7 +206,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             />
           </FormRow>
 
-          <FormRow label="Duration">
+          <FormRow
+            label="Duration"
+            hint="How long the timer runs on your child's screen."
+          >
             <Select
               value={`${(parseInt(formData.durationHours || '0') * 60 + parseInt(formData.durationMinutes || '0'))}`}
               onValueChange={(value) => {
@@ -190,13 +238,29 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </Select>
           </FormRow>
 
-          <FormRow label="Important" htmlFor="isImportant">
-            <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
+          <FormRow
+            label="Important"
+            htmlFor="isImportant"
+            hint="Child can't skip to the next task — they must tap Next when done. Goes overdue if not finished in time."
+          >
             <Switch
               id="isImportant"
               checked={formData.isImportant}
-              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
+              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked, isFunTime: checked ? false : formData.isFunTime })}
               className="data-[state=checked]:bg-yellow-500"
+            />
+          </FormRow>
+
+          <FormRow
+            label="Fun time"
+            htmlFor="isFunTime"
+            hint="Rewards like TV, Roblox, or playtime. Shrinks when an important task runs overdue."
+          >
+            <Switch
+              id="isFunTime"
+              checked={formData.isFunTime}
+              onCheckedChange={(checked) => setFormData({ ...formData, isFunTime: checked, isImportant: checked ? false : formData.isImportant })}
+              className="data-[state=checked]:bg-purple-500"
             />
           </FormRow>
         </>
@@ -205,7 +269,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === CHORE MODE === */}
       {isChore && (
         <>
-          <FormRow label="When">
+          <FormRow
+            label="When"
+            hint="Anytime today, or only within a chosen time window."
+          >
             <Select
               value={formData.choreAnytime ? 'anytime' : 'window'}
               onValueChange={(value) => setFormData({ ...formData, choreAnytime: value === 'anytime' })}
@@ -221,7 +288,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           </FormRow>
 
           {!formData.choreAnytime && (
-            <FormRow label="Window">
+            <FormRow
+              label="Window"
+              hint="Earliest and latest times your child can do this chore."
+            >
               <div className="flex items-center gap-2">
                 <Input
                   type="time"
@@ -240,20 +310,40 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </FormRow>
           )}
 
-          <FormRow label="Important" htmlFor="isImportantChore">
-            <span className="text-xs text-muted-foreground mr-3">Must tap Next</span>
+          <FormRow
+            label="Important"
+            htmlFor="isImportantChore"
+            hint="Child can't skip this chore — they must tap Next when done."
+          >
             <Switch
               id="isImportantChore"
               checked={formData.isImportant}
-              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked })}
+              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked, isFunTime: checked ? false : formData.isFunTime })}
               className="data-[state=checked]:bg-yellow-500"
+            />
+          </FormRow>
+
+          <FormRow
+            label="Fun time"
+            htmlFor="isFunTimeChore"
+            hint="Rewards like TV, Roblox, or playtime. Shrinks when an important task runs overdue."
+          >
+            <Switch
+              id="isFunTimeChore"
+              checked={formData.isFunTime}
+              onCheckedChange={(checked) => setFormData({ ...formData, isFunTime: checked, isImportant: checked ? false : formData.isImportant })}
+              className="data-[state=checked]:bg-purple-500"
             />
           </FormRow>
         </>
       )}
 
       {/* Recurring */}
-      <FormRow label="Recurring" htmlFor="isRecurring">
+      <FormRow
+        label="Recurring"
+        htmlFor="isRecurring"
+        hint="Repeat on chosen days of the week. Off means this task is just for one day."
+      >
         <Switch
           id="isRecurring"
           checked={formData.isRecurring}
@@ -264,7 +354,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {formData.isRecurring && (
         <>
-          <FormRow label="Days">
+          <FormRow
+            label="Days"
+            hint="Tap to pick which days of the week this repeats on."
+          >
             <div className="flex gap-1 sm:gap-1.5">
               {daysOfWeek.map(({ id, label }) => (
                 <button
@@ -300,7 +393,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       )}
 
       {/* Reward */}
-      <FormRow label="Reward" htmlFor="coins">
+      <FormRow
+        label="Reward"
+        htmlFor="coins"
+        hint="Coins your child earns when they finish this. They can spend coins on rewards you've set up."
+      >
         <Select
           value={formData.coins}
           onValueChange={(value) => setFormData({ ...formData, coins: value })}
@@ -318,9 +415,72 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </Select>
       </FormRow>
 
+      {/* Subtasks (checklist shown in child view) */}
+      <div className="w-full min-w-0">
+        <div className="flex items-center h-10 w-full min-w-0 gap-2">
+          <Label className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">Checklist</Label>
+          <span className="text-xs text-muted-foreground flex-1 text-right">
+            {formData.subtasks.length > 0 ? `${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}` : 'Optional'}
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground/60 leading-snug mt-0.5">
+          Break the task into steps your child can tick off one by one.
+        </p>
+        {formData.subtasks.length > 0 && (
+          <div className="space-y-1.5 mt-2">
+            {formData.subtasks.map((sub, idx) => (
+              <div key={sub.id} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-5 text-right flex-shrink-0">{idx + 1}.</span>
+                <Input
+                  value={sub.text}
+                  onChange={(e) => updateSubtaskText(sub.id, e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="rounded-xl flex-1 min-w-0 h-9 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeSubtask(sub.id)}
+                  className="flex-shrink-0 h-8 w-8 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center"
+                  aria-label="Remove step"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 mt-2">
+          <Input
+            value={newSubtaskText}
+            onChange={(e) => setNewSubtaskText(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addSubtask();
+              }
+            }}
+            placeholder="Add a step…"
+            className="rounded-xl flex-1 min-w-0 h-9 text-sm"
+          />
+          <button
+            type="button"
+            onClick={addSubtask}
+            disabled={!newSubtaskText.trim()}
+            className="flex-shrink-0 h-9 w-9 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+            aria-label="Add step"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {/* Also add to other children — create mode only */}
       {!isEdit && otherChildren.length > 0 && (
-        <FormRow label="Also add to">
+        <FormRow
+          label="Also add to"
+          hint="Create the same task for other kids at once. Pick which ones."
+        >
           <div className="flex flex-wrap gap-1.5 justify-end">
             {otherChildren.map(c => {
               const checked = additionalChildIds.includes(c.id);

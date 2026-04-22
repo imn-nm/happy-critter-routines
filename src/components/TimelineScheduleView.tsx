@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks } from 'lucide-react';
+import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks, Gamepad2 } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -771,7 +771,9 @@ const TimelineScheduleView = ({
   const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
     const resolved = getTaskTimeForDay(task);
     const taskDuration = resolved.duration;
-    const taskTime = (task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || findNextAvailableTime(taskDuration);
+    // Fallback order: day-specific override → task's scheduled_time → window_start (placement hint
+    // from a gap when "Set Time" was off) → next available slot.
+    const taskTime = (task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || task.window_start || findNextAvailableTime(taskDuration);
     return {
       id: task.id,
       name: task.name,
@@ -1296,6 +1298,9 @@ const TimelineScheduleView = ({
                       <div className="flex flex-col items-center justify-center h-full px-1.5 py-2.5 text-center gap-1.5">
                         {task.is_important && (
                           <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
+                        )}
+                        {task.is_fun_time && (
+                          <Gamepad2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                         )}
                         {task.isCompleted ? (
                           <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
