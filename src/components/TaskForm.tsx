@@ -141,14 +141,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 pt-1 w-full min-w-0 overflow-hidden">
-      {/* Task / Chore Toggle */}
+      {/* Task / Chore Toggle — segmented pill matching the Day/Week/Month tabs. */}
       {!isSystemEvent && (
-        <div className="flex rounded-xl border border-border/50 overflow-hidden">
+        <div className="grid grid-cols-2 bg-ink-900/40 rounded-pill p-1">
           <button
             type="button"
             onClick={() => setFormData({ ...formData, mode: 'task' })}
-            className={`flex-1 py-3 text-sm font-semibold transition-all ${
-              !isChore ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            className={`py-2 rounded-pill text-14 font-medium transition-colors ${
+              !isChore
+                ? 'border-aurora bg-ink-900/70 text-fog-50 shadow-sh-md'
+                : 'text-iris-300 hover:bg-white/[0.04]'
             }`}
           >
             Task
@@ -156,8 +158,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           <button
             type="button"
             onClick={() => setFormData({ ...formData, mode: 'chore', scheduledTime: '' })}
-            className={`flex-1 py-3 text-sm font-semibold transition-all ${
-              isChore ? 'bg-purple-600 text-white' : 'text-muted-foreground hover:text-foreground'
+            className={`py-2 rounded-pill text-14 font-medium transition-colors ${
+              isChore
+                ? 'border-aurora bg-ink-900/70 text-fog-50 shadow-sh-md'
+                : 'text-iris-300 hover:bg-white/[0.04]'
             }`}
           >
             Chore
@@ -174,7 +178,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           onKeyDown={(e) => e.stopPropagation()}
           placeholder={isChore ? "e.g. Clean room" : "e.g. Homework"}
           required
-          className="rounded-xl"
+          className="rounded-pill"
         />
       </FormRow>
 
@@ -191,7 +195,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 type="time"
                 value={formData.scheduledTime}
                 onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                className="w-full sm:w-[130px] rounded-xl mr-3"
+                className="w-full sm:w-[130px] rounded-pill mr-3"
               />
             )}
             <Switch
@@ -210,7 +214,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 setFormData({ ...formData, durationHours: Math.floor(m / 60).toString(), durationMinutes: (m % 60).toString() });
               }}
             >
-              <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
+              <SelectTrigger className="w-full sm:w-[130px] rounded-pill">
                 <SelectValue>
                   {formData.durationHours || formData.durationMinutes
                     ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
@@ -269,7 +273,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               value={formData.choreAnytime ? 'anytime' : 'window'}
               onValueChange={(value) => setFormData({ ...formData, choreAnytime: value === 'anytime' })}
             >
-              <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
+              <SelectTrigger className="w-full sm:w-[130px] rounded-pill">
                 <SelectValue>{formData.choreAnytime ? 'Anytime' : 'Time window'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -289,14 +293,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   type="time"
                   value={formData.windowStart}
                   onChange={(e) => setFormData({ ...formData, windowStart: e.target.value })}
-                  className="w-20 sm:w-[92px] rounded-xl text-sm"
+                  className="w-20 sm:w-[92px] rounded-pill text-sm"
                 />
                 <span className="text-muted-foreground text-xs">to</span>
                 <Input
                   type="time"
                   value={formData.windowEnd}
                   onChange={(e) => setFormData({ ...formData, windowEnd: e.target.value })}
-                  className="w-20 sm:w-[92px] rounded-xl text-sm"
+                  className="w-20 sm:w-[92px] rounded-pill text-sm"
                 />
               </div>
             </FormRow>
@@ -392,7 +396,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           value={formData.coins}
           onValueChange={(value) => setFormData({ ...formData, coins: value })}
         >
-          <SelectTrigger className="w-full sm:w-[130px] rounded-xl">
+          <SelectTrigger className="w-full sm:w-[130px] rounded-pill">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -425,12 +429,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   value={sub.text}
                   onChange={(e) => updateSubtaskText(sub.id, e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="rounded-xl flex-1 min-w-0 h-9 text-sm"
+                  className="rounded-pill flex-1 min-w-0 h-9 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => removeSubtask(sub.id)}
-                  className="flex-shrink-0 h-8 w-8 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center"
+                  className="flex-shrink-0 h-8 w-8 rounded-pill text-fog-300 hover:text-coral-400 hover:bg-coral-500/10 flex items-center justify-center transition-colors"
                   aria-label="Remove step"
                 >
                   <X className="w-4 h-4" />
@@ -451,13 +455,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               }
             }}
             placeholder="Add a step…"
-            className="rounded-xl flex-1 min-w-0 h-9 text-sm"
+            className="rounded-pill flex-1 min-w-0 h-9 text-sm"
           />
           <button
             type="button"
             onClick={addSubtask}
             disabled={!newSubtaskText.trim()}
-            className="flex-shrink-0 h-9 w-9 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+            className="flex-shrink-0 h-9 w-9 rounded-pill border border-iris-400/30 bg-iris-400/[0.04] text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             aria-label="Add step"
           >
             <Plus className="w-4 h-4" />
@@ -498,12 +502,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       )}
 
       {/* Submit */}
-      <div className="pt-3 space-y-2">
+      <div className="pt-sp-3 space-y-sp-2">
         <Button
           type="submit"
+          variant="primary"
+          size="md"
           disabled={!canSubmit}
-          className="w-full rounded-full h-12 text-base font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: 'hsl(180 50% 60%)', color: 'white' }}
+          className="w-full"
         >
           {isEdit ? (isChore ? 'Update Chore' : 'Update Task') : (isChore ? 'Add Chore' : 'Add Task')}
         </Button>
@@ -515,42 +520,46 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               <Button
                 type="button"
                 variant="ghost"
+                size="sm"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-full rounded-full h-10 text-sm text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                className="w-full text-fog-300 hover:text-coral-400 hover:bg-coral-500/10"
               >
                 Delete {isChore ? 'Chore' : 'Task'}
               </Button>
             ) : (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 space-y-2">
-                <p className="text-xs text-muted-foreground text-center">
+              <div className="rounded-r-md border border-coral-500/30 bg-coral-500/5 p-sp-3 space-y-sp-2">
+                <p className="text-12 text-fog-200 text-center">
                   Delete "{formData.name}"?
                 </p>
                 {task.is_recurring && task.recurring_days && task.recurring_days.length > 1 && (
                   <Button
                     type="button"
                     variant="ghost"
+                    size="sm"
                     onClick={() => {
                       const dayName = format(currentDate, 'EEEE').toLowerCase();
                       onDelete(task.id, 'this-day', dayName);
                     }}
-                    className="w-full h-9 text-xs rounded-lg hover:bg-red-500/10 hover:text-red-400"
+                    className="w-full hover:bg-coral-500/10 hover:text-coral-400"
                   >
                     Remove from {format(currentDate, 'EEEE')}s only
                   </Button>
                 )}
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="destructive"
+                  size="sm"
                   onClick={() => onDelete(task.id, 'all')}
-                  className="w-full h-9 text-xs rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-400"
+                  className="w-full"
                 >
                   {task.is_recurring ? 'Delete from all days' : 'Delete permanently'}
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
+                  size="sm"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="w-full h-9 text-xs rounded-lg text-muted-foreground"
+                  className="w-full text-fog-300"
                 >
                   Cancel
                 </Button>

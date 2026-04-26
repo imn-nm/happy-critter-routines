@@ -5,9 +5,12 @@ import PetAvatar from "@/components/PetAvatar";
 import OwlCelebration from "@/components/OwlCelebration";
 import TimeSqueeze from "@/components/TimeSqueeze";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
+import WormTimer from "@/components/WormTimer";
+import SlideToConfirm from "@/components/SlideToConfirm";
+import StatusBadge from "@/components/StatusBadge";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
-import { ArrowLeft, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, CheckCircle2, ListChecks, AlertCircle, Gamepad2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2 } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -223,6 +226,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return `${displayHour}:${minutes}${ampm}`;
   };
 
+  // Seconds → "MM:SS" (or "-MM:SS" when negative).
+  const formatRemaining = (seconds: number) => {
+    const neg = seconds < 0;
+    const s = Math.abs(seconds);
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    const sign = neg ? '-' : '';
+    if (hours > 0) return `${sign}${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Build today's schedule
   const getTodaysSchedule = () => {
     const currentDay = getPSTDayName();
@@ -312,13 +327,15 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Get today's chores (floating tasks)
   const getTodaysChores = () => {
     const currentDay = getPSTDayName();
+    const todayStr = getPSTDateString();
     return tasksWithCompletion.filter(task => {
       if (task.type !== 'floating') return false;
       if (!task.is_active) return false;
       if (task.is_recurring && task.recurring_days) {
         return task.recurring_days.includes(currentDay);
       }
-      // Non-recurring chores without task_date show every day until completed
+      // Non-recurring chores: respect task_date if set, otherwise show today
+      if (task.task_date) return task.task_date === todayStr;
       return true;
     });
   };
@@ -619,52 +636,38 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   }
 
   return (
-    <div className={`${!propChildId ? 'min-h-screen' : ''} p-5`}>
-      <div className="max-w-md mx-auto">
-        {/* Parent Button */}
+    <div className={`${!propChildId ? 'min-h-screen' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
+      <div className="max-w-[420px] mx-auto">
+        {/* Parent pill — top right (only when standalone; side-by-side has its own) */}
         {!propChildId && (
-          <div className="flex justify-end mb-4">
-            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="rounded-full px-4 gap-1.5">
-              <Settings className="w-3.5 h-3.5" />
-              <span className="text-xs">Parent</span>
-            </Button>
+          <div className="flex justify-end mb-sp-3">
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="flex items-center gap-1.5 h-[31px] px-[14px] rounded-pill bg-white/[0.06] border border-white/10 text-fog-50 hover:bg-white/10 transition-colors duration-sm"
+              aria-label="Parent view"
+            >
+              <Settings className="w-3 h-3" />
+              <span className="text-12 font-medium">Parent</span>
+            </button>
           </div>
         )}
 
-        {/* Pet Avatar — hidden during goodnight (replaced by larger sleeping pet) */}
+        {/* Greeting + coin chip row */}
         {!dayOver && (
-          <div className="flex flex-col items-center mb-5">
-            <div className="mb-3">
-              {celebrating ? (
-                <OwlCelebration
-                  playing={celebrating}
-                  size={128}
-                  onComplete={() => setCelebrating(false)}
-                />
-              ) : (
-                <PetAvatar
-                  petType={child.petType}
-                  happiness={calculateHappiness()}
-                  emotion={calculatePetEmotion()}
-                  size="lg"
-                  completedTasks={getTodaysTaskCompletion().completed}
-                  totalTasks={getTodaysTaskCompletion().total}
-                />
-              )}
+          <div className="flex items-center justify-between mb-sp-5">
+            <h1 className="text-32 text-fog-50 leading-none">Hi, {child.name}!</h1>
+            <div className="flex items-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30">
+              <span className="text-[13px] leading-none">🪙</span>
+              <span className="text-[13px] font-bold text-fog-50 leading-none">{child.currentCoins}</span>
             </div>
-            <h1 className="text-xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {getTodaysTaskCompletion().completed}/{getTodaysTaskCompletion().total} tasks done
-            </p>
-            <div className="flex items-center gap-1.5 glass rounded-full px-3.5 py-1.5 mt-2">
-              <Coins className="w-4 h-4 text-warning" />
-              <span className="text-sm font-bold text-foreground">{child.currentCoins}</span>
-            </div>
-            {getPetMessage() && (
-              <div className="mt-3 max-w-xs glass rounded-2xl px-4 py-2.5 text-center">
-                <p className="text-xs text-foreground/90 leading-relaxed">{getPetMessage()}</p>
-              </div>
-            )}
+          </div>
+        )}
+
+        {/* Pet celebration overlay (kept for task-complete moments) */}
+        {celebrating && (
+          <div className="flex justify-center mb-sp-4">
+            <OwlCelebration playing={celebrating} size={96} onComplete={() => setCelebrating(false)} />
           </div>
         )}
 
@@ -691,52 +694,74 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const isImportantAndDone = activeTask.is_important && remaining <= 0;
           const overdue = isActiveTaskOverdue();
 
+          const remainingMMSS = formatRemaining(remaining);
+          // Badge variant for the time chip under the title
+          const badgeVariant: 'time' | 'overdue' | 'complete' = overdue
+            ? 'overdue'
+            : isImportantAndDone
+            ? 'complete'
+            : 'time';
+          const badgeLabel = overdue ? 'Overdue' : isImportantAndDone ? 'Done' : remainingMMSS;
+
           return (
-            <div
-              className={`glass-card rounded-3xl p-6 mb-4 ${
-                overdue ? 'ring-2 ring-red-500/60 shadow-[0_0_30px_rgba(239,68,68,0.35)]' : 'glow-purple'
-              }`}
-            >
-              {/* Overdue banner takes precedence over the regular "important" hint */}
-              {overdue ? (
-                <div className="flex items-center justify-center gap-1.5 mb-3">
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                  <span className="text-xs text-red-400 font-semibold">Overdue — please do this now</span>
-                </div>
-              ) : activeTask.is_important && (
-                <div className="flex items-center justify-center gap-1.5 mb-3">
-                  <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                  <span className="text-xs text-yellow-400 font-medium">Important — tap Next when done</span>
-                </div>
-              )}
-
-              <h2 className={`text-2xl font-bold text-center mb-5 text-glow ${overdue ? 'text-red-400' : 'text-foreground'}`}>
-                {activeTask.name}
-              </h2>
-
-              <div className="flex justify-center mb-6">
-                <CircularTimer
-                  totalSeconds={totalSecs}
-                  remainingSeconds={remaining}
-                  status={overdue ? 'overtime' : getTimerStatus()}
-                  size="lg"
-                  isRunning={true}
-                  onComplete={handleTimerComplete}
-                />
+            <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+              {/* Title + StatusBadge under it */}
+              <div className="flex flex-col items-center gap-1 py-2">
+                <h2
+                  className="text-fog-50"
+                  style={{
+                    fontFamily: "Inter",
+                    fontWeight: 400,
+                    fontSize: 24,
+                    lineHeight: 1.15,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {activeTask.name}
+                </h2>
+                <StatusBadge variant={badgeVariant}>{badgeLabel}</StatusBadge>
               </div>
+
+              {/* 293×293 circular timer — scales down on narrow viewports */}
+              <CircularTimer
+                totalSeconds={totalSecs}
+                remainingSeconds={remaining}
+                status={overdue ? 'overtime' : getTimerStatus()}
+                sizePx={293}
+                isRunning={true}
+                onComplete={handleTimerComplete}
+              />
+
+              {/* Worm timer — when overdue + important with a fun task behind it */}
+              {overdue && activeTask.is_important && (() => {
+                const nextFunTask = findNextFunTimeTask(activeTask);
+                if (!nextFunTask || !nextFunTask.duration) return null;
+                const overdueS = getOverdueSeconds();
+                const funTotalS = nextFunTask.duration * 60;
+                const progress = Math.min(1, overdueS / funTotalS);
+                const funRemainingMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
+                return (
+                  <div className="w-full px-sp-2 flex flex-col items-center gap-2">
+                    <WormTimer progress={progress} />
+                    <p className="text-12 text-fog-200">
+                      <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Subtasks checklist */}
               {activeTask.subtasks && activeTask.subtasks.length > 0 && (() => {
                 const checkedIds = checkedSubtasks[activeTask.id] ?? [];
                 const doneCount = activeTask.subtasks.filter(s => checkedIds.includes(s.id)).length;
                 return (
-                  <div className="mb-6 glass rounded-2xl p-4 space-y-2.5">
+                  <div className="w-full glass rounded-r-lg p-sp-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <ListChecks className="w-4 h-4 text-primary" />
-                        <span className="text-xs font-semibold text-foreground/90 uppercase tracking-wide">Checklist</span>
+                        <ListChecks className="w-4 h-4 text-iris-300" />
+                        <span className="text-12 font-medium text-fog-50 uppercase tracking-wider">Checklist</span>
                       </div>
-                      <span className="text-xs text-muted-foreground font-medium">
+                      <span className="text-12 text-fog-200 font-medium">
                         {doneCount}/{activeTask.subtasks.length}
                       </span>
                     </div>
@@ -748,22 +773,22 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             <button
                               type="button"
                               onClick={() => toggleSubtask(activeTask.id, sub.id)}
-                              className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all ${
+                              className={`w-full flex items-center gap-3 rounded-r-sm px-3 py-2 text-left transition-all ${
                                 isChecked
-                                  ? 'bg-primary/10 text-muted-foreground'
-                                  : 'bg-white/5 hover:bg-white/10 text-foreground'
+                                  ? 'bg-iris-400/10 text-fog-200'
+                                  : 'bg-white/5 hover:bg-white/10 text-fog-50'
                               }`}
                             >
                               <span
                                 className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
                                   isChecked
-                                    ? 'bg-primary border-primary'
-                                    : 'border-muted-foreground/40'
+                                    ? 'bg-iris-400 border-iris-400'
+                                    : 'border-fog-300/50'
                                 }`}
                               >
-                                {isChecked && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                                {isChecked && <Check className="w-3.5 h-3.5 text-ink-900" strokeWidth={3} />}
                               </span>
-                              <span className={`text-sm flex-1 ${isChecked ? 'line-through' : ''}`}>
+                              <span className={`text-14 flex-1 ${isChecked ? 'line-through' : ''}`}>
                                 {sub.text}
                               </span>
                             </button>
@@ -775,70 +800,57 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 );
               })()}
 
-              {overdue && activeTask.is_important && (() => {
-                const nextFunTask = findNextFunTimeTask(activeTask);
-                if (!nextFunTask || !nextFunTask.duration) return null;
-                const overdueS = getOverdueSeconds();
-                const funTotalS = nextFunTask.duration * 60;
-                const funRemainingS = Math.max(0, funTotalS - overdueS);
-                return (
-                  <div className="mb-6">
-                    <TimeSqueeze
-                      overdueTaskName={activeTask.name}
-                      overdueSeconds={overdueS}
-                      funTimeTaskName={nextFunTask.name}
-                      funTimeTotalSeconds={funTotalS}
-                      funTimeRemainingSeconds={funRemainingS}
-                    />
-                  </div>
-                );
-              })()}
+              {/* Slide-to-confirm — BELOW the circular timer, matches Figma "Done" frame */}
+              <div className="w-full max-w-[290px] mt-sp-2">
+                <SlideToConfirm
+                  label="Mark as Done"
+                  onConfirm={handleNextTap}
+                />
+              </div>
 
-              {/* Next button with micro animation */}
-              <Button
-                onClick={handleNextTap}
-                variant="accent"
-                className={`w-full rounded-2xl h-14 text-lg font-bold transition-all duration-200 ${
-                  nextTapped ? 'scale-95 opacity-70' : ''
-                } ${isImportantAndDone && !overdue ? 'animate-pulse ring-2 ring-yellow-400/50' : ''} ${
-                  overdue ? 'ring-2 ring-red-500/60' : ''
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {overdue ? 'Done' : 'Next'}
-                  <ChevronRight className={`w-5 h-5 transition-transform duration-200 ${nextTapped ? 'translate-x-1' : ''}`} />
-                </span>
-              </Button>
+              {/* Next Task row with StatusBadge time */}
+              {upcomingTasks.length > 0 && (
+                <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <span className="text-14 text-iris-400">Next</span>
+                    <span className="text-16 text-fog-50 truncate">{upcomingTasks[0].name}</span>
+                  </div>
+                  {upcomingTasks[0].scheduled_time && (
+                    <StatusBadge variant="time">{formatTime(upcomingTasks[0].scheduled_time)}</StatusBadge>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* Free Time — no active task but upcoming ones exist.
-            Mirror the active-task layout exactly: big title = current state
-            ("Free Time"), timer counts down to the next task, and the
-            upcoming task is shown as a small description below the timer. */}
+        {/* Free Time — no active task, upcoming ones exist. Mirrors the
+            active-task layout but without the slide-to-confirm. */}
         {!activeTask && freeTimeCountdown && (
-          <div className="glass-card rounded-3xl p-6 mb-4 glow-purple">
-            <h2 className="text-2xl font-bold text-center text-foreground mb-5 text-glow">
-              🎮 Free Time
-            </h2>
-            <div className="flex justify-center mb-6">
-              <CircularTimer
-                totalSeconds={freeTimeCountdown.total}
-                remainingSeconds={freeTimeCountdown.remaining}
-                status="on-track"
-                size="lg"
-                isRunning={true}
-              />
+          <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+            <h2 className="text-24 text-fog-50 text-center leading-tight">Free Time</h2>
+            <div className="px-3 h-7 rounded-pill border-2 border-iris-400/40 flex items-center">
+              <span className="text-12 font-medium text-fog-50 tabular-nums">
+                {formatRemaining(freeTimeCountdown.remaining)}
+              </span>
             </div>
-            <p className="text-center text-sm text-muted-foreground">
-              Next: <span className="font-medium text-foreground">{freeTimeCountdown.nextTask.name}</span> at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
+            <CircularTimer
+              totalSeconds={freeTimeCountdown.total}
+              remainingSeconds={freeTimeCountdown.remaining}
+              status="ahead"
+              size="lg"
+              isRunning={true}
+              showLabel={false}
+            />
+            <p className="text-14 text-fog-200 text-center">
+              Next: <span className="font-medium text-fog-50">{freeTimeCountdown.nextTask.name}</span> at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
             </p>
           </div>
         )}
 
-        {/* Next Up + Chores sidebar */}
-        {upcomingTasks.length > 0 && (
+        {/* Next Up + Chores sidebar — only when no active task (otherwise the
+            active-task card shows the next task inline to match the Figma). */}
+        {!activeTask && upcomingTasks.length > 0 && (
           <div className="flex gap-2 mb-5 relative">
             {/* Tasks column */}
             <div className={`flex-1 min-w-0 space-y-2.5 ${todaysChores.length > 0 ? 'pr-1' : ''}`}>
@@ -960,12 +972,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Schedule Button — hidden during goodnight */}
+        {/* Schedule Button — matches the Figma secondary pill */}
         {!dayOver && (
           <Button
             onClick={() => setShowSchedule(true)}
-            variant="accent"
-            className="w-full rounded-2xl h-12 text-sm font-bold"
+            variant="secondary"
+            size="md"
+            className="w-full"
           >
             Today's Schedule
           </Button>
@@ -994,16 +1007,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         )}
 
         {/* All done — during the day, no more tasks */}
-        {!dayOver && !activeTask && upcomingTasks.length === 0 && (
-          <div className="glass-card rounded-3xl p-6 text-center mt-4 glow-green">
-            <div className="text-4xl mb-3">🎉</div>
-            <h2 className="text-xl font-bold mb-1 text-foreground text-glow">All Done!</h2>
-            <p className="text-muted-foreground text-sm mb-3">
-              Great job {child.name}! All tasks completed.
-            </p>
-            <div className="glass rounded-xl p-3">
-              <p className="font-semibold text-sm text-success">Your pet is super happy!</p>
+        {!dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
+          <div className="flex flex-col items-center gap-sp-4 mt-sp-4">
+            <h2 className="text-24 text-fog-50 text-center leading-tight">All done!</h2>
+            <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
+              <span className="text-12 font-medium text-ink-900">Nice work</span>
             </div>
+            <div className="relative">
+              <CircularTimer
+                totalSeconds={1}
+                remainingSeconds={0}
+                status="on-track"
+                size="lg"
+                isRunning={false}
+                showLabel={false}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Check className="w-16 h-16 text-mint-400" strokeWidth={2.5} />
+              </div>
+            </div>
+            <p className="text-14 text-fog-200 text-center max-w-xs">
+              Great job {child.name} — every task is done and your pet is super happy.
+            </p>
           </div>
         )}
 

@@ -2,6 +2,37 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getPSTDateString } from '@/utils/pstDate';
+import { format } from 'date-fns';
+
+/**
+ * Two tasks conflict when they're scheduled at the same minute *and* their
+ * recurrence/date specifiers fall on at least one shared day. Inactive tasks
+ * (is_active === false) are ignored — they don't run, so they can't clash.
+ */
+function tasksConflict(a: Partial<Task>, b: Partial<Task>): boolean {
+  if (a.is_active === false || b.is_active === false) return false;
+  if (!a.scheduled_time || !b.scheduled_time) return false;
+  const aTime = a.scheduled_time.slice(0, 5);
+  const bTime = b.scheduled_time.slice(0, 5);
+  if (aTime !== bTime) return false;
+
+  // Both recurring: any shared day-of-week is a conflict.
+  if (a.is_recurring && b.is_recurring) {
+    const aDays = a.recurring_days ?? [];
+    const bDays = b.recurring_days ?? [];
+    return aDays.some(d => bDays.includes(d));
+  }
+  // Both one-off: same task_date.
+  if (!a.is_recurring && !b.is_recurring) {
+    return !!a.task_date && a.task_date === b.task_date;
+  }
+  // Mixed: the one-off's date must land on one of the recurring's days.
+  const oneOff = a.is_recurring ? b : a;
+  const recurring = a.is_recurring ? a : b;
+  if (!oneOff.task_date) return false;
+  const dayName = format(new Date(oneOff.task_date + 'T00:00:00'), 'EEEE').toLowerCase();
+  return (recurring.recurring_days ?? []).includes(dayName);
+}
 
 export interface Task {
   id: string;
@@ -93,6 +124,15 @@ export const useTasks = (childId?: string) => {
 
   const addTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      // Same-time conflict guard — refuse to insert a duplicate slot.
+      const conflict = tasks.find(t => tasksConflict(t, taskData));
+      if (conflict) {
+        const time = (taskData.scheduled_time || '').slice(0, 5);
+        throw new Error(
+          `"${conflict.name}" is already scheduled at ${time}. Pick another time.`
+        );
+      }
+
       // Strip out fields that don't exist in the database schema
       const { task_date, isCompleted, bonusTime, ...rest } = taskData as any;
 
@@ -111,19 +151,19 @@ export const useTasks = (childId?: string) => {
         .single();
 
       if (error) throw error;
-      
+
       setTasks(prev => [...prev, data as Task]);
       toast({
         title: "Success",
         description: `Task "${taskData.name}" has been added!`,
       });
-      
+
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding task:', error);
       toast({
-        title: "Error",
-        description: "Failed to add task",
+        title: "Conflict",
+        description: error?.message || "Failed to add task",
         variant: "destructive",
       });
       throw error;
@@ -134,6 +174,21 @@ export const useTasks = (childId?: string) => {
     try {
       // Filter out UI-only properties and non-existent columns before sending to database
       const { isCompleted, task_date, bonusTime, ...rest } = updates as any;
+
+      // Same-time conflict guard — if the update changes scheduled_time,
+      // recurrence, or active state, make sure it doesn't collide with another
+      // task. Compare the *merged* shape against every other task.
+      const current = tasks.find(t => t.id === id);
+      if (current) {
+        const merged = { ...current, ...updates } as Task;
+        const conflict = tasks.find(t => t.id !== id && tasksConflict(t, merged));
+        if (conflict) {
+          const time = (merged.scheduled_time || '').slice(0, 5);
+          throw new Error(
+            `"${conflict.name}" is already scheduled at ${time}. Pick another time.`
+          );
+        }
+      }
 
       // Strip undefined values — Supabase needs explicit null to clear a field,
       // and undefined keys can cause silent failures
@@ -164,13 +219,13 @@ export const useTasks = (childId?: string) => {
       // Update with server response
       setTasks(prev => prev.map(task => task.id === id ? data as Task : task));
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating task:', error);
       // Revert optimistic update on failure
       fetchTasks();
       toast({
-        title: "Error",
-        description: "Failed to update task",
+        title: "Conflict",
+        description: error?.message || "Failed to update task",
         variant: "destructive",
       });
       throw error;

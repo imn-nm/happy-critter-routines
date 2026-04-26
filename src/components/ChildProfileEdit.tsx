@@ -105,17 +105,17 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Edit className="w-3.5 h-3.5" />
+        <Button variant="secondary" size="sm" className="gap-1.5">
+          <Edit className="w-4 h-4" />
           Edit Profile
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 flex-shrink-0">
-          <DialogTitle className="text-lg">Edit {child.name}'s Profile</DialogTitle>
+        <DialogHeader className="px-sp-4 pt-sp-4 pb-sp-2 sm:px-sp-6 sm:pt-sp-6 flex-shrink-0">
+          <DialogTitle>Edit {child.name}'s Profile</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-sp-4 pb-sp-4 sm:px-sp-6 sm:pb-sp-6 space-y-sp-4">
           {/* Pet Avatar Preview */}
           <div className="text-center">
             <PetAvatar
@@ -309,27 +309,27 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           </div>
 
           {/* Action Buttons — sticky at bottom */}
-          <div className="flex gap-2 pt-3 sticky bottom-0 bg-background/95 backdrop-blur-sm -mx-4 px-4 pb-1 sm:-mx-6 sm:px-6 border-t">
-            <Button type="submit" className="flex-1 h-11">
-              <Save className="w-4 h-4 mr-1.5" />
+          <div className="flex gap-sp-2 pt-sp-3 sticky bottom-0 bg-ink-800/95 backdrop-blur-sm -mx-sp-4 px-sp-4 pb-sp-1 sm:-mx-sp-6 sm:px-sp-6 border-t border-white/10">
+            <Button type="submit" variant="primary" size="md" className="flex-1 gap-2">
+              <Save className="w-4 h-4" />
               Save
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
+              size="md"
               onClick={() => setIsOpen(false)}
-              className="h-11 px-4"
             >
               Cancel
             </Button>
           </div>
 
           {/* Delete Section */}
-          <div className="border-t pt-3">
+          <div className="border-t border-white/10 pt-sp-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 h-10">
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                <Button variant="ghost" size="sm" className="w-full gap-2 text-coral-400 hover:text-coral-300 hover:bg-coral-500/10">
+                  <Trash2 className="w-4 h-4" />
                   Delete {child.name}'s Profile
                 </Button>
               </AlertDialogTrigger>
@@ -341,13 +341,14 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                     including all tasks, progress, and rewards.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel className="h-11">Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-11"
-                  >
-                    Yes, Delete
+                <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
+                  <AlertDialogCancel asChild>
+                    <Button type="button" variant="secondary" size="md">Cancel</Button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <Button type="button" variant="destructive" size="md" onClick={handleDelete}>
+                      Yes, Delete
+                    </Button>
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -1,0 +1,225 @@
+/* Routines — design tokens
+   A cosmic, glass-forward system for focus + daily rituals.
+*/
+
+:root {
+  /* ── Core surface (deep space radial) ───────────────────── */
+  --ink-900: #08011a;          /* abyss */
+  --ink-800: #0e0724;          /* deep void */
+  --ink-700: #1a0f3a;          /* nebula */
+  --ink-600: #271447;          /* dusk */
+  --ink-500: #452774;          /* amethyst */
+  --ink-400: #515aad;          /* cosmic blue */
+  --ink-300: #6c6bbf;          /* periwinkle mist */
+
+  /* ── Primary — periwinkle ──────────────────────────────── */
+  --iris-50:  #f3f4ff;
+  --iris-100: #e4e6ff;
+  --iris-200: #c9ceff;
+  --iris-300: #aab4ff;
+  --iris-400: #879bff;   /* primary */
+  --iris-500: #6c7cf2;
+  --iris-600: #5263d6;
+  --iris-700: #3b49a8;
+
+  /* ── Secondary — lilac ─────────────────────────────────── */
+  --lilac-300: #c9b8ff;
+  --lilac-400: #a67fff;   /* secondary */
+  --lilac-500: #8a5fe6;
+  --lilac-600: #6e47c2;
+
+  /* ── Accent — mint (progress / streaks) ────────────────── */
+  --mint-300: #8fead9;
+  --mint-400: #4dc5b7;   /* positive */
+  --mint-500: #38b2a4;
+  --mint-600: #1e8d82;
+
+  /* ── Signal — coral (focus / urgent) ───────────────────── */
+  --coral-300: #ff8f91;
+  --coral-400: #ff6666;
+  --coral-500: #ff5c5f;   /* signal */
+  --coral-600: #d9393c;
+
+  /* ── Warm — amber (rewards / sun) ──────────────────────── */
+  --amber-400: #fab047;
+  --amber-500: #fa9315;   /* warm */
+  --amber-600: #cc7400;
+
+  /* ── Neutrals on dark ──────────────────────────────────── */
+  --paper:   #ffffff;
+  --fog-50:  #f0f0f7;     /* default body on dark */
+  --fog-100: #d8d8e6;
+  --fog-200: #9ea0c4;
+  --fog-300: #6c6f95;
+  --fog-400: #4a4d6f;
+  --fog-500: #343c4c;     /* subtle stroke */
+
+  /* ── Glass tokens ──────────────────────────────────────── */
+  --glass-fill-lo:    rgba(255,255,255,0.04);
+  --glass-fill-md:    rgba(255,255,255,0.08);
+  --glass-fill-hi:    rgba(255,255,255,0.14);
+  --glass-stroke-lo:  rgba(255,255,255,0.08);
+  --glass-stroke-md:  rgba(255,255,255,0.12);
+  --glass-stroke-hi:  rgba(255,255,255,0.22);
+
+  /* ── Signature radial ground ───────────────────────────── */
+  --ground-cosmic:
+    radial-gradient(218.43% 145.04% at -22.27% -13.24%,
+      #515AAD 13.46%,
+      #452774 41%,
+      #271447 65.02%,
+      #08011A 100%);
+  --ground-dusk:
+    radial-gradient(ellipse at 50% 100%,
+      #3b49a8 0%,
+      #271447 42%,
+      #0e0724 80%);
+  --ground-night: #08011a;
+
+  /* ── Type ──────────────────────────────────────────────── */
+  --ff-sans: "Inter", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --ff-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-11: 11px;
+  --fs-12: 12px;   /* caption / meta */
+  --fs-13: 13px;   /* small body */
+  --fs-14: 14px;   /* body */
+  --fs-16: 16px;   /* body-lg / button */
+  --fs-18: 18px;   /* h6 */
+  --fs-20: 20px;   /* h5 */
+  --fs-24: 24px;   /* h4 */
+  --fs-32: 32px;   /* h3 — display numerals */
+  --fs-40: 40px;
+  --fs-56: 56px;
+
+  --lh-tight:  1.0;
+  --lh-snug:   1.15;
+  --lh-normal: 1.4;
+  --lh-loose:  1.6;
+
+  --ls-tight: -0.02em;
+  --ls-normal: 0em;
+  --ls-wide: 0.06em;
+
+  /* ── Space scale (4-base) ──────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 56px;
+  --sp-10: 72px;
+
+  /* ── Radius — pill-forward ─────────────────────────────── */
+  --r-xs:  6px;    /* chips on dense UI */
+  --r-sm:  12px;   /* inputs */
+  --r-md:  20px;   /* tiles */
+  --r-lg:  28px;   /* cards */
+  --r-xl:  36px;   /* hero cards */
+  --r-2xl: 48px;   /* blob cards */
+  --r-pill: 999px; /* buttons, tabs, chips */
+
+  /* ── Shadow — soft bloom only (night UI) ───────────────── */
+  --sh-sm: 0 2px 6px rgba(44,34,75,0.45);
+  --sh-md: 0 4px 12px rgba(44,34,75,0.52);
+  --sh-lg: 0 12px 32px rgba(8,1,26,0.55);
+  --sh-glow-iris: 0 0 0 1px rgba(135,155,255,0.35), 0 8px 28px rgba(135,155,255,0.35);
+  --sh-glow-mint: 0 0 0 1px rgba(77,197,183,0.35), 0 8px 28px rgba(77,197,183,0.25);
+  --sh-glow-coral: 0 0 0 1px rgba(255,92,95,0.35), 0 8px 28px rgba(255,92,95,0.25);
+
+  /* ── RGB triplets ──────────────────────────────────────────
+     Same colours as the hex vars above, expressed as `R G B`
+     space-separated triplets so Tailwind's `<alpha-value>` modifier
+     can compose opacity at the utility level (bg-iris-400/20, etc).
+     The hex vars stay so non-Tailwind CSS can still use them directly. */
+  --ink-900-rgb: 8 1 26;
+  --ink-800-rgb: 14 7 36;
+  --ink-700-rgb: 26 15 58;
+  --ink-600-rgb: 39 20 71;
+  --ink-500-rgb: 69 39 116;
+  --ink-400-rgb: 81 90 173;
+  --ink-300-rgb: 108 107 191;
+
+  --iris-50-rgb:  243 244 255;
+  --iris-100-rgb: 228 230 255;
+  --iris-200-rgb: 201 206 255;
+  --iris-300-rgb: 170 180 255;
+  --iris-400-rgb: 135 155 255;
+  --iris-500-rgb: 108 124 242;
+  --iris-600-rgb: 82 99 214;
+  --iris-700-rgb: 59 73 168;
+
+  --lilac-300-rgb: 201 184 255;
+  --lilac-400-rgb: 166 127 255;
+  --lilac-500-rgb: 138 95 230;
+  --lilac-600-rgb: 110 71 194;
+
+  --mint-300-rgb: 143 234 217;
+  --mint-400-rgb: 77 197 183;
+  --mint-500-rgb: 56 178 164;
+  --mint-600-rgb: 30 141 130;
+
+  --coral-300-rgb: 255 143 145;
+  --coral-400-rgb: 255 102 102;
+  --coral-500-rgb: 255 92 95;
+  --coral-600-rgb: 217 57 60;
+
+  --amber-400-rgb: 250 176 71;
+  --amber-500-rgb: 250 147 21;
+  --amber-600-rgb: 204 116 0;
+
+  --paper-rgb: 255 255 255;
+
+  --fog-50-rgb:  240 240 247;
+  --fog-100-rgb: 216 216 230;
+  --fog-200-rgb: 158 160 196;
+  --fog-300-rgb: 108 111 149;
+  --fog-400-rgb: 74 77 111;
+  --fog-500-rgb: 52 60 76;
+
+  /* ── Motion ────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-xs: 120ms;
+  --dur-sm: 180ms;
+  --dur-md: 260ms;
+  --dur-lg: 420ms;
+}
+
+/* ── Typography primitives ─────────────────────────────── */
+.t-display {
+  font-family: var(--ff-sans);
+  font-weight: 700;
+  font-size: var(--fs-56);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+}
+.t-h1 { font-family: var(--ff-sans); font-weight: 700; font-size: var(--fs-40); line-height: var(--lh-tight); letter-spacing: var(--ls-tight); }
+.t-h2 { font-family: var(--ff-sans); font-weight: 700; font-size: var(--fs-32); line-height: var(--lh-tight); letter-spacing: var(--ls-tight); }
+.t-h3 { font-family: var(--ff-sans); font-weight: 400; font-size: var(--fs-24); line-height: var(--lh-snug); letter-spacing: var(--ls-tight); }
+.t-h4 { font-family: var(--ff-sans); font-weight: 600; font-size: var(--fs-20); line-height: var(--lh-snug); }
+.t-h5 { font-family: var(--ff-sans); font-weight: 600; font-size: var(--fs-18); line-height: var(--lh-snug); }
+.t-body { font-family: var(--ff-sans); font-weight: 400; font-size: var(--fs-14); line-height: var(--lh-normal); }
+.t-body-lg { font-family: var(--ff-sans); font-weight: 400; font-size: var(--fs-16); line-height: var(--lh-normal); }
+.t-body-sm { font-family: var(--ff-sans); font-weight: 400; font-size: var(--fs-13); line-height: var(--lh-normal); }
+.t-label { font-family: var(--ff-sans); font-weight: 500; font-size: var(--fs-12); line-height: var(--lh-snug); letter-spacing: 0.01em; }
+.t-meta { font-family: var(--ff-sans); font-weight: 400; font-size: var(--fs-12); line-height: var(--lh-snug); color: var(--fog-200); }
+.t-overline {
+  font-family: var(--ff-sans);
+  font-weight: 700;
+  font-size: var(--fs-11);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+}
+.t-numeral {
+  font-family: var(--ff-sans);
+  font-weight: 700;
+  font-size: var(--fs-32);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  font-variant-numeric: tabular-nums;
+}

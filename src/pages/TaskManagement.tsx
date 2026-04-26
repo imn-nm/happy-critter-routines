@@ -86,7 +86,7 @@ const TaskManagement = () => {
       <div className="flex flex-col md:flex-row gap-4">
         {/* Left Column - Calendar and Child Selection */}
         <div className="w-full md:w-1/3 space-y-4">
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="glass-card rounded-r-md p-4">
             <Calendar
               mode="single"
               selected={currentDate}
@@ -95,7 +95,7 @@ const TaskManagement = () => {
             />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="glass-card rounded-r-md p-4">
             <h2 className="text-lg font-semibold mb-2">Select Child</h2>
             <div className="space-y-2">
               {children.map((child) => (

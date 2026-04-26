@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, Eye, Clock, TrendingUp, Award } from "lucide-react";
+import { ArrowLeft, Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
@@ -28,6 +28,7 @@ const ChildDashboard = () => {
   const [editingTask, setEditingTask] = useState(null);
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
+  const [showRewards, setShowRewards] = useState(false);
   const { toast } = useToast();
 
   const {
@@ -35,7 +36,13 @@ const ChildDashboard = () => {
     getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
 
-  const handleAddTask = (time?: string) => { setEditingTask(null); setPrefillTime(time); setShowTaskForm(true); };
+  const handleAddTask = (time?: string) => {
+    // Guard against accidental event/object args from `onClick={handleAddTask}`
+    const safeTime = typeof time === 'string' ? time : undefined;
+    setEditingTask(null);
+    setPrefillTime(safeTime);
+    setShowTaskForm(true);
+  };
   const handleEditTask = (task) => {
     setPrefillTime(undefined);
     // For recurring tasks, merge day-specific overrides into the task so the form shows correct values
@@ -204,111 +211,109 @@ const ChildDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen p-3 sm:p-4 pb-8">
-      <div className="max-w-4xl mx-auto space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="rounded-xl">
+    <div className="min-h-screen px-sp-2 py-sp-5">
+      <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
+        {/* Header — back arrow / name / Edit Profile */}
+        <div className="flex items-center justify-between gap-sp-2">
+          <div className="flex items-center gap-sp-2 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => navigate("/dashboard")}
+              className="shrink-0"
+              aria-label="Back to family dashboard"
+            >
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <h1 className="text-lg font-bold text-foreground text-glow">{child.name}'s Dashboard</h1>
+            <h1 className="text-32 text-fog-50 leading-none truncate">{child.name}</h1>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/")} className="gap-1.5 rounded-xl">
-              <Eye className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Child View</span>
-            </Button>
-            <ChildProfileEdit child={child} onUpdateChild={updateChild} />
-          </div>
+          <ChildProfileEdit child={child} onUpdateChild={updateChild} />
         </div>
 
-        {/* Summary Card */}
-        <div className="glass-card rounded-3xl p-4">
-          {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-3">
-            <div className="text-center">
-              <Award className="w-4 h-4 text-yellow-400 mx-auto mb-0.5" />
-              <p className="text-lg sm:text-xl font-bold text-foreground">{child.currentCoins}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Coins</p>
-            </div>
-            <div className="text-center">
-              <TrendingUp className="w-4 h-4 text-green-400 mx-auto mb-0.5" />
-              <p className="text-lg sm:text-xl font-bold text-foreground">{child.petHappiness}%</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Happiness</p>
-            </div>
-            <div className="text-center">
-              <Clock className="w-4 h-4 text-purple-400 mx-auto mb-0.5" />
-              <p className="text-lg sm:text-xl font-bold text-foreground">{tasks.filter(t => t.is_active).length}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Active</p>
-            </div>
-            <div className="text-center">
-              <Calendar className="w-4 h-4 text-blue-400 mx-auto mb-0.5" />
-              <p className="text-lg sm:text-xl font-bold text-foreground">{tasks.length}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
-            </div>
-          </div>
-
-          {/* Coin Controls & Rest Day */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/5">
-            <div className="flex items-center gap-1.5">
+        {/* Summary card — black @70% with coins + Rewards primary CTA */}
+        <div className="bg-black/70 rounded-r-lg p-1">
+          <div className="flex items-center justify-between gap-sp-3 px-sp-3 py-sp-3 rounded-r-lg">
+            {/* Coin adjust group */}
+            <div className="flex items-center gap-sp-3">
               <Button
-                variant="ghost"
+                variant="primary"
                 size="icon"
-                className="w-8 h-8 rounded-full glass hover:bg-red-500/20"
+                className="shrink-0"
                 onClick={async () => {
                   if (child.currentCoins <= 0) return;
                   await updateChildCoins(child.id, child.currentCoins - 1);
                   toast({ title: "Coin removed", description: `${child.name} now has ${child.currentCoins - 1} coins.` });
                 }}
                 disabled={child.currentCoins <= 0}
+                aria-label="Remove coin"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-5 h-5" />
               </Button>
-              <div className="flex items-center gap-1">
-                <Coins className="w-3.5 h-3.5 text-warning" />
-                <span className="text-xs font-medium text-muted-foreground">Adjust coins</span>
-              </div>
+              <span className="text-18 text-[#9EBEFF] tabular-nums">
+                {child.currentCoins} {child.currentCoins === 1 ? "Coin" : "Coins"}
+              </span>
               <Button
-                variant="ghost"
+                variant="primary"
                 size="icon"
-                className="w-8 h-8 rounded-full glass hover:bg-green-500/20"
+                className="shrink-0"
                 onClick={async () => {
                   await updateChildCoins(child.id, child.currentCoins + 1);
                   toast({ title: "Coin awarded!", description: `${child.name} now has ${child.currentCoins + 1} coins.` });
                 }}
+                aria-label="Add coin"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-5 h-5" />
               </Button>
             </div>
-            <div className="flex items-center gap-1.5 glass rounded-xl px-2.5 py-1.5">
-              <Moon className="w-3.5 h-3.5 text-primary-light" />
-              <span className="text-[11px] font-medium">Rest Day</span>
-              <Switch
-                checked={child.rest_day_date === getPSTDateString()}
-                onCheckedChange={async (checked) => {
-                  await updateChild(child.id, { rest_day_date: checked ? getPSTDateString() : null });
-                  toast({ title: checked ? "Rest day on" : "Rest day off" });
-                }}
-              />
-            </div>
+
+            {/* Rewards CTA */}
+            <Button
+              variant="primary"
+              size="md"
+              className="gap-2 shrink-0"
+              onClick={() => setShowRewards(true)}
+            >
+              <Gift className="w-5 h-5 text-iris-400" />
+              Rewards
+            </Button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="timeline" className="space-y-3">
-          <TabsList className="grid w-full grid-cols-4 h-auto glass rounded-2xl p-1">
-            <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Calendar className="w-3.5 h-3.5 hidden sm:block" /> Timeline
+        {/* Rest Day + Add Task row */}
+        <div className="flex items-center justify-between gap-sp-3 px-sp-2">
+          <div className="flex items-center gap-sp-3">
+            <span className="text-14 text-[#9EBEFF]">Rest Day</span>
+            <Switch
+              checked={child.rest_day_date === getPSTDateString()}
+              onCheckedChange={async (checked) => {
+                await updateChild(child.id, { rest_day_date: checked ? getPSTDateString() : null });
+                toast({ title: checked ? "Rest day on" : "Rest day off" });
+              }}
+            />
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+            onClick={() => handleAddTask()}
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </Button>
+        </div>
+
+        {/* Schedule card — aurora bordered wrapper containing tabs + schedule */}
+        <Tabs defaultValue="timeline" className="flex flex-col gap-sp-4 rounded-r-lg p-sp-4 border-aurora">
+          <TabsList className="grid w-full grid-cols-3 h-auto bg-ink-900/40 rounded-pill p-1 border-0">
+            <TabsTrigger value="timeline" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
+              Day
             </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <CalendarDays className="w-3.5 h-3.5 hidden sm:block" /> Week
+            <TabsTrigger value="week" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
+              Week
             </TabsTrigger>
-            <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <CalendarDays className="w-3.5 h-3.5 hidden sm:block" /> Calendar
-            </TabsTrigger>
-            <TabsTrigger value="rewards" className="flex items-center gap-1 sm:gap-1.5 py-2.5 rounded-xl text-[11px] sm:text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Gift className="w-3.5 h-3.5 hidden sm:block" /> Rewards
+            <TabsTrigger value="month" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
+              Month
             </TabsTrigger>
           </TabsList>
 
@@ -317,6 +322,7 @@ const ChildDashboard = () => {
               child={child} currentDate={currentDate}
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+              onDateChange={setCurrentDate}
               onReorderTasks={async (reorderedTasks) => {
                 try {
                   // Build occupied slots from system/fixed tasks (not being reordered)
@@ -379,11 +385,19 @@ const ChildDashboard = () => {
               onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
           </TabsContent>
 
-          <TabsContent value="rewards"><RewardsManagement child={child} /></TabsContent>
         </Tabs>
 
+        {/* Rewards dialog — opened via the prominent Rewards button */}
+        <Dialog open={showRewards} onOpenChange={setShowRewards}>
+          <DialogContent className="max-w-[560px] w-[95vw] max-h-[90vh] overflow-y-auto glass-card border-border/50 rounded-2xl">
+            <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
+            <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
+            <RewardsManagement child={child} />
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
-          <DialogContent className="max-w-[480px] w-[95vw] glass-card border-border/50 rounded-2xl" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+          <DialogContent className="max-w-[480px] w-[95vw] max-h-[90vh] overflow-y-auto glass-card border-border/50 rounded-2xl" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
             <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
             <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
             <TaskForm

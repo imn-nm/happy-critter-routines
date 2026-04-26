@@ -41,6 +41,7 @@ interface TimelineScheduleViewProps {
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
+  onDateChange?: (date: Date) => void;
 }
 
 interface TimelineEvent {
@@ -313,163 +314,162 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           )}
         </div>
       ) : (
-        /* Regular Task */
-        <div className={cn(
-          "flex items-center gap-2 py-1",
-          isCurrent && "animate-in fade-in slide-in-from-left-2"
-        )}>
-          {/* Time */}
-          <div className={cn(
-            "text-xs w-16 text-right flex flex-col flex-shrink-0",
-            isCurrent ? "text-primary font-semibold" : "text-muted-foreground"
-          )}>
-            <span>{formatTime(event.time)}</span>
-            {event.name !== 'Bedtime' && (
-              <span className={cn(
-                "text-[10px]",
-                isCurrent ? "text-primary/70" : "text-muted-foreground/70"
-              )}>
-                {calculateEndTime(event.time, event.duration)}
-              </span>
-            )}
-          </div>
+        /* Regular Task — Figma ScheduleRow variants:
+           Default = iris @ 4% bg
+           Current = iris @ 20% bg
+           Done    = mint @ 40% stroke + dimmed text + amber/mint badge
+           Overdue = coral @ 22% stroke + coral badge */
+        (() => {
+          const [hourPart, ampmPart] = (() => {
+            const [hh, mm] = event.time.split(':').map(Number);
+            const ampm = hh >= 12 ? 'pm' : 'am';
+            const dh = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+            return [`${dh}:${mm.toString().padStart(2, '0')}`, ampm];
+          })();
 
-          {/* Task Card — the tile itself is NOT draggable so the page scrolls normally.
-              Drag bindings live on the handle icon (below) so only long-press on the
-              handle picks up the tile. */}
-          <div
-            onClick={() => {
-              if (isDragging) return;
-              onEditTask?.(event.task || {
-                id: event.id,
-                name: event.name,
-                scheduled_time: event.time,
-                duration: event.duration,
-                type: event.type,
-                coins: event.coins || 0,
-                recurring_days: event.recurring_days || [],
-                is_important: event.task?.is_important || false,
-                window_start: event.task?.window_start,
-                window_end: event.task?.window_end,
-              });
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onEditTask?.(event.task);
-              }
-            }}
-            className={cn(
-              "flex-1 min-w-0 rounded-lg p-3 border transition-colors cursor-pointer hover:bg-white/5",
-              isDragging && "cursor-grabbing",
-              isCurrent
-                ? "border-primary/30 bg-primary/5"
-                : event.isCompleted
-                  ? "border-green-500/30 bg-green-500/5"
-                  : (event.status === 'overdue' && event.task?.is_important)
-                    ? "border-red-500/30 bg-red-500/5"
-                    : "border-border/50"
-            )}
-          >
-            <div className="flex items-center gap-3">
-              {/* Leading icon: checkmark for completed, drag handle for draggable tasks.
-                  Drag bindings & touch-action live ONLY here so the rest of the tile
-                  remains scrollable. Long-press on this handle picks up the tile. */}
-              {event.isCompleted ? (
-                <div className="p-2 rounded-full shrink-0 bg-green-500/20 text-green-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              ) : isDraggable ? (
-                <div
-                  {...dragBindings}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label="Drag to reschedule"
-                  style={{
-                    touchAction: 'none',
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    userSelect: 'none',
-                  }}
+          const isOverdueImportant = event.status === 'overdue' && event.task?.is_important;
+          const isDoneLate = event.isCompleted && event.status === 'late';
+
+          // Pick the row tint/stroke per Figma ScheduleRow variant (107:92):
+          //   Default → bg iris-400 @ 20%, no stroke
+          //   Current → bg iris-400 @ 20% + lilac-400 1px stroke
+          //   Done    → no bg + mint-500 @ 40% 1px stroke (dimmed text)
+          //   Overdue → no bg + coral-400 @ 22% 1px stroke
+          const rowTone = event.isCompleted
+            ? "border border-mint-500/40 bg-transparent hover:bg-mint-500/[0.04]"
+            : isOverdueImportant
+              ? "border border-coral-400/[0.22] bg-transparent hover:bg-coral-500/[0.05]"
+              : isCurrent
+                ? "bg-iris-400/20 border border-lilac-400 hover:bg-iris-400/[0.24]"
+                : "bg-iris-400/20 hover:bg-iris-400/[0.24]";
+
+          // Render a status badge (clickable for important / completed; static for overdue).
+          const badge = (() => {
+            if (event.isCompleted) {
+              const label = isDoneLate ? "Done Late" : "Done";
+              const stroke = isDoneLate ? "border-amber-500" : "border-mint-500";
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleCompletion?.(event.task!.id); }}
                   className={cn(
-                    "p-2 rounded-full shrink-0 cursor-grab active:cursor-grabbing transition-colors",
-                    isCurrent
-                      ? "bg-primary/20 text-primary hover:bg-primary/30"
-                      : (event.status === 'overdue' && event.task?.is_important)
-                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                        : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                    "shrink-0 h-7 px-3 rounded-pill border text-12 font-medium text-fog-50 hover:bg-white/5 transition-colors",
+                    stroke
                   )}
+                  aria-label="Mark not done"
                 >
-                  <GripVertical className="w-4 h-4" />
-                </div>
-              ) : null}
+                  {label}
+                </button>
+              );
+            }
+            if (isOverdueImportant) {
+              return (
+                <span className="shrink-0 h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 text-12 font-medium text-fog-50">
+                  Overdue
+                </span>
+              );
+            }
+            if (event.task?.is_important && onToggleCompletion) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
+                  className="shrink-0 h-7 px-3 rounded-pill border border-iris-400 text-12 font-medium text-fog-50 hover:bg-iris-400/10 transition-colors"
+                >
+                  Mark Done
+                </button>
+              );
+            }
+            return null;
+          })();
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+          return (
+            <div className={cn("flex items-stretch gap-0", isCurrent && "animate-in fade-in slide-in-from-left-2")}>
+              <div
+                onClick={() => {
+                  if (isDragging) return;
+                  onEditTask?.(event.task || {
+                    id: event.id,
+                    name: event.name,
+                    scheduled_time: event.time,
+                    duration: event.duration,
+                    type: event.type,
+                    coins: event.coins || 0,
+                    recurring_days: event.recurring_days || [],
+                    is_important: event.task?.is_important || false,
+                    window_start: event.task?.window_start,
+                    window_end: event.task?.window_end,
+                  });
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onEditTask?.(event.task);
+                  }
+                }}
+                className={cn(
+                  "flex-1 min-w-0 flex items-center gap-3 px-4 py-3 rounded-r-lg cursor-pointer transition-colors",
+                  rowTone,
+                  isDragging && "cursor-grabbing"
+                )}
+              >
+                {/* Time column */}
+                <div className={cn(
+                  "shrink-0 flex flex-col items-end leading-none gap-1",
+                  event.isCompleted ? "text-fog-200" : "text-fog-50"
+                )}>
+                  <span className="text-16">{hourPart}</span>
+                  <span className="text-14">{ampmPart}</span>
+                </div>
+
+                {/* Vertical divider */}
+                <div className="shrink-0 w-px h-9 bg-white/30" />
+
+                {/* Info */}
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
                   <span className={cn(
-                    "font-medium truncate text-sm",
-                    event.isCompleted && "line-through text-muted-foreground",
-                    isCurrent && !event.isCompleted && "text-primary"
+                    "text-16 truncate",
+                    event.isCompleted ? "text-fog-200" : "text-fog-50"
                   )}>
                     {event.name}
                   </span>
-                  {getStatusBadge()}
+                  <span className={cn(
+                    "text-14 truncate",
+                    event.isCompleted ? "text-fog-300" : "text-[#9EBEFF]"
+                  )}>
+                    {event.name !== 'Bedtime' && formatDuration(event.duration)}
+                    {event.coins != null && event.coins > 0 && (
+                      <> · {event.coins} coins</>
+                    )}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {event.name !== 'Bedtime' && (
-                    <span className="text-xs text-muted-foreground">{formatDuration(event.duration)}</span>
-                  )}
-                  {event.coins != null && event.coins > 0 && (
-                    <span className="text-xs text-warning font-medium">
-                      {event.coins} coins
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {onToggleCompletion && event.task && event.type !== 'gap' && (() => {
-                  // Show "Undo" for completed tasks
-                  if (event.isCompleted) {
-                    return (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleCompletion(event.task.id);
-                        }}
-                        className="h-8 px-3 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground"
-                      >
-                        Undo
-                      </Button>
-                    );
-                  }
+                {/* Drag handle — only when draggable + not completed */}
+                {isDraggable && !event.isCompleted && (
+                  <div
+                    {...dragBindings}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Drag to reschedule"
+                    style={{
+                      touchAction: 'none',
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                    }}
+                    className="shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-fog-300 hover:text-fog-50"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                )}
 
-                  // Only show "Done" for important tasks that the child hasn't checked off
-                  // This lets the parent manually mark important tasks as done
-                  if (!event.task?.is_important) return null;
-
-                  return (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleCompletion(event.task.id);
-                      }}
-                      className="h-8 px-3 text-xs font-medium rounded-full shadow-sm"
-                    >
-                      Done
-                    </Button>
-                  );
-                })()}
+                {/* Status badge */}
+                {badge}
               </div>
             </div>
-          </div>
-        </div>
+          );
+        })()
       )}
     </div>
   );
@@ -491,7 +491,8 @@ const TimelineScheduleView = ({
   onEditTask,
   onDeleteTask,
   onTaskTimeUpdate,
-  onReorderTasks
+  onReorderTasks,
+  onDateChange,
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(getPSTDate());
   const [selectedDay, setSelectedDay] = useState(currentDate);
@@ -1009,107 +1010,97 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <Card className="p-3 sm:p-4 glass-card rounded-3xl border-0 overflow-hidden max-w-full">
-      {/* Add Task Button at top */}
-      {onAddTask && (
-        <Button 
-          onClick={onAddTask} 
-          className="w-full mb-4 h-12 sm:h-14 rounded-2xl text-sm sm:text-base font-semibold shadow-sm active:scale-[0.98] transition-transform"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Task
-        </Button>
-      )}
-
-      {/* Week Range Header with Today button */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-foreground">
-          {formatWeekRange(weekStart)}
-        </h2>
-        <Button 
-          variant="outline" 
-          size="sm" 
+    <div className="flex flex-col gap-sp-4 max-w-full overflow-hidden">
+      {/* Date navigation row — chevrons + week range + Today */}
+      <div className="flex items-center justify-between gap-sp-3">
+        <div className="flex items-center gap-sp-3 min-w-0">
+          <Button
+            variant="secondary"
+            size="icon-sm"
+            onClick={goToPreviousWeek}
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-16 text-[#9EBEFF] truncate">
+            {formatWeekRange(weekStart)}
+          </span>
+          <Button
+            variant="secondary"
+            size="icon-sm"
+            onClick={goToNextWeek}
+            aria-label="Next week"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => {
             const pstToday = getPSTDate();
             setSelectedDay(pstToday);
+            onDateChange?.(pstToday);
             setCurrentWeek(pstToday);
-          }} 
+          }}
           disabled={isToday(selectedDay)}
-          className="h-8 px-3 text-sm font-medium rounded-full border-primary/30 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0"
         >
           Today
         </Button>
       </div>
 
       {selectedDayHoliday && (
-        <div className="mb-4 flex items-center justify-center">
+        <div className="flex items-center justify-center">
           <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-pill text-14 font-medium"
             style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
           >
             <PartyPopper className="w-4 h-4" />
             <span>{selectedDayHoliday.name}</span>
             {selectedDayHoliday.is_no_school && (
-              <span className="ml-1 text-xs opacity-75">(No School)</span>
+              <span className="ml-1 text-12 opacity-75">(No School)</span>
             )}
           </div>
         </div>
       )}
-      
-      {/* Week Navigation - New Design */}
-      <div className="glass rounded-2xl p-4 mb-6">
-        {/* Month/Year Header */}
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <button 
-            onClick={goToPreviousWeek}
-            className="p-1 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h3 className="text-base font-semibold text-foreground">
-            {format(selectedDay, 'MMMM yyyy')}
-          </h3>
-          <button 
-            onClick={goToNextWeek}
-            className="p-1 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Day Headers */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day, index) => (
-            <div key={index} className="text-center text-xs font-medium text-muted-foreground py-1">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Week Days */}
-        <div className="grid grid-cols-7 gap-1">
-          {weekDays.map((day, index) => {
-            const isSelected = isSameDay(day, selectedDay);
-            const isTodayDay = isToday(day);
-            
-            return (
-              <button
-                key={index}
-                onClick={() => setSelectedDay(day)}
-                className={cn(
-                  "h-10 w-full flex items-center justify-center text-sm font-medium rounded-full transition-all",
-                  isSelected
-                    ? "bg-foreground text-background"
-                    : isTodayDay
-                    ? "bg-muted text-foreground"
-                    : "text-foreground hover:bg-muted/50"
-                )}
-              >
+      {/* Week strip — Su/19, Mo/20, ... selected day brighter */}
+      <div className="flex items-center justify-between gap-1">
+        {weekDays.map((day, index) => {
+          const isSelected = isSameDay(day, selectedDay);
+          const isTodayDay = isToday(day);
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={() => { setSelectedDay(day); onDateChange?.(day); }}
+              className={cn(
+                "flex flex-col items-center gap-2 px-2 py-1 rounded-r-md transition-colors",
+                isSelected
+                  ? "bg-iris-400/15"
+                  : "hover:bg-white/[0.04]"
+              )}
+            >
+              <span className={cn(
+                "text-14 leading-none",
+                isSelected ? "text-fog-50 font-medium" : "text-fog-300"
+              )}>
+                {['Su','Mo','Tu','We','Th','Fr','Sa'][index]}
+              </span>
+              <span className={cn(
+                "text-18 leading-none tabular-nums",
+                isSelected
+                  ? "text-fog-50 font-semibold"
+                  : isTodayDay
+                  ? "text-iris-300"
+                  : "text-fog-200"
+              )}>
                 {format(day, 'd')}
-              </button>
-            );
-          })}
-        </div>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Timeline + Chores Sidebar */}
@@ -1370,7 +1361,7 @@ const TimelineScheduleView = ({
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 
