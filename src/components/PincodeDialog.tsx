@@ -70,20 +70,10 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
             )}
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              className="flex-1 w-full"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 w-full">
-              <span className="hidden sm:inline">Access Dashboard</span>
-              <span className="sm:hidden">Access</span>
-            </Button>
-          </div>
+          <Button type="submit" variant="primary" size="md" className="w-full">
+            <span className="hidden sm:inline">Access Dashboard</span>
+            <span className="sm:hidden">Access</span>
+          </Button>
         </form>
       </DialogContent>
     </Dialog>

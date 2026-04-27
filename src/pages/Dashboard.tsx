@@ -114,7 +114,7 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-sm mx-auto text-center pt-24">
-          <div className="w-16 h-16 rounded-r-md glass-strong flex items-center justify-center mx-auto mb-5 glow-iris">
+          <div className="w-16 h-16 rounded-[20px] glass-strong flex items-center justify-center mx-auto mb-5 glow-iris">
             <Sparkles className="w-7 h-7 text-iris-300" />
           </div>
           <h1 className="text-2xl font-bold text-fog-50 mb-2 text-glow">Welcome to Routines!</h1>
@@ -146,7 +146,7 @@ const Dashboard = () => {
               type="button"
               aria-label="Back to child view"
               onClick={() => navigate("/")}
-              className="shrink-0 w-[39px] h-[39px] rounded-full border border-white/70 flex items-center justify-center text-fog-50 hover:bg-white/10 transition-colors duration-sm"
+              className="tap-target shrink-0 w-[39px] h-[39px] rounded-full border border-white/70 flex items-center justify-center text-fog-50 hover:bg-white/10 transition-colors duration-sm"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -166,7 +166,7 @@ const Dashboard = () => {
         </header>
 
         {/* Children panel */}
-        <section className="bg-black/70 rounded-r-lg p-1">
+        <section className="bg-black/70 rounded-[28px] p-1">
           {children.map((child, idx) => (
             <div key={child.id}>
               {idx > 0 && <div className="h-px bg-[#6699FF]/25 mx-3" />}
@@ -186,7 +186,7 @@ const Dashboard = () => {
         {/* Events list */}
         <section className="flex flex-col gap-sp-2">
           {upcomingEvents.length === 0 ? (
-            <div className="rounded-r-lg bg-[#8C94FF]/20 p-sp-4 text-center text-fog-200 text-14">
+            <div className="rounded-[28px] bg-[#8C94FF]/20 p-sp-4 text-center text-fog-200 text-14">
               No upcoming events in the next two weeks.
             </div>
           ) : (
@@ -223,10 +223,10 @@ function ChildRow({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full flex items-center gap-sp-3 p-sp-3 rounded-r-lg text-left hover:bg-white/[0.03] transition-colors duration-sm"
+      className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left hover:bg-white/[0.03] transition-colors duration-sm"
     >
       {/* Pet avatar */}
-      <div className="shrink-0 w-14 h-[62px] rounded-r-lg bg-paper flex items-center justify-center overflow-hidden">
+      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-paper flex items-center justify-center overflow-hidden">
         <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
       </div>
 
@@ -243,8 +243,8 @@ function ChildRow({
 
       {/* Coin chip */}
       <div className="shrink-0 flex items-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30">
-        <span className="text-[13px] leading-none">🪙</span>
-        <span className="text-[13px] font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+        <span className="text-12 leading-none">🪙</span>
+        <span className="text-12 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
       </div>
     </button>
   );
@@ -265,7 +265,7 @@ function EventCard({
 }) {
   const [hourMin, ampm] = splitTime(time);
   return (
-    <div className="flex items-center gap-sp-3 p-sp-4 rounded-r-lg bg-[#8C94FF]/20">
+    <div className="flex items-center gap-sp-3 p-sp-4 rounded-[28px] bg-[#8C94FF]/20">
       {/* Time column */}
       <div className="shrink-0 w-11 text-right text-fog-50 leading-tight">
         <div className="text-16">{hourMin}</div>

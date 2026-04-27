@@ -644,7 +644,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
-              className="flex items-center gap-1.5 h-[31px] px-[14px] rounded-pill bg-white/[0.06] border border-white/10 text-fog-50 hover:bg-white/10 transition-colors duration-sm"
+              className="tap-target flex items-center gap-1.5 h-[31px] px-[14px] rounded-pill bg-white/[0.06] border border-white/10 text-fog-50 hover:bg-white/10 transition-colors duration-sm"
               aria-label="Parent view"
             >
               <Settings className="w-3 h-3" />
@@ -658,8 +658,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           <div className="flex items-center justify-between mb-sp-5">
             <h1 className="text-32 text-fog-50 leading-none">Hi, {child.name}!</h1>
             <div className="flex items-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30">
-              <span className="text-[13px] leading-none">🪙</span>
-              <span className="text-[13px] font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+              <span className="text-12 leading-none">🪙</span>
+              <span className="text-12 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
             </div>
           </div>
         )}
@@ -677,14 +677,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
           if (isBedtime) {
             return (
-              <div className="glass-card rounded-3xl p-6 mb-4 glow-purple">
-                <div className="text-center">
-                  <div className="text-4xl mb-3">🌙</div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2 text-glow">Goodnight, {child.name}!</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Time to rest. {child.petType === 'fox' ? 'Foxy' : 'Panda'} is going to sleep too!
-                  </p>
-                </div>
+              <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+                <h2 className="text-24 text-fog-50 text-center leading-tight">
+                  Goodnight, {child.name}! 🌙
+                </h2>
+                <StatusBadge variant="info">Time to rest</StatusBadge>
+                <p className="text-14 text-fog-200 text-center max-w-xs">
+                  {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
+                </p>
               </div>
             );
           }
@@ -755,7 +755,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 const checkedIds = checkedSubtasks[activeTask.id] ?? [];
                 const doneCount = activeTask.subtasks.filter(s => checkedIds.includes(s.id)).length;
                 return (
-                  <div className="w-full glass rounded-r-lg p-sp-3 space-y-2">
+                  <div className="w-full glass rounded-[28px] p-sp-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <ListChecks className="w-4 h-4 text-iris-300" />
@@ -773,7 +773,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             <button
                               type="button"
                               onClick={() => toggleSubtask(activeTask.id, sub.id)}
-                              className={`w-full flex items-center gap-3 rounded-r-sm px-3 py-2 text-left transition-all ${
+                              className={`w-full flex items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-all ${
                                 isChecked
                                   ? 'bg-iris-400/10 text-fog-200'
                                   : 'bg-white/5 hover:bg-white/10 text-fog-50'
@@ -825,32 +825,49 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         })()}
 
         {/* Free Time — no active task, upcoming ones exist. Mirrors the
-            active-task layout but without the slide-to-confirm. */}
+            active-task layout exactly so the screen doesn't visually flip
+            after a child marks a task done. */}
         {!activeTask && freeTimeCountdown && (
           <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
-            <h2 className="text-24 text-fog-50 text-center leading-tight">Free Time</h2>
-            <div className="px-3 h-7 rounded-pill border-2 border-iris-400/40 flex items-center">
-              <span className="text-12 font-medium text-fog-50 tabular-nums">
-                {formatRemaining(freeTimeCountdown.remaining)}
-              </span>
+            <div className="flex flex-col items-center gap-1 py-2">
+              <h2
+                className="text-fog-50"
+                style={{
+                  fontFamily: "Inter",
+                  fontWeight: 400,
+                  fontSize: 24,
+                  lineHeight: 1.15,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Free Time
+              </h2>
+              <StatusBadge variant="info">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
             <CircularTimer
               totalSeconds={freeTimeCountdown.total}
               remainingSeconds={freeTimeCountdown.remaining}
               status="ahead"
-              size="lg"
+              sizePx={293}
               isRunning={true}
-              showLabel={false}
             />
-            <p className="text-14 text-fog-200 text-center">
-              Next: <span className="font-medium text-fog-50">{freeTimeCountdown.nextTask.name}</span> at {formatTime(freeTimeCountdown.nextTask.scheduled_time || '')}
-            </p>
+            {/* Next task row — same shape as the active-task block. */}
+            <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-14 text-iris-400">Next</span>
+                <span className="text-16 text-fog-50 truncate">{freeTimeCountdown.nextTask.name}</span>
+              </div>
+              {freeTimeCountdown.nextTask.scheduled_time && (
+                <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Next Up + Chores sidebar — only when no active task (otherwise the
-            active-task card shows the next task inline to match the Figma). */}
-        {!activeTask && upcomingTasks.length > 0 && (
+        {/* Next Up + Chores sidebar — only when there's no active task and
+            no free-time countdown (otherwise the inline "Next" row already
+            shows the upcoming task and a list below would duplicate info). */}
+        {!activeTask && !freeTimeCountdown && upcomingTasks.length > 0 && (
           <div className="flex gap-2 mb-5 relative">
             {/* Tasks column */}
             <div className={`flex-1 min-w-0 space-y-2.5 ${todaysChores.length > 0 ? 'pr-1' : ''}`}>
@@ -986,22 +1003,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
         {/* Goodnight — day is over */}
         {dayOver && (
-          <div className="flex flex-col items-center mt-2">
-            <div className="mb-5">
-              <PetAvatar
-                petType={child.petType}
-                happiness={90}
-                emotion="resting"
-                size="xl"
-                completedTasks={getTodaysTaskCompletion().completed}
-                totalTasks={getTodaysTaskCompletion().total}
-              />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2 text-glow">
+          <div className="flex flex-col items-center gap-sp-4 mt-sp-4">
+            <PetAvatar
+              petType={child.petType}
+              happiness={90}
+              emotion="resting"
+              size="xl"
+              completedTasks={getTodaysTaskCompletion().completed}
+              totalTasks={getTodaysTaskCompletion().total}
+            />
+            <h2 className="text-24 text-fog-50 text-center leading-tight">
               Goodnight, {child.name}! 🌙
             </h2>
-            <p className="text-sm text-muted-foreground text-center">
-              {child.petType === 'fox' ? 'Foxy' : 'Panda'} is going to sleep too. See you tomorrow!
+            <StatusBadge variant="info">Sleep tight</StatusBadge>
+            <p className="text-14 text-fog-200 text-center max-w-xs">
+              {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
             </p>
           </div>
         )}

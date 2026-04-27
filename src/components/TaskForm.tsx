@@ -434,7 +434,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 <button
                   type="button"
                   onClick={() => removeSubtask(sub.id)}
-                  className="flex-shrink-0 h-8 w-8 rounded-pill text-fog-300 hover:text-coral-400 hover:bg-coral-500/10 flex items-center justify-center transition-colors"
+                  className="tap-target flex-shrink-0 h-8 w-8 rounded-pill text-fog-300 hover:text-coral-400 hover:bg-coral-500/10 flex items-center justify-center transition-colors"
                   aria-label="Remove step"
                 >
                   <X className="w-4 h-4" />
@@ -461,7 +461,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             type="button"
             onClick={addSubtask}
             disabled={!newSubtaskText.trim()}
-            className="flex-shrink-0 h-9 w-9 rounded-pill border border-iris-400/30 bg-iris-400/[0.04] text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            className="tap-target flex-shrink-0 h-9 w-9 rounded-pill border border-iris-400/30 bg-iris-400/[0.04] text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             aria-label="Add step"
           >
             <Plus className="w-4 h-4" />
@@ -527,7 +527,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 Delete {isChore ? 'Chore' : 'Task'}
               </Button>
             ) : (
-              <div className="rounded-r-md border border-coral-500/30 bg-coral-500/5 p-sp-3 space-y-sp-2">
+              <div className="rounded-[20px] border border-coral-500/30 bg-coral-500/5 p-sp-3 space-y-sp-2">
                 <p className="text-12 text-fog-200 text-center">
                   Delete "{formData.name}"?
                 </p>

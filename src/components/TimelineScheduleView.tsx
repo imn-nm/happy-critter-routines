@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks, Gamepad2 } from 'lucide-react';
+import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks, Gamepad2, RotateCcw } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -196,7 +196,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
   // Determine if this task is currently active based on time - only if viewing today
   const isCurrentTask = () => {
     if (isGap || !isToday) return false;
-    
+
     const currentTime = getPSTTimeString();
 
     const [taskHours, taskMinutes] = event.time.split(':').map(Number);
@@ -210,6 +210,23 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
   };
 
   const isCurrent = isCurrentTask();
+
+  // True when the task has either started or already finished. Used to gate
+  // the "Mark done" button — future tasks shouldn't show one.
+  const isPastOrCurrent = (() => {
+    if (isGap) return false;
+    const todayStr = getPSTDateString();
+    const selectedStr = format(selectedDay, 'yyyy-MM-dd');
+    if (selectedStr < todayStr) return true;       // viewing a past day
+    if (selectedStr > todayStr) return false;      // viewing a future day
+    // Selected day is today — compare time-of-day.
+    const currentTime = getPSTTimeString();
+    const [taskHours, taskMinutes] = event.time.split(':').map(Number);
+    const taskStartMinutes = taskHours * 60 + taskMinutes;
+    const [currentHours, currentMins] = currentTime.split(':').map(Number);
+    const nowMinutes = currentHours * 60 + currentMins;
+    return nowMinutes >= taskStartMinutes;
+  })();
 
   const getStatusBadge = () => {
     if (!event.status || event.status === 'pending' || event.type === 'gap') return null;
@@ -346,20 +363,32 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           // Render a status badge (clickable for important / completed; static for overdue).
           const badge = (() => {
             if (event.isCompleted) {
-              const label = isDoneLate ? "Done Late" : "Done";
+              // Two pills: a read-only status (On time / Done late, colour-coded)
+              // and a separate Undo icon button so the affordance is clear.
               const stroke = isDoneLate ? "border-amber-500" : "border-mint-500";
+              const statusLabel = isDoneLate ? "Done late" : "On time";
               return (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onToggleCompletion?.(event.task!.id); }}
-                  className={cn(
-                    "shrink-0 h-7 px-3 rounded-pill border text-12 font-medium text-fog-50 hover:bg-white/5 transition-colors",
-                    stroke
+                <div className="shrink-0 flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "h-7 px-3 inline-flex items-center rounded-pill border text-12 font-medium text-fog-50",
+                      stroke,
+                    )}
+                  >
+                    {statusLabel}
+                  </span>
+                  {onToggleCompletion && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
+                      className="tap-target h-7 w-7 inline-flex items-center justify-center rounded-pill border border-iris-400/30 text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 transition-colors"
+                      aria-label="Undo task completion"
+                      title="Undo"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
                   )}
-                  aria-label="Mark not done"
-                >
-                  {label}
-                </button>
+                </div>
               );
             }
             if (isOverdueImportant) {
@@ -369,14 +398,16 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 </span>
               );
             }
-            if (event.task?.is_important && onToggleCompletion) {
+            // Any past or current task that hasn't been marked done yet gets
+            // an explicit "Mark done" action. Future tasks stay actionless.
+            if (isPastOrCurrent && onToggleCompletion && event.task?.is_important) {
               return (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
                   className="shrink-0 h-7 px-3 rounded-pill border border-iris-400 text-12 font-medium text-fog-50 hover:bg-iris-400/10 transition-colors"
                 >
-                  Mark Done
+                  Mark done
                 </button>
               );
             }
@@ -410,7 +441,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                   }
                 }}
                 className={cn(
-                  "flex-1 min-w-0 flex items-center gap-3 px-4 py-3 rounded-r-lg cursor-pointer transition-colors",
+                  "flex-1 min-w-0 flex items-center gap-3 px-4 py-3 rounded-[28px] cursor-pointer transition-colors",
                   rowTone,
                   isDragging && "cursor-grabbing"
                 )}
@@ -458,7 +489,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                       WebkitUserSelect: 'none',
                       userSelect: 'none',
                     }}
-                    className="shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-fog-300 hover:text-fog-50"
+                    className="tap-target shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-fog-300 hover:text-fog-50"
                   >
                     <GripVertical className="w-4 h-4" />
                   </div>
@@ -1076,7 +1107,7 @@ const TimelineScheduleView = ({
               type="button"
               onClick={() => { setSelectedDay(day); onDateChange?.(day); }}
               className={cn(
-                "flex flex-col items-center gap-2 px-2 py-1 rounded-r-md transition-colors",
+                "flex flex-col items-center gap-2 px-2 py-1 rounded-[20px] transition-colors",
                 isSelected
                   ? "bg-iris-400/15"
                   : "hover:bg-white/[0.04]"

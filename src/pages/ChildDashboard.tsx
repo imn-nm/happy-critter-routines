@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
+import { useCompletions } from "@/hooks/useCompletions";
 import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
@@ -35,6 +36,19 @@ const ChildDashboard = () => {
     tasks, addTask, updateTask, deleteTask, reorderTasks, refetch,
     getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
+  const { toggleCompletion } = useCompletions(childId || '');
+
+  // Parent-side toggle: insert a completion record (mark done) or delete
+  // an existing one (undo). Refetch tasks afterwards so isCompleted updates
+  // flow through to the timeline rows.
+  const handleToggleCompletion = async (taskId: string) => {
+    try {
+      await toggleCompletion(taskId, currentDate);
+      await refetch();
+    } catch (e) {
+      // useCompletions surfaces its own toast on failure.
+    }
+  };
 
   const handleAddTask = (time?: string) => {
     // Guard against accidental event/object args from `onClick={handleAddTask}`
@@ -231,8 +245,8 @@ const ChildDashboard = () => {
         </div>
 
         {/* Summary card — black @70% with coins + Rewards primary CTA */}
-        <div className="bg-black/70 rounded-r-lg p-1">
-          <div className="flex items-center justify-between gap-sp-3 px-sp-3 py-sp-3 rounded-r-lg">
+        <div className="bg-black/70 rounded-[28px] p-1">
+          <div className="flex items-center justify-between gap-sp-3 px-sp-3 py-sp-3 rounded-[28px]">
             {/* Coin adjust group */}
             <div className="flex items-center gap-sp-3">
               <Button
@@ -304,7 +318,7 @@ const ChildDashboard = () => {
         </div>
 
         {/* Schedule card — aurora bordered wrapper containing tabs + schedule */}
-        <Tabs defaultValue="timeline" className="flex flex-col gap-sp-4 rounded-r-lg p-sp-4 border-aurora">
+        <Tabs defaultValue="timeline" className="flex flex-col gap-sp-4 rounded-[28px] p-sp-4 border-aurora">
           <TabsList className="grid w-full grid-cols-3 h-auto bg-ink-900/40 rounded-pill p-1 border-0">
             <TabsTrigger value="timeline" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
               Day
@@ -322,6 +336,7 @@ const ChildDashboard = () => {
               child={child} currentDate={currentDate}
               getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+              onToggleCompletion={handleToggleCompletion}
               onDateChange={setCurrentDate}
               onReorderTasks={async (reorderedTasks) => {
                 try {

@@ -69,8 +69,9 @@ const buttonVariants = cva(
         md: "h-11 px-5 text-16 gap-2 [&_svg]:size-5",  // 44h, padX 20
         lg: "h-14 px-6 text-18 gap-2 [&_svg]:size-6",  // 56h, padX 24
 
-        // Icon-only squares
-        "icon-sm": "h-9  w-9  [&_svg]:size-4",
+        // Icon-only squares — `tap-target` ensures the hit zone is at least
+        // 44×44 even when the visual is smaller (sm = 36, md = 44, lg = 56).
+        "icon-sm": "tap-target h-9  w-9  [&_svg]:size-4",
         icon:      "h-11 w-11 [&_svg]:size-5",
         "icon-lg": "h-14 w-14 [&_svg]:size-6",
 

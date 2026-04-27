@@ -203,6 +203,26 @@
     pointer-events: none;
   }
 
+  /* Tap target — guarantees a 44×44 hit zone on touch devices without
+     forcing the visual element to grow. Adds a transparent pseudo-element
+     centered on the host that captures taps spilling outside the visible
+     bounds. Use on icon-only buttons that visually render smaller than
+     the iOS / WCAG minimum. The host needs `position: relative` (already
+     true for nearly every Button-like control). */
+  .tap-target { position: relative; }
+  .tap-target::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+    /* Stay above the host so the pseudo intercepts taps but below any
+       sibling content. */
+    pointer-events: auto;
+  }
+
   /* Slide-to-done handle drop shadow — exact Figma values:
      X=0 Y=4 Blur=6.4 Spread=0 Colour=#2C224B @ 52%. */
   .glow-handle {

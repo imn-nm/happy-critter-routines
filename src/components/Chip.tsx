@@ -64,7 +64,7 @@ export default function Chip(props: ChipProps) {
         className,
       )}
     >
-      <span className="text-[13px] font-bold text-fog-50 leading-none">
+      <span className="text-12 font-bold text-fog-50 leading-none">
         {children}
       </span>
     </span>
