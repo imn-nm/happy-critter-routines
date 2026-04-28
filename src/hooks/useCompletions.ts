@@ -42,10 +42,10 @@ export const useCompletions = (childId?: string) => {
 
     try {
       // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
+      const formatDateLocal = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const targetDate = dateOrDay
-        ? (typeof dateOrDay === 'string'
-            ? dateOrDay
-            : getPSTDateString())
+        ? (typeof dateOrDay === 'string' ? dateOrDay : formatDateLocal(dateOrDay))
         : getPSTDateString();
 
       console.log('useCompletions: toggleCompletion called', { 
@@ -107,6 +107,41 @@ export const useCompletions = (childId?: string) => {
 
   useEffect(() => {
     fetchCompletions();
+    if (!childId) return;
+
+    // Real-time subscription so multiple consumers of this hook (e.g.
+    // ChildDashboard + TimelineScheduleView) all stay in sync when a
+    // completion is inserted or deleted from anywhere.
+    const channel = supabase
+      .channel(`task-completions-${childId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_completions',
+          filter: `child_id=eq.${childId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setCompletions(prev => {
+              if (prev.some(c => c.id === (payload.new as TaskCompletion).id)) return prev;
+              return [...prev, payload.new as TaskCompletion];
+            });
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setCompletions(prev => prev.filter(c => c.id !== (payload.old as TaskCompletion).id));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setCompletions(prev =>
+              prev.map(c => (c.id === (payload.new as TaskCompletion).id ? (payload.new as TaskCompletion) : c)),
+            );
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [childId]);
 
   return {

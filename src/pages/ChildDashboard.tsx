@@ -40,6 +40,11 @@ const ChildDashboard = () => {
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const [showRewards, setShowRewards] = useState(false);
+  // Rest day applies to whichever day the parent is currently viewing — the
+  // schema only stores a single `rest_day_date` per child, so toggling it
+  // moves the rest day to that date.
+  const selectedDayString = child ? format(currentDate, 'yyyy-MM-dd') : '';
+  const isRestDay = !!child && child.rest_day_date === selectedDayString;
   // When the parent edits a recurring task, we stash the form payload here
   // and pop a "this day vs all days" prompt before committing the update.
   const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
@@ -114,7 +119,6 @@ const ChildDashboard = () => {
       updated_at: new Date().toISOString(),
       schedule_overrides: nextOverrides,
     } as any);
-    toast({ title: "Task updated", description: "Applied to all days." });
   };
 
   // Apply a recurring-task edit to just the current day — writes the schedule
@@ -142,10 +146,6 @@ const ChildDashboard = () => {
       updated_at: new Date().toISOString(),
       schedule_overrides: nextOverrides,
     } as any);
-    toast({
-      title: "Task updated",
-      description: `Applied to ${format(currentDate, 'EEEE')} only.`,
-    });
   };
 
   const handleSaveTask = async (taskData) => {
@@ -169,7 +169,6 @@ const ChildDashboard = () => {
             await updateChild(child.id, updateData);
           }
           await refetch();
-          toast({ title: "Schedule Updated", description: `${editingTask.name} updated.` });
         } else if (editingTask.is_recurring) {
           // Recurring task: ask the parent whether this edit should apply to
           // just this day (writes a schedule override) or all recurring days
@@ -179,7 +178,6 @@ const ChildDashboard = () => {
           return;
         } else {
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
-          toast({ title: "Task updated" });
         }
       } else {
         // If no scheduled_time, auto-calculate based on existing schedule.
@@ -230,9 +228,6 @@ const ChildDashboard = () => {
           });
           const { error: insertError } = await supabase.from('tasks').insert(rows);
           if (insertError) throw insertError;
-          toast({ title: "Task created", description: `Also added to ${_additionalChildIds.length} other ${_additionalChildIds.length === 1 ? 'child' : 'children'}.` });
-        } else {
-          toast({ title: "Task created" });
         }
       }
       setShowTaskForm(false); setEditingTask(null);
@@ -251,15 +246,12 @@ const ChildDashboard = () => {
           if (updatedDays.length === 0) {
             // No days left, delete the whole task
             await deleteTask(taskId);
-            toast({ title: "Deleted", description: `${task.name} removed (no days remaining).` });
           } else {
             await updateTask(taskId, { ...task, recurring_days: updatedDays });
-            toast({ title: "Updated", description: `${task.name} removed from ${dayName}s.` });
           }
         }
       } else {
         await deleteTask(taskId);
-        toast({ title: "Deleted" });
       }
     } catch {
       toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
@@ -314,7 +306,6 @@ const ChildDashboard = () => {
                   onClick={async () => {
                     if (child.currentCoins <= 0) return;
                     await updateChildCoins(child.id, child.currentCoins - 1);
-                    toast({ title: "Coin removed", description: `${child.name} now has ${child.currentCoins - 1} coins.` });
                   }}
                   disabled={child.currentCoins <= 0}
                   aria-label="Remove coin"
@@ -330,7 +321,6 @@ const ChildDashboard = () => {
                   className="shrink-0"
                   onClick={async () => {
                     await updateChildCoins(child.id, child.currentCoins + 1);
-                    toast({ title: "Coin awarded!", description: `${child.name} now has ${child.currentCoins + 1} coins.` });
                   }}
                   aria-label="Add coin"
                 >
@@ -350,28 +340,31 @@ const ChildDashboard = () => {
               </Button>
             </div>
 
-            {/* Rest Day + Add Task row */}
+            {/* Rest Day + Add Task row. When the selected day is flagged a
+                rest day we hide the Add Task affordance — the schedule below
+                is replaced with a quiet "rest day" panel. */}
             <div className="flex items-center justify-between gap-sp-3 px-sp-2">
               <div className="flex items-center gap-sp-3">
                 <span className="text-14 text-[#9EBEFF]">Rest Day</span>
                 <Switch
-                  checked={child.rest_day_date === getPSTDateString()}
+                  checked={isRestDay}
                   onCheckedChange={async (checked) => {
-                    await updateChild(child.id, { rest_day_date: checked ? getPSTDateString() : null });
-                    toast({ title: checked ? "Rest day on" : "Rest day off" });
+                    await updateChild(child.id, { rest_day_date: checked ? selectedDayString : null });
                   }}
                 />
               </div>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                className="gap-2"
-                onClick={() => handleAddTask()}
-              >
-                <Plus className="w-4 h-4" />
-                Add Task
-              </Button>
+              {!isRestDay && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => handleAddTask()}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Task
+                </Button>
+              )}
             </div>
 
             {/* Schedule card — aurora bordered wrapper containing tab pill + date + week strip */}
@@ -397,6 +390,17 @@ const ChildDashboard = () => {
         {/* Schedule rows live below the tinted panel on the cosmic gradient. */}
         <div className="max-w-[420px] mx-auto w-full px-sp-2 pt-sp-3 pb-sp-5">
           <TabsContent value="timeline" className="space-y-2 mt-0">
+            {isRestDay ? (
+              <div className="flex flex-col items-center justify-center text-center py-sp-6 px-sp-4 gap-sp-3 rounded-[28px] border border-iris-400/25 bg-iris-400/[0.06]">
+                <Moon className="w-8 h-8 text-iris-300" strokeWidth={1.5} />
+                <div className="flex flex-col gap-1">
+                  <span className="text-16 text-fog-50 font-medium">Rest day</span>
+                  <span className="text-13 text-fog-300">
+                    No tasks for {format(currentDate, 'EEEE')}. Toggle off to see the schedule.
+                  </span>
+                </div>
+              </div>
+            ) : (
             <TimelineScheduleView
               child={child} currentDate={currentDate}
               hideHeader
@@ -436,7 +440,6 @@ const ChildDashboard = () => {
                     });
                   });
                   await Promise.all(updatePromises); await refetch();
-                  toast({ title: "Reordered" });
                 } catch { toast({ title: "Error", variant: "destructive" }); }
               }}
               onTaskTimeUpdate={async (taskId, newTime, dayName) => {
@@ -450,10 +453,10 @@ const ChildDashboard = () => {
                     await updateTask(taskId, { scheduled_time: newTime });
                   }
                   await refetch();
-                  toast({ title: "Updated" });
                 } catch { toast({ title: "Error", variant: "destructive" }); }
               }}
             />
+            )}
           </TabsContent>
 
           <TabsContent value="month" className="mt-0">
