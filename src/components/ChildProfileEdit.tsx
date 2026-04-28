@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Edit, Save, X, Trash2 } from "lucide-react";
+import { Settings, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
@@ -105,9 +105,8 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary" size="sm" className="gap-1.5">
-          <Edit className="w-4 h-4" />
-          Edit Profile
+        <Button variant="secondary" size="icon-sm" aria-label={`Edit ${child.name}'s profile`}>
+          <Settings className="w-4 h-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col p-0">

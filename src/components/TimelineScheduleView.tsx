@@ -42,6 +42,12 @@ interface TimelineScheduleViewProps {
   onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
   onDateChange?: (date: Date) => void;
+  /**
+   * When true, the date navigation row, holiday banner and week strip are
+   * skipped. Use this when the parent renders its own `<TimelineHeader>`
+   * elsewhere (e.g. inside an iris-tinted panel).
+   */
+  hideHeader?: boolean;
 }
 
 interface TimelineEvent {
@@ -524,9 +530,19 @@ const TimelineScheduleView = ({
   onTaskTimeUpdate,
   onReorderTasks,
   onDateChange,
+  hideHeader = false,
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(getPSTDate());
   const [selectedDay, setSelectedDay] = useState(currentDate);
+  // Keep internal selectedDay/currentWeek in sync with the controlled
+  // `currentDate` prop so an external `<TimelineHeader>` driving the same
+  // date state stays consistent with this component.
+  const currentDateKey = format(currentDate, 'yyyy-MM-dd');
+  useEffect(() => {
+    setSelectedDay(currentDate);
+    setCurrentWeek(currentDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDateKey]);
   const { holidays, isHoliday } = useHolidays(child.id);
   const { completions, toggleCompletion } = useCompletions(child.id);
   const { updateChildCoins } = useChildren();
@@ -1042,97 +1058,101 @@ const TimelineScheduleView = ({
 
   return (
     <div className="flex flex-col gap-sp-4 max-w-full overflow-hidden">
-      {/* Date navigation row — chevrons + week range + Today */}
-      <div className="flex items-center justify-between gap-sp-3">
-        <div className="flex items-center gap-sp-3 min-w-0">
-          <Button
-            variant="secondary"
-            size="icon-sm"
-            onClick={goToPreviousWeek}
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-16 text-[#9EBEFF] truncate">
-            {formatWeekRange(weekStart)}
-          </span>
-          <Button
-            variant="secondary"
-            size="icon-sm"
-            onClick={goToNextWeek}
-            aria-label="Next week"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            const pstToday = getPSTDate();
-            setSelectedDay(pstToday);
-            onDateChange?.(pstToday);
-            setCurrentWeek(pstToday);
-          }}
-          disabled={isToday(selectedDay)}
-          className="shrink-0"
-        >
-          Today
-        </Button>
-      </div>
-
-      {selectedDayHoliday && (
-        <div className="flex items-center justify-center">
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-pill text-14 font-medium"
-            style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
-          >
-            <PartyPopper className="w-4 h-4" />
-            <span>{selectedDayHoliday.name}</span>
-            {selectedDayHoliday.is_no_school && (
-              <span className="ml-1 text-12 opacity-75">(No School)</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Week strip — Su/19, Mo/20, ... selected day brighter */}
-      <div className="flex items-center justify-between gap-1">
-        {weekDays.map((day, index) => {
-          const isSelected = isSameDay(day, selectedDay);
-          const isTodayDay = isToday(day);
-          return (
-            <button
-              key={index}
-              type="button"
-              onClick={() => { setSelectedDay(day); onDateChange?.(day); }}
-              className={cn(
-                "flex flex-col items-center gap-2 px-2 py-1 rounded-[20px] transition-colors",
-                isSelected
-                  ? "bg-iris-400/15"
-                  : "hover:bg-white/[0.04]"
-              )}
+      {!hideHeader && (
+        <>
+          {/* Date navigation row — chevrons + week range + Today */}
+          <div className="flex items-center justify-between gap-sp-3">
+            <div className="flex items-center gap-sp-3 min-w-0">
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                onClick={goToPreviousWeek}
+                aria-label="Previous week"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-16 text-[#9EBEFF] truncate">
+                {formatWeekRange(weekStart)}
+              </span>
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                onClick={goToNextWeek}
+                aria-label="Next week"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const pstToday = getPSTDate();
+                setSelectedDay(pstToday);
+                onDateChange?.(pstToday);
+                setCurrentWeek(pstToday);
+              }}
+              disabled={isToday(selectedDay)}
+              className="shrink-0"
             >
-              <span className={cn(
-                "text-14 leading-none",
-                isSelected ? "text-fog-50 font-medium" : "text-fog-300"
-              )}>
-                {['Su','Mo','Tu','We','Th','Fr','Sa'][index]}
-              </span>
-              <span className={cn(
-                "text-18 leading-none tabular-nums",
-                isSelected
-                  ? "text-fog-50 font-semibold"
-                  : isTodayDay
-                  ? "text-iris-300"
-                  : "text-fog-200"
-              )}>
-                {format(day, 'd')}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              Today
+            </Button>
+          </div>
+
+          {selectedDayHoliday && (
+            <div className="flex items-center justify-center">
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-pill text-14 font-medium"
+                style={{ backgroundColor: `${selectedDayHoliday.color}20`, color: selectedDayHoliday.color }}
+              >
+                <PartyPopper className="w-4 h-4" />
+                <span>{selectedDayHoliday.name}</span>
+                {selectedDayHoliday.is_no_school && (
+                  <span className="ml-1 text-12 opacity-75">(No School)</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Week strip — Su/19, Mo/20, ... selected day brighter */}
+          <div className="flex items-center justify-between gap-1">
+            {weekDays.map((day, index) => {
+              const isSelected = isSameDay(day, selectedDay);
+              const isTodayDay = isToday(day);
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => { setSelectedDay(day); onDateChange?.(day); }}
+                  className={cn(
+                    "flex flex-col items-center gap-2 px-2 py-1 rounded-[20px] transition-colors",
+                    isSelected
+                      ? "bg-iris-400/15"
+                      : "hover:bg-white/[0.04]"
+                  )}
+                >
+                  <span className={cn(
+                    "text-14 leading-none",
+                    isSelected ? "text-fog-50 font-medium" : "text-fog-300"
+                  )}>
+                    {['Su','Mo','Tu','We','Th','Fr','Sa'][index]}
+                  </span>
+                  <span className={cn(
+                    "text-18 leading-none tabular-nums",
+                    isSelected
+                      ? "text-fog-50 font-semibold"
+                      : isTodayDay
+                      ? "text-iris-300"
+                      : "text-fog-200"
+                  )}>
+                    {format(day, 'd')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Timeline + Chores Sidebar */}
       {(() => {
