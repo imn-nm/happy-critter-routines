@@ -3,6 +3,16 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
@@ -16,7 +26,6 @@ import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TimelineHeader from "@/components/TimelineHeader";
 import TaskForm from "@/components/TaskForm";
 import MonthView from "@/components/MonthView";
-import WeekView from "@/components/WeekView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,6 +40,12 @@ const ChildDashboard = () => {
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const [showRewards, setShowRewards] = useState(false);
+  // When the parent edits a recurring task, we stash the form payload here
+  // and pop a "this day vs all days" prompt before committing the update.
+  const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
+    taskData: any;
+    editingTask: any;
+  } | null>(null);
   const { toast } = useToast();
 
   const {
@@ -83,6 +98,56 @@ const ChildDashboard = () => {
     'Lunch': 'lunch', 'Dinner': 'dinner', 'Bedtime': 'bedtime',
   };
 
+  // Apply a recurring-task edit globally — same path the inline edit used to
+  // take. Clears the current day's override so the new base wins everywhere.
+  const applyRecurringEditAllDays = async (taskData: any, editingTaskRef: any) => {
+    const dayName = format(currentDate, 'EEEE').toLowerCase();
+    const existingOverrides = editingTaskRef.schedule_overrides || {};
+    const { [dayName]: _removed, ...remainingOverrides } = existingOverrides;
+    const nextOverrides =
+      Object.keys(remainingOverrides).length > 0 ? remainingOverrides : null;
+    await updateTask(editingTaskRef.id, {
+      ...taskData,
+      id: editingTaskRef.id,
+      child_id: editingTaskRef.child_id,
+      created_at: editingTaskRef.created_at,
+      updated_at: new Date().toISOString(),
+      schedule_overrides: nextOverrides,
+    } as any);
+    toast({ title: "Task updated", description: "Applied to all days." });
+  };
+
+  // Apply a recurring-task edit to just the current day — writes the schedule
+  // (time + duration) into schedule_overrides[dayName] without touching the
+  // base task fields. Other field changes (name, coins, importance, etc.) get
+  // applied globally because the override model only stores schedule data.
+  const applyRecurringEditThisDay = async (taskData: any, editingTaskRef: any) => {
+    const dayName = format(currentDate, 'EEEE').toLowerCase();
+    const existingOverrides = editingTaskRef.schedule_overrides || {};
+    const nextOverrides = {
+      ...existingOverrides,
+      [dayName]: {
+        scheduled_time: taskData.scheduled_time ?? editingTaskRef.scheduled_time,
+        duration: taskData.duration ?? editingTaskRef.duration,
+      },
+    };
+    // Strip schedule fields from the global update so only this day's override
+    // changes the time/duration.
+    const { scheduled_time, duration, schedule_overrides, ...nonScheduleFields } = taskData;
+    await updateTask(editingTaskRef.id, {
+      ...nonScheduleFields,
+      id: editingTaskRef.id,
+      child_id: editingTaskRef.child_id,
+      created_at: editingTaskRef.created_at,
+      updated_at: new Date().toISOString(),
+      schedule_overrides: nextOverrides,
+    } as any);
+    toast({
+      title: "Task updated",
+      description: `Applied to ${format(currentDate, 'EEEE')} only.`,
+    });
+  };
+
   const handleSaveTask = async (taskData) => {
     // Strip form-only field: selected additional children to copy this task to
     const { _additionalChildIds, ...cleanedTaskData } = taskData || {};
@@ -106,23 +171,12 @@ const ChildDashboard = () => {
           await refetch();
           toast({ title: "Schedule Updated", description: `${editingTask.name} updated.` });
         } else if (editingTask.is_recurring) {
-          // Recurring task: inline edit updates the base fields (applies to all days).
-          // For day-specific variations, the DaySpecificTaskEditor is the dedicated tool.
-          // Clear the current day's override so the new base takes effect here too.
-          const dayName = format(currentDate, 'EEEE').toLowerCase();
-          const existingOverrides = editingTask.schedule_overrides || {};
-          const { [dayName]: _removed, ...remainingOverrides } = existingOverrides;
-          const nextOverrides = Object.keys(remainingOverrides).length > 0 ? remainingOverrides : null;
-
-          await updateTask(editingTask.id, {
-            ...taskData,
-            id: editingTask.id,
-            child_id: editingTask.child_id,
-            created_at: editingTask.created_at,
-            updated_at: new Date().toISOString(),
-            schedule_overrides: nextOverrides,
-          } as any);
-          toast({ title: "Task updated" });
+          // Recurring task: ask the parent whether this edit should apply to
+          // just this day (writes a schedule override) or all recurring days
+          // (updates the base task). Defer the actual save until they pick.
+          setPendingRecurringEdit({ taskData, editingTask });
+          setShowTaskForm(false);
+          return;
         } else {
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
           toast({ title: "Task updated" });
@@ -322,12 +376,9 @@ const ChildDashboard = () => {
 
             {/* Schedule card — aurora bordered wrapper containing tab pill + date + week strip */}
             <div className="flex flex-col gap-sp-4 rounded-[28px] p-sp-4 border-aurora">
-              <TabsList className="grid w-full grid-cols-3 h-auto bg-ink-900/40 rounded-pill p-1 border-0">
+              <TabsList className="grid w-full grid-cols-2 h-auto bg-ink-900/40 rounded-pill p-1 border-0">
                 <TabsTrigger value="timeline" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
                   Day
-                </TabsTrigger>
-                <TabsTrigger value="week" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
-                  Week
                 </TabsTrigger>
                 <TabsTrigger value="month" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
                   Month
@@ -405,10 +456,6 @@ const ChildDashboard = () => {
             />
           </TabsContent>
 
-          <TabsContent value="week" className="mt-0">
-            <WeekView child={child} tasks={tasks} onTasksReorder={() => {}} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
-          </TabsContent>
-
           <TabsContent value="month" className="mt-0">
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
@@ -425,6 +472,72 @@ const ChildDashboard = () => {
           <RewardsManagement child={child} />
         </DialogContent>
       </Dialog>
+
+      {/* Recurring-task edit scope prompt — appears after the user submits
+          the edit form for a recurring task. They pick "this day" (writes a
+          schedule override) or "all days" (updates the base task). */}
+      <AlertDialog
+        open={!!pendingRecurringEdit}
+        onOpenChange={(open) => {
+          if (!open) setPendingRecurringEdit(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update which days?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRecurringEdit && (
+                <>
+                  This is a recurring task. Apply your changes to{" "}
+                  <span className="font-medium text-foreground">
+                    {format(currentDate, 'EEEE')}
+                  </span>{" "}
+                  only, or to every day it repeats?
+                  <br />
+                  <span className="text-xs">
+                    "{format(currentDate, 'EEEE')} only" changes the time and duration just for that day.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!pendingRecurringEdit) return;
+                const { taskData, editingTask: et } = pendingRecurringEdit;
+                setPendingRecurringEdit(null);
+                setEditingTask(null);
+                setPrefillTime(undefined);
+                try {
+                  await applyRecurringEditThisDay(taskData, et);
+                } catch {
+                  toast({ title: "Error updating task", variant: "destructive" });
+                }
+              }}
+            >
+              {format(currentDate, 'EEEE')} only
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!pendingRecurringEdit) return;
+                const { taskData, editingTask: et } = pendingRecurringEdit;
+                setPendingRecurringEdit(null);
+                setEditingTask(null);
+                setPrefillTime(undefined);
+                try {
+                  await applyRecurringEditAllDays(taskData, et);
+                } catch {
+                  toast({ title: "Error updating task", variant: "destructive" });
+                }
+              }}
+            >
+              All days
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
         <DialogContent className="max-w-[480px] w-[95vw] max-h-[90vh] overflow-y-auto glass-card border-border/50 rounded-2xl" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>

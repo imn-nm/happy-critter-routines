@@ -6,7 +6,6 @@ import { Calendar, TrendingUp, Award, ArrowLeft, Clock, Gift, Eye, Coins } from 
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import MonthView from "@/components/MonthView";
-import WeekView from "@/components/WeekView";
 import TimelineView from "@/components/TimelineView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import RewardsManagement from "@/components/RewardsManagement";
@@ -80,12 +79,9 @@ const ChildReports = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="timeline" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 h-auto glass rounded-2xl p-1">
+          <TabsList className="grid w-full grid-cols-3 h-auto glass rounded-2xl p-1">
             <TabsTrigger value="timeline" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
               <Clock className="w-3.5 h-3.5 hidden sm:block" /> Daily
-            </TabsTrigger>
-            <TabsTrigger value="week" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
-              <Calendar className="w-3.5 h-3.5 hidden sm:block" /> Week
             </TabsTrigger>
             <TabsTrigger value="month" className="flex items-center gap-1 sm:gap-1.5 py-2.5 text-[11px] sm:text-xs rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg transition-all">
               <TrendingUp className="w-3.5 h-3.5 hidden sm:block" /> Month
@@ -96,9 +92,6 @@ const ChildReports = () => {
           </TabsList>
 
           <TabsContent value="timeline"><TimelineView child={child} /></TabsContent>
-          <TabsContent value="week">
-            <WeekView child={child} tasks={tasks} onTasksReorder={() => {}} onEditTask={() => {}} onDeleteTask={() => {}} />
-          </TabsContent>
           <TabsContent value="month">
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus} />
           </TabsContent>
