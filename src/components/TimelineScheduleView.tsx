@@ -399,9 +399,20 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             }
             if (isOverdueImportant) {
               return (
-                <span className="shrink-0 h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 text-12 font-medium text-fog-50">
-                  Overdue
-                </span>
+                <div className="shrink-0 flex items-center gap-1.5">
+                  <span className="h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 text-12 font-medium text-fog-50">
+                    Overdue
+                  </span>
+                  {onToggleCompletion && event.task && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
+                      className="h-7 px-3 rounded-pill border border-iris-400 text-12 font-medium text-fog-50 hover:bg-iris-400/10 transition-colors"
+                    >
+                      Mark done
+                    </button>
+                  )}
+                </div>
               );
             }
             // Any past or current task that hasn't been marked done yet gets
@@ -822,6 +833,7 @@ const TimelineScheduleView = ({
     // Fallback order: day-specific override → task's scheduled_time → window_start (placement hint
     // from a gap when "Set Time" was off) → next available slot.
     const taskTime = (task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || task.window_start || findNextAvailableTime(taskDuration);
+    const isCompleted = completions.some(c => c.task_id === task.id && c.date === selectedDayString);
     return {
       id: task.id,
       name: task.name,
@@ -831,9 +843,13 @@ const TimelineScheduleView = ({
       color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
       task: task,
       coins: task.coins,
-      isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
+      isCompleted,
       isLate: false,
-      status: calculateTaskStatus(task, taskTime, taskDuration),
+      // When the parent marks a task done from the dashboard, treat it as
+      // on-time — the parent is the source of truth and shouldn't be
+      // surprised by a "late" badge from clock-based heuristics. Matches
+      // the system-event behavior above.
+      status: isCompleted ? ('on-time' as const) : calculateTaskStatus(task, taskTime, taskDuration),
       completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
     };
   });

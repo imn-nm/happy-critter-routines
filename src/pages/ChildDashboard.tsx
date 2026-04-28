@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
@@ -233,9 +233,19 @@ const ChildDashboard = () => {
             shows through behind the rows below. */}
         <div className="bg-iris-400/[0.35] rounded-b-[28px]">
           <div className="max-w-[420px] mx-auto px-sp-4 pt-sp-5 pb-sp-4 flex flex-col gap-sp-3">
-            {/* Header — name + settings gear (matches Figma 145:6964) */}
+            {/* Header — back + name + settings gear (matches Figma 145:6964) */}
             <div className="flex items-center justify-between gap-sp-2">
-              <h1 className="text-32 text-fog-50 leading-none truncate">{child.name}</h1>
+              <div className="flex items-center gap-sp-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  aria-label="Back to child view"
+                  className="tap-target shrink-0 h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+                </button>
+                <h1 className="text-32 text-fog-50 leading-none truncate">{child.name}</h1>
+              </div>
               <ChildProfileEdit child={child} onUpdateChild={updateChild} />
             </div>
 

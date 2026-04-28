@@ -730,22 +730,34 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 sizePx={293}
                 isRunning={true}
                 onComplete={handleTimerComplete}
-              />
+              >
+                <img
+                  src="/FoxHappy.gif"
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </CircularTimer>
 
-              {/* Worm timer — when overdue + important with a fun task behind it */}
-              {overdue && activeTask.is_important && (() => {
+              {/* Worm timer — shown for any overdue task. When there's a fun task
+                  behind it, the worm "eats" into that fun time; otherwise it
+                  uses a 30-minute default window so the visual still appears. */}
+              {overdue && (() => {
                 const nextFunTask = findNextFunTimeTask(activeTask);
-                if (!nextFunTask || !nextFunTask.duration) return null;
                 const overdueS = getOverdueSeconds();
-                const funTotalS = nextFunTask.duration * 60;
+                const DEFAULT_WINDOW_MIN = 30;
+                const funTotalS = (nextFunTask?.duration ?? DEFAULT_WINDOW_MIN) * 60;
                 const progress = Math.min(1, overdueS / funTotalS);
                 const funRemainingMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
                 return (
                   <div className="w-full px-sp-2 flex flex-col items-center gap-2">
                     <WormTimer progress={progress} />
-                    <p className="text-12 text-fog-200">
-                      <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
-                    </p>
+                    {nextFunTask ? (
+                      <p className="text-12 text-fog-200">
+                        <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
+                      </p>
+                    ) : (
+                      <p className="text-12 text-fog-200">Overdue — finish soon</p>
+                    )}
                   </div>
                 );
               })()}
