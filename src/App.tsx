@@ -13,6 +13,7 @@ import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
 import ChildrenSideBySide from "./pages/ChildrenSideBySide";
+import ChecklistPreview from "./pages/ChecklistPreview";
 
 const ReportsRedirect = () => {
   const { childId } = useParams();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
             <Route path="/tasks" element={<TaskManagement />} />
             <Route path="/reports/:childId" element={<ReportsRedirect />} />
+            <Route path="/preview/checklist" element={<ChecklistPreview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

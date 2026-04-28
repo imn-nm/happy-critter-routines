@@ -6,6 +6,8 @@ import OwlCelebration from "@/components/OwlCelebration";
 import TimeSqueeze from "@/components/TimeSqueeze";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
 import WormTimer from "@/components/WormTimer";
+import TaskChecklistView from "@/components/TaskChecklistView";
+import LinearTimer from "@/components/LinearTimer";
 import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
@@ -722,21 +724,49 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 <StatusBadge variant={badgeVariant}>{badgeLabel}</StatusBadge>
               </div>
 
-              {/* 293×293 circular timer — scales down on narrow viewports */}
-              <CircularTimer
-                totalSeconds={totalSecs}
-                remainingSeconds={remaining}
-                status={overdue ? 'overtime' : getTimerStatus()}
-                sizePx={293}
-                isRunning={true}
-                onComplete={handleTimerComplete}
-              >
-                <img
-                  src="/FoxHappy.gif"
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </CircularTimer>
+              {/* Multi-step tasks → time bar + pet + checklist. Single-step or
+                  no-step tasks keep the circular timer with the pet inside. */}
+              {activeTask.subtasks && activeTask.subtasks.length >= 2 ? (
+                <div className="w-full flex flex-col items-center gap-sp-3">
+                  {/* Same logic/colour states as the ring, just horizontal. */}
+                  <LinearTimer
+                    totalSeconds={totalSecs}
+                    remainingSeconds={remaining}
+                    status={overdue ? 'overtime' : getTimerStatus()}
+                    isRunning={true}
+                    onComplete={handleTimerComplete}
+                  />
+                  {/* Pet — small companion above the steps so the screen keeps
+                      the warmth the timer ring used to provide. */}
+                  <div className="w-[96px] h-[96px] rounded-full overflow-hidden">
+                    <img
+                      src="/FoxHappy.gif"
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <TaskChecklistView
+                    subtasks={activeTask.subtasks}
+                    checkedIds={checkedSubtasks[activeTask.id] ?? []}
+                    onToggle={(subId) => toggleSubtask(activeTask.id, subId)}
+                  />
+                </div>
+              ) : (
+                <CircularTimer
+                  totalSeconds={totalSecs}
+                  remainingSeconds={remaining}
+                  status={overdue ? 'overtime' : getTimerStatus()}
+                  sizePx={293}
+                  isRunning={true}
+                  onComplete={handleTimerComplete}
+                >
+                  <img
+                    src="/FoxHappy.gif"
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </CircularTimer>
+              )}
 
               {/* Worm timer — shown for any overdue task. When there's a fun task
                   behind it, the worm "eats" into that fun time; otherwise it
@@ -762,8 +792,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 );
               })()}
 
-              {/* Subtasks checklist */}
-              {activeTask.subtasks && activeTask.subtasks.length > 0 && (() => {
+              {/* Inline subtasks checklist — only for single-step tasks; the
+                  full checklist view above handles multi-step layouts. */}
+              {activeTask.subtasks && activeTask.subtasks.length === 1 && (() => {
                 const checkedIds = checkedSubtasks[activeTask.id] ?? [];
                 const doneCount = activeTask.subtasks.filter(s => checkedIds.includes(s.id)).length;
                 return (

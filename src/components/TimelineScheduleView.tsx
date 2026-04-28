@@ -366,63 +366,66 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 ? "bg-iris-400/20 border border-lilac-400 hover:bg-iris-400/[0.24]"
                 : "bg-iris-400/20 hover:bg-iris-400/[0.24]";
 
-          // Render a status badge (clickable for important / completed; static for overdue).
-          const badge = (() => {
+          // Split status (a small read-only pill rendered next to the task
+          // title) from the primary action (a taller filled button at the
+          // row's action edge). The two used to share a single slot.
+          const markDoneBtnClass =
+            "self-stretch px-4 inline-flex items-center rounded-[20px] " +
+            "bg-iris-400/20 border border-iris-400 text-13 font-semibold " +
+            "text-fog-50 hover:bg-iris-400/30 transition-colors";
+
+          const statusPill = (() => {
             if (event.isCompleted) {
-              // Two pills: a read-only status (On time / Done late, colour-coded)
-              // and a separate Undo icon button so the affordance is clear.
               const stroke = isDoneLate ? "border-amber-500" : "border-mint-500";
               const statusLabel = isDoneLate ? "Done late" : "On time";
               return (
-                <div className="shrink-0 flex items-center gap-1.5">
-                  <span
-                    className={cn(
-                      "h-7 px-3 inline-flex items-center rounded-pill border text-12 font-medium text-fog-50",
-                      stroke,
-                    )}
-                  >
-                    {statusLabel}
-                  </span>
-                  {onToggleCompletion && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
-                      className="tap-target h-7 w-7 inline-flex items-center justify-center rounded-pill border border-iris-400/30 text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 transition-colors"
-                      aria-label="Undo task completion"
-                      title="Undo"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-                    </button>
+                <span
+                  className={cn(
+                    "shrink-0 h-6 px-2.5 inline-flex items-center rounded-pill border text-11 font-medium text-fog-50",
+                    stroke,
                   )}
-                </div>
+                >
+                  {statusLabel}
+                </span>
               );
             }
             if (isOverdueImportant) {
               return (
-                <div className="shrink-0 flex items-center gap-1.5">
-                  <span className="h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 text-12 font-medium text-fog-50">
-                    Overdue
-                  </span>
-                  {onToggleCompletion && event.task && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
-                      className="h-7 px-3 rounded-pill border border-iris-400 text-12 font-medium text-fog-50 hover:bg-iris-400/10 transition-colors"
-                    >
-                      Mark done
-                    </button>
-                  )}
-                </div>
+                <span className="shrink-0 h-6 px-2.5 inline-flex items-center rounded-pill border border-coral-500 text-11 font-medium text-fog-50">
+                  Overdue
+                </span>
               );
             }
-            // Any past or current task that hasn't been marked done yet gets
-            // an explicit "Mark done" action. Future tasks stay actionless.
-            if (isPastOrCurrent && onToggleCompletion && event.task?.is_important) {
+            return null;
+          })();
+
+          const actionButton = (() => {
+            if (event.isCompleted) {
+              if (!onToggleCompletion) return null;
               return (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
-                  className="shrink-0 h-7 px-3 rounded-pill border border-iris-400 text-12 font-medium text-fog-50 hover:bg-iris-400/10 transition-colors"
+                  className="tap-target shrink-0 self-stretch w-9 inline-flex items-center justify-center rounded-[20px] border border-iris-400/30 text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 transition-colors"
+                  aria-label="Undo task completion"
+                  title="Undo"
+                >
+                  <RotateCcw className="w-4 h-4" strokeWidth={2} />
+                </button>
+              );
+            }
+            // Show Mark done for any overdue-important or past/current-important
+            // task that hasn't been completed yet. Future tasks stay actionless.
+            const showMarkDone =
+              onToggleCompletion &&
+              event.task?.is_important &&
+              (isOverdueImportant || isPastOrCurrent);
+            if (showMarkDone) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
+                  className={cn("shrink-0", markDoneBtnClass)}
                 >
                   Mark done
                 </button>
@@ -477,12 +480,15 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
 
                 {/* Info */}
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <span className={cn(
-                    "text-16 truncate",
-                    event.isCompleted ? "text-fog-200" : "text-fog-50"
-                  )}>
-                    {event.name}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn(
+                      "text-16 truncate",
+                      event.isCompleted ? "text-fog-200" : "text-fog-50"
+                    )}>
+                      {event.name}
+                    </span>
+                    {statusPill}
+                  </div>
                   <span className={cn(
                     "text-14 truncate",
                     event.isCompleted ? "text-fog-300" : "text-[#9EBEFF]"
@@ -494,7 +500,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                   </span>
                 </div>
 
-                {/* Drag handle — only when draggable + not completed */}
+                {/* Primary action — Mark done / Undo */}
+                {actionButton}
+
+                {/* Drag handle — always rightmost so the badge/button anchors
+                    the action edge and the grip lives at the row's edge. */}
                 {isDraggable && !event.isCompleted && (
                   <div
                     {...dragBindings}
@@ -511,9 +521,6 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                     <GripVertical className="w-4 h-4" />
                   </div>
                 )}
-
-                {/* Status badge */}
-                {badge}
               </div>
             </div>
           );
