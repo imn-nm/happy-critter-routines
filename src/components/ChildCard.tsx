@@ -1,6 +1,6 @@
 // import { Card } from "@/components/ui/card";
 import PetAvatar from "./PetAvatar";
-import { Coins } from "lucide-react";
+import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Child } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -90,7 +90,7 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
         </div>
 
         <div className="flex items-center gap-1.5 glass rounded-full px-2.5 py-1">
-          <Coins className="w-3.5 h-3.5 text-warning" />
+          <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
           <span className="text-sm font-bold text-foreground">{child.currentCoins}</span>
         </div>
       </div>

@@ -11,7 +11,7 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -583,14 +583,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     setNextTapped(true);
     setTimeout(() => setNextTapped(false), 400);
 
-    // Freeze the current task on screen so the celebrate gif plays through,
-    // then a 5s pause, before the schedule advances to the next task.
-    const CELEBRATE_GIF_MS = 3000;
-    const PAUSE_MS = 5000;
+    // Freeze the current task on screen so the celebrate gif plays through
+    // (4.12s), then hold on its last frame for 4s, then advance.
+    // NOTE: For the "hold on last frame" to actually freeze visually, the
+    // FoxCelebrate.gif must be exported with loop count = 1 (i.e. play once,
+    // then stop). A normal looping gif will restart instead of holding.
+    const CELEBRATE_GIF_MS = 4120;
+    const HOLD_LAST_FRAME_MS = 4000;
     setFrozenTask(activeTask);
     setPetCelebrating(true);
-    setTimeout(() => setPetCelebrating(false), CELEBRATE_GIF_MS);
-    setTimeout(() => setFrozenTask(null), CELEBRATE_GIF_MS + PAUSE_MS);
+    setTimeout(() => {
+      setPetCelebrating(false);
+      setFrozenTask(null);
+    }, CELEBRATE_GIF_MS + HOLD_LAST_FRAME_MS);
 
     const remaining = getActiveTaskRemainingTime();
 
@@ -682,13 +687,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Greeting + coin chip row */}
+        {/* Greeting + coin chip row — matches Figma "Child Dashboard - overtime-new":
+            greeting 20px Inter Regular, coin chip 13px Bold with star icon */}
         {!dayOver && (
-          <div className="flex items-center justify-between mb-sp-5">
-            <h1 className="text-32 text-fog-50 leading-none">Hi, {child.name}!</h1>
-            <div className="flex items-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30">
-              <span className="text-12 leading-none">🪙</span>
-              <span className="text-12 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+          <div className="flex items-center justify-between mb-sp-3">
+            <p className="text-20 text-fog-50 leading-none">Hi, {child.name}!</p>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+              <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+              <span className="text-13 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
             </div>
           </div>
         )}
@@ -879,9 +885,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 );
               })()}
 
-              {/* Slide-to-confirm — BELOW the circular timer, matches Figma "Done" frame.
-                  Disabled (but still rendered) during freeze so the layout doesn't shift. */}
-              <div className="w-full max-w-[290px] mt-sp-2">
+              {/* Slide-to-confirm — full-width pill below the timer, matches Figma
+                  "Child Dashboard - overtime-new". Disabled (but still rendered)
+                  during freeze so the layout doesn't shift. */}
+              <div className="w-full px-sp-4 mt-sp-2">
                 <SlideToConfirm
                   label="Mark as Done"
                   onConfirm={handleNextTap}
@@ -889,6 +896,54 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 />
               </div>
 
+              {/* Chore tiles — between slide and Next row, per Figma
+                  "Child Dashboard - overtime-new". */}
+              {!isFrozen && (() => {
+                const activeChores = getActiveWindowChores();
+                if (activeChores.length === 0) return null;
+                return (
+                  <div className="w-full px-sp-4 flex flex-col gap-sp-1">
+                    <p className="text-14 text-iris-400 leading-none">Chores</p>
+                    <div className="w-full flex items-stretch gap-sp-1">
+                      {activeChores.map(chore => {
+                        const done = !!chore.isCompleted;
+                        return (
+                          <button
+                            key={chore.id}
+                            type="button"
+                            disabled={done}
+                            onClick={async () => {
+                              if (done) return;
+                              try {
+                                await completeTask(chore.id, chore.coins || 0, 0);
+                                const newHappiness = calculateHappiness();
+                                await updateChildHappiness(child.id, newHappiness);
+                              } catch (error) {
+                                console.error('Error completing chore:', error);
+                              }
+                            }}
+                            className={cn(
+                              "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                              done
+                                ? "bg-mint-500/20 border-mint-500 cursor-default"
+                                : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
+                            )}
+                          >
+                            {done ? (
+                              <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
+                            ) : (
+                              <Sparkles className="w-4 h-4 text-fog-50" strokeWidth={2} />
+                            )}
+                            <span className="w-full text-12 text-center leading-tight text-fog-50">
+                              {chore.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Next Task row with StatusBadge time */}
               {upcomingTasks.length > 0 && (
@@ -984,74 +1039,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Chore line items — show chores whose window covers now as simple
-            row cards (matching the parent dashboard task row style). Tapping
-            the empty circle on the left marks the chore complete. */}
-        {(() => {
-          const activeChores = getActiveWindowChores();
-          if (activeChores.length === 0) return null;
-          return (
-            <div className="w-full max-w-[420px] mx-auto px-sp-2 flex flex-col gap-sp-2 mb-5">
-              {activeChores.map(chore => {
-                const done = !!chore.isCompleted;
-                return (
-                  <button
-                    key={chore.id}
-                    type="button"
-                    disabled={done}
-                    onClick={async () => {
-                      if (done) return;
-                      try {
-                        await completeTask(chore.id, chore.coins || 0, 0);
-                        const newHappiness = calculateHappiness();
-                        await updateChildHappiness(child.id, newHappiness);
-                      } catch (error) {
-                        console.error('Error completing chore:', error);
-                      }
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-[28px] border transition-colors text-left",
-                      done
-                        ? "bg-mint-500/[0.06] border-mint-500/30 cursor-default"
-                        : "bg-iris-400/10 hover:bg-iris-400/[0.14] border-iris-400/20",
-                    )}
-                  >
-                    {/* Circle — empty when pending, filled mint with a check
-                        once the chore has been done */}
-                    <span
-                      className={cn(
-                        "shrink-0 w-7 h-7 rounded-full inline-flex items-center justify-center transition-colors",
-                        done
-                          ? "bg-mint-500 border-2 border-mint-500"
-                          : "border-2 border-iris-400/50",
-                      )}
-                    >
-                      {done && <Check className="w-4 h-4 text-ink-900" strokeWidth={3} />}
-                    </span>
-                    <span
-                      className={cn(
-                        "flex-1 min-w-0 text-16 truncate",
-                        done ? "text-fog-300 line-through" : "text-fog-50",
-                      )}
-                    >
-                      {chore.name}
-                    </span>
-                    {chore.coins != null && chore.coins > 0 && (
-                      <span
-                        className={cn(
-                          "shrink-0 text-14",
-                          done ? "text-fog-400" : "text-[#9EBEFF]",
-                        )}
-                      >
-                        {chore.coins} {chore.coins === 1 ? "coin" : "coins"}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })()}
 
         {/* Schedule Button — matches the Figma secondary pill */}
         {!dayOver && (

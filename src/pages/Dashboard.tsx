@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, Settings, Sparkles } from "lucide-react";
+import { Plus, Settings, Sparkles, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
@@ -134,57 +134,49 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="min-h-screen px-sp-2 py-sp-5">
+    <div className="min-h-screen pb-sp-5">
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
-        {/* 8px safe-area spacer */}
-        <div className="h-sp-2" />
-
-        {/* Header row */}
-        <header className="flex items-start justify-between gap-sp-3">
-          <div className="flex items-start gap-sp-3 min-w-0">
+        {/* Hero panel — iris-tinted, rounded-bottom; wraps the header row +
+            children list together. Matches Figma node 174:7514. */}
+        <div className="bg-iris-400/[0.35] rounded-b-[36px] px-sp-4 pt-sp-5 pb-sp-4 flex flex-col gap-sp-3">
+          {/* Header row — greeting/date left, settings pill right */}
+          <header className="flex items-end justify-between gap-sp-3">
+            <div className="flex flex-col gap-1 min-w-0">
+              <p className="text-16 text-white">Hi, {firstName}</p>
+              <p className="text-20 text-white leading-none truncate">{dateLabel}</p>
+            </div>
             <button
               type="button"
-              aria-label="Back to child view"
-              onClick={() => navigate("/")}
-              className="tap-target shrink-0 w-[39px] h-[39px] rounded-full border border-white/70 flex items-center justify-center text-fog-50 hover:bg-white/10 transition-colors duration-sm"
+              aria-label="Settings"
+              onClick={() => navigate("/setup")}
+              className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
             </button>
-            <div className="flex flex-col gap-1 min-w-0">
-              <p className="text-16 text-fog-50">Hi, {firstName}</p>
-              <p className="text-20 text-fog-50 leading-none truncate">{dateLabel}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Settings"
-            onClick={() => navigate("/setup")}
-            className="shrink-0 w-[39px] h-[39px] rounded-full border border-white/70 flex items-center justify-center text-fog-50 hover:bg-white/10 transition-colors duration-sm"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </header>
+          </header>
 
-        {/* Children panel */}
-        <section className="bg-black/70 rounded-[28px] p-1">
-          {children.map((child, idx) => (
-            <div key={child.id}>
-              {idx > 0 && <div className="h-px bg-[#6699FF]/25 mx-3" />}
-              <ChildRow
-                child={child}
-                now={childNowNext[child.id]?.now}
-                next={childNowNext[child.id]?.next}
-                onOpen={() => navigate(`/child-dashboard/${child.id}`)}
-              />
-            </div>
-          ))}
-        </section>
+          {/* Children panel — bordered iris-400/25, child cards stacked with
+              a horizontal rule between them. */}
+          <section className="border border-iris-400/[0.25] rounded-[28px] p-sp-4 flex flex-col gap-sp-1">
+            {children.map((child, idx) => (
+              <div key={child.id}>
+                {idx > 0 && <div className="h-px bg-iris-400/25 mb-sp-1" />}
+                <ChildRow
+                  child={child}
+                  now={childNowNext[child.id]?.now}
+                  next={childNowNext[child.id]?.next}
+                  onOpen={() => navigate(`/child-dashboard/${child.id}`)}
+                />
+              </div>
+            ))}
+          </section>
+        </div>
 
         {/* Upcoming events header */}
-        <h2 className="text-16 font-medium text-fog-50 px-sp-1">Upcoming events</h2>
+        <h2 className="text-16 font-medium text-white px-sp-4">Upcoming events</h2>
 
         {/* Events list */}
-        <section className="flex flex-col gap-sp-2">
+        <section className="px-sp-4 flex flex-col gap-sp-2">
           {upcomingEvents.length === 0 ? (
             <div className="rounded-[28px] bg-[#8C94FF]/20 p-sp-4 text-center text-fog-200 text-14">
               No upcoming events in the next two weeks.
@@ -241,10 +233,10 @@ function ChildRow({
         </p>
       </div>
 
-      {/* Coin chip */}
-      <div className="shrink-0 flex items-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30">
-        <span className="text-12 leading-none">🪙</span>
-        <span className="text-12 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+      {/* Star chip — same gold star + count used on the child interface */}
+      <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+        <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+        <span className="text-13 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
       </div>
     </button>
   );
@@ -266,23 +258,23 @@ function EventCard({
   const [hourMin, ampm] = splitTime(time);
   return (
     <div className="flex items-center gap-sp-3 p-sp-4 rounded-[28px] bg-[#8C94FF]/20">
-      {/* Time column */}
-      <div className="shrink-0 w-11 text-right text-fog-50 leading-tight">
-        <div className="text-16">{hourMin}</div>
-        <div className="text-14">{ampm}</div>
+      {/* Time column — stacked hour + am/pm, both 12px (Figma 174:7504) */}
+      <div className="shrink-0 w-11 text-right text-white leading-tight flex flex-col">
+        <span className="text-12">{hourMin}</span>
+        <span className="text-12">{ampm}</span>
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 w-px h-9 bg-white/30" />
+      <div className="shrink-0 w-px self-stretch bg-white/30" />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-16 text-fog-50 truncate">{title}</p>
-        <p className="text-14 text-[#9EBEFF] truncate">{subtitle}</p>
+        <p className="text-16 text-white truncate">{title}</p>
+        <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
       </div>
 
-      {/* Child badge */}
-      <div className={`shrink-0 h-7 px-3 rounded-pill ${badgeColor} flex items-center`}>
+      {/* Child badge — solid pill, 12px medium label */}
+      <div className={`shrink-0 px-3 py-1.5 rounded-pill ${badgeColor} flex items-center`}>
         <span className="text-12 font-medium text-white">{badgeName}</span>
       </div>
     </div>
