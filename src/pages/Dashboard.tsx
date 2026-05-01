@@ -148,7 +148,7 @@ const Dashboard = () => {
             <button
               type="button"
               aria-label="Settings"
-              onClick={() => navigate("/setup")}
+              onClick={() => navigate("/settings")}
               className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
             >
               <Settings className="w-4 h-4" />

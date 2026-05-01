@@ -7,6 +7,7 @@ import ImportantTaskNotifier from "@/components/ImportantTaskNotifier";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
+import ParentSettings from "./pages/ParentSettings";
 import ChildInterface from "./pages/ChildInterface";
 import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/landing" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/setup" element={<ChildSetup />} />
+            <Route path="/settings" element={<ParentSettings />} />
             <Route path="/child/:childId" element={<ChildInterface />} />
             <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
             <Route path="/tasks" element={<TaskManagement />} />

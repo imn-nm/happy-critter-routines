@@ -1099,28 +1099,54 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Schedule Overlay */}
+        {/* Today's Schedule overlay — matches the rest of the child UI:
+            iris-tinted task cards with a stacked time column, divider, name,
+            and a state badge (Done / Now / Up next). Done tasks render faded
+            with a strikethrough title; the active task highlights with an
+            iris ring. */}
         {showSchedule && (
-          <div className="fixed inset-0 z-50" style={{ background: 'linear-gradient(160deg, hsl(230 35% 12%), hsl(260 40% 16%))' }}>
-            <div className="w-full max-w-lg mx-auto p-4">
-              <div className="flex items-center gap-3 mb-5 pt-2">
-                <Button onClick={() => setShowSchedule(false)} variant="ghost" size="icon" className="rounded-xl">
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-                <h2 className="text-lg font-bold text-foreground text-glow">Today's Schedule</h2>
-              </div>
-              <div className="glass-card rounded-3xl p-5 max-h-[80vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto"
+            style={{ background: 'linear-gradient(160deg, hsl(230 35% 12%), hsl(260 40% 16%))' }}
+          >
+            <div className="w-full max-w-[420px] mx-auto pb-sp-8">
+              {/* Header */}
+              <header className="flex items-center justify-between gap-sp-3 px-sp-4 pt-sp-5 pb-sp-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSchedule(false)}
+                  aria-label="Back"
+                  className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <h2 className="text-20 text-white leading-none">Today's Schedule</h2>
+                <div className="w-9 h-9" />
+              </header>
+
+              {/* List */}
+              <div className="px-sp-4">
                 {todaysSchedule.length === 0 ? (
-                  <div className="p-6 text-center">
-                    <h3 className="text-base font-bold mb-1 text-foreground">No Schedule</h3>
-                    <p className="text-sm text-muted-foreground">Nothing scheduled for today.</p>
+                  <div className="rounded-[28px] bg-[#8C94FF]/20 p-sp-6 text-center">
+                    <p className="text-16 text-white mb-1">No Schedule</p>
+                    <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
                   </div>
                 ) : (
-                  <VisualTimeline
-                    schedule={todaysSchedule}
-                    currentTaskId={focusTask?.id}
-                    overtimeMinutes={0}
-                  />
+                  <ul className="flex flex-col gap-sp-2">
+                    {todaysSchedule.map(task => {
+                      const isNow = focusTask?.id === task.id && !task.isCompleted;
+                      const done = !!task.isCompleted;
+                      return (
+                        <ScheduleRow
+                          key={task.id}
+                          time={task.scheduled_time?.slice(0, 5)}
+                          name={task.name}
+                          durationMin={task.duration}
+                          state={done ? 'done' : isNow ? 'now' : 'upcoming'}
+                        />
+                      );
+                    })}
+                  </ul>
                 )}
               </div>
             </div>
@@ -1130,5 +1156,84 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     </div>
   );
 };
+
+/**
+ * One row in Today's Schedule. Visual model matches the parent dashboard's
+ * upcoming-events card: stacked 12px time column, vertical divider, task
+ * name, and a state badge on the right.
+ */
+function ScheduleRow({
+  time,
+  name,
+  durationMin,
+  state,
+}: {
+  time?: string;
+  name: string;
+  durationMin?: number;
+  state: 'done' | 'now' | 'upcoming';
+}) {
+  const [hourMin, ampm] = time ? splitTime12(time) : ['—', ''];
+  return (
+    <li
+      className={cn(
+        'flex items-center gap-sp-3 p-sp-4 rounded-[28px]',
+        state === 'now'
+          ? 'bg-iris-400/[0.18] ring-1 ring-iris-400/60'
+          : 'bg-[#8C94FF]/20',
+        state === 'done' && 'opacity-60',
+      )}
+    >
+      {/* Time column */}
+      <div className="shrink-0 w-11 text-right text-white leading-tight flex flex-col">
+        <span className="text-12">{hourMin}</span>
+        {ampm && <span className="text-12">{ampm}</span>}
+      </div>
+
+      {/* Divider */}
+      <div className="shrink-0 w-px self-stretch bg-white/30" />
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            'text-16 text-white truncate',
+            state === 'done' && 'line-through',
+          )}
+        >
+          {name}
+        </p>
+        {durationMin && durationMin > 0 && (
+          <p className="text-12 text-[#9EBEFF] truncate">{durationMin} min</p>
+        )}
+      </div>
+
+      {/* State badge */}
+      {state === 'done' && (
+        <span className="shrink-0 px-3 py-1.5 rounded-pill bg-mint-500 text-12 font-medium text-white">
+          Done
+        </span>
+      )}
+      {state === 'now' && (
+        <span className="shrink-0 px-3 py-1.5 rounded-pill bg-iris-400 text-12 font-medium text-white">
+          Now
+        </span>
+      )}
+      {state === 'upcoming' && (
+        <span className="shrink-0 px-3 py-1.5 rounded-pill border border-iris-400/40 text-12 font-medium text-fog-200">
+          Up next
+        </span>
+      )}
+    </li>
+  );
+}
+
+function splitTime12(hhmm: string): [string, string] {
+  const [h, m] = hhmm.split(':');
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? 'pm' : 'am';
+  const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return [`${display}:${m}`, ampm];
+}
 
 export default ChildInterface;

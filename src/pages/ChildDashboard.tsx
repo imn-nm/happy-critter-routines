@@ -284,19 +284,25 @@ const ChildDashboard = () => {
               <div className="flex items-center gap-sp-2 min-w-0">
                 <button
                   type="button"
-                  onClick={() => navigate("/")}
-                  aria-label="Back to child view"
+                  onClick={() => navigate("/dashboard")}
+                  aria-label="Back to parent dashboard"
                   className="tap-target shrink-0 h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" strokeWidth={2} />
                 </button>
-                <h1 className="text-32 text-fog-50 leading-none truncate">{child.name}</h1>
+                <h1
+                  className="text-fog-50 truncate"
+                  style={{ fontSize: 32, lineHeight: 1, letterSpacing: "-0.02em" }}
+                >
+                  {child.name}
+                </h1>
               </div>
               <ChildProfileEdit child={child} onUpdateChild={updateChild} />
             </div>
 
-            {/* Summary card — transparent with iris hairline + Secondary controls */}
-            <div className="flex items-center justify-between gap-sp-3 px-sp-4 h-[68px] rounded-[28px] border border-[#6699FF]/25">
+            {/* Summary card — transparent with blue hairline (matches Figma
+                145:6970): rgba(102,153,255,0.25) border, 16px padding, 28 radius. */}
+            <div className="flex items-center justify-between gap-sp-3 p-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
               {/* Coin adjust group */}
               <div className="flex items-center gap-sp-3">
                 <Button
@@ -328,52 +334,70 @@ const ChildDashboard = () => {
                 </Button>
               </div>
 
-              {/* Rewards CTA */}
-              <Button
-                variant="secondary"
-                size="sm"
-                className="gap-2 shrink-0"
+              {/* Rewards CTA — transparent (no border), matches Figma 145:6976 */}
+              <button
+                type="button"
                 onClick={() => setShowRewards(true)}
+                className="shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
               >
                 <Gift className="w-4 h-4" />
                 Rewards
-              </Button>
+              </button>
             </div>
 
-            {/* Rest Day + Add Task row. When the selected day is flagged a
-                rest day we hide the Add Task affordance — the schedule below
-                is replaced with a quiet "rest day" panel. */}
+            {/* Rest Day + Add Task row. Toggle styling matches Figma 145:6980:
+                61px wide pill, iris-300 hairline border, iris-tinted fill,
+                28×18 thumb in #aab4ff. Add Task is a transparent button with
+                no border (matches Figma 145:6982). */}
             <div className="flex items-center justify-between gap-sp-3 px-sp-2">
               <div className="flex items-center gap-sp-3">
-                <span className="text-14 text-[#9EBEFF]">Rest Day</span>
-                <Switch
-                  checked={isRestDay}
-                  onCheckedChange={async (checked) => {
-                    await updateChild(child.id, { rest_day_date: checked ? selectedDayString : null });
+                <span className="text-14 text-fog-50">Rest Day</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isRestDay}
+                  aria-label="Rest day toggle"
+                  onClick={async () => {
+                    await updateChild(child.id, {
+                      rest_day_date: !isRestDay ? selectedDayString : null,
+                    });
                   }}
-                />
+                  className="relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
+                >
+                  <span
+                    aria-hidden
+                    className="absolute top-[3px] h-[18px] w-[28px] rounded-pill bg-[#AAB4FF] transition-all"
+                    style={{ left: isRestDay ? "calc(100% - 28px - 3px)" : 3 }}
+                  />
+                </button>
               </div>
 
               {!isRestDay && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="gap-2"
+                <button
+                  type="button"
                   onClick={() => handleAddTask()}
+                  className="shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   Add Task
-                </Button>
+                </button>
               )}
             </div>
 
-            {/* Schedule card — aurora bordered wrapper containing tab pill + date + week strip */}
-            <div className="flex flex-col gap-sp-4 rounded-[28px] p-sp-4 border-aurora">
-              <TabsList className="grid w-full grid-cols-2 h-auto bg-ink-900/40 rounded-pill p-1 border-0">
-                <TabsTrigger value="timeline" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
+            {/* Schedule card — solid blue hairline border (matches Figma 145:6983).
+                Tab pill bg #271447 @ 50%; active tab bg #1a0f3a + sh-md shadow. */}
+            <div className="flex flex-col gap-sp-4 rounded-[28px] p-sp-4 border border-[rgba(102,153,255,0.25)]">
+              <TabsList className="grid w-full grid-cols-2 h-11 bg-[rgba(39,20,71,0.5)] rounded-pill p-1 border-0">
+                <TabsTrigger
+                  value="timeline"
+                  className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
+                >
                   Day
                 </TabsTrigger>
-                <TabsTrigger value="month" className="py-2 rounded-pill text-14 font-medium text-iris-300 data-[state=active]:bg-ink-900/70 data-[state=active]:text-fog-50 data-[state=active]:border-aurora transition-colors">
+                <TabsTrigger
+                  value="month"
+                  className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
+                >
                   Month
                 </TabsTrigger>
               </TabsList>
@@ -445,12 +469,25 @@ const ChildDashboard = () => {
               onTaskTimeUpdate={async (taskId, newTime, dayName) => {
                 try {
                   const task = tasks.find(t => t.id === taskId);
-                  if (task?.is_recurring && dayName) {
-                    // Write to day-specific override instead of base task
-                    const overrides = { ...(task.schedule_overrides || {}), [dayName]: { scheduled_time: newTime, duration: task.schedule_overrides?.[dayName]?.duration ?? task.duration } };
+                  if (!task) return;
+                  // If the task had no fixed time before this drag, keep it
+                  // unpinned — record the slot as window_start (a placement
+                  // hint the timeline already respects) so the "Set Time"
+                  // toggle in the edit form stays off.
+                  const hadFixedTime = !!task.scheduled_time;
+                  if (task.is_recurring && dayName && hadFixedTime) {
+                    const overrides = {
+                      ...(task.schedule_overrides || {}),
+                      [dayName]: {
+                        scheduled_time: newTime,
+                        duration: task.schedule_overrides?.[dayName]?.duration ?? task.duration,
+                      },
+                    };
                     await updateTask(taskId, { schedule_overrides: overrides });
-                  } else {
+                  } else if (hadFixedTime) {
                     await updateTask(taskId, { scheduled_time: newTime });
+                  } else {
+                    await updateTask(taskId, { window_start: newTime });
                   }
                   await refetch();
                 } catch { toast({ title: "Error", variant: "destructive" }); }
