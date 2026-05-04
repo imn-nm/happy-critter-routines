@@ -304,10 +304,61 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       return hasTime || isAnytime;
     });
 
-    const sortedTasks = tasksWithDaySpecificTimes.sort((a, b) => {
-      const timeA = (a.scheduled_time || a.window_start || '00:00').slice(0, 5);
-      const timeB = (b.scheduled_time || b.window_start || '00:00').slice(0, 5);
-      return timeA.localeCompare(timeB);
+    // Auto-place untimed non-chore tasks into the first available gap, mirroring
+    // the parent dashboard's findNextAvailableTime (TimelineScheduleView). Chores
+    // (type='floating') without a time stay timeless and render as "Today".
+    const occupied = tasksWithDaySpecificTimes
+      .filter(t => t.scheduled_time && t.scheduled_time.toString().trim() !== '')
+      .map(t => {
+        const [h, m] = t.scheduled_time!.slice(0, 5).split(':').map(Number);
+        const start = h * 60 + m;
+        return { start, end: start + (t.duration ?? 30) };
+      })
+      .sort((a, b) => a.start - b.start);
+
+    // Mirrors TimelineScheduleView.findNextAvailableTime — try to fit
+    // immediately AFTER each existing block; fall back to after the last.
+    const findNextSlot = (duration: number): string => {
+      const fmt = (mins: number) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+      for (const block of occupied) {
+        const candidate = block.end;
+        const candidateEnd = candidate + duration;
+        const overlaps = occupied.some(b => candidate < b.end && candidateEnd > b.start);
+        if (!overlaps) return fmt(candidate);
+      }
+      if (occupied.length > 0) return fmt(occupied[occupied.length - 1].end);
+      return '09:00';
+    };
+
+    const withAutoPlacement = tasksWithDaySpecificTimes.map(task => {
+      const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
+      if (hasTime) return task;
+      // Only auto-place non-chores; chores without windows keep their "Today" label.
+      if (task.type === 'floating') return task;
+      const slot = findNextSlot(task.duration ?? 30);
+      const [h, m] = slot.split(':').map(Number);
+      occupied.push({ start: h * 60 + m, end: h * 60 + m + (task.duration ?? 30) });
+      occupied.sort((a, b) => a.start - b.start);
+      return { ...task, scheduled_time: slot };
+    });
+
+    // Sort chronologically by effective time. Chores without a time
+    // (rendered as "Today") fall to the end, ordered among themselves by the
+    // parent's sort_order.
+    const toMin = (hhmm?: string | null) => {
+      if (!hhmm) return Number.POSITIVE_INFINITY;
+      const [h, m] = hhmm.slice(0, 5).split(':').map(Number);
+      return h * 60 + m;
+    };
+    const sortedTasks = withAutoPlacement.sort((a, b) => {
+      const ta = toMin(a.scheduled_time as string | undefined);
+      const tb = toMin(b.scheduled_time as string | undefined);
+      if (ta !== tb) return ta - tb;
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
 
     // Filter out lunch during school
@@ -367,14 +418,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     });
   };
 
-  // Check if the day is over (past the last task's end time)
+  // Check if the day is over (past the last *timed* task's end time).
+  // Untimed chores (rendered as "Today") sort to the end of the schedule
+  // but mustn't trigger bedtime mode at midnight.
   const isDayOver = () => {
-    if (todaysSchedule.length === 0) return false;
+    const timed = todaysSchedule.filter(
+      t => t.scheduled_time && t.scheduled_time.toString().trim() !== '',
+    );
+    if (timed.length === 0) return false;
     const currentTimeString = getPSTTimeString();
 
-    // Find the last task's end time
-    const lastTask = todaysSchedule[todaysSchedule.length - 1];
-    const lastTime = (lastTask.scheduled_time || '00:00').slice(0, 5);
+    const lastTask = timed[timed.length - 1];
+    const lastTime = lastTask.scheduled_time!.slice(0, 5);
     const [lh, lm] = lastTime.split(':').map(Number);
     const lastEnd = lh * 60 + lm + (lastTask.duration || 0);
     const lastEndStr = `${Math.floor(lastEnd / 60).toString().padStart(2, '0')}:${(lastEnd % 60).toString().padStart(2, '0')}`;
@@ -1099,102 +1154,150 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Today's Schedule overlay — matches the rest of the child UI:
-            iris-tinted task cards with a stacked time column, divider, name,
-            and a state badge (Done / Now / Up next). Done tasks render faded
-            with a strikethrough title; the active task highlights with an
-            iris ring. */}
-        {showSchedule && (
+        {/* Today's Schedule — slide-up sheet matching Figma node 78:120.
+            Greeting + coins stay visible above the sheet's rounded top edge.
+            Tap the dimmed backdrop or scroll-down on the handle to dismiss. */}
+        {/* Backdrop — light dim above the sheet so the greeting stays legible */}
+        <div
+          className={cn(
+            "fixed inset-0 z-40 bg-black/30 transition-opacity duration-300",
+            showSchedule ? "opacity-100" : "opacity-0 pointer-events-none",
+          )}
+          onClick={() => setShowSchedule(false)}
+          aria-hidden
+        />
+        {/* Sheet */}
+        <div
+          className={cn(
+            "fixed left-0 right-0 bottom-0 z-50 mx-auto max-w-[420px]",
+            "rounded-t-[28px] px-sp-2 pt-sp-6 pb-sp-8",
+            "transition-transform duration-300 ease-out",
+            showSchedule ? "translate-y-0" : "translate-y-full",
+          )}
+          style={{
+            background: "#6C6BBF",
+            top: 110,
+          }}
+          role="dialog"
+          aria-label="Today's schedule"
+          aria-hidden={!showSchedule}
+        >
+          {/* Drag handle */}
           <div
-            className="fixed inset-0 z-50 overflow-y-auto"
-            style={{ background: 'linear-gradient(160deg, hsl(230 35% 12%), hsl(260 40% 16%))' }}
-          >
-            <div className="w-full max-w-[420px] mx-auto pb-sp-8">
-              {/* Header */}
-              <header className="flex items-center justify-between gap-sp-3 px-sp-4 pt-sp-5 pb-sp-3">
-                <button
-                  type="button"
-                  onClick={() => setShowSchedule(false)}
-                  aria-label="Back"
-                  className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <h2 className="text-20 text-white leading-none">Today's Schedule</h2>
-                <div className="w-9 h-9" />
-              </header>
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowSchedule(false)}
+            aria-label="Close schedule"
+            className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-pill bg-white/40 hover:bg-white/60 cursor-pointer"
+          />
 
-              {/* List */}
-              <div className="px-sp-4">
-                {todaysSchedule.length === 0 ? (
-                  <div className="rounded-[28px] bg-[#8C94FF]/20 p-sp-6 text-center">
-                    <p className="text-16 text-white mb-1">No Schedule</p>
-                    <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
-                  </div>
-                ) : (
-                  <ul className="flex flex-col gap-sp-2">
-                    {todaysSchedule.map(task => {
-                      const isNow = focusTask?.id === task.id && !task.isCompleted;
-                      const done = !!task.isCompleted;
-                      return (
-                        <ScheduleRow
-                          key={task.id}
-                          time={task.scheduled_time?.slice(0, 5)}
-                          name={task.name}
-                          durationMin={task.duration}
-                          state={done ? 'done' : isNow ? 'now' : 'upcoming'}
-                        />
-                      );
-                    })}
-                  </ul>
-                )}
+          <div className="h-full overflow-y-auto flex flex-col gap-sp-2 px-sp-2">
+            <p className="text-14 text-white uppercase tracking-wider px-sp-2">
+              Today's schedule
+            </p>
+
+            {todaysSchedule.length === 0 ? (
+              <div className="rounded-[24px] bg-[#333881]/20 p-sp-6 text-center">
+                <p className="text-16 text-white mb-1">No schedule</p>
+                <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
               </div>
-            </div>
+            ) : (
+              <ul className="flex flex-col gap-sp-1">
+                {todaysSchedule.map(task => {
+                  const isNow = focusTask?.id === task.id && !task.isCompleted;
+                  const done = !!task.isCompleted;
+                  return (
+                    <ScheduleRow
+                      key={task.id}
+                      time={task.scheduled_time?.slice(0, 5)}
+                      windowStart={task.window_start?.slice(0, 5)}
+                      windowEnd={task.window_end?.slice(0, 5)}
+                      isChore={task.type === 'floating'}
+                      name={task.name}
+                      durationMin={task.duration}
+                      state={done ? 'done' : isNow ? 'now' : 'upcoming'}
+                    />
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 };
 
 /**
- * One row in Today's Schedule. Visual model matches the parent dashboard's
- * upcoming-events card: stacked 12px time column, vertical divider, task
- * name, and a state badge on the right.
+ * One row in Today's Schedule slide-up. Matches Figma node 78:123 — time
+ * column (16px hour + 12px am/pm), vertical divider, task name. Active
+ * task gets a stronger iris-tinted bg; completed rows fade out with a
+ * strikethrough title.
  */
 function ScheduleRow({
   time,
+  windowStart,
+  windowEnd,
+  isChore,
   name,
   durationMin,
   state,
 }: {
   time?: string;
+  windowStart?: string;
+  windowEnd?: string;
+  isChore?: boolean;
   name: string;
   durationMin?: number;
   state: 'done' | 'now' | 'upcoming';
 }) {
-  const [hourMin, ampm] = time ? splitTime12(time) : ['—', ''];
+  // Time column rules:
+  //   chore + no window → "Today"
+  //   chore + window    → window_start time, with full window range subtitle
+  //   any other task    → its scheduled time (parent's drop position)
+  const hasWindow = !!windowStart && !!windowEnd;
+  const showToday = !!isChore && !hasWindow;
+  const displayTime = !showToday && (time || windowStart) ? (time || windowStart) : null;
+  const [hourMin, ampm] = displayTime ? splitTime12(displayTime) : ['', ''];
+  const subtitle = (() => {
+    if (hasWindow) {
+      const [s, sap] = splitTime12(windowStart!);
+      const [e, eap] = splitTime12(windowEnd!);
+      return `${s}${sap} – ${e}${eap}`;
+    }
+    if (displayTime && durationMin && durationMin > 0) return `${durationMin} min`;
+    return null;
+  })();
+
   return (
     <li
       className={cn(
-        'flex items-center gap-sp-3 p-sp-4 rounded-[28px]',
+        'flex items-stretch gap-sp-3 p-sp-4 rounded-[24px]',
         state === 'now'
-          ? 'bg-iris-400/[0.18] ring-1 ring-iris-400/60'
-          : 'bg-[#8C94FF]/20',
+          ? 'bg-iris-400/30 ring-1 ring-iris-400/60'
+          : 'bg-[#333881]/[0.2]',
         state === 'done' && 'opacity-60',
       )}
     >
       {/* Time column */}
-      <div className="shrink-0 w-11 text-right text-white leading-tight flex flex-col">
-        <span className="text-12">{hourMin}</span>
-        {ampm && <span className="text-12">{ampm}</span>}
+      <div className="shrink-0 w-11 text-right text-white flex flex-col items-end justify-center">
+        {showToday ? (
+          <span className="text-12 leading-tight uppercase tracking-wider">Today</span>
+        ) : displayTime ? (
+          <>
+            <span className="text-16 leading-tight">{hourMin}</span>
+            <span className="text-12 leading-tight">{ampm}</span>
+          </>
+        ) : (
+          <span className="text-12 leading-tight uppercase tracking-wider">Today</span>
+        )}
       </div>
 
       {/* Divider */}
       <div className="shrink-0 w-px self-stretch bg-white/30" />
 
       {/* Info */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
         <p
           className={cn(
             'text-16 text-white truncate',
@@ -1203,27 +1306,10 @@ function ScheduleRow({
         >
           {name}
         </p>
-        {durationMin && durationMin > 0 && (
-          <p className="text-12 text-[#9EBEFF] truncate">{durationMin} min</p>
+        {subtitle && (
+          <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
         )}
       </div>
-
-      {/* State badge */}
-      {state === 'done' && (
-        <span className="shrink-0 px-3 py-1.5 rounded-pill bg-mint-500 text-12 font-medium text-white">
-          Done
-        </span>
-      )}
-      {state === 'now' && (
-        <span className="shrink-0 px-3 py-1.5 rounded-pill bg-iris-400 text-12 font-medium text-white">
-          Now
-        </span>
-      )}
-      {state === 'upcoming' && (
-        <span className="shrink-0 px-3 py-1.5 rounded-pill border border-iris-400/40 text-12 font-medium text-fog-200">
-          Up next
-        </span>
-      )}
     </li>
   );
 }
