@@ -2,105 +2,102 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Calendar scope is requested optionally — only if the user clicks
+// "Connect Google Calendar". For plain sign-in we just want profile + email.
+const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
+
+// Dev fallback so the existing test flow keeps working when explicitly enabled.
+const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
+
 export const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Development auth - auto-login for testing
-  const signInAnonymously = async () => {
-    try {
-      // Try to sign in with a test email
-      const testEmail = 'test@taskie.app';
-      const testPassword = 'test123456';
-      
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: testPassword,
-      });
-
-      // If user doesn't exist, create one
-      if (error && error.message.includes('Invalid login credentials')) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: testEmail,
-          password: testPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: 'Test Parent',
-            }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-        
-        // For development, show message about email confirmation
-        if (signUpData.user && !signUpData.session) {
-          toast({
-            title: "Account Created - Email Confirmation Required",
-            description: "Please disable email confirmation in Supabase settings for development, or check your email to confirm.",
-            variant: "destructive",
-          });
-          return null;
-        }
-        
-        data = signUpData;
-        
-        toast({
-          title: "Account Created",
-          description: "Development account created successfully!",
-        });
-      } else if (error && error.message.includes('Email not confirmed')) {
-        toast({
-          title: "Email Not Confirmed",
-          description: "Please disable 'Confirm email' in your Supabase Auth settings for development.",
-          variant: "destructive",
-        });
-        return null;
-      } else if (error) {
-        throw error;
-      }
-
-      setUser(data.user);
-      return data.user;
-    } catch (error) {
-      console.error('Auth error:', error);
-      toast({
-        title: "Authentication Error",
-        description: "Failed to authenticate. Please check Supabase settings.",
-        variant: "destructive",
-      });
+  const signInWithGoogle = async (opts?: { withCalendarScope?: boolean; redirectTo?: string }) => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: opts?.redirectTo ?? `${window.location.origin}/`,
+        scopes: opts?.withCalendarScope ? GOOGLE_CALENDAR_SCOPE : undefined,
+        queryParams: opts?.withCalendarScope
+          ? { access_type: 'offline', prompt: 'consent' }
+          : undefined,
+      },
+    });
+    if (error) {
+      toast({ title: 'Google sign-in failed', description: error.message, variant: 'destructive' });
       throw error;
     }
   };
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+  const signInWithEmail = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error('Sign out error:', error);
-    } else {
-      setUser(null);
+      toast({ title: 'Sign-in failed', description: error.message, variant: 'destructive' });
+      throw error;
     }
+    setUser(data.user);
+    return data.user;
+  };
+
+  const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: fullName ? { full_name: fullName } : undefined,
+      },
+    });
+    if (error) {
+      toast({ title: 'Sign-up failed', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+    if (data.user && !data.session) {
+      toast({
+        title: 'Check your email',
+        description: 'We sent a confirmation link to finish creating your account.',
+      });
+    }
+    return data.user;
+  };
+
+  // Legacy dev auto-login, only fires when VITE_DEV_AUTOLOGIN=true.
+  const signInDevAuto = async () => {
+    const testEmail = 'test@taskie.app';
+    const testPassword = 'test123456';
+    let { data, error } = await supabase.auth.signInWithPassword({
+      email: testEmail,
+      password: testPassword,
+    });
+    if (error && error.message.includes('Invalid login credentials')) {
+      const { data: signUpData } = await supabase.auth.signUp({
+        email: testEmail,
+        password: testPassword,
+        options: { data: { full_name: 'Test Parent' } },
+      });
+      data = signUpData;
+    }
+    setUser(data?.user ?? null);
+    return data?.user ?? null;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
   };
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // If no user, auto-login for development
-      if (!session?.user) {
-        signInAnonymously().catch(() => {
-          // Don't retry automatically, let user see the error message
-          setLoading(false);
-        });
+      if (!session?.user && DEV_AUTOLOGIN) {
+        signInDevAuto().catch(() => {}).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
@@ -112,7 +109,9 @@ export const useAuth = () => {
   return {
     user,
     loading,
-    signInAnonymously,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
   };
 };

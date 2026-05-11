@@ -127,11 +127,21 @@ export const useChildren = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Look up the caller's household (every child belongs to one).
+      const { data: membership, error: mErr } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single();
+      if (mErr || !membership) throw new Error('No household. Create one in Settings first.');
+
       // Map interface properties to database columns
       const dbData = {
         name: childData.name,
         age: childData.age,
         parent_id: user.id,
+        household_id: membership.household_id,
         pet_type: childData.petType || 'fox',
         current_coins: childData.currentCoins,
         pet_happiness: childData.petHappiness,

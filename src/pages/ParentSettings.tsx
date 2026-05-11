@@ -14,6 +14,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import PetAvatar, { type PetType } from "@/components/PetAvatar";
+import HouseholdSettings from "@/components/HouseholdSettings";
+import CalendarConnect from "@/components/CalendarConnect";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +97,9 @@ const ParentSettings = () => {
             Sign out
           </button>
         </section>
+
+        <HouseholdSettings />
+        <CalendarConnect />
 
         {/* Children */}
         <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">

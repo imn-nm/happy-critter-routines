@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useHousehold } from '@/hooks/useHousehold';
 import { Skeleton } from '@/components/ui/skeleton';
+import Login from '@/pages/Login';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -7,7 +10,24 @@ interface AuthProviderProps {
 
 const AuthProvider = ({ children }: AuthProviderProps) => {
   const { user, loading } = useAuth();
+  // Only run household lookups once we're signed in (avoids 401s pre-auth).
+  const enabled = !!user;
+  const { household, isLoading: hhLoading, createHousehold } = useHousehold();
+  const bootstrappedRef = useRef(false);
 
+  // If this user has no household yet (fresh Google sign-up, no invite),
+  // create one for them so they can start adding children right away.
+  useEffect(() => {
+    if (!enabled || hhLoading || household || bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+    createHousehold('My Family').catch(() => {
+      // Likely a race with another tab; useHousehold will refetch.
+      bootstrappedRef.current = false;
+    });
+  }, [enabled, hhLoading, household, createHousehold]);
+
+  // Only block on household lookup briefly — if it fails (e.g. migrations not
+  // applied), let the app render anyway so the user can still navigate.
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -24,30 +44,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-sm mx-auto text-center space-y-5">
-          <div>
-            <h1 className="text-xl font-bold text-foreground mb-2 text-glow">Authentication Setup</h1>
-            <p className="text-sm text-muted-foreground">Disable email confirmation in Supabase to continue:</p>
-          </div>
-
-          <div className="glass-card rounded-2xl p-4 text-left text-sm text-foreground/80 space-y-1.5">
-            <p>1. Go to your Supabase Dashboard</p>
-            <p>2. Navigate to Authentication &rarr; Settings</p>
-            <p>3. Disable "Confirm email"</p>
-            <p>4. Save settings and refresh</p>
-          </div>
-
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-primary text-primary-foreground px-6 py-2.5 rounded-2xl text-sm font-semibold hover:bg-primary/90 transition-all glow-purple"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    );
+    return <Login />;
   }
 
   return <>{children}</>;
