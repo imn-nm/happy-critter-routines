@@ -328,7 +328,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
       {/* Day Detail Dialog */}
       {selectedDate && (
         <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto rounded-2xl p-5 glass-card border-border/50">
+          <DialogContent className="sm:max-w-md">
             <div className="mb-3">
               <h3 className="text-lg font-semibold">
                 {format(selectedDate, 'EEEE, MMMM d')}

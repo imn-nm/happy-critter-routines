@@ -354,7 +354,7 @@ const ChildDashboard = () => {
                   <Minus className="w-4 h-4" />
                 </Button>
                 <span className="text-14 text-fog-50 tabular-nums">
-                  {child.currentCoins} {child.currentCoins === 1 ? "Coin" : "Coins"}
+                  {child.currentCoins} {child.currentCoins === 1 ? "Star" : "Stars"}
                 </span>
                 <Button
                   variant="secondary"
@@ -542,7 +542,7 @@ const ChildDashboard = () => {
 
       {/* Rewards dialog — opened via the prominent Rewards button */}
       <Dialog open={showRewards} onOpenChange={setShowRewards}>
-        <DialogContent className="max-w-[560px] w-[95vw] max-h-[90vh] overflow-y-auto glass-card border-border/50 rounded-2xl">
+        <DialogContent className="sm:max-w-[560px]">
           <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
           <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
           <RewardsManagement child={child} />
@@ -622,7 +622,7 @@ const ChildDashboard = () => {
       </AlertDialog>
 
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
-        <DialogContent className="max-w-[480px] w-[95vw] max-h-[90vh] overflow-y-auto glass-card border-border/50 rounded-2xl" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+        <DialogContent className="sm:max-w-[480px]" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
           <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
           <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
           <TaskForm

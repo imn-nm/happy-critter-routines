@@ -58,7 +58,7 @@ const ParentSettings = () => {
         </header>
 
         {/* Account */}
-        <section className="mx-sp-4 rounded-[28px] border border-iris-400/[0.25] p-sp-4 flex flex-col gap-sp-3">
+        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
           <h2 className="text-14 font-medium text-iris-400">Account</h2>
 
           <EditableRow
@@ -97,7 +97,7 @@ const ParentSettings = () => {
         </section>
 
         {/* Children */}
-        <section className="mx-sp-4 rounded-[28px] border border-iris-400/[0.25] p-sp-4 flex flex-col gap-sp-3">
+        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
           <div className="flex items-center justify-between">
             <h2 className="text-14 font-medium text-iris-400">Children</h2>
             <Button size="sm" onClick={() => navigate("/setup")} className="gap-1.5">
@@ -115,7 +115,7 @@ const ParentSettings = () => {
               {children.map(child => (
                 <li
                   key={child.id}
-                  className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-iris-400/[0.06]"
+                  className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]"
                 >
                   <div className="shrink-0 w-12 h-12 rounded-[20px] bg-paper flex items-center justify-center overflow-hidden">
                     <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
@@ -201,7 +201,7 @@ function EditableRow({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-iris-400/[0.06]">
+      <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]">
         <div className="shrink-0 w-8 h-8 rounded-pill bg-iris-400/10 flex items-center justify-center">
           {icon}
         </div>

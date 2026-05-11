@@ -258,4 +258,17 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  /* Inside the iris-tinted popup surface (Dialog / AlertDialog) form
+     controls need a darker fill so text stays legible against the lilac
+     glass. Mirrors the Figma settings overlay's inset cards. */
+  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]),
+  [role="dialog"] textarea,
+  [role="dialog"] [role="combobox"],
+  [role="alertdialog"] input:not([type="checkbox"]):not([type="radio"]),
+  [role="alertdialog"] textarea,
+  [role="alertdialog"] [role="combobox"] {
+    background-color: rgba(8, 1, 26, 0.4);
+    border-color: rgba(135, 155, 255, 0.3);
+  }
 }

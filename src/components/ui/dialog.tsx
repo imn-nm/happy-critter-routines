@@ -19,7 +19,9 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      // Deep cosmic backdrop with the same blur the Figma settings overlay uses,
+      // so any modal feels like a focused glass surface lifted off the page.
+      "fixed inset-0 z-50 bg-[rgba(8,1,26,0.72)] backdrop-blur-[7.1px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -36,15 +38,20 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // Cosmic glass surface — ink-800 base + soft aurora hairline + lg shadow.
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[28px] border border-iris-400/30 bg-ink-800 p-6 text-fog-50 shadow-sh-lg duration-200",
+        // Iris-tinted glass surface matching the Figma settings overlay
+        // (rgba(135,155,255,0.2) fill + iris hairline). Outer is non-scrolling
+        // so the X stays pinned while the inner wrapper handles overflow.
+        "fixed left-[50%] top-[50%] z-50 flex flex-col translate-x-[-50%] translate-y-[-50%] rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] text-fog-50 shadow-sh-lg duration-200 overflow-hidden",
+        "w-[calc(100vw-1rem)] max-w-lg max-h-[calc(100vh-1rem)]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
         className
       )}
       {...props}
     >
-      {children}
-      <DialogPrimitive.Close className="tap-target absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-pill border border-iris-400/30 bg-iris-400/[0.04] text-iris-300 transition-colors hover:bg-iris-400/[0.08] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      <div className="overflow-y-auto p-5 sm:p-6 grid gap-4">
+        {children}
+      </div>
+      <DialogPrimitive.Close className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-pill border border-iris-400/40 bg-ink-900/80 text-fog-50 transition-colors hover:bg-iris-400/20 hover:text-fog-50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -88,7 +95,8 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-20 leading-tight tracking-tight text-fog-50",
+      // Reserve room on the right so a long title never slides under the X.
+      "text-20 leading-tight tracking-tight text-fog-50 pr-10",
       className
     )}
     {...props}

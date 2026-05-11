@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Coins, Gift, ShoppingCart } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Gift, ShoppingCart } from "lucide-react";
 import { useRewards, type Reward } from "@/hooks/useRewards";
 import { Child, useChildren } from "@/hooks/useChildren";
 import { toast } from "sonner";
@@ -131,29 +130,19 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
   const canAfford = (cost: number) => child.currentCoins >= cost;
 
   return (
-    <Card className="p-4 glass-card rounded-3xl border-0">
-      <div className="space-y-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Gift className="w-5 h-5" style={{ color: 'hsl(var(--primary))' }} />
-            <h3 className="text-lg font-semibold text-foreground">Rewards</h3>
-          </div>
-          <div className="flex items-center gap-2 bg-warning/10 px-3 py-2 rounded-2xl">
-            <Coins className="w-4 h-4 text-warning" />
-            <span className="font-semibold text-foreground">{child.currentCoins}</span>
-          </div>
+    <div className="flex flex-col gap-sp-4">
+      {/* Star balance + actions */}
+      <div className="flex items-center justify-between gap-sp-2">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-iris-400/30 bg-iris-400/[0.04]">
+          <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+          <span className="text-13 font-bold text-fog-50">{child.currentCoins}</span>
         </div>
-        
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-sp-2">
           <Dialog open={isAwardOpen} onOpenChange={setIsAwardOpen}>
             <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300 h-10 text-xs rounded-xl flex-1"
-              >
-                <Coins className="w-3 h-3 sm:mr-1" />
-                <span className="hidden sm:inline">Award</span>
+              <Button variant="secondary" size="sm">
+                <Star className="w-4 h-4" />
+                Award
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -187,16 +176,12 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                   />
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <Button type="submit" className="flex-1">
-                    <Coins className="w-4 h-4 mr-2" />
+                <div className="flex gap-sp-2 pt-sp-2">
+                  <Button type="submit" variant="primary" size="md" className="flex-1">
+                    <Star className="w-4 h-4" />
                     Award {awardData.amount} Stars
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsAwardOpen(false)}
-                  >
+                  <Button type="button" variant="secondary" size="md" onClick={() => setIsAwardOpen(false)}>
                     Cancel
                   </Button>
                 </div>
@@ -209,13 +194,9 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button 
-                size="sm"
-                className="h-10 text-xs rounded-xl flex-1"
-                style={{ background: 'hsl(var(--primary))' }}
-              >
-                <Plus className="w-3 h-3 sm:mr-1" />
-                <span className="hidden sm:inline">Add</span>
+              <Button variant="primary" size="sm">
+                <Plus className="w-4 h-4" />
+                Add
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -250,22 +231,20 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
               <div>
                 <Label htmlFor="cost">Cost (stars) *</Label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-sp-3">
                   <Button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 rounded-full"
+                    variant="secondary"
+                    size="icon-sm"
                     onClick={() => setFormData({ ...formData, cost: String(Math.max(1, parseInt(formData.cost || '1') - 1)) })}
                   >
                     −
                   </Button>
-                  <span className="text-lg font-semibold min-w-[3ch] text-center">{formData.cost || '1'}</span>
+                  <span className="text-18 font-semibold min-w-[3ch] text-center text-fog-50">{formData.cost || '1'}</span>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 rounded-full"
+                    variant="secondary"
+                    size="icon-sm"
                     onClick={() => setFormData({ ...formData, cost: String(parseInt(formData.cost || '1') + 1) })}
                   >
                     +
@@ -273,13 +252,14 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <Button type="submit" className="flex-1">
+              <div className="flex gap-sp-2 pt-sp-2">
+                <Button type="submit" variant="primary" size="md" className="flex-1">
                   {editingReward ? 'Save Changes' : 'Add Reward'}
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
                   onClick={() => {
                     setIsAddOpen(false);
                     resetForm();
@@ -295,65 +275,63 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading rewards...</div>
+        <div className="text-center py-sp-6 text-fog-300 text-14">Loading rewards…</div>
       ) : rewards.length === 0 ? (
-        <div className="text-center py-8">
-          <Gift className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">No rewards set up yet</p>
-          <p className="text-sm text-muted-foreground">Add rewards that {child.name} can earn with stars!</p>
+        <div className="text-center py-sp-6 flex flex-col items-center gap-sp-2">
+          <Gift className="w-10 h-10 text-iris-400/60" />
+          <p className="text-fog-200 text-14">No rewards set up yet</p>
+          <p className="text-fog-300 text-12">Add rewards that {child.name} can earn with stars.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex flex-col gap-sp-2">
           {rewards.map((reward) => (
-            <Card key={reward.id} className="p-4 glass rounded-2xl">
-              <div className="flex items-start justify-between mb-3">
-                <h4 className="font-semibold text-lg">{reward.name}</h4>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEdit(reward)}
-                  >
-                    <Edit className="w-3 h-3" />
+            <div
+              key={reward.id}
+              className="flex flex-col gap-sp-2 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]"
+            >
+              <div className="flex items-start justify-between gap-sp-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-16 text-fog-50 truncate">{reward.name}</p>
+                  {reward.description && (
+                    <p className="text-12 text-fog-300 mt-0.5">{reward.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(reward)} aria-label="Edit reward">
+                    <Edit className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon-sm"
                     onClick={() => handleDelete(reward.id)}
-                    className="text-destructive hover:text-destructive"
+                    aria-label="Delete reward"
+                    className="text-coral-400 hover:bg-coral-500/10"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-              
-              {reward.description && (
-                <p className="text-sm text-muted-foreground mb-3">
-                  {reward.description}
-                </p>
-              )}
-              
-              <div className="flex items-center justify-between">
+
+              <div className="flex items-center justify-between gap-sp-2">
                 <div className="flex items-center gap-1">
-                  <Coins className="w-4 h-4 text-warning" />
-                  <span className="font-medium">{reward.cost} stars</span>
+                  <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                  <span className="text-14 font-medium text-fog-50">{reward.cost} stars</span>
                 </div>
-                
                 <Button
+                  variant={canAfford(reward.cost) ? "primary" : "secondary"}
                   size="sm"
-                  variant={canAfford(reward.cost) ? "default" : "outline"}
                   disabled={!canAfford(reward.cost)}
                   onClick={() => handlePurchase(reward)}
                 >
-                  <ShoppingCart className="w-3 h-3 mr-1" />
-                  {canAfford(reward.cost) ? 'Buy' : 'Need more stars'}
+                  <ShoppingCart className="w-4 h-4" />
+                  {canAfford(reward.cost) ? 'Buy' : 'Need more'}
                 </Button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
-    </Card>
+    </div>
   );
 };
 
