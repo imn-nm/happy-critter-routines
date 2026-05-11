@@ -12,11 +12,13 @@ export interface Task {
   sort_order: number;
   is_active: boolean;
   task_date?: string;
+  excluded_dates?: string[];
   is_important?: boolean;
   is_fun_time?: boolean;
   window_start?: string;
   window_end?: string;
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
+  date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   subtasks?: Subtask[];
   created_at: string;
   updated_at: string;

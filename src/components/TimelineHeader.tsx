@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, PartyPopper } from "lucide-react";
+import { ChevronLeft, ChevronRight, PartyPopper, StickyNote } from "lucide-react";
 import { addDays, format, isSameDay, isToday, startOfWeek } from "date-fns";
 import { getPSTDate } from "@/utils/pstDate";
 import { useHolidays } from "@/hooks/useHolidays";
+import { useDayNotes } from "@/hooks/useDayNotes";
 import { Child } from "@/hooks/useChildren";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ export default function TimelineHeader({
 }: TimelineHeaderProps) {
   const [currentWeek, setCurrentWeek] = useState(selectedDay);
   const { isHoliday } = useHolidays(child.id);
+  const { getNoteForDate } = useDayNotes(child.id);
 
   // Keep the visible week aligned to whatever day is selected externally.
   const selectedDayKey = format(selectedDay, "yyyy-MM-dd");
@@ -41,6 +43,7 @@ export default function TimelineHeader({
 
   const selectedDayString = format(selectedDay, "yyyy-MM-dd");
   const selectedDayHoliday = isHoliday(selectedDayString);
+  const selectedDayNote = getNoteForDate(selectedDayString);
 
   const formatWeekRange = (start: Date) => {
     const end = addDays(start, 6);
@@ -112,6 +115,15 @@ export default function TimelineHeader({
             {selectedDayHoliday.is_no_school && (
               <span className="ml-1 text-12 opacity-75">(No School)</span>
             )}
+          </div>
+        </div>
+      )}
+
+      {selectedDayNote && (
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-pill text-14 font-medium bg-amber-400/15 text-amber-300 max-w-full">
+            <StickyNote className="w-4 h-4 shrink-0" />
+            <span className="truncate">{selectedDayNote.text}</span>
           </div>
         </div>
       )}

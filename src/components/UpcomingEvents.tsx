@@ -154,7 +154,7 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
               <div className="flex items-center justify-between mb-1">
                 <h4 className="font-medium truncate">{event.name}</h4>
                 {event.coins && (
-                  <span className="text-sm text-warning font-medium">{event.coins} coins</span>
+                  <span className="text-sm text-warning font-medium">{event.coins} stars</span>
                 )}
               </div>
               

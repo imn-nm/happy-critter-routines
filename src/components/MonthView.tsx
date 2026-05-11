@@ -2,21 +2,24 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, Edit, Trash2, PartyPopper, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
 import { useHolidays, Holiday } from '@/hooks/useHolidays';
+import { useDayNotes, DayNote } from '@/hooks/useDayNotes';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
+import DayNoteDialog from './DayNoteDialog';
 
 interface MonthViewProps {
   child: Child;
   tasks: Task[];
   onAddTask?: (date: Date) => void;
   onEditTask?: (task: Task) => void;
-  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
+  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
+  onSelectedDateChange?: (date: Date) => void;
   getTasksWithCompletionStatus: () => Task[];
 }
 
@@ -25,15 +28,26 @@ interface DayData {
   tasksForDay: Task[];
   isCurrentMonth: boolean;
   holiday?: Holiday;
+  note?: DayNote;
 }
 
-const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthViewProps) => {
+const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelectedDateChange }: MonthViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(getPSTDate());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Whenever the parent opens the day sheet, push the selected date up so
+  // any edit/delete prompt that reads the parent's `currentDate` stays in
+  // sync (otherwise the prompt would show today's date instead of the day
+  // the parent actually clicked on in the calendar).
+  useEffect(() => {
+    if (selectedDate) onSelectedDateChange?.(selectedDate);
+  }, [selectedDate, onSelectedDateChange]);
   const [monthData, setMonthData] = useState<DayData[]>([]);
   const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | undefined>(undefined);
   const [holidayFormDate, setHolidayFormDate] = useState<Date | undefined>(undefined);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteFormDate, setNoteFormDate] = useState<Date | undefined>(undefined);
 
   const {
     holidays,
@@ -43,6 +57,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
     isCreating,
     isUpdating,
   } = useHolidays(child.id);
+
+  const { notes, upsertNote, deleteNote, isSaving: isSavingNote } = useDayNotes(child.id);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -66,8 +82,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
 
     const tasksForDate = (tasks || []).filter(task => {
       if (!task.is_active) return false;
+      // Chores are always tied to a single date — never recurring.
+      if (task.type === 'floating') {
+        if (task.task_date) return task.task_date === dateString;
+        if (task.created_at) {
+          const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+          return createdDate === dateString;
+        }
+        return false;
+      }
       if (task.is_recurring && task.recurring_days) {
-        return task.recurring_days.includes(dayName);
+        if (!task.recurring_days.includes(dayName)) return false;
+        if (task.excluded_dates?.includes(dateString)) return false;
+        return true;
       }
       if (!task.is_recurring && task.task_date) {
         return task.task_date === dateString;
@@ -78,7 +105,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
     // Apply day-specific overrides for system tasks
     const resolved = tasksForDate.map(task => {
       if (systemTaskNames.includes(task.name)) {
-        const override = getSystemTaskScheduleForDay(child, task.name, dayName);
+        const override = getSystemTaskScheduleForDay(child, task.name, dayName, dateString);
         if (override) {
           return { ...task, scheduled_time: override.time, duration: override.duration };
         }
@@ -102,16 +129,21 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
   useEffect(() => {
     const data = calendarDays.map(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
-      const dayHoliday = holidays?.find(h => h.date === dateKey);
+      const dayHoliday = holidays?.find(h => {
+        const end = h.end_date || h.date;
+        return dateKey >= h.date && dateKey <= end;
+      });
+      const dayNote = notes?.find(n => n.date === dateKey);
       return {
         date: day,
         tasksForDay: getTasksForDay(day),
         isCurrentMonth: isSameMonth(day, currentMonth),
         holiday: dayHoliday,
+        note: dayNote,
       };
     });
     setMonthData(data);
-  }, [currentMonth, tasks, holidays, child]);
+  }, [currentMonth, tasks, holidays, notes, child]);
 
   const formatTime = (timeStr: string) => {
     if (!timeStr) return '';
@@ -150,6 +182,27 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
     if (confirm('Delete this holiday?')) {
       deleteHoliday(holidayId);
     }
+  };
+
+  // Note handlers
+  const handleAddOrEditNote = (date: Date) => {
+    setNoteFormDate(date);
+    setNoteDialogOpen(true);
+  };
+
+  const handleNoteSubmit = (text: string) => {
+    if (!noteFormDate) return;
+    upsertNote({ date: format(noteFormDate, 'yyyy-MM-dd'), text });
+    setNoteDialogOpen(false);
+  };
+
+  const handleNoteDelete = () => {
+    if (!noteFormDate) return;
+    const existing = notes?.find(n => n.date === format(noteFormDate, 'yyyy-MM-dd'));
+    if (existing) {
+      deleteNote(existing.id);
+    }
+    setNoteDialogOpen(false);
   };
 
   const handleHolidaySubmit = (data: HolidayFormData) => {
@@ -239,6 +292,9 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
                     {dayData.holiday && (
                       <PartyPopper className="w-3 h-3" style={{ color: dayData.holiday.color }} />
                     )}
+                    {dayData.note && (
+                      <StickyNote className="w-3 h-3 text-amber-400" />
+                    )}
                     {!dayData.holiday && school && (
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                     )}
@@ -312,8 +368,34 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
                 )}
               </div>
             ) : (
-              <Button onClick={() => handleAddHoliday(selectedDate)} className="w-full mb-3" variant="outline" size="sm">
+              <Button onClick={() => handleAddHoliday(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
                 <PartyPopper className="w-3.5 h-3.5 mr-1.5" /> Mark as Holiday
+              </Button>
+            )}
+
+            {/* Note */}
+            {selectedDayData?.note ? (
+              <div className="rounded-xl p-3 mb-3 border border-amber-400/40 bg-amber-400/10">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <StickyNote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span className="text-sm text-amber-100 whitespace-pre-wrap break-words">
+                      {selectedDayData.note.text}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleAddOrEditNote(selectedDate)}
+                    className="h-6 w-6 p-0 shrink-0"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button onClick={() => handleAddOrEditNote(selectedDate)} className="w-full mb-3" variant="outline" size="sm">
+                <StickyNote className="w-3.5 h-3.5 mr-1.5" /> Add Note
               </Button>
             )}
 
@@ -363,7 +445,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
                             </span>
                           )}
                           {task.coins > 0 && (
-                            <span className="text-warning font-medium">{task.coins}c</span>
+                            <span className="text-warning font-medium">{task.coins}★</span>
                           )}
                         </div>
                       </div>
@@ -378,11 +460,10 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              if (task.is_recurring && task.recurring_days && task.recurring_days.length > 1 && selectedDate) {
-                                const dayName = format(selectedDate, 'EEEE').toLowerCase();
-                                if (window.confirm(`Remove "${task.name}" from ${format(selectedDate, 'EEEE')}s only?`)) {
-                                  onDeleteTask(task.id, 'this-day', dayName);
-                                } else if (window.confirm(`Delete "${task.name}" from ALL days?`)) {
+                              if (task.is_recurring && selectedDate) {
+                                if (window.confirm(`Delete "${task.name}" only on ${format(selectedDate, 'EEE, MMM d')}?`)) {
+                                  onDeleteTask(task.id, 'this-date', format(selectedDate, 'yyyy-MM-dd'));
+                                } else if (window.confirm(`Delete ALL recurring "${task.name}"?`)) {
                                   onDeleteTask(task.id, 'all');
                                 }
                               } else {
@@ -414,6 +495,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask }: MonthV
         holiday={editingHoliday}
         isLoading={isCreating || isUpdating}
       />
+
+      {/* Day Note Dialog */}
+      {noteFormDate && (
+        <DayNoteDialog
+          open={noteDialogOpen}
+          onOpenChange={setNoteDialogOpen}
+          date={noteFormDate}
+          initialText={notes?.find(n => n.date === format(noteFormDate, 'yyyy-MM-dd'))?.text || ''}
+          onSubmit={handleNoteSubmit}
+          onDelete={handleNoteDelete}
+          isLoading={isSavingNote}
+        />
+      )}
     </div>
   );
 };

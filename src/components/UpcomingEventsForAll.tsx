@@ -15,8 +15,8 @@ interface UpcomingEvent {
   duration?: number;
   type: 'scheduled' | 'regular' | 'flexible';
   coins?: number;
-  childName: string;
-  childId: string;
+  childNames: string[];
+  childIds: string[];
 }
 
 const UpcomingEventsForAll = () => {
@@ -61,60 +61,84 @@ const UpcomingEventsForAll = () => {
   }, [children]);
   
   const allUpcomingEvents = useMemo(() => {
-    const events: UpcomingEvent[] = [];
+    // Same name + same date + same time across multiple children should show
+    // up as one tile with all child badges, not one tile per child.
+    const grouped = new Map<string, UpcomingEvent>();
     const now = new Date();
     const currentTime = format(now, 'HH:mm');
-    
-    // Filter for non-system tasks that have a scheduled time and recurrence
-    const scheduledTasks = allTasks.filter(task => {
-      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
-      const hasValidScheduling = task.is_recurring && task.recurring_days && task.recurring_days.length > 0;
-      const systemTasks = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
-      const isNotSystemTask = !systemTasks.some(sysTask => task.name.toLowerCase().includes(sysTask.toLowerCase()));
 
-      return hasScheduledTime && hasValidScheduling && isNotSystemTask;
+    // Include any non-system task with a scheduled time — recurring OR one-off.
+    const systemTaskNames = ['wake', 'breakfast', 'school', 'lunch', 'dinner', 'bedtime'];
+    const scheduledTasks = allTasks.filter(task => {
+      if (task.is_active === false) return false;
+      const hasScheduledTime = task.scheduled_time && task.scheduled_time.trim() !== '';
+      if (!hasScheduledTime) return false;
+      const isSystemTask = systemTaskNames.some(s => task.name.toLowerCase().includes(s));
+      if (isSystemTask) return false;
+      // Recurring needs days; one-off needs a task_date.
+      if (task.is_recurring) return (task.recurring_days?.length ?? 0) > 0;
+      return !!task.task_date;
     });
+
+    const addEventForDate = (task: Task, child: Child, eventDate: Date, taskTime: string) => {
+      const dateKey = format(eventDate, 'yyyy-MM-dd');
+      const groupKey = `${task.name.toLowerCase()}|${dateKey}|${taskTime}`;
+      const existing = grouped.get(groupKey);
+      if (existing) {
+        if (!existing.childIds.includes(child.id)) {
+          existing.childIds.push(child.id);
+          existing.childNames.push(child.name);
+        }
+      } else {
+        grouped.set(groupKey, {
+          id: groupKey,
+          name: task.name,
+          time: taskTime,
+          date: eventDate,
+          duration: task.duration,
+          type: task.type,
+          coins: task.coins,
+          childNames: [child.name],
+          childIds: [child.id],
+        });
+      }
+    };
 
     scheduledTasks.forEach(task => {
       const child = children.find(c => c.id === task.child_id);
-      if (!child) {
-        console.log(`No child found for task ${task.name} with child_id ${task.child_id}`);
-        return;
-      }
+      if (!child) return;
 
-      // Format the time properly - remove seconds if present (18:00:00 -> 18:00)
       const taskTime = task.scheduled_time!.slice(0, 5);
 
-      // Generate events for recurring tasks (next 2 weeks)
-      for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
-        const eventDate = addDays(now, dayOffset);
-        const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
-        
-        // Check if task is scheduled for this day
-        if (task.recurring_days?.includes(dayOfWeek)) {
-          // For today, only include future events
+      if (task.is_recurring) {
+        // Walk the next 2 weeks and emit for each matching day-of-week.
+        for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
+          const eventDate = addDays(now, dayOffset);
+          const dayOfWeek = format(eventDate, 'EEEE').toLowerCase();
+          const dateKey = format(eventDate, 'yyyy-MM-dd');
+
+          if (!task.recurring_days?.includes(dayOfWeek)) continue;
+          if (task.excluded_dates?.includes(dateKey)) continue;
+
           const isToday = dayOffset === 0;
-          const isPastTimeToday = isToday && taskTime <= currentTime;
-          
-          if (!isPastTimeToday) {
-            events.push({
-              id: `${task.id}-${dayOffset}`,
-              name: task.name,
-              time: taskTime,
-              date: eventDate,
-              duration: task.duration,
-              type: task.type,
-              coins: task.coins,
-              childName: child.name,
-              childId: child.id,
-            });
-          }
+          if (isToday && taskTime <= currentTime) continue;
+
+          addEventForDate(task, child, eventDate, taskTime);
         }
+      } else if (task.task_date) {
+        // One-off task — only emit if it's within the next 2 weeks and still ahead.
+        const eventDate = parse(task.task_date, 'yyyy-MM-dd', new Date());
+        const today = startOfDay(now);
+        const horizon = addDays(today, 14);
+        if (eventDate < today || eventDate > horizon) return;
+        const isToday = format(eventDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
+        if (isToday && taskTime <= currentTime) return;
+        addEventForDate(task, child, eventDate, taskTime);
       }
     });
 
     // Sort by date and time, take the next 5 events
-    return events
+    return Array.from(grouped.values())
       .sort((a, b) => {
         const dateTimeA = parse(a.time, 'HH:mm', a.date).getTime();
         const dateTimeB = parse(b.time, 'HH:mm', b.date).getTime();
@@ -201,11 +225,13 @@ const UpcomingEventsForAll = () => {
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <h4 className="font-medium truncate text-sm">{event.name}</h4>
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {event.childName}
-                  </Badge>
+                  {event.childNames.map((name) => (
+                    <Badge key={name} variant="secondary" className="text-xs shrink-0">
+                      {name}
+                    </Badge>
+                  ))}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs">
                   <span className="text-muted-foreground">
@@ -225,7 +251,7 @@ const UpcomingEventsForAll = () => {
                 )}
                 {typeof event.coins === 'number' && event.coins > 0 && (
                   <span className="text-xs text-warning font-medium">
-                    {event.coins} coins
+                    {event.coins} stars
                   </span>
                 )}
               </div>

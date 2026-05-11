@@ -133,7 +133,7 @@ const SortableTimelineItem = ({ item, onTimeChange, onToggleCompletion, simple =
             {getStatusIcon()}
           </div>
           {item.coins > 0 && (
-            <span className="text-sm text-warning font-medium">{item.coins} coins</span>
+            <span className="text-sm text-warning font-medium">{item.coins} stars</span>
           )}
         </div>
         
@@ -207,10 +207,23 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
     const taskItems: TimelineItem[] = tasks
       .filter(task => {
         if (!task.is_active) return false;
-        
+
+        // Chores are always tied to a single date — never recurring.
+        if (task.type === 'floating') {
+          if (task.task_date) return task.task_date === today;
+          if (task.created_at) {
+            const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+            return createdDate === today;
+          }
+          return false;
+        }
+
         // For recurring tasks, check if today is in their recurring days
+        // (and not excluded for this specific date).
         if (task.is_recurring && task.recurring_days) {
-          return task.recurring_days.includes(dayName);
+          if (!task.recurring_days.includes(dayName)) return false;
+          if (task.excluded_dates?.includes(today)) return false;
+          return true;
         }
         
         // For non-recurring tasks, check if today matches their task_date
@@ -242,7 +255,7 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
         // Check if this is a system task and get day-specific schedule if available
         const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
         const isSystemTask = systemTaskNames.includes(task.name);
-        const daySpecificSchedule = isSystemTask ? getSystemTaskScheduleForDay(child, task.name, dayName) : null;
+        const daySpecificSchedule = isSystemTask ? getSystemTaskScheduleForDay(child, task.name, dayName, today) : null;
 
         // Check completion status
         const completion = completions.find(c => c.task_id === task.id && c.date === today);

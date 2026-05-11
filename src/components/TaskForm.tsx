@@ -12,7 +12,7 @@ interface TaskFormProps {
   task?: Task;
   onSave: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'> & { _additionalChildIds?: string[] }) => void;
   onCancel: () => void;
-  onDelete?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
+  onDelete?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
   isEdit?: boolean;
   currentDate: Date;
   prefillTime?: string;
@@ -116,12 +116,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       scheduled_time: !isChore && scheduledTimeStr ? scheduledTimeStr : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
-      is_recurring: formData.isRecurring,
-      recurring_days: formData.isRecurring ? formData.recurringDays : undefined,
+      // Chores are always single-date; recurring fields only apply to tasks.
+      is_recurring: isChore ? false : formData.isRecurring,
+      recurring_days: !isChore && formData.isRecurring ? formData.recurringDays : undefined,
       description: formData.description || undefined,
       sort_order: task?.sort_order || 0,
       is_active: task?.is_active ?? true,
-      task_date: !formData.isRecurring ? formData.taskDate : undefined,
+      // Chores always pin to a single date; tasks only when not recurring.
+      task_date: isChore ? formData.taskDate : (!formData.isRecurring ? formData.taskDate : undefined),
       // Important / fun-time / checklist are task-mode-only concepts.
       is_important: isChore ? false : formData.isImportant,
       is_fun_time: isChore ? false : formData.isFunTime,
@@ -317,20 +319,23 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </>
       )}
 
-      {/* Recurring */}
-      <FormRow
-        label="Recurring"
-        htmlFor="isRecurring"
-      >
-        <Switch
-          id="isRecurring"
-          checked={formData.isRecurring}
-          onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
-          className="data-[state=checked]:bg-green-500"
-        />
-      </FormRow>
+      {/* Recurring — chores are always tied to a single date, so the toggle
+          is hidden in chore mode. */}
+      {!isChore && (
+        <FormRow
+          label="Recurring"
+          htmlFor="isRecurring"
+        >
+          <Switch
+            id="isRecurring"
+            checked={formData.isRecurring}
+            onCheckedChange={(checked) => setFormData({ ...formData, isRecurring: checked })}
+            className="data-[state=checked]:bg-green-500"
+          />
+        </FormRow>
+      )}
 
-      {formData.isRecurring && (
+      {!isChore && formData.isRecurring && (
         <>
           <FormRow
             label="Days"
@@ -383,11 +388,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="0">0 coins</SelectItem>
-            <SelectItem value="5">5 coins</SelectItem>
-            <SelectItem value="10">10 coins</SelectItem>
-            <SelectItem value="15">15 coins</SelectItem>
-            <SelectItem value="20">20 coins</SelectItem>
+            <SelectItem value="0">0 stars</SelectItem>
+            <SelectItem value="5">5 stars</SelectItem>
+            <SelectItem value="10">10 stars</SelectItem>
+            <SelectItem value="15">15 stars</SelectItem>
+            <SelectItem value="20">20 stars</SelectItem>
           </SelectContent>
         </Select>
       </FormRow>
@@ -516,29 +521,38 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 <p className="text-12 text-fog-200 text-center">
                   Delete "{formData.name}"?
                 </p>
-                {task.is_recurring && task.recurring_days && task.recurring_days.length > 1 && (
+                {task.is_recurring ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDelete(task.id, 'this-date', format(currentDate, 'yyyy-MM-dd'))}
+                      className="w-full hover:bg-coral-500/10 hover:text-coral-400"
+                    >
+                      Delete only on {format(currentDate, 'EEE, MMM d')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onDelete(task.id, 'all')}
+                      className="w-full"
+                    >
+                      Delete all recurring
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="destructive"
                     size="sm"
-                    onClick={() => {
-                      const dayName = format(currentDate, 'EEEE').toLowerCase();
-                      onDelete(task.id, 'this-day', dayName);
-                    }}
-                    className="w-full hover:bg-coral-500/10 hover:text-coral-400"
+                    onClick={() => onDelete(task.id, 'all')}
+                    className="w-full"
                   >
-                    Remove from {format(currentDate, 'EEEE')}s only
+                    Delete permanently
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete(task.id, 'all')}
-                  className="w-full"
-                >
-                  {task.is_recurring ? 'Delete from all days' : 'Delete permanently'}
-                </Button>
                 <Button
                   type="button"
                   variant="ghost"

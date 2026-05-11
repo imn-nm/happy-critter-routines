@@ -64,7 +64,7 @@ const ChorePreview = () => {
           <div className="w-full flex flex-col gap-sp-2 mt-2">
             {chores.map(chore => {
               const done = doneChores.includes(chore.id);
-              const coinsLabel = chore.id === "tidy" ? "5 coins" : "3 coins";
+              const coinsLabel = chore.id === "tidy" ? "5 stars" : "3 stars";
               return (
                 <button
                   key={chore.id}

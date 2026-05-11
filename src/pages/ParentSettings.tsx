@@ -18,9 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 const PET_TYPES: { type: PetType; name: string }[] = [
-  { type: "fox",   name: "Arctic Fox" },
-  { type: "panda", name: "Red Panda" },
-  { type: "owl",   name: "Snowy Owl" },
+  { type: "fox", name: "Arctic Fox" },
 ];
 
 /**

@@ -58,7 +58,7 @@ const NextTaskTimer = ({ task, index, onComplete }: NextTaskTimerProps) => {
         {task.coins > 0 && (
           <div className="flex items-center justify-center gap-2 text-warning">
             <Coins className="w-4 h-4" />
-            <span className="font-semibold">{task.coins} coins</span>
+            <span className="font-semibold">{task.coins} stars</span>
           </div>
         )}
 

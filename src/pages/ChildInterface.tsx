@@ -254,7 +254,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     let todaysTasks = tasksWithCompletion.filter(task => {
       if (task.is_active === false) return false;
       if (task.is_recurring && task.recurring_days) {
-        return task.recurring_days.includes(currentDay);
+        if (!task.recurring_days.includes(currentDay)) return false;
+        if (task.excluded_dates?.includes(todayStr)) return false;
+        return true;
       }
       if (!task.is_recurring && task.task_date) {
         return task.task_date === todayStr;
@@ -278,13 +280,15 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const tasksWithDaySpecificTimes = todaysTasks.map(task => {
       // System tasks: pull per-day time/duration from the child record.
       if (child && systemTaskNames.includes(task.name)) {
-        const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay);
+        const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr);
         if (daySpecificSchedule) {
           return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration };
         }
       }
-      // Non-system tasks: apply day-specific schedule_overrides written by the parent dashboard.
-      const override = task.schedule_overrides?.[currentDay];
+      // Non-system tasks: per-date override wins, then per-weekday override.
+      const dateOverride = task.date_overrides?.[todayStr];
+      const weekdayOverride = task.schedule_overrides?.[currentDay];
+      const override = dateOverride || weekdayOverride;
       if (override) {
         return {
           ...task,
@@ -388,12 +392,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return tasksWithCompletion.filter(task => {
       if (task.type !== 'floating') return false;
       if (!task.is_active) return false;
-      if (task.is_recurring && task.recurring_days) {
-        return task.recurring_days.includes(currentDay);
-      }
-      // Non-recurring chores: respect task_date if set, otherwise show today
+      // Chores are always pinned to a single date — never recurring.
       if (task.task_date) return task.task_date === todayStr;
-      return true;
+      // Legacy fallback: chores added before task_date existed pin to created_at.
+      if (task.created_at) {
+        const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+        return createdDate === todayStr;
+      }
+      return false;
     });
   };
 

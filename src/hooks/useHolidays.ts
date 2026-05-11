@@ -8,6 +8,7 @@ export type Holiday = Tables<'holidays'>;
 export interface CreateHolidayData {
   child_id: string;
   date: string;
+  end_date?: string | null;
   name: string;
   description?: string;
   color?: string;
@@ -20,6 +21,7 @@ export interface UpdateHolidayData {
   color?: string;
   is_no_school?: boolean;
   date?: string;
+  end_date?: string | null;
 }
 
 export const useHolidays = (childId?: string) => {
@@ -122,12 +124,15 @@ export const useHolidays = (childId?: string) => {
     },
   });
 
-  // Helper function to check if a date is a holiday
+  // Helper function to check if a date is a holiday. Supports ranges via end_date.
   const isHoliday = (date: string): Holiday | undefined => {
-    return holidays?.find(h => h.date === date);
+    return holidays?.find(h => {
+      const end = h.end_date || h.date;
+      return date >= h.date && date <= end;
+    });
   };
 
-  // Helper function to get holidays for a specific month
+  // Helper function to get holidays whose range overlaps a specific month
   const getHolidaysForMonth = (year: number, month: number): Holiday[] => {
     if (!holidays) return [];
 
@@ -137,7 +142,10 @@ export const useHolidays = (childId?: string) => {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    return holidays.filter(h => h.date >= startDateStr && h.date <= endDateStr);
+    return holidays.filter(h => {
+      const end = h.end_date || h.date;
+      return h.date <= endDateStr && end >= startDateStr;
+    });
   };
 
   return {

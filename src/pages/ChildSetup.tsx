@@ -11,8 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 
 const petTypes: { type: PetType; name: string }[] = [
   { type: "fox", name: "Arctic Fox" },
-  { type: "panda", name: "Red Panda" },
-  { type: "owl", name: "Snowy Owl" },
 ];
 
 const ChildSetup = () => {

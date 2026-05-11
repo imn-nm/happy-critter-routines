@@ -123,6 +123,22 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className, comple
   const svgSizeMap = { sm: 48, md: 80, lg: 128, xl: 192 };
   const shouldUseSvg = useSvg && (petType === 'fox' || petType === 'panda');
 
+  // Fox is the only supported pet, and the child view renders /FoxHappy.gif.
+  // Use the same gif everywhere so the parent portal matches what the child sees.
+  if (petType === 'fox') {
+    return (
+      <div className={cn("relative", className)}>
+        <div className={cn("flex items-center justify-center", sizeClasses[size])}>
+          <img
+            src="/FoxHappy.gif"
+            alt="fox pet"
+            className="w-full h-full object-contain"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("relative", className)}>
       <div

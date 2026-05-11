@@ -21,6 +21,7 @@ interface HolidayFormDialogProps {
 export interface HolidayFormData {
   name: string;
   date: string;
+  end_date: string | null;
   description: string;
   color: string;
   is_no_school: boolean;
@@ -38,6 +39,7 @@ const HolidayFormDialog = ({
   const [formData, setFormData] = useState<HolidayFormData>({
     name: '',
     date: initialDate ? format(initialDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+    end_date: null,
     description: '',
     color: '#FFA500',
     is_no_school: false,
@@ -48,6 +50,7 @@ const HolidayFormDialog = ({
       setFormData({
         name: holiday.name,
         date: holiday.date,
+        end_date: holiday.end_date || null,
         description: holiday.description || '',
         color: holiday.color || '#FFA500',
         is_no_school: holiday.is_no_school,
@@ -60,11 +63,6 @@ const HolidayFormDialog = ({
     }
   }, [holiday, initialDate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
   const handleClose = () => {
     onOpenChange(false);
     // Reset form after close animation
@@ -72,11 +70,19 @@ const HolidayFormDialog = ({
       setFormData({
         name: '',
         date: initialDate ? format(initialDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+        end_date: null,
         description: '',
         color: '#FFA500',
         is_no_school: false,
       });
     }, 300);
+  };
+
+  const handleSubmitGuarded = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Normalize: blank end date → null; reject end-before-start.
+    const end = formData.end_date && formData.end_date >= formData.date ? formData.end_date : null;
+    onSubmit({ ...formData, end_date: end });
   };
 
   const popularColors = [
@@ -93,7 +99,7 @@ const HolidayFormDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmitGuarded}>
           <DialogHeader>
             <DialogTitle>
               {holiday ? 'Edit Holiday' : 'Add Holiday'}
@@ -121,6 +127,20 @@ const HolidayFormDialog = ({
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="end_date">End date (optional)</Label>
+              <Input
+                id="end_date"
+                type="date"
+                value={formData.end_date || ''}
+                min={formData.date}
+                onChange={(e) => setFormData({ ...formData, end_date: e.target.value || null })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank for a single-day holiday. Use this to mark a window like a vacation week.
+              </p>
             </div>
 
             <div className="space-y-2">

@@ -48,6 +48,9 @@ export interface Task {
   sort_order: number;
   is_active: boolean;
   task_date?: string;
+  excluded_dates?: string[];
+  schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
+  date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   is_important?: boolean;
   is_fun_time?: boolean;
   window_start?: string;
@@ -133,8 +136,8 @@ export const useTasks = (childId?: string) => {
         );
       }
 
-      // Strip out fields that don't exist in the database schema
-      const { task_date, isCompleted, bonusTime, ...rest } = taskData as any;
+      // Strip out UI-only fields that don't exist in the database schema
+      const { isCompleted, bonusTime, ...rest } = taskData as any;
 
       // Remove undefined values — Supabase insert doesn't handle them well
       const dbData: Record<string, any> = {};
@@ -172,8 +175,8 @@ export const useTasks = (childId?: string) => {
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     try {
-      // Filter out UI-only properties and non-existent columns before sending to database
-      const { isCompleted, task_date, bonusTime, ...rest } = updates as any;
+      // Filter out UI-only properties before sending to database
+      const { isCompleted, bonusTime, ...rest } = updates as any;
 
       // Same-time conflict guard — if the update changes scheduled_time,
       // recurrence, or active state, make sure it doesn't collide with another

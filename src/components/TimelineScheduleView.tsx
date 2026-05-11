@@ -38,7 +38,7 @@ interface TimelineScheduleViewProps {
   getTasksWithCompletionStatus: () => any[];
   onAddTask?: (prefillTime?: string) => void;
   onEditTask?: (task: any) => void;
-  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
+  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
   onDateChange?: (date: Date) => void;
@@ -72,7 +72,7 @@ interface TimelineEvent {
 interface SortableTimelineEventProps {
   event: TimelineEvent;
   onEditTask?: (task: any) => void;
-  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-day', dayName?: string) => void;
+  onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
   onToggleCompletion?: (taskId: string) => void;
   onAddTask?: (prefillTime?: string) => void;
   isActive?: boolean;
@@ -503,7 +503,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                   )}>
                     {event.name !== 'Bedtime' && formatDuration(event.duration)}
                     {event.coins != null && event.coins > 0 && (
-                      <> · {event.coins} coins</>
+                      <> · {event.coins} stars</>
                     )}
                   </span>
                 </div>
@@ -610,7 +610,7 @@ const TimelineScheduleView = ({
     await toggleCompletion(taskId, dateStr);
     if (onTime && coins > 0) {
       await updateChildCoins(child.id, (child.currentCoins || 0) + coins);
-      toast({ title: `+${coins} coin${coins === 1 ? '' : 's'}!`, description: `${taskName} completed on time.` });
+      toast({ title: `+${coins} star${coins === 1 ? '' : 's'}!`, description: `${taskName} completed on time.` });
     } else {
       toast({ title: onTime ? 'Completed on time' : 'Completed late', description: taskName });
     }
@@ -683,10 +683,23 @@ const TimelineScheduleView = ({
     const dateString = format(date, 'yyyy-MM-dd');
     
     return tasksWithCompletion.filter(task => {
-      
+
+      // Chores (floating) are always tied to a single date — never recurring.
+      if (task.type === 'floating') {
+        if (task.task_date) return task.task_date === dateString;
+        if (task.created_at) {
+          const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+          return createdDate === dateString;
+        }
+        return false;
+      }
+
       // For recurring tasks, check if today is in their recurring days
+      // (and not in the per-occurrence exclusion list).
       if (task.is_recurring && task.recurring_days) {
-        return task.recurring_days.includes(dayName);
+        if (!task.recurring_days.includes(dayName)) return false;
+        if (task.excluded_dates?.includes(dateString)) return false;
+        return true;
       }
       
       // For non-recurring tasks, check if today matches their task_date
@@ -709,6 +722,7 @@ const TimelineScheduleView = ({
 
   const dayTasks = getTasksForDay(selectedDay);
   const dayOfWeek = format(selectedDay, 'EEEE').toLowerCase(); // e.g., 'monday', 'tuesday'
+  const selectedDayDateString = format(selectedDay, 'yyyy-MM-dd');
 
   // System events are now managed in the database - filter them from the regular tasks
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
@@ -720,7 +734,7 @@ const TimelineScheduleView = ({
     return systemTaskNames.includes(task.name);
   }).map(task => {
     // Get day-specific schedule if available, otherwise use task defaults
-    const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, dayOfWeek);
+    const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, dayOfWeek, selectedDayDateString);
 
     return {
       id: task.id,
@@ -766,12 +780,13 @@ const TimelineScheduleView = ({
       };
     });
 
-  // Resolve day-specific overrides for a task
+  // Resolve day-specific overrides for a task. Per-date wins over per-weekday.
   const getTaskTimeForDay = (task: any): { time: string; duration: number } => {
-    const override = task.schedule_overrides?.[dayOfWeek];
+    const dateOverride = task.date_overrides?.[selectedDayDateString];
+    const weekdayOverride = task.schedule_overrides?.[dayOfWeek];
     return {
-      time: override?.scheduled_time || task.scheduled_time || '09:00',
-      duration: override?.duration ?? task.duration ?? 30,
+      time: dateOverride?.scheduled_time || weekdayOverride?.scheduled_time || task.scheduled_time || '09:00',
+      duration: dateOverride?.duration ?? weekdayOverride?.duration ?? task.duration ?? 30,
     };
   };
 
@@ -807,7 +822,7 @@ const TimelineScheduleView = ({
 
     // Also include already-placed draggable tasks (using day-specific overrides)
     const placed = draggableTasks
-      .filter(t => t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
+      .filter(t => t.date_overrides?.[selectedDayDateString]?.scheduled_time || t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
       .map(t => {
         const resolved = getTaskTimeForDay(t);
         const [h, m] = resolved.time.split(':').map(Number);
@@ -847,7 +862,7 @@ const TimelineScheduleView = ({
     const taskDuration = resolved.duration;
     // Fallback order: day-specific override → task's scheduled_time → window_start (placement hint
     // from a gap when "Set Time" was off) → next available slot.
-    const taskTime = (task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || task.window_start || findNextAvailableTime(taskDuration);
+    const taskTime = (task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || task.window_start || findNextAvailableTime(taskDuration);
     const isCompleted = completions.some(c => c.task_id === task.id && c.date === selectedDayString);
     return {
       id: task.id,
@@ -1389,7 +1404,7 @@ const TimelineScheduleView = ({
                           {task.name}
                         </span>
                         {task.coins > 0 && (
-                          <span className="text-[9px] text-warning/80 font-semibold">{task.coins}c</span>
+                          <span className="text-[9px] text-warning/80 font-semibold">{task.coins}★</span>
                         )}
                         {task.window_start && task.window_end && (
                           <span className="text-[8px] text-purple-400/60 font-medium mt-auto">
@@ -1416,7 +1431,7 @@ const TimelineScheduleView = ({
           <p className="text-sm text-muted-foreground text-center -mt-1">
             Was it completed on time?
             {completionPrompt && completionPrompt.coins > 0 && (
-              <span className="block mt-1 text-xs text-yellow-400">On-time earns {completionPrompt.coins} coin{completionPrompt.coins === 1 ? '' : 's'}.</span>
+              <span className="block mt-1 text-xs text-yellow-400">On-time earns {completionPrompt.coins} star{completionPrompt.coins === 1 ? '' : 's'}.</span>
             )}
           </p>
           <div className="flex flex-col gap-2 pt-2">

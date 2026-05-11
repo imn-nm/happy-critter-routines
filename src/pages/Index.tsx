@@ -8,7 +8,7 @@ const Index = () => {
   const features = [
     { icon: Calendar, title: "Smart Scheduling", desc: "Visual calendars kids understand", gradient: "from-purple-600/30 to-indigo-600/30" },
     { icon: Sparkles, title: "Pet Companions", desc: "Foxes & pandas to care for", gradient: "from-pink-600/30 to-purple-600/30" },
-    { icon: Target, title: "Goal Tracking", desc: "Earn coins for every task", gradient: "from-blue-600/30 to-cyan-600/30" },
+    { icon: Target, title: "Goal Tracking", desc: "Earn stars for every task", gradient: "from-blue-600/30 to-cyan-600/30" },
     { icon: TrendingUp, title: "Progress Reports", desc: "Track achievements over time", gradient: "from-emerald-600/30 to-teal-600/30" },
   ];
 

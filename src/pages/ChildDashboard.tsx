@@ -80,10 +80,13 @@ const ChildDashboard = () => {
   };
   const handleEditTask = (task) => {
     setPrefillTime(undefined);
-    // For recurring tasks, merge day-specific overrides into the task so the form shows correct values
-    if (task.is_recurring && task.schedule_overrides) {
+    // For recurring tasks, merge day-specific overrides into the task so the form shows correct values.
+    // Per-date override wins over per-weekday override.
+    if (task.is_recurring) {
       const dayName = format(currentDate, 'EEEE').toLowerCase();
-      const override = task.schedule_overrides[dayName];
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const override =
+        task.date_overrides?.[dateStr] || task.schedule_overrides?.[dayName];
       if (override) {
         const merged = { ...task };
         if (override.scheduled_time) merged.scheduled_time = override.scheduled_time;
@@ -103,49 +106,93 @@ const ChildDashboard = () => {
     'Lunch': 'lunch', 'Dinner': 'dinner', 'Bedtime': 'bedtime',
   };
 
-  // Apply a recurring-task edit globally — same path the inline edit used to
-  // take. Clears the current day's override so the new base wins everywhere.
+  // Apply a recurring-task edit globally. Also clears any per-date override
+  // for the current date so the new base value wins on that date.
   const applyRecurringEditAllDays = async (taskData: any, editingTaskRef: any) => {
-    const dayName = format(currentDate, 'EEEE').toLowerCase();
-    const existingOverrides = editingTaskRef.schedule_overrides || {};
-    const { [dayName]: _removed, ...remainingOverrides } = existingOverrides;
-    const nextOverrides =
-      Object.keys(remainingOverrides).length > 0 ? remainingOverrides : null;
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const existingDateOverrides = editingTaskRef.date_overrides || {};
+    const { [dateStr]: _removed, ...remainingDateOverrides } = existingDateOverrides;
+    const nextDateOverrides =
+      Object.keys(remainingDateOverrides).length > 0 ? remainingDateOverrides : null;
     await updateTask(editingTaskRef.id, {
       ...taskData,
       id: editingTaskRef.id,
       child_id: editingTaskRef.child_id,
       created_at: editingTaskRef.created_at,
       updated_at: new Date().toISOString(),
-      schedule_overrides: nextOverrides,
+      date_overrides: nextDateOverrides,
     } as any);
   };
 
-  // Apply a recurring-task edit to just the current day — writes the schedule
-  // (time + duration) into schedule_overrides[dayName] without touching the
-  // base task fields. Other field changes (name, coins, importance, etc.) get
-  // applied globally because the override model only stores schedule data.
-  const applyRecurringEditThisDay = async (taskData: any, editingTaskRef: any) => {
-    const dayName = format(currentDate, 'EEEE').toLowerCase();
-    const existingOverrides = editingTaskRef.schedule_overrides || {};
-    const nextOverrides = {
-      ...existingOverrides,
-      [dayName]: {
+  // Apply a recurring-task edit to just the current date — writes the schedule
+  // (time + duration) into date_overrides[dateStr] without touching the base
+  // task fields. Other field changes (name, coins, importance, etc.) are not
+  // applied because the override model only stores schedule data.
+  const applyRecurringEditThisDate = async (taskData: any, editingTaskRef: any) => {
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const existingDateOverrides = editingTaskRef.date_overrides || {};
+    const nextDateOverrides = {
+      ...existingDateOverrides,
+      [dateStr]: {
         scheduled_time: taskData.scheduled_time ?? editingTaskRef.scheduled_time,
         duration: taskData.duration ?? editingTaskRef.duration,
       },
     };
-    // Strip schedule fields from the global update so only this day's override
-    // changes the time/duration.
-    const { scheduled_time, duration, schedule_overrides, ...nonScheduleFields } = taskData;
     await updateTask(editingTaskRef.id, {
-      ...nonScheduleFields,
       id: editingTaskRef.id,
       child_id: editingTaskRef.child_id,
       created_at: editingTaskRef.created_at,
       updated_at: new Date().toISOString(),
-      schedule_overrides: nextOverrides,
+      date_overrides: nextDateOverrides,
     } as any);
+  };
+
+  // Build the children-table update payload for a system-task edit.
+  const buildSystemUpdateData = (systemKey: string, taskData: any) => {
+    const timeFieldMap: Record<string, string> = { 'wake': 'wake_time', 'breakfast': 'breakfast_time', 'school': 'school_start_time', 'lunch': 'lunch_time', 'dinner': 'dinner_time', 'bedtime': 'bedtime' };
+    const daysFieldMap: Record<string, string> = { 'wake': 'wake_days', 'breakfast': 'breakfast_days', 'school': 'school_days', 'lunch': 'lunch_days', 'dinner': 'dinner_days', 'bedtime': 'bedtime_days' };
+    const durationFieldMap: Record<string, string> = { 'wake': 'wake_duration', 'breakfast': 'breakfast_duration', 'school': 'school_duration', 'lunch': 'lunch_duration', 'dinner': 'dinner_duration', 'bedtime': 'bedtime_duration' };
+    const updateData: Record<string, any> = {};
+    if (timeFieldMap[systemKey] && taskData.scheduled_time) updateData[timeFieldMap[systemKey]] = taskData.scheduled_time;
+    if (daysFieldMap[systemKey] && taskData.recurring_days) updateData[daysFieldMap[systemKey]] = taskData.recurring_days;
+    if (durationFieldMap[systemKey] && taskData.duration != null) updateData[durationFieldMap[systemKey]] = taskData.duration;
+    return updateData;
+  };
+
+  // Apply a system-task edit (school start, etc.) globally. Also clears the
+  // current date's per-date override so the new base wins on that date.
+  const applySystemEditAllDays = async (taskData: any, systemKey: string) => {
+    if (!child) return;
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const updateData = buildSystemUpdateData(systemKey, taskData);
+    const existing = (child as any).system_date_overrides || {};
+    if (existing[dateStr]?.[systemKey]) {
+      const { [systemKey]: _drop, ...restForDate } = existing[dateStr];
+      const nextForDate = Object.keys(restForDate).length > 0 ? restForDate : undefined;
+      const nextAll = { ...existing };
+      if (nextForDate) nextAll[dateStr] = nextForDate; else delete nextAll[dateStr];
+      updateData.system_date_overrides = Object.keys(nextAll).length > 0 ? nextAll : null;
+    }
+    if (Object.keys(updateData).length > 0) {
+      await updateChild(child.id, updateData);
+    }
+    await refetch();
+  };
+
+  // Apply a system-task edit to just the current date — writes the schedule
+  // into children.system_date_overrides[dateStr][systemKey].
+  const applySystemEditThisDate = async (taskData: any, systemKey: string) => {
+    if (!child) return;
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const existing = (child as any).system_date_overrides || {};
+    const forDate = { ...(existing[dateStr] || {}) };
+    forDate[systemKey] = {
+      time: taskData.scheduled_time ?? forDate[systemKey]?.time,
+      duration: taskData.duration ?? forDate[systemKey]?.duration,
+    };
+    const nextAll = { ...existing, [dateStr]: forDate };
+    await updateChild(child.id, { system_date_overrides: nextAll } as any);
+    await refetch();
   };
 
   const handleSaveTask = async (taskData) => {
@@ -156,22 +203,15 @@ const ChildDashboard = () => {
       if (editingTask) {
         const systemKey = systemNameToKey[editingTask.name];
         if (systemKey) {
-          // System task — update only the children table (schedule fields)
-          // System tasks don't have rows in the tasks table; their IDs are synthetic (e.g. "system-dinner-wednesday")
-          const timeFieldMap: Record<string, string> = { 'wake': 'wake_time', 'breakfast': 'breakfast_time', 'school': 'school_start_time', 'lunch': 'lunch_time', 'dinner': 'dinner_time', 'bedtime': 'bedtime' };
-          const daysFieldMap: Record<string, string> = { 'wake': 'wake_days', 'breakfast': 'breakfast_days', 'school': 'school_days', 'lunch': 'lunch_days', 'dinner': 'dinner_days', 'bedtime': 'bedtime_days' };
-          const durationFieldMap: Record<string, string> = { 'wake': 'wake_duration', 'breakfast': 'breakfast_duration', 'school': 'school_duration', 'lunch': 'lunch_duration', 'dinner': 'dinner_duration', 'bedtime': 'bedtime_duration' };
-          const updateData: Record<string, any> = {};
-          if (timeFieldMap[systemKey] && taskData.scheduled_time) updateData[timeFieldMap[systemKey]] = taskData.scheduled_time;
-          if (daysFieldMap[systemKey] && taskData.recurring_days) updateData[daysFieldMap[systemKey]] = taskData.recurring_days;
-          if (durationFieldMap[systemKey] && taskData.duration != null) updateData[durationFieldMap[systemKey]] = taskData.duration;
-          if (Object.keys(updateData).length > 0) {
-            await updateChild(child.id, updateData);
-          }
-          await refetch();
+          // System task — defer to the same prompt so the parent can pick
+          // "this date only" (writes children.system_date_overrides) vs
+          // "all recurring" (updates the base children fields).
+          setPendingRecurringEdit({ taskData, editingTask });
+          setShowTaskForm(false);
+          return;
         } else if (editingTask.is_recurring) {
           // Recurring task: ask the parent whether this edit should apply to
-          // just this day (writes a schedule override) or all recurring days
+          // just this date (writes a date override) or all recurring days
           // (updates the base task). Defer the actual save until they pick.
           setPendingRecurringEdit({ taskData, editingTask });
           setShowTaskForm(false);
@@ -236,19 +276,14 @@ const ChildDashboard = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId: string, mode: 'all' | 'this-day' = 'all', dayName?: string) => {
+  const handleDeleteTask = async (taskId: string, mode: 'all' | 'this-date' = 'all', dateStr?: string) => {
     try {
-      if (mode === 'this-day' && dayName) {
-        // Remove just this day from recurring_days
+      if (mode === 'this-date' && dateStr) {
+        // Skip a single occurrence by appending the date to excluded_dates.
         const task = tasks.find(t => t.id === taskId);
-        if (task && task.recurring_days) {
-          const updatedDays = task.recurring_days.filter(d => d !== dayName);
-          if (updatedDays.length === 0) {
-            // No days left, delete the whole task
-            await deleteTask(taskId);
-          } else {
-            await updateTask(taskId, { ...task, recurring_days: updatedDays });
-          }
+        if (task) {
+          const next = Array.from(new Set([...(task.excluded_dates || []), dateStr]));
+          await updateTask(taskId, { ...task, excluded_dates: next });
         }
       } else {
         await deleteTask(taskId);
@@ -314,7 +349,7 @@ const ChildDashboard = () => {
                     await updateChildCoins(child.id, child.currentCoins - 1);
                   }}
                   disabled={child.currentCoins <= 0}
-                  aria-label="Remove coin"
+                  aria-label="Remove star"
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
@@ -328,7 +363,7 @@ const ChildDashboard = () => {
                   onClick={async () => {
                     await updateChildCoins(child.id, child.currentCoins + 1);
                   }}
-                  aria-label="Add coin"
+                  aria-label="Add star"
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -499,7 +534,8 @@ const ChildDashboard = () => {
           <TabsContent value="month" className="mt-0">
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
-              onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+              onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+              onSelectedDateChange={setCurrentDate} />
           </TabsContent>
         </div>
       </Tabs>
@@ -524,19 +560,15 @@ const ChildDashboard = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Update which days?</AlertDialogTitle>
+            <AlertDialogTitle>Update which dates?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingRecurringEdit && (
                 <>
-                  This is a recurring task. Apply your changes to{" "}
+                  Apply your changes only on{" "}
                   <span className="font-medium text-foreground">
-                    {format(currentDate, 'EEEE')}
-                  </span>{" "}
-                  only, or to every day it repeats?
-                  <br />
-                  <span className="text-xs">
-                    "{format(currentDate, 'EEEE')} only" changes the time and duration just for that day.
+                    {format(currentDate, 'EEE, MMM d')}
                   </span>
+                  , or to all recurring days?
                 </>
               )}
             </AlertDialogDescription>
@@ -551,13 +583,18 @@ const ChildDashboard = () => {
                 setEditingTask(null);
                 setPrefillTime(undefined);
                 try {
-                  await applyRecurringEditThisDay(taskData, et);
+                  const sysKey = systemNameToKey[et.name];
+                  if (sysKey) {
+                    await applySystemEditThisDate(taskData, sysKey);
+                  } else {
+                    await applyRecurringEditThisDate(taskData, et);
+                  }
                 } catch {
                   toast({ title: "Error updating task", variant: "destructive" });
                 }
               }}
             >
-              {format(currentDate, 'EEEE')} only
+              Only on {format(currentDate, 'EEE, MMM d')}
             </AlertDialogAction>
             <AlertDialogAction
               onClick={async () => {
@@ -567,13 +604,18 @@ const ChildDashboard = () => {
                 setEditingTask(null);
                 setPrefillTime(undefined);
                 try {
-                  await applyRecurringEditAllDays(taskData, et);
+                  const sysKey = systemNameToKey[et.name];
+                  if (sysKey) {
+                    await applySystemEditAllDays(taskData, sysKey);
+                  } else {
+                    await applyRecurringEditAllDays(taskData, et);
+                  }
                 } catch {
                   toast({ title: "Error updating task", variant: "destructive" });
                 }
               }}
             >
-              All days
+              All recurring
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -587,8 +629,8 @@ const ChildDashboard = () => {
             key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}`}
             task={editingTask} onSave={handleSaveTask}
             onCancel={() => { setShowTaskForm(false); setEditingTask(null); setPrefillTime(undefined); }}
-            onDelete={(taskId, mode, dayName) => {
-              handleDeleteTask(taskId, mode, dayName);
+            onDelete={(taskId, mode, dateStr) => {
+              handleDeleteTask(taskId, mode, dateStr);
               setShowTaskForm(false);
               setEditingTask(null);
             }}

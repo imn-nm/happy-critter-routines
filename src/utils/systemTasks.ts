@@ -279,10 +279,19 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
  * Get the correct time and duration for a system task on a specific day
  * Uses day-specific overrides if available, otherwise falls back to default schedule
  */
+// Map system task name (lowercase) -> stable key used inside system_date_overrides JSON.
+export const systemTaskKey = (taskName: string): string | null => {
+  const n = taskName.toLowerCase();
+  if (n === 'wake up') return 'wake';
+  if (['school', 'breakfast', 'lunch', 'dinner', 'bedtime'].includes(n)) return n;
+  return null;
+};
+
 export const getSystemTaskScheduleForDay = (
   child: Child,
   taskName: string,
-  dayOfWeek: string // e.g., 'monday', 'tuesday', etc.
+  dayOfWeek: string, // e.g., 'monday', 'tuesday', etc.
+  dateString?: string // optional yyyy-MM-dd; when provided, system_date_overrides win.
 ): DaySpecificSchedule | null => {
   const taskNameLower = taskName.toLowerCase();
 
@@ -330,7 +339,19 @@ export const getSystemTaskScheduleForDay = (
     return null;
   }
 
-  // Check for day-specific override first
+  // Per-date override (highest priority).
+  if (dateString) {
+    const sysDateOverrides = (child as any).system_date_overrides as
+      | Record<string, Record<string, { time?: string; duration?: number }>>
+      | undefined;
+    const key = systemTaskKey(taskName);
+    const dateEntry = sysDateOverrides?.[dateString]?.[key ?? ''];
+    if (dateEntry && dateEntry.time && dateEntry.duration !== undefined) {
+      return { time: dateEntry.time, duration: dateEntry.duration };
+    }
+  }
+
+  // Per-weekday override.
   const overrides = child[mapping.overridesField] as Record<string, { time: string; duration: number }> | undefined;
   if (overrides && overrides[dayOfWeek]) {
     return overrides[dayOfWeek];

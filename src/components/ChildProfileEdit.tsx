@@ -154,24 +154,6 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
             </div>
           </div>
 
-          {/* Pet Type */}
-          <div>
-            <Label htmlFor="petType" className="text-xs">Pet Type *</Label>
-            <Select
-              value={formData.petType}
-              onValueChange={(value: "fox" | "panda" | "owl") => setFormData({ ...formData, petType: value })}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fox">Arctic Fox</SelectItem>
-                <SelectItem value="panda">Red Panda</SelectItem>
-                <SelectItem value="owl">Snowy Owl</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Schedule Times */}
           <div className="space-y-2 border-t pt-4">
             <h4 className="font-medium text-sm mb-3">Daily Schedule</h4>

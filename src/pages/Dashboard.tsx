@@ -64,40 +64,70 @@ const Dashboard = () => {
   }, [allTasks, children]);
 
   const upcomingEvents = useMemo(() => {
-    const events: Array<{
+    type Group = {
       id: string;
       name: string;
       time: string;
       date: Date;
-      childName: string;
-      childId: string;
-    }> = [];
+      childNames: string[];
+      childIds: string[];
+    };
+    const grouped = new Map<string, Group>();
     const now = new Date();
+    const today = startOfDay(now);
+    const horizon = addDays(today, 14);
     const currentTime = format(now, "HH:mm");
     const systemTasks = ["wake", "breakfast", "school", "lunch", "dinner", "bedtime"];
 
+    const addGroup = (date: Date, time: string, name: string, child: Child) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const groupKey = `${name.toLowerCase()}|${dateKey}|${time}`;
+      const existing = grouped.get(groupKey);
+      if (existing) {
+        if (!existing.childIds.includes(child.id)) {
+          existing.childIds.push(child.id);
+          existing.childNames.push(child.name);
+        }
+      } else {
+        grouped.set(groupKey, {
+          id: groupKey,
+          name,
+          time,
+          date,
+          childNames: [child.name],
+          childIds: [child.id],
+        });
+      }
+    };
+
     for (const task of allTasks) {
-      if (!task.scheduled_time || !task.is_recurring || !task.recurring_days?.length) continue;
+      if (task.is_active === false) continue;
+      if (!task.scheduled_time) continue;
       if (systemTasks.some(s => task.name.toLowerCase().includes(s))) continue;
       const child = children.find(c => c.id === task.child_id);
       if (!child) continue;
       const time = task.scheduled_time.slice(0, 5);
-      for (let offset = 0; offset <= 14; offset++) {
-        const date = addDays(now, offset);
-        const day = format(date, "EEEE").toLowerCase();
-        if (!task.recurring_days.includes(day)) continue;
-        if (offset === 0 && time <= currentTime) continue;
-        events.push({
-          id: `${task.id}-${offset}`,
-          name: task.name,
-          time,
-          date,
-          childName: child.name,
-          childId: child.id,
-        });
+
+      if (task.is_recurring && task.recurring_days?.length) {
+        for (let offset = 0; offset <= 14; offset++) {
+          const date = addDays(now, offset);
+          const day = format(date, "EEEE").toLowerCase();
+          const dateKey = format(date, "yyyy-MM-dd");
+          if (!task.recurring_days.includes(day)) continue;
+          if (task.excluded_dates?.includes(dateKey)) continue;
+          if (offset === 0 && time <= currentTime) continue;
+          addGroup(date, time, task.name, child);
+        }
+      } else if (!task.is_recurring && task.task_date) {
+        const date = parse(task.task_date, "yyyy-MM-dd", new Date());
+        if (date < today || date > horizon) continue;
+        const isToday = format(date, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
+        if (isToday && time <= currentTime) continue;
+        addGroup(date, time, task.name, child);
       }
     }
-    return events
+
+    return Array.from(grouped.values())
       .sort((a, b) => parse(a.time, "HH:mm", a.date).getTime() - parse(b.time, "HH:mm", b.date).getTime())
       .slice(0, 5);
   }, [allTasks, children]);
@@ -188,8 +218,10 @@ const Dashboard = () => {
                 time={event.time}
                 title={event.name}
                 subtitle={formatDateLabel(event.date)}
-                badgeName={event.childName}
-                badgeColor={childIdToBadge[event.childId]}
+                badges={event.childIds.map((cid, i) => ({
+                  name: event.childNames[i],
+                  color: childIdToBadge[cid],
+                }))}
               />
             ))
           )}
@@ -246,14 +278,12 @@ function EventCard({
   time,
   title,
   subtitle,
-  badgeName,
-  badgeColor,
+  badges,
 }: {
   time: string;
   title: string;
   subtitle: string;
-  badgeName: string;
-  badgeColor: string;
+  badges: { name: string; color: string }[];
 }) {
   const [hourMin, ampm] = splitTime(time);
   return (
@@ -273,9 +303,13 @@ function EventCard({
         <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
       </div>
 
-      {/* Child badge — solid pill, 12px medium label */}
-      <div className={`shrink-0 px-3 py-1.5 rounded-pill ${badgeColor} flex items-center`}>
-        <span className="text-12 font-medium text-white">{badgeName}</span>
+      {/* Child badges — one solid pill per child sharing this slot */}
+      <div className="shrink-0 flex flex-wrap items-center justify-end gap-1">
+        {badges.map(b => (
+          <div key={b.name} className={`px-3 py-1.5 rounded-pill ${b.color} flex items-center`}>
+            <span className="text-12 font-medium text-white">{b.name}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

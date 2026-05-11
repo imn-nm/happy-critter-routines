@@ -80,7 +80,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
   const handlePurchase = async (reward: Reward) => {
     if (child.currentCoins < reward.cost) {
-      toast.error("Not enough coins for this reward!");
+      toast.error("Not enough stars for this reward!");
       return;
     }
 
@@ -89,7 +89,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       await updateChildCoins(child.id, child.currentCoins - reward.cost);
       
       toast.success(`${child.name} purchased: ${reward.name}!`, {
-        description: `Spent ${reward.cost} coins`,
+        description: `Spent ${reward.cost} stars`,
         icon: "🎁"
       });
     } catch (error) {
@@ -111,8 +111,8 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       const coinsToAward = parseInt(awardData.amount);
       await updateChildCoins(child.id, child.currentCoins + coinsToAward);
       
-      toast.success(`Awarded ${coinsToAward} coins to ${child.name}!`, {
-        description: awardData.reason || "Manual coin award",
+      toast.success(`Awarded ${coinsToAward} stars to ${child.name}!`, {
+        description: awardData.reason || "Manual star award",
         icon: "🪙"
       });
       
@@ -123,7 +123,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       });
     } catch (error) {
       console.error('Error awarding coins:', error);
-      toast.error("Failed to award coins. Please try again.");
+      toast.error("Failed to award stars. Please try again.");
     }
   };
 
@@ -158,12 +158,12 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Award Coins to {child.name}</DialogTitle>
+                <DialogTitle>Award Stars to {child.name}</DialogTitle>
               </DialogHeader>
               
               <form onSubmit={handleAwardCoins} className="space-y-4">
                 <div>
-                  <Label htmlFor="amount">Number of Coins *</Label>
+                  <Label htmlFor="amount">Number of Stars *</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -190,7 +190,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                 <div className="flex gap-3 pt-4">
                   <Button type="submit" className="flex-1">
                     <Coins className="w-4 h-4 mr-2" />
-                    Award {awardData.amount} Coins
+                    Award {awardData.amount} Stars
                   </Button>
                   <Button 
                     type="button" 
@@ -249,7 +249,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
               </div>
 
               <div>
-                <Label htmlFor="cost">Cost (coins) *</Label>
+                <Label htmlFor="cost">Cost (stars) *</Label>
                 <div className="flex items-center gap-3">
                   <Button
                     type="button"
@@ -300,7 +300,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
         <div className="text-center py-8">
           <Gift className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">No rewards set up yet</p>
-          <p className="text-sm text-muted-foreground">Add rewards that {child.name} can earn with coins!</p>
+          <p className="text-sm text-muted-foreground">Add rewards that {child.name} can earn with stars!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -336,7 +336,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <Coins className="w-4 h-4 text-warning" />
-                  <span className="font-medium">{reward.cost} coins</span>
+                  <span className="font-medium">{reward.cost} stars</span>
                 </div>
                 
                 <Button
@@ -346,7 +346,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                   onClick={() => handlePurchase(reward)}
                 >
                   <ShoppingCart className="w-3 h-3 mr-1" />
-                  {canAfford(reward.cost) ? 'Buy' : 'Need more coins'}
+                  {canAfford(reward.cost) ? 'Buy' : 'Need more stars'}
                 </Button>
               </div>
             </Card>

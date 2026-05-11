@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -23,19 +23,19 @@ export type Database = {
           bedtime_schedule_overrides: Json | null
           breakfast_days: string[] | null
           breakfast_duration: number | null
-          breakfast_time: string | null
           breakfast_schedule_overrides: Json | null
+          breakfast_time: string | null
           created_at: string
           current_coins: number
           dinner_days: string[] | null
           dinner_duration: number | null
-          dinner_time: string | null
           dinner_schedule_overrides: Json | null
+          dinner_time: string | null
           id: string
           lunch_days: string[] | null
           lunch_duration: number | null
-          lunch_time: string | null
           lunch_schedule_overrides: Json | null
+          lunch_time: string | null
           name: string
           parent_id: string
           pet_happiness: number
@@ -44,13 +44,14 @@ export type Database = {
           school_days: string[] | null
           school_duration: number | null
           school_end_time: string | null
-          school_start_time: string | null
           school_schedule_overrides: Json | null
+          school_start_time: string | null
+          system_date_overrides: Json | null
           updated_at: string
           wake_days: string[] | null
           wake_duration: number | null
-          wake_time: string | null
           wake_schedule_overrides: Json | null
+          wake_time: string | null
         }
         Insert: {
           age?: number | null
@@ -60,19 +61,19 @@ export type Database = {
           bedtime_schedule_overrides?: Json | null
           breakfast_days?: string[] | null
           breakfast_duration?: number | null
-          breakfast_time?: string | null
           breakfast_schedule_overrides?: Json | null
+          breakfast_time?: string | null
           created_at?: string
           current_coins?: number
           dinner_days?: string[] | null
           dinner_duration?: number | null
-          dinner_time?: string | null
           dinner_schedule_overrides?: Json | null
+          dinner_time?: string | null
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
-          lunch_time?: string | null
           lunch_schedule_overrides?: Json | null
+          lunch_time?: string | null
           name: string
           parent_id: string
           pet_happiness?: number
@@ -81,13 +82,14 @@ export type Database = {
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
-          school_start_time?: string | null
           school_schedule_overrides?: Json | null
+          school_start_time?: string | null
+          system_date_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null
-          wake_time?: string | null
           wake_schedule_overrides?: Json | null
+          wake_time?: string | null
         }
         Update: {
           age?: number | null
@@ -97,19 +99,19 @@ export type Database = {
           bedtime_schedule_overrides?: Json | null
           breakfast_days?: string[] | null
           breakfast_duration?: number | null
-          breakfast_time?: string | null
           breakfast_schedule_overrides?: Json | null
+          breakfast_time?: string | null
           created_at?: string
           current_coins?: number
           dinner_days?: string[] | null
           dinner_duration?: number | null
-          dinner_time?: string | null
           dinner_schedule_overrides?: Json | null
+          dinner_time?: string | null
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
-          lunch_time?: string | null
           lunch_schedule_overrides?: Json | null
+          lunch_time?: string | null
           name?: string
           parent_id?: string
           pet_happiness?: number
@@ -118,13 +120,14 @@ export type Database = {
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
-          school_start_time?: string | null
           school_schedule_overrides?: Json | null
+          school_start_time?: string | null
+          system_date_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
           wake_duration?: number | null
-          wake_time?: string | null
           wake_schedule_overrides?: Json | null
+          wake_time?: string | null
         }
         Relationships: [
           {
@@ -136,12 +139,48 @@ export type Database = {
           },
         ]
       }
+      day_notes: {
+        Row: {
+          child_id: string
+          created_at: string
+          date: string
+          id: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          date: string
+          id?: string
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "day_notes_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       holidays: {
         Row: {
           child_id: string
           color: string
           created_at: string
           date: string
+          end_date: string | null
           description: string | null
           id: string
           is_no_school: boolean
@@ -153,6 +192,7 @@ export type Database = {
           color?: string
           created_at?: string
           date: string
+          end_date?: string | null
           description?: string | null
           id?: string
           is_no_school?: boolean
@@ -164,6 +204,7 @@ export type Database = {
           color?: string
           created_at?: string
           date?: string
+          end_date?: string | null
           description?: string | null
           id?: string
           is_no_school?: boolean
@@ -229,7 +270,22 @@ export type Database = {
           reward_id?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reward_purchases_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_purchases_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "rewards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rewards: {
         Row: {
@@ -265,7 +321,15 @@ export type Database = {
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rewards_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_completions: {
         Row: {
@@ -367,16 +431,24 @@ export type Database = {
           created_at: string
           description: string | null
           duration: number | null
+          excluded_dates: string[] | null
           id: string
           is_active: boolean
+          is_fun_time: boolean | null
+          is_important: boolean | null
           is_recurring: boolean
           name: string
-          excluded_dates: string[] | null
           recurring_days: string[] | null
+          schedule_overrides: Json | null
           scheduled_time: string | null
           sort_order: number
+          subtasks: Json | null
+          task_date: string | null
+          date_overrides: Json | null
           type: string
           updated_at: string
+          window_end: string | null
+          window_start: string | null
         }
         Insert: {
           child_id: string
@@ -384,16 +456,24 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number | null
+          excluded_dates?: string[] | null
           id?: string
           is_active?: boolean
+          is_fun_time?: boolean | null
+          is_important?: boolean | null
           is_recurring?: boolean
           name: string
-          excluded_dates?: string[] | null
           recurring_days?: string[] | null
+          schedule_overrides?: Json | null
           scheduled_time?: string | null
           sort_order?: number
+          subtasks?: Json | null
+          task_date?: string | null
+          date_overrides?: Json | null
           type: string
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Update: {
           child_id?: string
@@ -401,15 +481,24 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration?: number | null
+          excluded_dates?: string[] | null
           id?: string
           is_active?: boolean
+          is_fun_time?: boolean | null
+          is_important?: boolean | null
           is_recurring?: boolean
           name?: string
           recurring_days?: string[] | null
+          schedule_overrides?: Json | null
           scheduled_time?: string | null
           sort_order?: number
+          subtasks?: Json | null
+          task_date?: string | null
+          date_overrides?: Json | null
           type?: string
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Relationships: [
           {
