@@ -102,6 +102,7 @@ const CircularTimer = ({
       <svg
         className="w-full h-full -rotate-90"
         viewBox={`0 0 ${viewBox} ${viewBox}`}
+        shapeRendering="geometricPrecision"
       >
         {/* Track — white @ 10% (Figma idle/active). Hidden for overtime/critical
             since those states show a full coloured ring instead. */}

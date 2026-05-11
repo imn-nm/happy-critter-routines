@@ -132,9 +132,13 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
 
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  // Draggable: every user task (scheduled/regular/flexible). System tasks and gaps stay fixed.
+  // Draggable: user tasks without a set time. Tasks the parent has pinned
+  // to a specific clock time (event.task.scheduled_time) shouldn't drag —
+  // the time was deliberate and editing belongs in the form, not by drag.
+  // System tasks and gaps stay fixed too.
   const isGap = event.type === 'gap';
-  const isDraggable = !isGap && event.type !== 'system';
+  const hasFixedTime = !!event.task?.scheduled_time;
+  const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime;
   
   const {
     attributes,
@@ -381,9 +385,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
               return (
                 <span
                   className={cn(
-                    "shrink-0 h-6 px-2.5 inline-flex items-center rounded-pill border text-11 font-medium text-fog-50",
+                    "shrink-0 h-7 px-3 inline-flex items-center rounded-pill border font-medium text-fog-50",
                     stroke,
                   )}
+                  style={{ fontSize: 12, lineHeight: 1 }}
                 >
                   {statusLabel}
                 </span>
@@ -391,7 +396,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             }
             if (isOverdueImportant) {
               return (
-                <span className="shrink-0 h-6 px-2.5 inline-flex items-center rounded-pill border border-coral-500 text-11 font-medium text-fog-50">
+                <span
+                  className="shrink-0 h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 font-medium text-fog-50"
+                  style={{ fontSize: 12, lineHeight: 1 }}
+                >
                   Overdue
                 </span>
               );

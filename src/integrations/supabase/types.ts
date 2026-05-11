@@ -371,6 +371,7 @@ export type Database = {
           is_active: boolean
           is_recurring: boolean
           name: string
+          excluded_dates: string[] | null
           recurring_days: string[] | null
           scheduled_time: string | null
           sort_order: number
@@ -387,6 +388,7 @@ export type Database = {
           is_active?: boolean
           is_recurring?: boolean
           name: string
+          excluded_dates?: string[] | null
           recurring_days?: string[] | null
           scheduled_time?: string | null
           sort_order?: number

@@ -116,40 +116,38 @@ export default function TimelineHeader({
         </div>
       )}
 
-      {/* Week strip */}
-      <div className="flex items-center justify-between gap-1">
+      {/* Week strip — matches Figma 145:6996.
+          Selected day is wrapped in a white-glass pill (rgba(255,255,255,0.14)
+          radius 58); inactive days use #9EBEFF for both the abbreviation
+          (14px / 1.4) and the day number (18px / 1.15). */}
+      <div className="flex items-center justify-between">
         {weekDays.map((day, index) => {
           const isSelected = isSameDay(day, selectedDay);
-          const isTodayDay = isToday(day);
           return (
             <button
               key={index}
               type="button"
               onClick={() => onSelectedDayChange(day)}
               className={cn(
-                "flex flex-col items-center gap-2 px-2 py-1 rounded-[20px] transition-colors",
-                isSelected
-                  ? "bg-iris-400/15"
-                  : "hover:bg-white/[0.04]"
+                "flex flex-col items-center justify-center gap-sp-3 p-2 rounded-[58px] transition-colors",
+                isSelected ? "bg-[rgba(255,255,255,0.14)]" : "hover:bg-white/[0.04]",
               )}
             >
               <span
                 className={cn(
-                  "text-14 leading-none",
-                  isSelected ? "text-fog-50 font-medium" : "text-fog-300"
+                  "text-14",
+                  isSelected ? "text-fog-50" : "text-[#9EBEFF]",
                 )}
+                style={{ lineHeight: 1.4 }}
               >
                 {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][index]}
               </span>
               <span
                 className={cn(
-                  "text-18 leading-none tabular-nums",
-                  isSelected
-                    ? "text-fog-50 font-semibold"
-                    : isTodayDay
-                    ? "text-iris-300"
-                    : "text-fog-200"
+                  "text-18 tabular-nums",
+                  isSelected ? "text-fog-50" : "text-[#9EBEFF]",
                 )}
+                style={{ lineHeight: 1.15 }}
               >
                 {format(day, "d")}
               </span>

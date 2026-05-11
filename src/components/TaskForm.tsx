@@ -122,14 +122,22 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       sort_order: task?.sort_order || 0,
       is_active: task?.is_active ?? true,
       task_date: !formData.isRecurring ? formData.taskDate : undefined,
-      is_important: formData.isImportant,
-      is_fun_time: formData.isFunTime,
+      // Important / fun-time / checklist are task-mode-only concepts.
+      is_important: isChore ? false : formData.isImportant,
+      is_fun_time: isChore ? false : formData.isFunTime,
       window_start: derivedType === 'floating' && !formData.choreAnytime
         ? formData.windowStart
-        // Non-chore task added from a gap without a set time — keep the gap time as a placement hint.
-        : (!isChore && !scheduledTimeStr && prefillTime ? prefillTime : undefined),
+        // Non-chore task without a set time — preserve a placement hint so
+        // its slot in the timeline survives. Priority: prior scheduled_time
+        // (when the parent just toggled "Set Time" off) → existing
+        // window_start → the gap time the form was opened from.
+        : (!isChore && !scheduledTimeStr
+            ? (task?.scheduled_time
+                ? task.scheduled_time.slice(0, 5)
+                : (task?.window_start || prefillTime || undefined))
+            : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
-      subtasks: formData.subtasks.length > 0 ? formData.subtasks : undefined,
+      subtasks: !isChore && formData.subtasks.length > 0 ? formData.subtasks : undefined,
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
@@ -306,31 +314,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </FormRow>
           )}
 
-          <FormRow
-            label="Important"
-            htmlFor="isImportantChore"
-            hint="Child can't skip this chore — they must tap Next when done."
-          >
-            <Switch
-              id="isImportantChore"
-              checked={formData.isImportant}
-              onCheckedChange={(checked) => setFormData({ ...formData, isImportant: checked, isFunTime: checked ? false : formData.isFunTime })}
-              className="data-[state=checked]:bg-yellow-500"
-            />
-          </FormRow>
-
-          <FormRow
-            label="Fun time"
-            htmlFor="isFunTimeChore"
-            hint="Rewards like TV, Roblox, or playtime. Shrinks when an important task runs overdue."
-          >
-            <Switch
-              id="isFunTimeChore"
-              checked={formData.isFunTime}
-              onCheckedChange={(checked) => setFormData({ ...formData, isFunTime: checked, isImportant: checked ? false : formData.isImportant })}
-              className="data-[state=checked]:bg-purple-500"
-            />
-          </FormRow>
         </>
       )}
 
@@ -409,7 +392,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </Select>
       </FormRow>
 
-      {/* Subtasks (checklist shown in child view) */}
+      {/* Subtasks (checklist shown in child view) — task mode only */}
+      {!isChore && (
       <div className="w-full min-w-0">
         <div className="flex items-center h-10 w-full min-w-0 gap-2">
           <Label className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">Checklist</Label>
@@ -468,6 +452,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           </button>
         </div>
       </div>
+      )}
 
       {/* Also add to other children — create mode only */}
       {!isEdit && otherChildren.length > 0 && (

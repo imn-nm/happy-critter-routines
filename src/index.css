@@ -182,24 +182,21 @@
     box-shadow: var(--sh-md);
   }
 
-  /* Signature "aurora" stroke — vertical lilac gradient ring.
-     Top → #A67FFF, Bottom → #7965B9. Rendered as a masked pseudo-element so
-     the pill radius is preserved. The gradient axis is vertical, so the
-     left/right curves sample a smooth ramp and the top/bottom edges read
-     as nearly-uniform hues — much cleaner than a diagonal gradient at 1 px. */
+  /* Signature "aurora" stroke — solid 1px lilac ring.
+     We previously rendered this as a masked vertical gradient pseudo-element
+     but `mask-composite: xor` antialiases the rounded corners poorly against
+     the cosmic gradient (the corners look jagged). Switching to a real
+     `border` on an absolute pseudo lets the browser use its native border
+     rasteriser, which is crisp at 1 px on any background. The colour is
+     picked from the middle of the original gradient so the visual hue
+     stays consistent with the rest of the system. */
   :where(.border-aurora) { position: relative; }
   .border-aurora::before {
     content: '';
     position: absolute;
     inset: 0;
-    padding: 1px;
     border-radius: inherit;
-    background: linear-gradient(180deg, #A67FFF 0%, #7965B9 100%);
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
+    border: 1px solid #8E78D6;
     pointer-events: none;
   }
 
@@ -234,20 +231,14 @@
       0 0 0 2px hsl(var(--ring));
   }
 
-  /* Slide-to-done handle — same vertical lilac gradient ring as .border-aurora. */
+  /* Slide-to-done handle — same crisp solid lilac ring as .border-aurora. */
   :where(.border-aurora-handle) { position: relative; }
   .border-aurora-handle::before {
     content: '';
     position: absolute;
     inset: 0;
-    padding: 1px;
     border-radius: inherit;
-    background: linear-gradient(180deg, #A67FFF 0%, #7965B9 100%);
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
+    border: 1px solid #8E78D6;
     pointer-events: none;
   }
 
