@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 const ChildReports = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { children, loading: childrenLoading, updateChild } = useChildren();
+  const { children, loading: childrenLoading, updateChild, updateChildCoins } = useChildren();
   const { tasks, loading: tasksLoading } = useTasks(childId || undefined);
 
   const selectedChild = children.find(c => c.id === childId) || null;
@@ -95,7 +95,7 @@ const ChildReports = () => {
           <TabsContent value="month">
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus} />
           </TabsContent>
-          <TabsContent value="rewards"><RewardsManagement child={child} /></TabsContent>
+          <TabsContent value="rewards"><RewardsManagement child={child} onUpdateCoins={updateChildCoins} /></TabsContent>
         </Tabs>
       </div>
     </div>

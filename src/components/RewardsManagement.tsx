@@ -6,32 +6,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Star, Gift, ShoppingCart } from "lucide-react";
 import { useRewards, type Reward } from "@/hooks/useRewards";
-import { Child, useChildren } from "@/hooks/useChildren";
+import { Child } from "@/hooks/useChildren";
 import { toast } from "sonner";
 
 interface RewardsManagementProps {
   child: Child;
+  /**
+   * Owned by the parent so both the +/- widget on the page and the chip in
+   * here read from the same useChildren() instance — avoids stale display
+   * caused by parallel hook copies.
+   */
+  onUpdateCoins: (id: string, coins: number) => Promise<unknown>;
 }
 
-const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
+const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isAwardOpen, setIsAwardOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     cost: "10",
   });
-  const [awardData, setAwardData] = useState({
-    amount: "10",
-    reason: "",
-  });
-  
-  const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(propChild.id);
-  const { children, updateChildCoins } = useChildren();
-  
-  // Get the most up-to-date child data from the children state
-  const child = children.find(c => c.id === propChild.id) || propChild;
+
+  const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(child.id);
 
   const resetForm = () => {
     setFormData({
@@ -44,7 +41,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const rewardData = {
         child_id: child.id,
@@ -59,7 +56,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
       } else {
         await addReward(rewardData);
       }
-      
+
       setIsAddOpen(false);
       resetForm();
     } catch (error) {
@@ -85,8 +82,8 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
 
     try {
       await purchaseReward(reward.id, reward.cost);
-      await updateChildCoins(child.id, child.currentCoins - reward.cost);
-      
+      await onUpdateCoins(child.id, child.currentCoins - reward.cost);
+
       toast.success(`${child.name} purchased: ${reward.name}!`, {
         description: `Spent ${reward.cost} stars`,
         icon: "🎁"
@@ -103,109 +100,34 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
     }
   };
 
-  const handleAwardCoins = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const coinsToAward = parseInt(awardData.amount);
-      await updateChildCoins(child.id, child.currentCoins + coinsToAward);
-      
-      toast.success(`Awarded ${coinsToAward} stars to ${child.name}!`, {
-        description: awardData.reason || "Manual star award",
-        icon: "🪙"
-      });
-      
-      setIsAwardOpen(false);
-      setAwardData({
-        amount: "10",
-        reason: "",
-      });
-    } catch (error) {
-      console.error('Error awarding coins:', error);
-      toast.error("Failed to award stars. Please try again.");
-    }
-  };
-
 
   const canAfford = (cost: number) => child.currentCoins >= cost;
 
   return (
     <div className="flex flex-col gap-sp-4">
-      {/* Star balance + actions */}
+      {/* Star balance + actions — chip matches the child view */}
       <div className="flex items-center justify-between gap-sp-2">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-iris-400/30 bg-iris-400/[0.04]">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
           <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-          <span className="text-13 font-bold text-fog-50">{child.currentCoins}</span>
+          <span className="text-13 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
         </div>
-        <div className="flex items-center gap-sp-2">
-          <Dialog open={isAwardOpen} onOpenChange={setIsAwardOpen}>
-            <DialogTrigger asChild>
-              <Button variant="secondary" size="sm">
-                <Star className="w-4 h-4" />
-                Award
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Award Stars to {child.name}</DialogTitle>
-              </DialogHeader>
-              
-              <form onSubmit={handleAwardCoins} className="space-y-4">
-                <div>
-                  <Label htmlFor="amount">Number of Stars *</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={awardData.amount}
-                    onChange={(e) => setAwardData({ ...awardData, amount: e.target.value })}
-                    placeholder="10"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="reason">Reason (optional)</Label>
-                  <Textarea
-                    id="reason"
-                    value={awardData.reason}
-                    onChange={(e) => setAwardData({ ...awardData, reason: e.target.value })}
-                    placeholder="e.g., Good behavior, extra chores, special achievement..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-sp-2 pt-sp-2">
-                  <Button type="submit" variant="primary" size="md" className="flex-1">
-                    <Star className="w-4 h-4" />
-                    Award {awardData.amount} Stars
-                  </Button>
-                  <Button type="button" variant="secondary" size="md" onClick={() => setIsAwardOpen(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isAddOpen} onOpenChange={(open) => {
-            setIsAddOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="primary" size="sm">
-                <Plus className="w-4 h-4" />
-                Add
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
+        <Dialog open={isAddOpen} onOpenChange={(open) => {
+          setIsAddOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button variant="primary" size="sm">
+              <Plus className="w-4 h-4" />
+              Add reward
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {editingReward ? 'Edit Reward' : 'Add New Reward'}
               </DialogTitle>
             </DialogHeader>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="name">Reward Name *</Label>
@@ -230,7 +152,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
               </div>
 
               <div>
-                <Label htmlFor="cost">Cost (stars) *</Label>
+                <Label htmlFor="cost">Cost *</Label>
                 <div className="flex items-center gap-sp-3">
                   <Button
                     type="button"
@@ -240,7 +162,10 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                   >
                     −
                   </Button>
-                  <span className="text-18 font-semibold min-w-[3ch] text-center text-fog-50">{formData.cost || '1'}</span>
+                  <div className="flex items-center gap-1.5 min-w-[3ch] justify-center">
+                    <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    <span className="text-18 font-semibold text-fog-50">{formData.cost || '1'}</span>
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"
@@ -269,9 +194,8 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
                 </Button>
               </div>
             </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {loading ? (
@@ -315,7 +239,7 @@ const RewardsManagement = ({ child: propChild }: RewardsManagementProps) => {
               <div className="flex items-center justify-between gap-sp-2">
                 <div className="flex items-center gap-1">
                   <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                  <span className="text-14 font-medium text-fog-50">{reward.cost} stars</span>
+                  <span className="text-14 font-medium text-fog-50">{reward.cost}</span>
                 </div>
                 <Button
                   variant={canAfford(reward.cost) ? "primary" : "secondary"}

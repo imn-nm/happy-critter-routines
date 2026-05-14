@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
@@ -353,9 +353,12 @@ const ChildDashboard = () => {
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
-                <span className="text-14 text-fog-50 tabular-nums">
-                  {child.currentCoins} {child.currentCoins === 1 ? "Star" : "Stars"}
-                </span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+                  <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                  <span className="text-13 font-bold text-fog-50 leading-none tabular-nums">
+                    {child.currentCoins}
+                  </span>
+                </div>
                 <Button
                   variant="secondary"
                   size="icon-sm"
@@ -545,7 +548,7 @@ const ChildDashboard = () => {
         <DialogContent className="sm:max-w-[560px]">
           <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
           <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
-          <RewardsManagement child={child} />
+          <RewardsManagement child={child} onUpdateCoins={updateChildCoins} />
         </DialogContent>
       </Dialog>
 
