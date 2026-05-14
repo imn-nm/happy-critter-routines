@@ -1,5 +1,12 @@
 import { Check } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import {
+  useMotionPrefs,
+  springs,
+  staggerContainerVariants,
+  staggerItemVariants,
+} from "@/lib/motion";
 import type { Subtask } from "@/types/Task";
 
 interface TaskChecklistViewProps {
@@ -30,13 +37,19 @@ const TaskChecklistView = ({
   onToggle,
   className,
 }: TaskChecklistViewProps) => {
+  const { t } = useMotionPrefs();
   return (
     <div className={cn("w-full flex flex-col gap-sp-3", className)}>
-      <ul className="w-full flex flex-col gap-2">
+      <motion.ul
+        className="w-full flex flex-col gap-2"
+        variants={staggerContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {subtasks.map((sub, idx) => {
           const isChecked = checkedIds.includes(sub.id);
           return (
-            <li key={sub.id}>
+            <motion.li key={sub.id} variants={staggerItemVariants} transition={t(springs.gentle)}>
               <button
                 type="button"
                 onClick={() => onToggle(sub.id)}
@@ -51,17 +64,36 @@ const TaskChecklistView = ({
                 {/* Step number / checkbox circle */}
                 <span
                   className={cn(
-                    "shrink-0 w-9 h-9 rounded-full border-2 inline-flex items-center justify-center text-14 font-semibold transition-all",
+                    "shrink-0 w-9 h-9 rounded-full border-2 inline-flex items-center justify-center text-14 font-semibold transition-all relative overflow-hidden",
                     isChecked
                       ? "bg-mint-500 border-mint-500 text-ink-900"
                       : "border-iris-400/50 text-iris-300 bg-transparent",
                   )}
                 >
-                  {isChecked ? (
-                    <Check className="w-5 h-5" strokeWidth={3} />
-                  ) : (
-                    idx + 1
-                  )}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {isChecked ? (
+                      <motion.span
+                        key="checked"
+                        className="inline-flex items-center justify-center"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        transition={t(springs.bouncy)}
+                      >
+                        <Check className="w-5 h-5" strokeWidth={3} />
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="number"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        transition={t(springs.gentle)}
+                      >
+                        {idx + 1}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </span>
 
                 {/* Step text */}
@@ -74,10 +106,10 @@ const TaskChecklistView = ({
                   {sub.text}
                 </span>
               </button>
-            </li>
+            </motion.li>
           );
         })}
-      </ul>
+      </motion.ul>
     </div>
   );
 };

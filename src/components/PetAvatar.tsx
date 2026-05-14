@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import { useMotionPrefs, durations } from "@/lib/motion";
 import SvgPet from "./SvgPet";
 import owlAvatar from "@/assets/owl.png";
 import foxAvatar from "@/assets/fox-avatar.png";
@@ -26,6 +28,7 @@ interface PetAvatarProps {
 }
 
 const PetAvatar = ({ petType, happiness, emotion, size = "md", className, completedTasks = 0, totalTasks = 0, useSvg = true }: PetAvatarProps) => {
+  const { t } = useMotionPrefs();
   // Emotion/image selection is based on explicit emotion or happiness now.
 
   const getEmotionBasedImage = () => {
@@ -152,11 +155,18 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className, comple
         {shouldUseSvg ? (
           <SvgPet petType={petType as "fox" | "panda"} mood={getSvgMood()} size={svgSizeMap[size]} />
         ) : (
-          <img
-            src={getEmotionBasedImage()}
-            alt={`${petType} pet`}
-            className="w-full h-full object-cover"
-          />
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.img
+              key={getEmotionBasedImage()}
+              src={getEmotionBasedImage()}
+              alt={`${petType} pet`}
+              className="w-full h-full object-cover"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={t({ duration: durations.base })}
+            />
+          </AnimatePresence>
         )}
       </div>
       

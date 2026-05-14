@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useMotionPrefs, durations } from "@/lib/motion";
 
 export type TimerStatus = "on-track" | "behind" | "ahead" | "critical" | "overtime";
 
@@ -36,6 +38,7 @@ const CircularTimer = ({
   status = "on-track",
   children,
 }: CircularTimerProps) => {
+  const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
   const [remainingSeconds, setRemainingSeconds] = useState(
     allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds),
@@ -56,19 +59,16 @@ const CircularTimer = ({
       : 0;
   const strokeDashoffset = circumference * (1 - progress);
 
-  // Progress ring colour — matches Figma CircularTimer state variants:
-  //   Idle      → iris-400 (#879BFF)
-  //   Active    → mint-500 (#38B2A4)
-  //   Complete  → mint-400 (#4DC5B7), no track
-  //   Overdue   → coral-500 (#FF5C5F), no track
+  // Progress ring colour — matches Figma CircularTimer state variants.
+  // Hex literals (not CSS vars) so Motion can tween the color smoothly.
   const getProgressColor = () => {
     switch (status) {
-      case "on-track": return "var(--mint-500)";
-      case "ahead":    return "var(--iris-400)";
+      case "on-track": return "#38b2a4"; // mint-500
+      case "ahead":    return "#879bff"; // iris-400
       case "behind":
-      case "critical": return "var(--coral-400)";
-      case "overtime": return "var(--coral-500)";
-      default:         return "var(--mint-500)";
+      case "critical": return "#ff6666"; // coral-400
+      case "overtime": return "#ff5c5f"; // coral-500
+      default:         return "#38b2a4";
     }
   };
 
@@ -117,18 +117,21 @@ const CircularTimer = ({
             fill="transparent"
           />
         )}
-        {/* Progress (or full coral ring for overtime) */}
-        <circle
+        {/* Progress (or full coral ring for overtime) — stroke color tweens
+            between states via Motion; dashoffset still uses CSS for the
+            once-per-second progress sweep. */}
+        <motion.circle
           cx={center}
           cy={center}
           r={radius}
-          stroke={getProgressColor()}
           strokeWidth={STROKE_PX}
           fill="transparent"
           className="transition-[stroke-dashoffset] duration-1000 ease-linear"
           strokeDasharray={circumference}
           strokeDashoffset={isOvertime ? 0 : strokeDashoffset}
           strokeLinecap="round"
+          animate={{ stroke: getProgressColor() }}
+          transition={t({ duration: durations.base })}
         />
       </svg>
       {children && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import PetAvatar from "@/components/PetAvatar";
@@ -21,16 +21,66 @@ import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/sys
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
+import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
+import { useMotionPrefs, springs, durations, popInVariants, slideUpVariants, staggerContainerVariants, staggerItemVariants } from "@/lib/motion";
 
 interface ChildInterfaceProps {
   childId?: string;
 }
+
+/**
+ * Wraps the pet GIF crossfade in a container that wobbles once when
+ * `overdue` flips from false → true. Kept as its own component so its
+ * hooks (controls + ref) live outside the parent's early-return path.
+ */
+const PetGifWobble = ({
+  overdue,
+  petGif,
+  className,
+}: {
+  overdue: boolean;
+  petGif: string;
+  className?: string;
+}) => {
+  const { t } = useMotionPrefs();
+  const controls = useAnimationControls();
+  const wasOverdueRef = useRef(false);
+  useEffect(() => {
+    if (overdue && !wasOverdueRef.current) {
+      controls.start({
+        rotate: [0, -3, 3, -2, 0],
+        transition: t({ duration: 0.5 }),
+      });
+    }
+    wasOverdueRef.current = overdue;
+    // controls + t are stable for this effect's intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overdue]);
+  const isCelebrate = petGif === '/FoxCelebrate.gif';
+  return (
+    <motion.div className={className} animate={controls}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.img
+          key={petGif}
+          src={petGif}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          initial={isCelebrate ? { opacity: 0, scale: 0.8 } : { opacity: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={t(isCelebrate ? springs.bouncy : { duration: durations.base })}
+        />
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
 const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const { childId: paramChildId } = useParams();
   const navigate = useNavigate();
 
   const childId = propChildId || paramChildId;
+  const { t: tMotion } = useMotionPrefs();
   const { children, loading: childrenLoading, updateChildCoins, updateChildHappiness } = useChildren();
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
@@ -47,6 +97,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
   const [, setTick] = useState(0);
   const [autoAdvancing, setAutoAdvancing] = useState(false);
+
+  // Floating "+N" coin deltas. Each entry self-removes after its animation.
+  const [coinDeltas, setCoinDeltas] = useState<{ id: number; amount: number }[]>([]);
+  const prevCoinsRef = useRef<number | null>(null);
+  const coinDeltaIdRef = useRef(0);
 
   // Per-day subtask completion state, keyed by taskId → set of subtask ids checked.
   // Persisted to localStorage so refresh/tab-switch doesn't lose state within the day.
@@ -84,6 +139,22 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const today = getPSTDateString();
   const todaysHoliday = isHoliday(today);
+
+  // Watch the coin balance and spawn a floating "+N" delta on increase.
+  useEffect(() => {
+    const current = child?.currentCoins;
+    if (current == null) return;
+    const prev = prevCoinsRef.current;
+    prevCoinsRef.current = current;
+    if (prev == null || current <= prev) return;
+    const id = ++coinDeltaIdRef.current;
+    const amount = current - prev;
+    setCoinDeltas((d) => [...d, { id, amount }]);
+    const timeout = window.setTimeout(() => {
+      setCoinDeltas((d) => d.filter((x) => x.id !== id));
+    }, 1000);
+    return () => window.clearTimeout(timeout);
+  }, [child?.currentCoins]);
 
   // Ensure system tasks exist
   useEffect(() => {
@@ -718,13 +789,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <PetAvatar petType={child.petType} happiness={80} emotion="resting" size="md" />
             <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
           </div>
-          <div className="glass-card rounded-3xl p-6 text-center">
+          <motion.div
+            className="glass-card rounded-3xl p-6 text-center"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
             <div className="text-4xl mb-3">😴</div>
             <h2 className="text-xl font-bold mb-1 text-foreground">Cozy rest day</h2>
             <p className="text-sm text-muted-foreground">
               {child.petType === 'fox' ? 'Foxy' : 'Panda'} is resting too!
             </p>
-          </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -753,9 +829,32 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
             <p className="text-20 text-fog-50 leading-none">Hi, {child.name}!</p>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+            <div className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
               <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-              <span className="text-13 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+              <motion.span
+                key={child.currentCoins}
+                className="text-13 font-bold text-fog-50 leading-none"
+                initial={{ scale: 1.25 }}
+                animate={{ scale: 1 }}
+                transition={tMotion(springs.bouncy)}
+              >
+                {child.currentCoins}
+              </motion.span>
+              <AnimatePresence>
+                {coinDeltas.map((d) => (
+                  <motion.span
+                    key={d.id}
+                    aria-hidden
+                    className="pointer-events-none absolute -top-1 right-2 text-12 font-bold text-[#FFD66B]"
+                    initial={{ y: 0, opacity: 0 }}
+                    animate={{ y: -24, opacity: [0, 1, 0] }}
+                    exit={{ opacity: 0 }}
+                    transition={tMotion({ duration: 0.9, ease: "easeOut" })}
+                  >
+                    +{d.amount}
+                  </motion.span>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
         )}
@@ -764,6 +863,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             When `frozenTask` is set we hold the just-completed task in place
             (timer paused, slide disabled, "Done" badge, never-worried pet) so
             the celebrate gif + 5s pause play out without any layout shift. */}
+        <AnimatePresence mode="wait" initial={false}>
         {(frozenTask || activeTask) && (() => {
           const displayTask = frozenTask ?? activeTask;
           const isFrozen = !!frozenTask;
@@ -771,7 +871,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
           if (isBedtime) {
             return (
-              <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+              <motion.div
+                key={`bedtime-${displayTask.id}`}
+                className="flex flex-col items-center gap-sp-4 mb-sp-4"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={tMotion(springs.gentle)}
+              >
                 <h2 className="text-24 text-fog-50 text-center leading-tight">
                   Goodnight, {child.name}! 🌙
                 </h2>
@@ -779,7 +886,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 <p className="text-14 text-fog-200 text-center max-w-xs">
                   {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
                 </p>
-              </div>
+              </motion.div>
             );
           }
 
@@ -809,7 +916,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const badgeLabel = isFrozen ? 'Done' : overdue ? 'Overdue' : isImportantAndDone ? 'Done' : remainingMMSS;
 
           return (
-            <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+            <motion.div
+              key={`task-${displayTask.id}`}
+              className="flex flex-col items-center gap-sp-4 mb-sp-4"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={tMotion(springs.gentle)}
+            >
               {/* Title + StatusBadge under it */}
               <div className="flex flex-col items-center gap-1 py-2">
                 <h2
@@ -841,13 +955,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   />
                   {/* Pet — small companion above the steps so the screen keeps
                       the warmth the timer ring used to provide. */}
-                  <div className="w-[96px] h-[96px] rounded-full overflow-hidden">
-                    <img
-                      src={petGif}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <PetGifWobble
+                    overdue={overdue}
+                    petGif={petGif}
+                    className="w-[96px] h-[96px] rounded-full overflow-hidden relative"
+                  />
                   <TaskChecklistView
                     subtasks={displayTask.subtasks}
                     checkedIds={checkedSubtasks[displayTask.id] ?? []}
@@ -863,10 +975,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   isRunning={!isFrozen}
                   onComplete={handleTimerComplete}
                 >
-                  <img
-                    src={petGif}
-                    alt=""
-                    className="w-full h-full object-cover"
+                  <PetGifWobble
+                    overdue={overdue}
+                    petGif={petGif}
+                    className="relative w-full h-full"
                   />
                 </CircularTimer>
               )}
@@ -882,7 +994,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 const progress = Math.min(1, overdueS / funTotalS);
                 const funRemainingMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
                 return (
-                  <div className="w-full px-sp-2 flex flex-col items-center gap-2">
+                  <motion.div
+                    className="w-full px-sp-2 flex flex-col items-center gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={tMotion({ duration: durations.quick })}
+                  >
                     <WormTimer progress={progress} />
                     {nextFunTask ? (
                       <p className="text-12 text-fog-200">
@@ -891,7 +1008,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     ) : (
                       <p className="text-12 text-fog-200">Overdue — finish soon</p>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })()}
 
@@ -1018,15 +1135,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   )}
                 </div>
               )}
-            </div>
+            </motion.div>
           );
         })()}
+        </AnimatePresence>
 
         {/* Free Time — no active task, upcoming ones exist. Mirrors the
             active-task layout exactly so the screen doesn't visually flip
             after a child marks a task done. */}
         {!frozenTask && !activeTask && freeTimeCountdown && (
-          <div className="flex flex-col items-center gap-sp-4 mb-sp-4">
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
             <div className="flex flex-col items-center gap-1 py-2">
               <h2
                 className="text-fog-50"
@@ -1059,7 +1182,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Next Up — chores no longer appear in this sidebar; they show as
@@ -1115,15 +1238,25 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
         {/* Goodnight — day is over */}
         {dayOver && (
-          <div className="flex flex-col items-center gap-sp-4 mt-sp-4">
-            <PetAvatar
-              petType={child.petType}
-              happiness={90}
-              emotion="resting"
-              size="xl"
-              completedTasks={getTodaysTaskCompletion().completed}
-              totalTasks={getTodaysTaskCompletion().total}
-            />
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
+            <motion.div
+              animate={{ rotate: [-2, 2, -2] }}
+              transition={tMotion({ duration: 4, repeat: Infinity, ease: "easeInOut" })}
+            >
+              <PetAvatar
+                petType={child.petType}
+                happiness={90}
+                emotion="resting"
+                size="xl"
+                completedTasks={getTodaysTaskCompletion().completed}
+                totalTasks={getTodaysTaskCompletion().total}
+              />
+            </motion.div>
             <h2 className="text-24 text-fog-50 text-center leading-tight">
               Goodnight, {child.name}! 🌙
             </h2>
@@ -1131,12 +1264,17 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <p className="text-14 text-fog-200 text-center max-w-xs">
               {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
             </p>
-          </div>
+          </motion.div>
         )}
 
         {/* All done — during the day, no more tasks */}
         {!frozenTask && !dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
-          <div className="flex flex-col items-center gap-sp-4 mt-sp-4">
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
             <h2 className="text-24 text-fog-50 text-center leading-tight">All done!</h2>
             <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
               <span className="text-12 font-medium text-ink-900">Nice work</span>
@@ -1157,7 +1295,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <p className="text-14 text-fog-200 text-center max-w-xs">
               Great job {child.name} — every task is done and your pet is super happy.
             </p>
-          </div>
+          </motion.div>
         )}
 
         {/* Today's Schedule — slide-up sheet matching Figma node 78:120.
@@ -1208,24 +1346,34 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
               </div>
             ) : (
-              <ul className="flex flex-col gap-sp-1">
+              <motion.ul
+                className="flex flex-col gap-sp-1"
+                variants={staggerContainerVariants}
+                initial="hidden"
+                animate={showSchedule ? "visible" : "hidden"}
+              >
                 {todaysSchedule.map(task => {
                   const isNow = focusTask?.id === task.id && !task.isCompleted;
                   const done = !!task.isCompleted;
                   return (
-                    <ScheduleRow
+                    <motion.li
                       key={task.id}
-                      time={task.scheduled_time?.slice(0, 5)}
-                      windowStart={task.window_start?.slice(0, 5)}
-                      windowEnd={task.window_end?.slice(0, 5)}
-                      isChore={task.type === 'floating'}
-                      name={task.name}
-                      durationMin={task.duration}
-                      state={done ? 'done' : isNow ? 'now' : 'upcoming'}
-                    />
+                      variants={staggerItemVariants}
+                      transition={tMotion(springs.gentle)}
+                    >
+                      <ScheduleRow
+                        time={task.scheduled_time?.slice(0, 5)}
+                        windowStart={task.window_start?.slice(0, 5)}
+                        windowEnd={task.window_end?.slice(0, 5)}
+                        isChore={task.type === 'floating'}
+                        name={task.name}
+                        durationMin={task.duration}
+                        state={done ? 'done' : isNow ? 'now' : 'upcoming'}
+                      />
+                    </motion.li>
                   );
                 })}
-              </ul>
+              </motion.ul>
             )}
           </div>
         </div>

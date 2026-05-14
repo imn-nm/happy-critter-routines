@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useMotionPrefs, durations } from "@/lib/motion";
 import type { TimerStatus } from "./CircularTimer";
 
 interface LinearTimerProps {
@@ -30,6 +32,7 @@ const LinearTimer = ({
   onComplete,
   status = "on-track",
 }: LinearTimerProps) => {
+  const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
   const [remainingSeconds, setRemainingSeconds] = useState(
     allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds),
@@ -42,15 +45,15 @@ const LinearTimer = ({
       : 0;
 
   // Mirror CircularTimer's colour map exactly so the two timers feel
-  // interchangeable at a glance.
+  // interchangeable at a glance. Hex literals so Motion can tween.
   const getProgressColor = () => {
     switch (status) {
-      case "on-track": return "var(--mint-500)";
-      case "ahead":    return "var(--iris-400)";
+      case "on-track": return "#38b2a4"; // mint-500
+      case "ahead":    return "#879bff"; // iris-400
       case "behind":
-      case "critical": return "var(--coral-400)";
-      case "overtime": return "var(--coral-500)";
-      default:         return "var(--mint-500)";
+      case "critical": return "#ff6666"; // coral-400
+      case "overtime": return "#ff5c5f"; // coral-500
+      default:         return "#38b2a4";
     }
   };
 
@@ -94,13 +97,16 @@ const LinearTimer = ({
           style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
         />
       )}
-      {/* Fill — grows left→right as time elapses; full-width in overtime. */}
-      <div
+      {/* Fill — grows left→right as time elapses; full-width in overtime.
+          Width still tweens via CSS (1s linear sweep); only the color
+          transitions via Motion when status flips. */}
+      <motion.div
         className="absolute inset-y-0 left-0 rounded-pill transition-[width] duration-1000 ease-linear"
         style={{
           width: isOvertime ? "100%" : `${progress * 100}%`,
-          backgroundColor: getProgressColor(),
         }}
+        animate={{ backgroundColor: getProgressColor() }}
+        transition={t({ duration: durations.base })}
       />
     </div>
   );

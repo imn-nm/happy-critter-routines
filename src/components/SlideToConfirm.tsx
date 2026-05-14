@@ -1,6 +1,8 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ArrowRight, Check } from "lucide-react";
+import { motion, useMotionValue, useTransform, animate, type PanInfo } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useMotionPrefs, springs } from "@/lib/motion";
 
 interface SlideToConfirmProps {
   label?: string;
@@ -33,82 +35,58 @@ export default function SlideToConfirm({
   className,
   compact = false,
 }: SlideToConfirmProps) {
-  // Track is the outer pill; thumb is the wide pill that slides within it.
+  const { t } = useMotionPrefs();
   const TRACK_H = compact ? 36 : 48;
   const THUMB_W = compact ? 64 : 98;
   const THUMB_H = compact ? 30 : 42;
   const LABEL_FONT_PX = compact ? 14 : 18;
   const ARROW_PX = compact ? 16 : 22;
   const CHECK_PX = compact ? 20 : 28;
+
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [x, setX] = useState(0);
-  const [dragging, setDragging] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const startXRef = useRef(0);
-  const startPosRef = useRef(0);
+  const [max, setMax] = useState(0);
+  const x = useMotionValue(0);
+  // Reactive max via a motion value so useTransform recomputes on resize.
+  const maxMv = useMotionValue(0);
+  useEffect(() => {
+    maxMv.set(max);
+  }, [max, maxMv]);
 
-  const getMax = () => {
-    const w = rootRef.current?.clientWidth ?? 0;
-    return Math.max(0, w - THUMB_W);
-  };
+  const labelOpacity = useTransform([x, maxMv], ([xv, m]: number[]) => {
+    if (completed) return 0;
+    if (m <= 0) return 1;
+    return Math.max(0.4, 1 - (xv / m) * 1.4);
+  });
 
-  const handleDown = useCallback(
-    (clientX: number) => {
-      if (disabled || completed) return;
-      setDragging(true);
-      startXRef.current = clientX;
-      startPosRef.current = x;
-    },
-    [disabled, completed, x],
-  );
+  useEffect(() => {
+    const measure = () => {
+      const w = rootRef.current?.clientWidth ?? 0;
+      setMax(Math.max(0, w - THUMB_W));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [THUMB_W]);
 
-  const handleMove = useCallback(
-    (clientX: number) => {
-      if (!dragging) return;
-      const max = getMax();
-      const delta = clientX - startXRef.current;
-      const next = Math.max(0, Math.min(max, startPosRef.current + delta));
-      setX(next);
-    },
-    [dragging],
-  );
-
-  const handleUp = useCallback(async () => {
-    if (!dragging) return;
-    setDragging(false);
-    const max = getMax();
-    if (max > 0 && x / max >= threshold) {
-      setX(max);
+  const handleDragEnd = async (_e: unknown, _info: PanInfo) => {
+    if (disabled || completed) return;
+    const current = x.get();
+    if (max > 0 && current / max >= threshold) {
+      await animate(x, max, t(springs.snappy)).finished;
       setCompleted(true);
       try {
         await onConfirm();
       } finally {
         setTimeout(() => {
-          setX(0);
+          animate(x, 0, t(springs.gentle));
           setCompleted(false);
         }, 250);
       }
     } else {
-      setX(0);
+      animate(x, 0, t(springs.gentle));
     }
-  }, [dragging, x, threshold, onConfirm]);
-
-  useEffect(() => {
-    if (!dragging) return;
-    const onPointerMove = (e: PointerEvent) => handleMove(e.clientX);
-    const onPointerUp = () => handleUp();
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [dragging, handleMove, handleUp]);
-
-  const max = getMax();
-  const pct = max > 0 ? x / max : 0;
+  };
 
   return (
     <div
@@ -128,12 +106,12 @@ export default function SlideToConfirm({
           paddingRight: 16,
         }}
       >
-        <span
+        <motion.span
           className="flex items-center gap-2.5 font-normal leading-none whitespace-nowrap"
           style={{
             color: "rgba(102,153,255,0.6)",
             fontSize: LABEL_FONT_PX,
-            opacity: completed ? 0 : Math.max(0.4, 1 - pct * 1.4),
+            opacity: labelOpacity,
           }}
         >
           <ArrowRight
@@ -142,39 +120,38 @@ export default function SlideToConfirm({
             strokeWidth={2}
           />
           {completed ? "Done!" : label}
-        </span>
+        </motion.span>
       </div>
 
       {/* Thumb — wide pill (98×42), #08011a fill, lavender stroke, slides
-          horizontally inside the track. */}
-      <button
+          horizontally inside the track via Motion drag + spring snap-back. */}
+      <motion.button
         type="button"
-        onPointerDown={(e) => {
-          (e.target as Element).setPointerCapture?.(e.pointerId);
-          handleDown(e.clientX);
-        }}
         aria-label={label}
         disabled={disabled}
+        drag={disabled || completed ? false : "x"}
+        dragConstraints={{ left: 0, right: max }}
+        dragElastic={0.05}
+        dragMomentum={false}
+        onDragEnd={handleDragEnd}
+        whileTap={disabled || completed ? undefined : { scale: 0.96 }}
         className={cn(
           "absolute rounded-pill flex items-center justify-center",
-          dragging ? "cursor-grabbing" : "cursor-grab",
-          "active:scale-95",
+          disabled ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
           completed ? "bg-mint-500 text-ink-900" : "text-fog-50",
         )}
         style={{
+          x,
           width: THUMB_W,
           height: THUMB_H,
-          left: x,
+          left: 0,
           top: (TRACK_H - THUMB_H) / 2,
           background: completed ? undefined : "#08011a",
           border: completed ? "1px solid #4DC5B7" : "1px solid #A67FFF",
-          transitionProperty: dragging ? "transform" : "left, transform",
-          transitionDuration: dragging ? "0ms" : "220ms",
-          transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
         <Check style={{ width: CHECK_PX, height: CHECK_PX }} strokeWidth={2.5} />
-      </button>
+      </motion.button>
     </div>
   );
 }
