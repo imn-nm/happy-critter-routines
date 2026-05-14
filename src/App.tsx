@@ -18,6 +18,7 @@ import ChorePreview from "./pages/ChorePreview";
 import ChildOverduePreview from "./pages/ChildOverduePreview";
 import ChildOverdueSubtasksPreview from "./pages/ChildOverdueSubtasksPreview";
 import ChildOverdueSubtasksCompactPreview from "./pages/ChildOverdueSubtasksCompactPreview";
+import AnimationsPreview from "./pages/AnimationsPreview";
 import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
 
@@ -56,6 +57,7 @@ const App = () => (
           {/* Public routes — outside AuthProvider so unauth'd users can reach them. */}
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/preview/animations" element={<AnimationsPreview />} />
           <Route
             path="*"
             element={
