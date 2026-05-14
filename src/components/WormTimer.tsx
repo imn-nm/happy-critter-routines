@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { Gamepad2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useMotionPrefs } from "@/lib/motion";
 
 /**
  * WormTimer — horizontal "eating the fun task" progress bar.
@@ -34,7 +36,14 @@ export default function WormTimer({
   icon,
   className,
 }: WormTimerProps) {
+  const { t } = useMotionPrefs();
   const clamped = Math.max(0, Math.min(1, progress));
+
+  // Last 15% of progress is the "being eaten" window — icon shrinks toward
+  // the worm's mouth (transform-origin: left center) and fades. `eaten` runs
+  // 0 → 1 over that window; below the window it stays 0 (icon intact).
+  const BITE_START = 0.85;
+  const eaten = Math.max(0, Math.min(1, (clamped - BITE_START) / (1 - BITE_START)));
 
   return (
     <div
@@ -86,13 +95,21 @@ export default function WormTimer({
         <WormHead chompMs={Math.round(700 - clamped * 450)} />
       </div>
 
-      {/* Task icon circle — fixed on the right */}
-      <div
+      {/* Task icon circle — fixed on the right. Shrinks toward its left
+          edge (where the worm's mouth approaches from) as `eaten` climbs,
+          so the worm visually consumes it once `progress` ≥ BITE_START. */}
+      <motion.div
         className="absolute right-0 top-0 rounded-pill bg-mint-400 flex items-center justify-center text-white"
-        style={{ width: ICON_SIZE, height: ICON_SIZE }}
+        style={{ width: ICON_SIZE, height: ICON_SIZE, transformOrigin: "left center" }}
+        animate={{
+          scale: 1 - eaten,
+          opacity: 1 - eaten * eaten,
+          rotate: -eaten * 12,
+        }}
+        transition={t({ duration: 0.4, ease: "easeOut" })}
       >
         {icon ?? <Gamepad2 className="w-[22px] h-[22px]" strokeWidth={2.2} />}
-      </div>
+      </motion.div>
     </div>
   );
 }
