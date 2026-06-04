@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings, Sparkles, Star } from "lucide-react";
+import { LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
@@ -175,14 +175,25 @@ const Dashboard = () => {
               <p className="text-16 text-white">Hi, {firstName}</p>
               <p className="text-20 text-white leading-none truncate">{dateLabel}</p>
             </div>
-            <button
-              type="button"
-              aria-label="Settings"
-              onClick={() => navigate("/settings")}
-              className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+            <div className="shrink-0 flex items-center gap-sp-2">
+              <button
+                type="button"
+                aria-label="Exit parent dashboard"
+                onClick={() => navigate("/")}
+                className="h-9 px-sp-3 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center gap-1.5 text-fog-50 text-14 hover:bg-iris-400/10 transition-colors duration-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                Exit
+              </button>
+              <button
+                type="button"
+                aria-label="Settings"
+                onClick={() => navigate("/settings")}
+                className="w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
           </header>
 
           {/* Children panel — bordered iris-400/25, child cards stacked with
