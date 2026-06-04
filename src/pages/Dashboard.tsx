@@ -41,11 +41,26 @@ const Dashboard = () => {
     const out: Record<string, { now?: string; next?: string }> = {};
     const now = new Date();
     const today = format(now, "EEEE").toLowerCase();
+    const todayStr = format(now, "yyyy-MM-dd");
     const currentTime = format(now, "HH:mm");
     for (const child of children) {
       const tasks = allTasks
         .filter(t => t.child_id === child.id)
-        .filter(t => t.scheduled_time && t.is_recurring && t.recurring_days?.includes(today))
+        .filter(t => {
+          // Recurring tasks scheduled for today
+          if (t.is_recurring && t.recurring_days?.includes(today)) return true;
+          // Non-recurring tasks pinned to today's date (chores, one-off tasks)
+          if (!t.is_recurring && t.task_date === todayStr) return true;
+          return false;
+        })
+        .map(t => {
+          // Chores use window_start as their display time
+          if (!t.scheduled_time && t.window_start) {
+            return { ...t, scheduled_time: t.window_start };
+          }
+          return t;
+        })
+        .filter(t => t.scheduled_time)
         .sort((a, b) => a.scheduled_time!.localeCompare(b.scheduled_time!));
 
       const current = [...tasks].reverse().find(t => {

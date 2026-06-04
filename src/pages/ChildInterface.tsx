@@ -491,8 +491,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       const taskTime = (task.scheduled_time || '00:00').slice(0, 5);
       const [h, m] = taskTime.split(':').map(Number);
       const taskStartMinutes = h * 60 + m;
-      const taskDuration = task.duration || 0;
-      const endMinutes = taskStartMinutes + taskDuration;
+      // Chores (floating) use window_end for their time window, since they
+      // have no duration — duration is undefined for chores.
+      let endMinutes: number;
+      if (task.type === 'floating' && task.window_end) {
+        const [eh, em] = task.window_end.split(':').map(Number);
+        endMinutes = eh * 60 + em;
+      } else {
+        const taskDuration = task.duration || 0;
+        endMinutes = taskStartMinutes + taskDuration;
+      }
       const taskEndTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
       // Task's window has fully passed
@@ -1125,7 +1133,57 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               status="ahead"
               sizePx={293}
               isRunning={true}
-            />
+            >
+              <img src="/FoxHappy.gif" alt="fox pet" className="w-full h-full object-contain" />
+            </CircularTimer>
+            {/* Chore tiles — also visible during free time so kids can
+                knock out chores between scheduled tasks. */}
+            {(() => {
+              const activeChores = getActiveWindowChores();
+              if (activeChores.length === 0) return null;
+              return (
+                <div className="w-full flex flex-col gap-sp-1">
+                  <p className="text-14 text-iris-400 leading-none">Chores</p>
+                  <div className="w-full flex items-stretch gap-sp-1">
+                    {activeChores.map(chore => {
+                      const done = !!chore.isCompleted;
+                      return (
+                        <button
+                          key={chore.id}
+                          type="button"
+                          disabled={done}
+                          onClick={async () => {
+                            if (done) return;
+                            try {
+                              await completeTask(chore.id, chore.coins || 0, 0);
+                              const newHappiness = calculateHappiness();
+                              await updateChildHappiness(child.id, newHappiness);
+                            } catch (error) {
+                              console.error('Error completing chore:', error);
+                            }
+                          }}
+                          className={cn(
+                            "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                            done
+                              ? "bg-mint-500/20 border-mint-500 cursor-default"
+                              : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
+                          )}
+                        >
+                          {done ? (
+                            <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
+                          ) : (
+                            <Sparkles className="w-4 h-4 text-fog-50" strokeWidth={2} />
+                          )}
+                          <span className="w-full text-12 text-center leading-tight text-fog-50">
+                            {chore.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Next task row — same shape as the active-task block. */}
             <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
               <div className="flex flex-col gap-1 min-w-0">
