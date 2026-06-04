@@ -480,7 +480,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const [nowH, nowM] = currentTimeString.split(':').map(Number);
     const nowMinutes = nowH * 60 + nowM;
 
-    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted);
+    // Exclude floating/chore tasks — they're rendered separately as chore
+    // tiles via getActiveWindowChores() and should never become the "active" task.
+    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted && t.type !== 'floating');
 
     let current: (typeof incompleteTasks)[0] | null = null;
     const upcoming: typeof incompleteTasks = [];
