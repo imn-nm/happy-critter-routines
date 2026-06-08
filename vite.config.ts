@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  build: {
+    target: ['es2020', 'chrome96', 'safari14'],
+  },
   plugins: [
     react(),
     mode === 'development' &&
