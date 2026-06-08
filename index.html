@@ -29,16 +29,28 @@
       </div>
     </div>
     <script>
-      window.onerror=function(m,s,l,c,e){
+      window.__appMounted=false;
+      window.onerror=function(m,s,l){
         var d=document.getElementById('app-loader');
         if(d)d.innerHTML='<div style="color:#ff8f91;font-family:system-ui,sans-serif;font-size:14px;padding:24px;text-align:left;max-width:400px;word-break:break-word">'
           +'<p style="color:#e4e6ff;font-size:18px;margin-bottom:12px">Failed to load app</p>'
           +'<p>'+m+'</p>'
           +'<p style="color:#9ea0c4;margin-top:8px;font-size:12px">'+s+':'+l+'</p>'
+          +'<p style="color:#9ea0c4;margin-top:8px;font-size:11px">'+navigator.userAgent+'</p>'
           +'</div>';
       };
+      setTimeout(function(){
+        if(!window.__appMounted){
+          var d=document.getElementById('app-loader');
+          if(d)d.innerHTML='<div style="color:#fab047;font-family:system-ui,sans-serif;font-size:14px;padding:24px;text-align:left;max-width:400px;word-break:break-word">'
+            +'<p style="color:#e4e6ff;font-size:18px;margin-bottom:12px">App did not load</p>'
+            +'<p>The app failed to start after 8 seconds. Your browser may not support the required features.</p>'
+            +'<p style="color:#9ea0c4;margin-top:12px;font-size:11px">'+navigator.userAgent+'</p>'
+            +'</div>';
+        }
+      },8000);
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx" onerror="window.onerror('Module script failed to load','main.tsx',0)"></script>
     <noscript>
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#271447;color:#e4e6ff;font-family:system-ui,sans-serif;text-align:center;padding:24px">
         <p>JavaScript is required to run PetPals. Please enable JavaScript in your browser settings.</p>
