@@ -4,10 +4,12 @@ import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChildren } from "@/hooks/useChildren";
+import { useAuth } from "@/hooks/useAuth";
 
 const ChildNameGate = () => {
   const navigate = useNavigate();
   const { children, loading } = useChildren();
+  const { signOut, user } = useAuth();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
 
@@ -46,15 +48,25 @@ const ChildNameGate = () => {
           </div>
           <h1 className="text-2xl font-bold text-foreground text-glow">Welcome to PetPals!</h1>
           <p className="text-sm text-muted-foreground">
-            No children profiles yet. Go to the parent portal to set up your first profile.
+            No children profiles yet. Go to the parent portal to set up your first profile,
+            or switch accounts if you're on a child's device.
           </p>
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => navigate("/parent")}
-          >
-            Go to Parent Portal
-          </Button>
+          <div className="flex flex-col gap-3">
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => navigate("/parent")}
+            >
+              Go to Parent Portal
+            </Button>
+            <button
+              type="button"
+              onClick={signOut}
+              className="text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              Sign out{user?.email ? ` (${user.email})` : ''}
+            </button>
+          </div>
         </div>
       </div>
     );
