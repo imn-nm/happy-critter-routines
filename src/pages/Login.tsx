@@ -10,9 +10,9 @@ const Login = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const inviteToken = params.get('invite') ?? undefined;
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -36,6 +36,11 @@ const Login = () => {
     e.preventDefault();
     setBusy(true);
     try {
+      if (mode === 'reset') {
+        await resetPassword(email);
+        setMode('signin');
+        return;
+      }
       if (mode === 'signin') {
         await signInWithEmail(email, password);
       } else {
@@ -57,7 +62,7 @@ const Login = () => {
             <Sparkles className="w-6 h-6 text-primary-light" />
           </div>
           <h1 className="text-2xl font-bold text-foreground text-glow">
-            {inviteToken ? 'Join your family' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
+            {inviteToken ? 'Join your family' : mode === 'reset' ? 'Reset password' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
           </h1>
           <p className="text-sm text-muted-foreground">
             {inviteToken
@@ -67,24 +72,28 @@ const Login = () => {
         </div>
 
         <div className="glass-card rounded-3xl p-6 space-y-4">
-          <Button
-            type="button"
-            onClick={handleGoogle}
-            disabled={busy}
-            className="w-full gap-2"
-            variant="outline"
-          >
-            <GoogleIcon /> Continue with Google
-          </Button>
+          {mode !== 'reset' && (
+            <>
+              <Button
+                type="button"
+                onClick={handleGoogle}
+                disabled={busy}
+                className="w-full gap-2"
+                variant="outline"
+              >
+                <GoogleIcon /> Continue with Google
+              </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">or</span>
-            </div>
-          </div>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleEmail} className="space-y-3">
             {mode === 'signup' && (
@@ -103,30 +112,44 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+            {mode !== 'reset' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            )}
             <Button type="submit" disabled={busy} className="w-full">
-              {mode === 'signin' ? 'Sign in' : 'Create account'}
+              {mode === 'reset' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </Button>
           </form>
+
+          {mode === 'signin' && (
+            <button
+              type="button"
+              onClick={() => setMode('reset')}
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              Forgot password? Set one for email sign-in
+            </button>
+          )}
 
           <button
             type="button"
             onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
             className="w-full text-xs text-muted-foreground hover:text-foreground transition"
           >
-            {mode === 'signin'
-              ? "Don't have an account? Sign up"
-              : 'Already have an account? Sign in'}
+            {mode === 'reset'
+              ? 'Back to sign in'
+              : mode === 'signin'
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
           </button>
         </div>
       </div>
