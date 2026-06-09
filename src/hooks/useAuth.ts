@@ -12,6 +12,7 @@ const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
 export const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const { toast } = useToast();
 
   const signInWithGoogle = async (opts?: { withCalendarScope?: boolean; redirectTo?: string }) => {
@@ -97,6 +98,16 @@ export const useAuth = () => {
     });
   };
 
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      toast({ title: 'Password update failed', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+    setRecoveryMode(false);
+    toast({ title: 'Password set', description: 'You can now sign in with email and password.' });
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -112,8 +123,11 @@ export const useAuth = () => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+      }
       setLoading(false);
     });
 
@@ -127,6 +141,8 @@ export const useAuth = () => {
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
+    updatePassword,
+    recoveryMode,
     signOut,
   };
 };

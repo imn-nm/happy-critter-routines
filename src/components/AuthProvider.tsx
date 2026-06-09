@@ -3,13 +3,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useHousehold } from '@/hooks/useHousehold';
 import { Skeleton } from '@/components/ui/skeleton';
 import Login from '@/pages/Login';
+import SetPasswordForm from '@/components/SetPasswordForm';
 
 interface AuthProviderProps {
   children: React.ReactNode;
 }
 
 const AuthProvider = ({ children }: AuthProviderProps) => {
-  const { user, loading } = useAuth();
+  const { user, loading, recoveryMode } = useAuth();
   // Only run household lookups once we're signed in (avoids 401s pre-auth).
   const enabled = !!user;
   const { household, isLoading: hhLoading, createHousehold } = useHousehold();
@@ -45,6 +46,10 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (recoveryMode) {
+    return <SetPasswordForm />;
   }
 
   return <>{children}</>;
