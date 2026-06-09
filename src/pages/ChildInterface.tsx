@@ -562,7 +562,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const nextStart = new Date(now);
     nextStart.setHours(nh, nm, 0, 0);
 
-    // Window start = end of previous completed/passed task, or start of day (6am fallback)
+    // Window start = end of previous completed/passed task, or child's wake time
     const incomplete = todaysSchedule.filter(t => !t.isCompleted);
     const nextIdx = incomplete.findIndex(t => t.id === nextTask.id);
     let windowStart: Date;
@@ -572,8 +572,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       windowStart = new Date(now);
       windowStart.setHours(ph, pm + (prev.duration || 0), 0, 0);
     } else {
+      // Use the child's wake time instead of a hardcoded 6 AM
+      const [wh, wm] = (child.wake_time || '07:00').split(':').map(Number);
       windowStart = new Date(now);
-      windowStart.setHours(6, 0, 0, 0);
+      windowStart.setHours(wh, wm, 0, 0);
+    }
+
+    // If window started in the past, clamp to now so the bar doesn't show
+    // absurdly long free-time durations (e.g. 7+ hours from wake to first task).
+    if (windowStart.getTime() < now.getTime()) {
+      windowStart = now;
     }
 
     const total = Math.max(60, Math.floor((nextStart.getTime() - windowStart.getTime()) / 1000));
