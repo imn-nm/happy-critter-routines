@@ -1,0 +1,16 @@
+{
+  "name": "PetPals",
+  "short_name": "PetPals",
+  "description": "Make daily routines fun and rewarding with virtual pet companions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08011A",
+  "theme_color": "#452774",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}
