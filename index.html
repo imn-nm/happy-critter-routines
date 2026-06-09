@@ -54,6 +54,11 @@
       },8000);
     </script>
     <script type="module" src="/src/main.tsx" onerror="window.onerror('Module script failed to load','main.tsx',0)"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }
+    </script>
     <noscript>
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#271447;color:#e4e6ff;font-family:system-ui,sans-serif;text-align:center;padding:24px">
         <p>JavaScript is required to run PetPals. Please enable JavaScript in your browser settings.</p>
