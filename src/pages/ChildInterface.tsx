@@ -169,8 +169,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         <div className="max-w-2xl mx-auto text-center py-16">
           <p className="text-muted-foreground text-sm">Child not found</p>
           {!propChildId && (
-            <Button variant="outline" onClick={() => navigate("/dashboard")} className="mt-3 rounded-full" size="sm">
-              Back to Dashboard
+            <Button variant="outline" onClick={() => navigate("/")} className="mt-3 rounded-full" size="sm">
+              Back
             </Button>
           )}
         </div>
@@ -741,14 +741,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return (
       <div className={`${!propChildId ? 'min-h-screen' : ''} p-5`}>
         <div className="max-w-md mx-auto">
-          {!propChildId && (
-            <div className="flex justify-end mb-4">
-              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="rounded-full px-4 gap-1.5">
-                <Settings className="w-3.5 h-3.5" />
-                <span className="text-xs">Parent</span>
-              </Button>
-            </div>
-          )}
+          {false && /* Parent pill removed — parent portal is at /parent */
+            null}
           <div className="flex items-center gap-4 mb-6">
             <PetAvatar petType={child.petType} happiness={80} emotion="resting" size="md" />
             <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
@@ -773,20 +767,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   return (
     <div className={`${!propChildId ? 'min-h-screen' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] mx-auto">
-        {/* Parent pill — top right (only when standalone; side-by-side has its own) */}
-        {!propChildId && (
-          <div className="flex justify-end mb-sp-3">
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="tap-target flex items-center gap-1.5 h-[31px] px-[14px] rounded-pill bg-white/[0.06] border border-white/10 text-fog-50 hover:bg-white/10 transition-colors duration-sm"
-              aria-label="Parent view"
-            >
-              <Settings className="w-3 h-3" />
-              <span className="text-12 font-medium">Parent</span>
-            </button>
-          </div>
-        )}
+        {/* Parent pill removed — parent portal is at /parent */}
 
         {/* Greeting + coin chip row — matches Figma "Child Dashboard - overtime-new":
             greeting 20px Inter Regular, coin chip 13px Bold with star icon */}

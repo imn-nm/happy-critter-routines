@@ -65,7 +65,7 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
       toast.success("Parent PIN set");
       onOpenChange(false);
       reset();
-      navigate("/dashboard");
+      navigate("/parent");
     } catch {
       // toast shown by hook
     }
@@ -76,7 +76,7 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
     if (pincode === household?.parent_pin) {
       onOpenChange(false);
       reset();
-      navigate("/dashboard");
+      navigate("/parent");
     } else {
       setError("Incorrect pincode");
       setPincode("");

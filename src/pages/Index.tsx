@@ -24,7 +24,7 @@ const Index = () => {
             <span className="text-xl font-bold text-foreground text-glow">PetPals</span>
           </div>
           <Button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/parent")}
             size="sm"
           >
             Sign In
@@ -47,7 +47,7 @@ const Index = () => {
           </p>
           <Button
             size="lg"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/parent")}
             className="gap-2 text-base"
           >
             Get Started
@@ -109,7 +109,7 @@ const Index = () => {
             Set up your family in minutes. Free to use.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button onClick={() => navigate("/dashboard")}>
+            <Button onClick={() => navigate("/parent")}>
               Create Account
             </Button>
             <Button variant="outline">

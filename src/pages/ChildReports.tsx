@@ -28,7 +28,7 @@ const ChildReports = () => {
       <div className="min-h-screen p-4">
         <div className="max-w-md mx-auto text-center py-16">
           <h2 className="text-xl font-bold text-foreground mb-3">{!childId ? 'No child selected' : 'Child not found'}</h2>
-          <Button variant="outline" onClick={() => navigate("/dashboard")} className="rounded-full">Back to Dashboard</Button>
+          <Button variant="outline" onClick={() => navigate("/parent")} className="rounded-full">Back to Dashboard</Button>
         </div>
       </div>
     );

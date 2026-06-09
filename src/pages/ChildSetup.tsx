@@ -44,7 +44,7 @@ const ChildSetup = () => {
         petHappiness: 50,
       });
       toast({ title: "Success!", description: `${formData.name} has been added!` });
-      navigate("/dashboard");
+      navigate("/parent");
     } catch (error) {
       toast({ title: "Error", description: "Failed to create profile.", variant: "destructive" });
     } finally {
@@ -215,7 +215,7 @@ const ChildSetup = () => {
 
           {/* Nav */}
           <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5">
-            <Button variant="ghost" size="sm" onClick={step === 1 ? () => navigate("/dashboard") : handleBack} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={step === 1 ? () => navigate("/parent") : handleBack} className="gap-1.5">
               <ChevronLeft className="w-4 h-4" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>

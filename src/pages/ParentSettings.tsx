@@ -49,7 +49,7 @@ const ParentSettings = () => {
         <header className="flex items-center justify-between gap-sp-3 px-sp-4 pt-sp-5">
           <button
             type="button"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/parent")}
             aria-label="Back"
             className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors"
           >

@@ -12,7 +12,7 @@ import ChildInterface from "./pages/ChildInterface";
 import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
-import ChildrenSideBySide from "./pages/ChildrenSideBySide";
+import ChildNameGate from "./pages/ChildNameGate";
 import ChecklistPreview from "./pages/ChecklistPreview";
 import ChorePreview from "./pages/ChorePreview";
 import ChildOverduePreview from "./pages/ChildOverduePreview";
@@ -31,9 +31,10 @@ const queryClient = new QueryClient();
 
 const ProtectedRoutes = () => (
   <Routes>
-    <Route path="/" element={<ChildrenSideBySide />} />
+    <Route path="/" element={<ChildNameGate />} />
     <Route path="/landing" element={<Index />} />
-    <Route path="/dashboard" element={<Dashboard />} />
+    <Route path="/dashboard" element={<Navigate to="/parent" replace />} />
+    <Route path="/parent" element={<Dashboard />} />
     <Route path="/setup" element={<ChildSetup />} />
     <Route path="/settings" element={<ParentSettings />} />
     <Route path="/child/:childId" element={<ChildInterface />} />

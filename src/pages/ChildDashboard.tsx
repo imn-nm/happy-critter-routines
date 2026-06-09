@@ -300,7 +300,7 @@ const ChildDashboard = () => {
       <div className="min-h-screen p-4">
         <div className="max-w-md mx-auto text-center py-16">
           <h1 className="text-xl font-bold text-foreground mb-3">Child not found</h1>
-          <Button onClick={() => navigate("/dashboard")} variant="outline" className="rounded-full">Back</Button>
+          <Button onClick={() => navigate("/parent")} variant="outline" className="rounded-full">Back</Button>
         </div>
       </div>
     );
@@ -319,7 +319,7 @@ const ChildDashboard = () => {
               <div className="flex items-center gap-sp-2 min-w-0">
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard")}
+                  onClick={() => navigate("/parent")}
                   aria-label="Back to parent dashboard"
                   className="tap-target shrink-0 h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
                 >
