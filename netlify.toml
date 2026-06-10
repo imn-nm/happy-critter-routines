@@ -2,6 +2,17 @@
   command = "npm run build"
   publish = "dist"
 
+# Never cache the service worker or manifest — browsers must always get the latest
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

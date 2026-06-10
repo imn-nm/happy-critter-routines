@@ -56,7 +56,22 @@
     <script type="module" src="/src/main.tsx" onerror="window.onerror('Module script failed to load','main.tsx',0)"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(function(){});
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          // Force the new SW to activate immediately on update
+          reg.addEventListener('updatefound', function() {
+            var newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', function() {
+                if (newWorker.state === 'activated') {
+                  // New SW is active — reload to get fresh code
+                  window.location.reload();
+                }
+              });
+            }
+          });
+          // Check for updates immediately
+          reg.update().catch(function(){});
+        }).catch(function(){});
       }
     </script>
     <noscript>
