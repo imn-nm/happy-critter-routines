@@ -1072,6 +1072,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             <span className="w-full text-12 text-center leading-tight text-fog-50">
                               {chore.name}
                             </span>
+                            {chore.coins > 0 && !done && (
+                              <span className="flex items-center gap-0.5 text-[10px] text-[#FFD66B] font-semibold">
+                                <Star className="w-3 h-3 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                                {chore.coins}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
