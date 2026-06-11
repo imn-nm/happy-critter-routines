@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
+import { Bell, LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ const Dashboard = () => {
   const { children, loading } = useChildren();
   const { user } = useAuth();
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [pendingAlerts, setPendingAlerts] = useState<{ childId: string; rewardName: string; id: string; coins: number }[]>([]);
 
   const firstName = useMemo(() => {
     const meta = user?.user_metadata?.full_name as string | undefined;
@@ -35,6 +36,30 @@ const Dashboard = () => {
       .select("*")
       .in("child_id", ids)
       .then(({ data }) => setAllTasks((data || []) as Task[]));
+  }, [children]);
+
+  // Fetch pending reward requests across all children
+  useEffect(() => {
+    if (children.length === 0) return;
+    const ids = children.map(c => c.id);
+    supabase
+      .from("reward_purchases")
+      .select("id, child_id, reward_id, coins_spent, status")
+      .in("child_id", ids)
+      .eq("status", "pending")
+      .then(async ({ data }) => {
+        if (!data || data.length === 0) { setPendingAlerts([]); return; }
+        // Fetch reward names
+        const rewardIds = [...new Set(data.map(p => p.reward_id))];
+        const { data: rewards } = await supabase.from("rewards").select("id, name").in("id", rewardIds);
+        const rewardMap = new Map((rewards || []).map(r => [r.id, r.name]));
+        setPendingAlerts(data.map(p => ({
+          id: p.id,
+          childId: p.child_id,
+          rewardName: rewardMap.get(p.reward_id) || "Reward",
+          coins: p.coins_spent,
+        })));
+      });
   }, [children]);
 
   const childNowNext = useMemo(() => {
@@ -200,6 +225,23 @@ const Dashboard = () => {
                 <LogOut className="w-4 h-4" />
                 Exit
               </button>
+              {pendingAlerts.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={`${pendingAlerts.length} pending alert${pendingAlerts.length > 1 ? 's' : ''}`}
+                  onClick={() => {
+                    // Navigate to the first child with a pending request
+                    const firstChildId = pendingAlerts[0]?.childId;
+                    if (firstChildId) navigate(`/child-dashboard/${firstChildId}`);
+                  }}
+                  className="relative w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral-400 text-[10px] font-bold text-white leading-none">
+                    {pendingAlerts.length}
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 aria-label="Settings"
