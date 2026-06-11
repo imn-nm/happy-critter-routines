@@ -17,6 +17,7 @@ import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
+import { useCompletions } from "@/hooks/useCompletions";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
 import { format } from 'date-fns';
@@ -39,6 +40,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
+  const { toggleCompletion } = useCompletions(childId);
 
   const [showSchedule, setShowSchedule] = useState(false);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
@@ -1042,21 +1044,23 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           <button
                             key={chore.id}
                             type="button"
-                            disabled={done}
                             onClick={async () => {
-                              if (done) return;
                               try {
-                                await completeTask(chore.id, chore.coins || 0, 0);
-                                const newHappiness = calculateHappiness();
-                                await updateChildHappiness(child.id, newHappiness);
+                                if (done) {
+                                  await toggleCompletion(chore.id);
+                                } else {
+                                  await completeTask(chore.id, chore.coins || 0, 0);
+                                  const newHappiness = calculateHappiness();
+                                  await updateChildHappiness(child.id, newHappiness);
+                                }
                               } catch (error) {
-                                console.error('Error completing chore:', error);
+                                console.error('Error toggling chore:', error);
                               }
                             }}
                             className={cn(
                               "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                               done
-                                ? "bg-mint-500/20 border-mint-500 cursor-default"
+                                ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
                                 : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
                             )}
                           >
@@ -1142,21 +1146,23 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         <button
                           key={chore.id}
                           type="button"
-                          disabled={done}
                           onClick={async () => {
-                            if (done) return;
                             try {
-                              await completeTask(chore.id, chore.coins || 0, 0);
-                              const newHappiness = calculateHappiness();
-                              await updateChildHappiness(child.id, newHappiness);
+                              if (done) {
+                                await toggleCompletion(chore.id);
+                              } else {
+                                await completeTask(chore.id, chore.coins || 0, 0);
+                                const newHappiness = calculateHappiness();
+                                await updateChildHappiness(child.id, newHappiness);
+                              }
                             } catch (error) {
-                              console.error('Error completing chore:', error);
+                              console.error('Error toggling chore:', error);
                             }
                           }}
                           className={cn(
                             "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                             done
-                              ? "bg-mint-500/20 border-mint-500 cursor-default"
+                              ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
                               : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
                           )}
                         >

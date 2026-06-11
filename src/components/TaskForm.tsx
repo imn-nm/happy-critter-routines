@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Plus, X } from "lucide-react";
+import { Minus, Plus, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -380,21 +380,41 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         label="Reward"
         htmlFor="coins"
       >
-        <Select
-          value={formData.coins}
-          onValueChange={(value) => setFormData({ ...formData, coins: value })}
-        >
-          <SelectTrigger className="w-full sm:w-[130px] rounded-pill">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">0 stars</SelectItem>
-            <SelectItem value="5">5 stars</SelectItem>
-            <SelectItem value="10">10 stars</SelectItem>
-            <SelectItem value="15">15 stars</SelectItem>
-            <SelectItem value="20">20 stars</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon-sm"
+            className="shrink-0"
+            onClick={() => {
+              const current = parseInt(formData.coins) || 0;
+              if (current > 0) setFormData({ ...formData, coins: String(current - 1) });
+            }}
+            disabled={parseInt(formData.coins) <= 0}
+            aria-label="Remove star"
+          >
+            <Minus className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+            <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+            <span className="text-13 font-bold text-fog-50 leading-none tabular-nums">
+              {parseInt(formData.coins) || 0}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon-sm"
+            className="shrink-0"
+            onClick={() => {
+              const current = parseInt(formData.coins) || 0;
+              setFormData({ ...formData, coins: String(current + 1) });
+            }}
+            aria-label="Add star"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
       </FormRow>
 
       {/* Subtasks (checklist shown in child view) — task mode only */}

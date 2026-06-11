@@ -1338,34 +1338,25 @@ const TimelineScheduleView = ({
             {choreTasks.length > 0 && (
               <div className="relative w-[80px] sm:w-[96px] flex-shrink-0">
                 {choreTasks.map(task => {
-                  // Find which event index the chore's window_start and window_end fall at
+                  // Position chores by actual time within the timeline's time range
+                  const timelineStartMin = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
+                  const lastEvent = allEvents.length > 0 ? allEvents[allEvents.length - 1] : null;
+                  const timelineEndMin = lastEvent ? getEventStartMinutes(lastEvent) + lastEvent.duration : 24 * 60;
+                  const timelineSpan = Math.max(1, timelineEndMin - timelineStartMin);
+
                   const choreStartMin = task.window_start
                     ? (() => { const [h, m] = task.window_start.split(':').map(Number); return h * 60 + m; })()
-                    : 0;
+                    : timelineStartMin;
                   const choreEndMin = task.window_end
                     ? (() => { const [h, m] = task.window_end.split(':').map(Number); return h * 60 + m; })()
-                    : 24 * 60;
+                    : timelineEndMin;
 
-                  // Find the first event that starts at or after the chore's window start
-                  let startIndex = allEvents.findIndex(e => getEventStartMinutes(e) >= choreStartMin);
-                  if (startIndex === -1) startIndex = totalEvents - 1;
+                  // Clamp to timeline bounds
+                  const clampedStart = Math.max(choreStartMin, timelineStartMin);
+                  const clampedEnd = Math.min(choreEndMin, timelineEndMin);
 
-                  // Find the last event that ends at or before the chore's window end
-                  let endIndex = startIndex;
-                  for (let i = startIndex; i < totalEvents; i++) {
-                    if (getEventStartMinutes(allEvents[i]) < choreEndMin) {
-                      endIndex = i;
-                    } else break;
-                  }
-
-                  // "Anytime" chores span the full afternoon (after school to bedtime)
-                  if (!task.window_start && !task.window_end) {
-                    startIndex = Math.floor(totalEvents * 0.3);
-                    endIndex = totalEvents - 2;
-                  }
-
-                  const topPercent = (startIndex / totalEvents) * 100;
-                  const heightPercent = Math.max(10, ((endIndex - startIndex + 1) / totalEvents) * 100);
+                  const topPercent = ((clampedStart - timelineStartMin) / timelineSpan) * 100;
+                  const heightPercent = Math.max(10, ((clampedEnd - clampedStart) / timelineSpan) * 100);
 
                   return (
                     <div
@@ -1391,9 +1382,23 @@ const TimelineScheduleView = ({
                           <Gamepad2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                         )}
                         {task.isCompleted ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+                          <button
+                            type="button"
+                            className="shrink-0 hover:opacity-70 transition-opacity"
+                            aria-label="Undo chore completion"
+                            onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
+                          >
+                            <CheckCircle2 className="w-5 h-5 text-green-400" />
+                          </button>
                         ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-purple-400/50 shrink-0" />
+                          <button
+                            type="button"
+                            className="shrink-0 hover:opacity-70 transition-opacity"
+                            aria-label="Mark chore as done"
+                            onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
+                          >
+                            <div className="w-5 h-5 rounded-full border-2 border-purple-400/50" />
+                          </button>
                         )}
                         <span className={cn(
                           "text-[11px] sm:text-xs font-bold leading-tight break-words",
