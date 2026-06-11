@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
@@ -22,6 +22,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
+import { useRewards } from "@/hooks/useRewards";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TimelineHeader from "@/components/TimelineHeader";
 import TaskForm from "@/components/TaskForm";
@@ -58,6 +59,8 @@ const ChildDashboard = () => {
     getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
   const { toggleCompletion } = useCompletions(childId || '');
+  const { purchases } = useRewards(childId || '');
+  const pendingCount = purchases.filter(p => p.status === 'pending').length;
 
   // Parent-side toggle: insert a completion record (mark done) or delete
   // an existing one (undo). Refetch tasks afterwards so isCompleted updates
@@ -332,7 +335,22 @@ const ChildDashboard = () => {
                   {child.name}
                 </h1>
               </div>
-              <ChildProfileEdit child={child} onUpdateChild={updateChild} />
+              <div className="flex items-center gap-sp-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowRewards(true)}
+                  aria-label={`Alerts${pendingCount > 0 ? ` (${pendingCount} pending)` : ''}`}
+                  className="relative tap-target h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
+                >
+                  <Bell className="w-5 h-5" strokeWidth={2} />
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral-400 text-[10px] font-bold text-white leading-none">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+                <ChildProfileEdit child={child} onUpdateChild={updateChild} />
+              </div>
             </div>
 
             {/* Summary card — transparent with blue hairline (matches Figma
