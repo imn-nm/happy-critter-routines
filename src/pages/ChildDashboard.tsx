@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell } from "lucide-react";
+import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
@@ -22,7 +23,6 @@ import { useTasks } from "@/hooks/useTasks";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
-import { useRewards } from "@/hooks/useRewards";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TimelineHeader from "@/components/TimelineHeader";
 import TaskForm from "@/components/TaskForm";
@@ -59,8 +59,8 @@ const ChildDashboard = () => {
     getTasksWithCompletionStatus, loading: tasksLoading
   } = useTasks(childId || '');
   const { toggleCompletion } = useCompletions(childId || '');
-  const { purchases } = useRewards(childId || '');
-  const pendingCount = purchases.filter(p => p.status === 'pending').length;
+  const alertCount = useAlertCount(childId);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   // Parent-side toggle: insert a completion record (mark done) or delete
   // an existing one (undo). Refetch tasks afterwards so isCompleted updates
@@ -338,14 +338,14 @@ const ChildDashboard = () => {
               <div className="flex items-center gap-sp-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowRewards(true)}
-                  aria-label={`Alerts${pendingCount > 0 ? ` (${pendingCount} pending)` : ''}`}
+                  onClick={() => setShowAlerts(true)}
+                  aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
                   className="relative tap-target h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
                 >
                   <Bell className="w-5 h-5" strokeWidth={2} />
-                  {pendingCount > 0 && (
+                  {alertCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral-400 text-[10px] font-bold text-white leading-none">
-                      {pendingCount}
+                      {alertCount}
                     </span>
                   )}
                 </button>
@@ -660,6 +660,8 @@ const ChildDashboard = () => {
             otherChildren={children.filter(c => c.id !== childId).map(c => ({ id: c.id, name: c.name }))} />
         </DialogContent>
       </Dialog>
+
+      <AlertsPanel open={showAlerts} onClose={() => setShowAlerts(false)} childId={childId} />
     </div>
   );
 };
