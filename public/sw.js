@@ -1,7 +1,7 @@
 // Minimal service worker — required for PWA installability on Android.
 // Bump CACHE_VERSION on each deploy to purge stale caches.
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const CACHE_NAME = 'petpals-v' + CACHE_VERSION;
 
 self.addEventListener('install', (event) => {
