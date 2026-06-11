@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import AuthProvider from "@/components/AuthProvider";
 import ImportantTaskNotifier from "@/components/ImportantTaskNotifier";
+import RewardRequestNotifier from "@/components/RewardRequestNotifier";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
@@ -64,6 +65,7 @@ const App = () => (
             element={
               <AuthProvider>
                 <ImportantTaskNotifier />
+                <RewardRequestNotifier />
                 <ProtectedRoutes />
               </AuthProvider>
             }

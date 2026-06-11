@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Star, Gift, ShoppingCart } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Gift, ShoppingCart, Check, X, Clock } from "lucide-react";
 import { useRewards, type Reward } from "@/hooks/useRewards";
 import { Child } from "@/hooks/useChildren";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     cost: "10",
   });
 
-  const { rewards, loading, addReward, updateReward, deleteReward, purchaseReward } = useRewards(child.id);
+  const { rewards, purchases, loading, addReward, updateReward, deleteReward, purchaseReward, updatePurchaseStatus, deletePurchase } = useRewards(child.id);
 
   const resetForm = () => {
     setFormData({
@@ -91,6 +91,40 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     } catch (error) {
       console.error('Error purchasing reward:', error);
       toast.error("Failed to purchase reward. Please try again.");
+    }
+  };
+
+  const pendingRequests = purchases.filter(p => p.status === 'pending');
+
+  const handleApprove = async (purchaseId: string, coinsSpent: number) => {
+    try {
+      await updatePurchaseStatus(purchaseId, 'completed');
+      await onUpdateCoins(child.id, child.currentCoins - coinsSpent);
+
+      const purchase = purchases.find(p => p.id === purchaseId);
+      const reward = rewards.find(r => r.id === purchase?.reward_id);
+      toast.success(`Approved: ${reward?.name ?? 'reward'}!`, {
+        description: `${coinsSpent} stars deducted`,
+        icon: "🎁",
+      });
+    } catch (error) {
+      console.error('Error approving purchase:', error);
+      toast.error("Failed to approve purchase.");
+    }
+  };
+
+  const handleDeny = async (purchaseId: string) => {
+    try {
+      await deletePurchase(purchaseId);
+
+      const purchase = purchases.find(p => p.id === purchaseId);
+      const reward = rewards.find(r => r.id === purchase?.reward_id);
+      toast("Request denied", {
+        description: `${reward?.name ?? 'Reward'} request removed`,
+      });
+    } catch (error) {
+      console.error('Error denying purchase:', error);
+      toast.error("Failed to deny purchase.");
     }
   };
 
@@ -197,6 +231,55 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Pending reward requests from child */}
+      {pendingRequests.length > 0 && (
+        <div className="flex flex-col gap-sp-2">
+          <div className="flex items-center gap-sp-2">
+            <Clock className="w-4 h-4 text-iris-400" />
+            <span className="text-14 font-medium text-iris-400">
+              Pending request{pendingRequests.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          {pendingRequests.map(purchase => {
+            const reward = rewards.find(r => r.id === purchase.reward_id);
+            if (!reward) return null;
+            return (
+              <div
+                key={purchase.id}
+                className="flex items-center justify-between gap-sp-2 p-sp-3 rounded-[20px] bg-iris-400/15 border border-iris-400/30"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-14 font-medium text-fog-50 truncate">{reward.name}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Star className="w-3 h-3 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    <span className="text-12 text-fog-300">{purchase.coins_spent} stars</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-sp-1 shrink-0">
+                  <Button
+                    variant="primary"
+                    size="icon-sm"
+                    onClick={() => handleApprove(purchase.id, purchase.coins_spent)}
+                    aria-label="Approve"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="icon-sm"
+                    className="text-coral-400 hover:bg-coral-500/10"
+                    onClick={() => handleDeny(purchase.id)}
+                    aria-label="Deny"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-sp-6 text-fog-300 text-14">Loading rewards…</div>

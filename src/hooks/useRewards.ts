@@ -155,7 +155,7 @@ export const useRewards = (childId?: string) => {
     }
   };
 
-  const purchaseReward = async (rewardId: string, coinsSpent: number) => {
+  const purchaseReward = async (rewardId: string, coinsSpent: number, status?: string) => {
     try {
       const { data, error } = await supabase
         .from('reward_purchases')
@@ -163,12 +163,13 @@ export const useRewards = (childId?: string) => {
           child_id: childId!,
           reward_id: rewardId,
           coins_spent: coinsSpent,
+          status: status || 'completed',
         }])
         .select()
         .single();
 
       if (error) throw error;
-      
+
       setPurchases(prev => [data, ...prev]);
       return data;
     } catch (error) {
@@ -178,6 +179,39 @@ export const useRewards = (childId?: string) => {
         description: "Failed to purchase reward",
         variant: "destructive",
       });
+      throw error;
+    }
+  };
+
+  const updatePurchaseStatus = async (purchaseId: string, status: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('reward_purchases')
+        .update({ status })
+        .eq('id', purchaseId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setPurchases(prev => prev.map(p => p.id === purchaseId ? data : p));
+      return data;
+    } catch (error) {
+      console.error('Error updating purchase status:', error);
+      throw error;
+    }
+  };
+
+  const deletePurchase = async (purchaseId: string) => {
+    try {
+      const { error } = await supabase
+        .from('reward_purchases')
+        .delete()
+        .eq('id', purchaseId);
+
+      if (error) throw error;
+      setPurchases(prev => prev.filter(p => p.id !== purchaseId));
+    } catch (error) {
+      console.error('Error deleting purchase:', error);
       throw error;
     }
   };
@@ -197,6 +231,8 @@ export const useRewards = (childId?: string) => {
     updateReward,
     deleteReward,
     purchaseReward,
+    updatePurchaseStatus,
+    deletePurchase,
     refetch: () => {
       fetchRewards();
       fetchPurchases();

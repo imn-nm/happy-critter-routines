@@ -12,6 +12,7 @@ import StatusBadge from "@/components/StatusBadge";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
 import PetGifWobble from "@/components/PetGifWobble";
+import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -43,6 +44,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const { toggleCompletion } = useCompletions(childId);
 
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showRewardsShop, setShowRewardsShop] = useState(false);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [nextTapped, setNextTapped] = useState(false);
   const [petCelebrating, setPetCelebrating] = useState(false);
@@ -784,7 +786,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
             <p className="text-20 text-fog-50 leading-none">Hi, {child.name}!</p>
-            <div className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
+            <button
+              type="button"
+              onClick={() => setShowRewardsShop(true)}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32] hover:border-iris-400/50 transition-colors"
+              aria-label="Open rewards shop"
+            >
               <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
               <motion.span
                 key={child.currentCoins}
@@ -810,7 +817,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   </motion.span>
                 ))}
               </AnimatePresence>
-            </div>
+            </button>
           </div>
         )}
 
@@ -1393,6 +1400,15 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         </div>
       </div>
+
+      {/* Rewards Shop popup */}
+      <RewardsShop
+        childId={child.id}
+        childName={child.name}
+        currentCoins={child.currentCoins}
+        open={showRewardsShop}
+        onClose={() => setShowRewardsShop(false)}
+      />
     </div>
   );
 };
