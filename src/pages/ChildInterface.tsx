@@ -13,6 +13,7 @@ import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
 import PetGifWobble from "@/components/PetGifWobble";
 import SpinningWheel from "@/components/SpinningWheel";
+import { hasWheel } from "@/lib/spinningWheel";
 import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles, Shuffle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
@@ -49,13 +50,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [nextTapped, setNextTapped] = useState(false);
   const [petCelebrating, setPetCelebrating] = useState(false);
-  const [showWheel, setShowWheel] = useState(() => {
-    try {
-      const raw = localStorage.getItem(`spinning-wheel:${propChildId || paramChildId}`);
-      const opts = raw ? JSON.parse(raw) : [];
-      return opts.length >= 2;
-    } catch { return false; }
-  });
+  // Default to showing the wheel when one is set up, so a configured wheel
+  // appears automatically during free time.
+  const [showWheel, setShowWheel] = useState(() => hasWheel(propChildId || paramChildId));
   // Snapshot of the just-completed task; while non-null, the active-task UI
   // stays frozen on this task so the celebrate gif + pause can play out
   // before the schedule advances.
@@ -1143,54 +1140,64 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               </h2>
               <StatusBadge variant="info">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
-            <AnimatePresence mode="wait">
-              {showWheel ? (
-                <motion.div
-                  key="wheel"
-                  className="w-full flex flex-col items-center"
-                  initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
-                  animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
-                  transition={tMotion(springs.gentle)}
-                >
-                  <SpinningWheel childId={child.id} sizePx={260} />
-                  <button
-                    type="button"
-                    onClick={() => setShowWheel(false)}
-                    className="mt-2 flex items-center gap-1.5 text-12 text-fog-400 hover:text-fog-200 transition-colors"
-                  >
-                    Show pet instead
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="pet"
-                  className="flex flex-col items-center"
-                  initial={{ opacity: 0, scale: 0.9, rotateY: -90 }}
-                  animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, rotateY: 90 }}
-                  transition={tMotion(springs.gentle)}
-                >
-                  <CircularTimer
-                    totalSeconds={freeTimeCountdown.total}
-                    remainingSeconds={freeTimeCountdown.remaining}
-                    status="ahead"
-                    sizePx={293}
-                    isRunning={true}
-                  >
-                    <img src="/FoxHappy.gif" alt="fox pet" className="w-full h-full object-contain" />
-                  </CircularTimer>
-                  <button
-                    type="button"
-                    onClick={() => setShowWheel(true)}
-                    className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-iris-500/20 text-iris-300 text-13 font-medium hover:bg-iris-500/30 transition-colors"
-                  >
-                    <Shuffle className="w-3.5 h-3.5" />
-                    Spinning Wheel
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {(() => {
+              // The wheel is configured by a parent (child-specific). The child
+              // can only flip between the pet and the wheel — never edit it.
+              const wheelReady = hasWheel(child.id);
+              const showingWheel = wheelReady && showWheel;
+              return (
+                <AnimatePresence mode="wait">
+                  {showingWheel ? (
+                    <motion.div
+                      key="wheel"
+                      className="w-full flex flex-col items-center"
+                      initial={{ opacity: 0, scale: 0.9, rotateY: 90 }}
+                      animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                      transition={tMotion(springs.gentle)}
+                    >
+                      <SpinningWheel childId={child.id} sizePx={260} />
+                      <button
+                        type="button"
+                        onClick={() => setShowWheel(false)}
+                        className="mt-2 flex items-center gap-1.5 text-12 text-fog-400 hover:text-fog-200 transition-colors"
+                      >
+                        Show pet instead
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="pet"
+                      className="flex flex-col items-center"
+                      initial={{ opacity: 0, scale: 0.9, rotateY: -90 }}
+                      animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, rotateY: 90 }}
+                      transition={tMotion(springs.gentle)}
+                    >
+                      <CircularTimer
+                        totalSeconds={freeTimeCountdown.total}
+                        remainingSeconds={freeTimeCountdown.remaining}
+                        status="ahead"
+                        sizePx={293}
+                        isRunning={true}
+                      >
+                        <img src="/FoxHappy.gif" alt="fox pet" className="w-full h-full object-contain" />
+                      </CircularTimer>
+                      {wheelReady && (
+                        <button
+                          type="button"
+                          onClick={() => setShowWheel(true)}
+                          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-iris-500/20 text-iris-300 text-13 font-medium hover:bg-iris-500/30 transition-colors"
+                        >
+                          <Shuffle className="w-3.5 h-3.5" />
+                          Spinning Wheel
+                        </button>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              );
+            })()}
             {/* Chore tiles — also visible during free time so kids can
                 knock out chores between scheduled tasks. */}
             {(() => {

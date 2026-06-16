@@ -13,7 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle } from "lucide-react";
+import SpinningWheelEditor from "@/components/SpinningWheelEditor";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
@@ -41,6 +42,7 @@ const ChildDashboard = () => {
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const [showRewards, setShowRewards] = useState(false);
+  const [showWheelEditor, setShowWheelEditor] = useState(false);
   // Rest day applies to whichever day the parent is currently viewing — the
   // schema only stores a single `rest_day_date` per child, so toggling it
   // moves the rest day to that date.
@@ -390,15 +392,26 @@ const ChildDashboard = () => {
                 </Button>
               </div>
 
-              {/* Rewards CTA — transparent (no border), matches Figma 145:6976 */}
-              <button
-                type="button"
-                onClick={() => setShowRewards(true)}
-                className="shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-              >
-                <Gift className="w-4 h-4" />
-                Rewards
-              </button>
+              {/* Rewards + Wheel CTAs — transparent (no border), matches Figma 145:6976 */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowWheelEditor(true)}
+                  aria-label="Set up spinning wheel"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  Wheel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRewards(true)}
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                >
+                  <Gift className="w-4 h-4" />
+                  Rewards
+                </button>
+              </div>
             </div>
 
             {/* Rest Day + Add Task row. Toggle styling matches Figma 145:6980:
@@ -567,6 +580,17 @@ const ChildDashboard = () => {
           <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
           <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
           <RewardsManagement child={child} onUpdateCoins={updateChildCoins} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Spinning wheel setup dialog — parent sets the child-specific options */}
+      <Dialog open={showWheelEditor} onOpenChange={setShowWheelEditor}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogTitle className="text-xl font-bold">Spinning Wheel</DialogTitle>
+          <DialogDescription className="sr-only">
+            Set up the free-time spinning wheel for {child.name}
+          </DialogDescription>
+          <SpinningWheelEditor childId={child.id} childName={child.name} />
         </DialogContent>
       </Dialog>
 
