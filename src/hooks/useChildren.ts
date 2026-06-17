@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -67,12 +67,40 @@ export const useChildren = () => {
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  // The caller's household id, resolved on fetch. Used to scope reads and the
+  // realtime feed below as defense-in-depth alongside the server-side RLS.
+  const householdIdRef = useRef<string | null>(null);
 
   const fetchChildren = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        householdIdRef.current = null;
+        setChildren([]);
+        return;
+      }
+
+      // Scope to the caller's household, matching the RLS policy. RLS already
+      // enforces this server-side; filtering here too means a misconfigured
+      // policy can never leak another family's children to the client.
+      const { data: membership } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!membership) {
+        householdIdRef.current = null;
+        setChildren([]);
+        return;
+      }
+      householdIdRef.current = membership.household_id;
+
       const { data, error } = await supabase
         .from('children')
         .select('*')
+        .eq('household_id', membership.household_id)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -348,6 +376,11 @@ export const useChildren = () => {
               child.id === payload.new?.id ? mappedChild as Child : child
             ));
           } else if (payload.eventType === 'INSERT') {
+            // Only adopt inserts for our own household (defense-in-depth on top
+            // of the RLS-filtered realtime stream).
+            if (householdIdRef.current && payload.new?.household_id !== householdIdRef.current) {
+              return;
+            }
             const mappedChild = {
               ...payload.new,
               petType: convertPetType(payload.new.pet_type),
