@@ -16,7 +16,7 @@ import SpinningWheel from "@/components/SpinningWheel";
 import { hasWheel } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles, Shuffle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -1067,7 +1067,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             {done ? (
                               <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
                             ) : (
-                              <Sparkles className="w-4 h-4 text-fog-50" strokeWidth={2} />
+                              getTaskIcon(chore.name, "w-4 h-4 text-fog-50")
                             )}
                             <span className="w-full text-12 text-center leading-tight text-fog-50">
                               {chore.name}
@@ -1227,7 +1227,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           {done ? (
                             <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
                           ) : (
-                            <Sparkles className="w-4 h-4 text-fog-50" strokeWidth={2} />
+                            getTaskIcon(chore.name, "w-4 h-4 text-fog-50")
                           )}
                           <span className="w-full text-12 text-center leading-tight text-fog-50">
                             {chore.name}
@@ -1530,18 +1530,21 @@ function ScheduleRow({
       <div className="shrink-0 w-px self-stretch bg-white/30" />
 
       {/* Info */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <p
-          className={cn(
-            'text-16 text-white truncate',
-            state === 'done' && 'line-through',
+      <div className="flex-1 min-w-0 flex items-center gap-sp-2">
+        {getTaskIcon(name, "w-5 h-5 text-white/70 shrink-0")}
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+          <p
+            className={cn(
+              'text-16 text-white truncate',
+              state === 'done' && 'line-through',
+            )}
+          >
+            {name}
+          </p>
+          {subtitle && (
+            <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
           )}
-        >
-          {name}
-        </p>
-        {subtitle && (
-          <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
-        )}
+        </div>
       </div>
     </li>
   );
