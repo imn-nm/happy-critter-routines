@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, durations } from "@/lib/motion";
@@ -34,10 +34,14 @@ const LinearTimer = ({
 }: LinearTimerProps) => {
   const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
-  const [remainingSeconds, setRemainingSeconds] = useState(
-    allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds),
-  );
+  // Presentational, like CircularTimer: the fill comes straight from the
+  // parent-driven `remainingSeconds` (recomputed from the wall clock each
+  // second). No independent countdown, so the bar can't drift from real time.
+  const remainingSeconds = allowNegative
+    ? initialRemainingSeconds
+    : Math.max(0, initialRemainingSeconds);
   const hasCompletedRef = useRef(false);
+  const prevRemainingRef = useRef(initialRemainingSeconds);
 
   const progress =
     totalSeconds > 0
@@ -59,27 +63,20 @@ const LinearTimer = ({
 
   const isOvertime = status === "overtime";
 
+  // Fire onComplete once when the parent-driven value crosses to zero/negative
+  // while running; reset when a new task pushes it back above zero.
   useEffect(() => {
-    if (!isRunning) return;
-    const interval = setInterval(() => {
-      setRemainingSeconds(prev => {
-        const next = prev - 1;
-        if (prev > 0 && next <= 0 && !hasCompletedRef.current) {
-          hasCompletedRef.current = true;
-          onComplete?.();
-        }
-        return allowNegative ? next : Math.max(0, next);
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isRunning, onComplete, allowNegative]);
-
-  useEffect(() => {
-    setRemainingSeconds(
-      allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds),
-    );
-    if (initialRemainingSeconds > 0) hasCompletedRef.current = false;
-  }, [initialRemainingSeconds, allowNegative]);
+    const prev = prevRemainingRef.current;
+    prevRemainingRef.current = initialRemainingSeconds;
+    if (initialRemainingSeconds > 0) {
+      hasCompletedRef.current = false;
+      return;
+    }
+    if (isRunning && prev > 0 && initialRemainingSeconds <= 0 && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      onComplete?.();
+    }
+  }, [initialRemainingSeconds, isRunning, onComplete]);
 
   return (
     <div

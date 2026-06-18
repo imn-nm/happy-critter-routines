@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, durations } from "@/lib/motion";
@@ -40,10 +40,16 @@ const CircularTimer = ({
 }: CircularTimerProps) => {
   const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
-  const [remainingSeconds, setRemainingSeconds] = useState(
-    allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds),
-  );
+  // Presentational: the ring is derived straight from the `remainingSeconds`
+  // prop, which the parent recomputes from the wall clock every second. We do
+  // NOT run an independent countdown here — a second decrementing source drifts
+  // from real time (setInterval throttles in background tabs and never lands on
+  // exactly 1000 ms), which made the ring disagree with the numeric time-left.
+  const remainingSeconds = allowNegative
+    ? initialRemainingSeconds
+    : Math.max(0, initialRemainingSeconds);
   const hasCompletedRef = useRef(false);
+  const prevRemainingRef = useRef(initialRemainingSeconds);
 
   // Compute the SVG in its own viewBox so the ring stays crisp at any scale.
   // strokeAlign=CENTER in Figma means the stroke straddles the ellipse edge,
@@ -74,25 +80,21 @@ const CircularTimer = ({
 
   const isOvertime = status === "overtime";
 
+  // Fire onComplete exactly once, when the parent-driven value crosses from
+  // positive to zero/negative while running. Reset when a fresh task pushes
+  // the value back above zero (e.g. a new task starts).
   useEffect(() => {
-    if (!isRunning) return;
-    const interval = setInterval(() => {
-      setRemainingSeconds(prev => {
-        const next = prev - 1;
-        if (prev > 0 && next <= 0 && !hasCompletedRef.current) {
-          hasCompletedRef.current = true;
-          onComplete?.();
-        }
-        return allowNegative ? next : Math.max(0, next);
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isRunning, onComplete, allowNegative]);
-
-  useEffect(() => {
-    setRemainingSeconds(allowNegative ? initialRemainingSeconds : Math.max(0, initialRemainingSeconds));
-    if (initialRemainingSeconds > 0) hasCompletedRef.current = false;
-  }, [initialRemainingSeconds, allowNegative]);
+    const prev = prevRemainingRef.current;
+    prevRemainingRef.current = initialRemainingSeconds;
+    if (initialRemainingSeconds > 0) {
+      hasCompletedRef.current = false;
+      return;
+    }
+    if (isRunning && prev > 0 && initialRemainingSeconds <= 0 && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      onComplete?.();
+    }
+  }, [initialRemainingSeconds, isRunning, onComplete]);
 
   return (
     <div
