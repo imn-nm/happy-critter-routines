@@ -14,8 +14,9 @@ import VisualTimeline from "@/components/VisualTimeline";
 import PetGifWobble from "@/components/PetGifWobble";
 import SpinningWheel from "@/components/SpinningWheel";
 import { hasWheel } from "@/lib/spinningWheel";
+import { getTaskIcon } from "@/utils/taskIcon";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, Utensils, Apple, GraduationCap, Book, Music, Dumbbell, BedDouble, Sun, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles, Shuffle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Sparkles, Shuffle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -239,22 +240,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     } else {
       return `${activity} time is almost gone — hurry, we can still save a little!`;
     }
-  };
-
-  const getTaskIcon = (taskName: string) => {
-    const name = taskName.toLowerCase();
-    if (name.includes('lunch') || name.includes('dinner') || name.includes('breakfast'))
-      return <Utensils className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('snack')) return <Apple className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('school')) return <GraduationCap className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('homework') || name.includes('study')) return <Book className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('music') || name.includes('practice') || name.includes('soccer'))
-      return <Music className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('exercise') || name.includes('workout'))
-      return <Dumbbell className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('bed') || name.includes('sleep')) return <BedDouble className="w-4 h-4 text-foreground/60" />;
-    if (name.includes('wake')) return <Sun className="w-4 h-4 text-foreground/60" />;
-    return <Star className="w-4 h-4 text-foreground/60" />;
   };
 
   const formatTime = (timeString?: string) => {
@@ -893,18 +878,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             >
               {/* Title + StatusBadge under it */}
               <div className="flex flex-col items-center gap-1 py-2">
-                <h2
-                  className="text-fog-50"
-                  style={{
-                    fontFamily: "Inter",
-                    fontWeight: 400,
-                    fontSize: 24,
-                    lineHeight: 1.15,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {displayTask.name}
-                </h2>
+                <div className="flex items-center gap-2">
+                  {getTaskIcon(displayTask.name, "w-6 h-6 text-fog-50 shrink-0")}
+                  <h2
+                    className="text-fog-50"
+                    style={{
+                      fontFamily: "Inter",
+                      fontWeight: 400,
+                      fontSize: 24,
+                      lineHeight: 1.15,
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {displayTask.name}
+                  </h2>
+                </div>
                 <StatusBadge variant={badgeVariant}>{badgeLabel}</StatusBadge>
               </div>
 
@@ -1103,7 +1091,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
                   <div className="flex flex-col gap-1 min-w-0">
                     <span className="text-14 text-iris-400">Next</span>
-                    <span className="text-16 text-fog-50 truncate">{upcomingTasks[0].name}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0")}
+                      <span className="text-16 text-fog-50 truncate">{upcomingTasks[0].name}</span>
+                    </div>
                   </div>
                   {upcomingTasks[0].scheduled_time && (
                     <StatusBadge variant="time">{formatTime(upcomingTasks[0].scheduled_time)}</StatusBadge>
@@ -1252,7 +1243,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
               <div className="flex flex-col gap-1 min-w-0">
                 <span className="text-14 text-iris-400">Next</span>
-                <span className="text-16 text-fog-50 truncate">{freeTimeCountdown.nextTask.name}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0")}
+                  <span className="text-16 text-fog-50 truncate">{freeTimeCountdown.nextTask.name}</span>
+                </div>
               </div>
               {freeTimeCountdown.nextTask.scheduled_time && (
                 <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
