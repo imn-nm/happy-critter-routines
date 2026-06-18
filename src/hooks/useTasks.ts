@@ -55,6 +55,7 @@ export interface Task {
   is_fun_time?: boolean;
   window_start?: string;
   window_end?: string;
+  icon?: string | null;
   subtasks?: Subtask[];
   created_at: string;
   updated_at: string;

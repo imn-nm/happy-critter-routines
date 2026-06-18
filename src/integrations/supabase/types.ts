@@ -449,6 +449,7 @@ export type Database = {
           updated_at: string
           window_end: string | null
           window_start: string | null
+          icon: string | null
         }
         Insert: {
           child_id: string
@@ -474,6 +475,7 @@ export type Database = {
           updated_at?: string
           window_end?: string | null
           window_start?: string | null
+          icon?: string | null
         }
         Update: {
           child_id?: string
@@ -499,6 +501,7 @@ export type Database = {
           updated_at?: string
           window_end?: string | null
           window_start?: string | null
+          icon?: string | null
         }
         Relationships: [
           {

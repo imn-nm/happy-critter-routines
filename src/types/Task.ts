@@ -17,6 +17,7 @@ export interface Task {
   is_fun_time?: boolean;
   window_start?: string;
   window_end?: string;
+  icon?: string | null;
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   subtasks?: Subtask[];

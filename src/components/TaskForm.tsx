@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
 
 interface TaskFormProps {
@@ -41,22 +43,28 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
 
+  // HTML <input type="time"> only accepts HH:MM; stored values may carry
+  // seconds ("09:00:00"), which renders the field blank and makes edits look
+  // like they didn't load. Normalize to HH:MM here so the time loads + saves.
+  const toHHMM = (t?: string) => (t ? t.slice(0, 5) : "");
+
   const [formData, setFormData] = useState({
     name: task?.name || "",
     mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
-    scheduledTime: task?.scheduled_time || prefillTime || "",
+    scheduledTime: toHHMM(task?.scheduled_time) || toHHMM(prefillTime) || "",
     choreAnytime: task?.type === 'floating' && !task?.window_start,
     durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
     durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
     coins: task?.coins?.toString() || "0",
+    icon: task?.icon || "",
     isRecurring: task?.is_recurring ?? false,
     description: task?.description || "",
     recurringDays: task?.recurring_days || [] as string[],
     taskDate: initialTaskDate,
     isImportant: task?.is_important ?? false,
     isFunTime: task?.is_fun_time ?? false,
-    windowStart: task?.window_start || "15:00",
-    windowEnd: task?.window_end || "18:00",
+    windowStart: toHHMM(task?.window_start) || "15:00",
+    windowEnd: toHHMM(task?.window_end) || "18:00",
     subtasks: (task?.subtasks ?? []) as Subtask[],
   });
   const [newSubtaskText, setNewSubtaskText] = useState("");
@@ -116,6 +124,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       scheduled_time: !isChore && scheduledTimeStr ? scheduledTimeStr : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
       coins: parseInt(formData.coins),
+      // Parent-chosen icon; null clears it so the child view falls back to the
+      // name-based icon.
+      icon: formData.icon || null,
       // Chores are always single-date; recurring fields only apply to tasks.
       is_recurring: isChore ? false : formData.isRecurring,
       recurring_days: !isChore && formData.isRecurring ? formData.recurringDays : undefined,
@@ -191,6 +202,61 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           className="rounded-pill"
         />
       </FormRow>
+
+      {/* Icon picker — parent picks an icon shown to the child. "Auto" falls
+          back to the name-based icon. Hidden for system tasks (their icon
+          isn't persisted and the name-based default already fits). */}
+      {!isSystemEvent && (
+      <div className="w-full min-w-0">
+        <Label className="text-sm text-muted-foreground">Icon</Label>
+        <div className="mt-1.5 grid grid-cols-7 gap-1.5 sm:grid-cols-9">
+          {(() => {
+            const AutoIcon = getTaskIconComponent(formData.name);
+            const autoSelected = !formData.icon;
+            return (
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, icon: "" })}
+                title="Auto (based on name)"
+                aria-label="Auto icon based on name"
+                className={cn(
+                  "relative aspect-square rounded-xl flex items-center justify-center border transition-colors",
+                  autoSelected
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-input text-muted-foreground hover:bg-muted/50",
+                )}
+              >
+                <AutoIcon className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 text-[8px] font-bold leading-none px-1 py-0.5 rounded-full bg-primary text-primary-foreground">
+                  A
+                </span>
+              </button>
+            );
+          })()}
+          {ICON_OPTIONS.map(({ key, label, Icon }) => {
+            const selected = formData.icon === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFormData({ ...formData, icon: key })}
+                title={label}
+                aria-label={label}
+                aria-pressed={selected}
+                className={cn(
+                  "aspect-square rounded-xl flex items-center justify-center border transition-colors",
+                  selected
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-input text-muted-foreground hover:bg-muted/50",
+                )}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      )}
 
       {/* === TASK MODE === */}
       {!isChore && (

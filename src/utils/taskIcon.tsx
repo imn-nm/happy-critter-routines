@@ -23,13 +23,50 @@ import {
   Droplet,
   Palette,
   Smile,
+  Heart,
   Star,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 
+// Curated icon set the parent can pick from in the task form. The `key` is what
+// gets persisted on the task (tasks.icon); keep keys stable once shipped.
+export const ICON_OPTIONS: { key: string; label: string; Icon: LucideIcon }[] = [
+  { key: "sunrise", label: "Wake up", Icon: Sunrise },
+  { key: "moon", label: "Bedtime", Icon: Moon },
+  { key: "coffee", label: "Breakfast", Icon: Coffee },
+  { key: "sandwich", label: "Lunch", Icon: Sandwich },
+  { key: "utensils", label: "Dinner", Icon: UtensilsCrossed },
+  { key: "cookie", label: "Snack", Icon: Cookie },
+  { key: "apple", label: "Fruit", Icon: Apple },
+  { key: "droplet", label: "Water", Icon: Droplet },
+  { key: "smile", label: "Teeth", Icon: Smile },
+  { key: "bath", label: "Bath", Icon: Bath },
+  { key: "school", label: "School", Icon: GraduationCap },
+  { key: "book", label: "Reading", Icon: BookOpen },
+  { key: "pencil", label: "Writing", Icon: Pencil },
+  { key: "music", label: "Music", Icon: Music },
+  { key: "palette", label: "Art", Icon: Palette },
+  { key: "bike", label: "Bike", Icon: Bike },
+  { key: "dumbbell", label: "Exercise", Icon: Dumbbell },
+  { key: "game", label: "Play", Icon: Gamepad2 },
+  { key: "clean", label: "Clean", Icon: Brush },
+  { key: "shirt", label: "Laundry", Icon: Shirt },
+  { key: "plant", label: "Plants", Icon: Flower2 },
+  { key: "pet", label: "Pet", Icon: Dog },
+  { key: "shopping", label: "Shopping", Icon: ShoppingCart },
+  { key: "clock", label: "Time", Icon: Clock },
+  { key: "heart", label: "Heart", Icon: Heart },
+  { key: "sparkles", label: "Fun", Icon: Sparkles },
+  { key: "star", label: "Star", Icon: Star },
+];
+
+const ICON_BY_KEY: Record<string, LucideIcon> = Object.fromEntries(
+  ICON_OPTIONS.map((o) => [o.key, o.Icon]),
+);
+
 // Maps a task name to an appropriate lucide icon for the child view.
-// Order matters — earlier, more specific keywords win (e.g. "brush teeth"
-// matches teeth before a generic match). Falls back to a star.
+// Order matters — earlier, more specific keywords win. Falls back to a star.
 const RULES: { keywords: string[]; Icon: LucideIcon }[] = [
   { keywords: ["wake", "morning", "get up"], Icon: Sunrise },
   { keywords: ["bed", "sleep", "bedtime", "nap", "goodnight"], Icon: Moon },
@@ -57,8 +94,12 @@ const RULES: { keywords: string[]; Icon: LucideIcon }[] = [
   { keywords: ["fun", "free time", "reward"], Icon: Sparkles },
 ];
 
-/** Resolve the lucide icon component for a task name. */
-export function getTaskIconComponent(taskName: string): LucideIcon {
+/**
+ * Resolve the lucide icon component for a task. An explicit `iconKey` (chosen by
+ * the parent) wins; otherwise fall back to keyword matching on the name.
+ */
+export function getTaskIconComponent(taskName: string, iconKey?: string | null): LucideIcon {
+  if (iconKey && ICON_BY_KEY[iconKey]) return ICON_BY_KEY[iconKey];
   const name = (taskName || "").toLowerCase();
   for (const { keywords, Icon } of RULES) {
     if (keywords.some((k) => name.includes(k))) return Icon;
@@ -66,8 +107,12 @@ export function getTaskIconComponent(taskName: string): LucideIcon {
   return Star;
 }
 
-/** Render the icon for a task name. `className` controls size/color. */
-export function getTaskIcon(taskName: string, className = "w-4 h-4 text-foreground/60") {
-  const Icon = getTaskIconComponent(taskName);
+/** Render the icon for a task. `className` controls size/color. */
+export function getTaskIcon(
+  taskName: string,
+  className = "w-4 h-4 text-foreground/60",
+  iconKey?: string | null,
+) {
+  const Icon = getTaskIconComponent(taskName, iconKey);
   return <Icon className={className} />;
 }

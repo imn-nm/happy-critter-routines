@@ -11,6 +11,7 @@ import { Child, useChildren } from '@/hooks/useChildren';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
   DndContext,
@@ -191,17 +192,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
     return formatTime(endTimeStr);
   };
 
-  const formatDuration = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes}min`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    if (remainingMinutes === 0) {
-      return `${hours}h`;
-    }
-    return `${hours}h ${remainingMinutes}min`;
-  };
+  const formatDuration = (minutes: number) => formatDurationUtil(minutes);
 
   // Determine if this task is currently active based on time - only if viewing today
   const isCurrentTask = () => {

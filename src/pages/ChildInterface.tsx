@@ -15,6 +15,7 @@ import PetGifWobble from "@/components/PetGifWobble";
 import SpinningWheel from "@/components/SpinningWheel";
 import { hasWheel } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
+import { formatDuration } from "@/utils/formatDuration";
 import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
@@ -879,7 +880,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               {/* Title + StatusBadge under it */}
               <div className="flex flex-col items-center gap-1 py-2">
                 <div className="flex items-center gap-2">
-                  {getTaskIcon(displayTask.name, "w-6 h-6 text-fog-50 shrink-0")}
+                  {getTaskIcon(displayTask.name, "w-6 h-6 text-fog-50 shrink-0", displayTask.icon)}
                   <h2
                     className="text-fog-50"
                     style={{
@@ -1067,7 +1068,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             {done ? (
                               <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
                             ) : (
-                              getTaskIcon(chore.name, "w-4 h-4 text-fog-50")
+                              getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
                             )}
                             <span className="w-full text-12 text-center leading-tight text-fog-50">
                               {chore.name}
@@ -1092,7 +1093,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   <div className="flex flex-col gap-1 min-w-0">
                     <span className="text-14 text-iris-400">Next</span>
                     <div className="flex items-center gap-2 min-w-0">
-                      {getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0")}
+                      {getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0", upcomingTasks[0].icon)}
                       <span className="text-16 text-fog-50 truncate">{upcomingTasks[0].name}</span>
                     </div>
                   </div>
@@ -1227,7 +1228,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           {done ? (
                             <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
                           ) : (
-                            getTaskIcon(chore.name, "w-4 h-4 text-fog-50")
+                            getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
                           )}
                           <span className="w-full text-12 text-center leading-tight text-fog-50">
                             {chore.name}
@@ -1244,7 +1245,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               <div className="flex flex-col gap-1 min-w-0">
                 <span className="text-14 text-iris-400">Next</span>
                 <div className="flex items-center gap-2 min-w-0">
-                  {getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0")}
+                  {getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0", freeTimeCountdown.nextTask.icon)}
                   <span className="text-16 text-fog-50 truncate">{freeTimeCountdown.nextTask.name}</span>
                 </div>
               </div>
@@ -1269,7 +1270,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   <div key={task.id} className="glass rounded-2xl p-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl glass-strong flex-shrink-0 flex items-center justify-center">
-                        {getTaskIcon(task.name)}
+                        {getTaskIcon(task.name, undefined, task.icon)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-foreground text-sm">{task.name}</span>
@@ -1437,6 +1438,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         windowEnd={task.window_end?.slice(0, 5)}
                         isChore={task.type === 'floating'}
                         name={task.name}
+                        icon={task.icon}
                         durationMin={task.duration}
                         state={done ? 'done' : isNow ? 'now' : 'upcoming'}
                       />
@@ -1473,6 +1475,7 @@ function ScheduleRow({
   windowEnd,
   isChore,
   name,
+  icon,
   durationMin,
   state,
 }: {
@@ -1481,6 +1484,7 @@ function ScheduleRow({
   windowEnd?: string;
   isChore?: boolean;
   name: string;
+  icon?: string | null;
   durationMin?: number;
   state: 'done' | 'now' | 'upcoming';
 }) {
@@ -1492,13 +1496,15 @@ function ScheduleRow({
   const showToday = !!isChore && !hasWindow;
   const displayTime = !showToday && (time || windowStart) ? (time || windowStart) : null;
   const [hourMin, ampm] = displayTime ? splitTime12(displayTime) : ['', ''];
+  // Bedtime marks the end of the day, not a timed activity — don't show a duration.
+  const isBedtime = name.toLowerCase().includes('bedtime');
   const subtitle = (() => {
     if (hasWindow) {
       const [s, sap] = splitTime12(windowStart!);
       const [e, eap] = splitTime12(windowEnd!);
       return `${s}${sap} – ${e}${eap}`;
     }
-    if (displayTime && durationMin && durationMin > 0) return `${durationMin} min`;
+    if (!isBedtime && displayTime && durationMin && durationMin > 0) return formatDuration(durationMin);
     return null;
   })();
 
@@ -1531,7 +1537,7 @@ function ScheduleRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex items-center gap-sp-2">
-        {getTaskIcon(name, "w-5 h-5 text-white/70 shrink-0")}
+        {getTaskIcon(name, "w-5 h-5 text-white/70 shrink-0", icon)}
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <p
             className={cn(
