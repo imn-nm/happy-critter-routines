@@ -60,6 +60,8 @@ export interface Child {
   dinner_schedule_overrides?: Record<string, { time: string; duration: number }>;
   bedtime_schedule_overrides?: Record<string, { time: string; duration: number }>;
   wake_schedule_overrides?: Record<string, { time: string; duration: number }>;
+  // Free-time spinning wheel activity options (array of strings).
+  spinning_wheel_options?: string[] | null;
 }
 
 export const useChildren = () => {

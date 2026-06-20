@@ -41,6 +41,7 @@ export type Database = {
           pet_happiness: number
           pet_type: string
           rest_day_date: string | null
+          spinning_wheel_options: Json | null
           school_days: string[] | null
           school_duration: number | null
           school_end_time: string | null
@@ -79,6 +80,7 @@ export type Database = {
           pet_happiness?: number
           pet_type: string
           rest_day_date?: string | null
+          spinning_wheel_options?: Json | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
@@ -117,6 +119,7 @@ export type Database = {
           pet_happiness?: number
           pet_type?: string
           rest_day_date?: string | null
+          spinning_wheel_options?: Json | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null

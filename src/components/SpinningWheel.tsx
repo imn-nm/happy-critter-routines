@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
-import { WHEEL_COLORS, getWheelOptions } from "@/lib/spinningWheel";
+import { WHEEL_COLORS } from "@/lib/spinningWheel";
 
 interface SpinningWheelProps {
-  childId: string;
+  options: string[];
   sizePx?: number;
   className?: string;
 }
@@ -35,9 +35,8 @@ function wrapLabel(text: string, maxChars = 9, maxLines = 3): string[] {
   return lines.map((l) => (l.length > maxChars + 2 ? l.slice(0, maxChars + 1) + "…" : l));
 }
 
-const SpinningWheel = ({ childId, sizePx = 260, className }: SpinningWheelProps) => {
+const SpinningWheel = ({ options, sizePx = 260, className }: SpinningWheelProps) => {
   const { t: tMotion } = useMotionPrefs();
-  const options = getWheelOptions(childId);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [winner, setWinner] = useState<string | null>(null);

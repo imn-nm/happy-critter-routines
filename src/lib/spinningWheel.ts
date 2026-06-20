@@ -1,6 +1,7 @@
-// Shared storage + constants for the free-time spinning wheel.
-// Options are child-specific and persisted in localStorage, keyed by child id,
-// so the parent dashboard and the child interface read/write the same wheel.
+// Shared constants + helpers for the free-time spinning wheel.
+// Options are child-specific and persisted in the database (children.
+// spinning_wheel_options) so the parent dashboard and the child interface see
+// the same wheel across devices and origins.
 
 export const WHEEL_COLORS = [
   "#879bff", // iris
@@ -16,27 +17,13 @@ export const WHEEL_COLORS = [
 export const MAX_WHEEL_OPTIONS = 8;
 export const MIN_WHEEL_OPTIONS = 2;
 
-const storageKey = (childId: string) => `spinning-wheel:${childId}`;
-
-export function getWheelOptions(childId?: string | null): string[] {
-  if (!childId) return [];
-  try {
-    const raw = localStorage.getItem(storageKey(childId));
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((o) => typeof o === "string") : [];
-  } catch {
-    return [];
-  }
+/** Coerce a stored value (jsonb array, null, legacy shapes) into a clean string[]. */
+export function normalizeWheelOptions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((o): o is string => typeof o === "string");
 }
 
-export function setWheelOptions(childId: string, options: string[]) {
-  try {
-    localStorage.setItem(storageKey(childId), JSON.stringify(options));
-  } catch {
-    /* ignore quota/availability errors */
-  }
-}
-
-export function hasWheel(childId?: string | null): boolean {
-  return getWheelOptions(childId).length >= MIN_WHEEL_OPTIONS;
+/** A wheel is usable once it has at least the minimum number of options. */
+export function hasWheelOptions(options?: string[] | null): boolean {
+  return (options?.length ?? 0) >= MIN_WHEEL_OPTIONS;
 }

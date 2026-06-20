@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle } from "lucide-react";
 import SpinningWheelEditor from "@/components/SpinningWheelEditor";
+import { normalizeWheelOptions } from "@/lib/spinningWheel";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
@@ -590,7 +591,11 @@ const ChildDashboard = () => {
           <DialogDescription className="sr-only">
             Set up the free-time spinning wheel for {child.name}
           </DialogDescription>
-          <SpinningWheelEditor childId={child.id} childName={child.name} />
+          <SpinningWheelEditor
+            childName={child.name}
+            value={normalizeWheelOptions(child.spinning_wheel_options)}
+            onChange={(opts) => updateChild(child.id, { spinning_wheel_options: opts })}
+          />
         </DialogContent>
       </Dialog>
 

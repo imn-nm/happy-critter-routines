@@ -13,7 +13,7 @@ import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
 import PetGifWobble from "@/components/PetGifWobble";
 import SpinningWheel from "@/components/SpinningWheel";
-import { hasWheel } from "@/lib/spinningWheel";
+import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
 import RewardsShop from "@/components/RewardsShop";
@@ -52,9 +52,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [nextTapped, setNextTapped] = useState(false);
   const [petCelebrating, setPetCelebrating] = useState(false);
-  // Default to showing the wheel when one is set up, so a configured wheel
-  // appears automatically during free time.
-  const [showWheel, setShowWheel] = useState(() => hasWheel(propChildId || paramChildId));
+  // null = follow the default (show the wheel automatically when one is set
+  // up); true/false = the child explicitly chose wheel or pet this session.
+  const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
   // Snapshot of the just-completed task; while non-null, the active-task UI
   // stays frozen on this task so the celebrate gif + pause can play out
   // before the schedule advances.
@@ -1133,10 +1133,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               <StatusBadge variant="info">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
             {(() => {
-              // The wheel is configured by a parent (child-specific). The child
-              // can only flip between the pet and the wheel — never edit it.
-              const wheelReady = hasWheel(child.id);
-              const showingWheel = wheelReady && showWheel;
+              // The wheel is configured by a parent (stored on the child record).
+              // The child can only flip between the pet and the wheel — never
+              // edit it. Defaults to showing the wheel when one is set up.
+              const wheelOptions = normalizeWheelOptions(child.spinning_wheel_options);
+              const wheelReady = hasWheelOptions(wheelOptions);
+              const showingWheel = wheelReady && (wheelOverride ?? true);
               return (
                 <AnimatePresence mode="wait">
                   {showingWheel ? (
@@ -1148,10 +1150,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
                       transition={tMotion(springs.gentle)}
                     >
-                      <SpinningWheel childId={child.id} sizePx={260} />
+                      <SpinningWheel options={wheelOptions} sizePx={260} />
                       <button
                         type="button"
-                        onClick={() => setShowWheel(false)}
+                        onClick={() => setWheelOverride(false)}
                         className="mt-2 flex items-center gap-1.5 text-12 text-fog-400 hover:text-fog-200 transition-colors"
                       >
                         Show pet instead
@@ -1178,7 +1180,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       {wheelReady && (
                         <button
                           type="button"
-                          onClick={() => setShowWheel(true)}
+                          onClick={() => setWheelOverride(true)}
                           className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-iris-500/20 text-iris-300 text-13 font-medium hover:bg-iris-500/30 transition-colors"
                         >
                           <Shuffle className="w-3.5 h-3.5" />

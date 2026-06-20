@@ -3,29 +3,28 @@ import { motion } from "framer-motion";
 import { Plus, X, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
-import {
-  WHEEL_COLORS,
-  MAX_WHEEL_OPTIONS,
-  getWheelOptions,
-  setWheelOptions,
-} from "@/lib/spinningWheel";
+import { WHEEL_COLORS, MAX_WHEEL_OPTIONS } from "@/lib/spinningWheel";
 
 interface SpinningWheelEditorProps {
-  childId: string;
   childName?: string;
+  /** Current options (from the child record). */
+  value: string[];
+  /** Persist the new option list (e.g. via updateChild). */
+  onChange: (options: string[]) => void;
 }
 
-// Parent-facing editor for a child's free-time spinning wheel. Options are
-// child-specific and persisted via the shared spinningWheel storage helpers.
-const SpinningWheelEditor = ({ childId, childName }: SpinningWheelEditorProps) => {
+// Parent-facing editor for a child's free-time spinning wheel. Options live on
+// the child record so they sync across devices; this component owns a local
+// working copy and pushes every change up through onChange.
+const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditorProps) => {
   const { t: tMotion } = useMotionPrefs();
-  const [options, setOptions] = useState<string[]>(() => getWheelOptions(childId));
+  const [options, setOptions] = useState<string[]>(value);
   const [newOption, setNewOption] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const persist = (opts: string[]) => {
     setOptions(opts);
-    setWheelOptions(childId, opts);
+    onChange(opts);
   };
 
   const addOption = () => {
