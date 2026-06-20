@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PetAvatar, { type PetType } from "@/components/PetAvatar";
+import TimeSelect from "@/components/TimeSelect";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useChildren } from "@/hooks/useChildren";
 import { useToast } from "@/hooks/use-toast";
+import { formatTime12 } from "@/utils/formatTime";
 
 const petTypes: { type: PetType; name: string }[] = [
   { type: "fox", name: "Arctic Fox" },
@@ -67,73 +69,73 @@ const ChildSetup = () => {
             <div key={stepNum} className="flex items-center gap-2">
               <div
                 className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all",
+                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
                   stepNum < step
-                    ? "bg-success text-white glow-green"
+                    ? "bg-mint-500 text-white"
                     : stepNum === step
-                    ? "bg-primary text-white glow-purple"
-                    : "glass text-muted-foreground"
+                    ? "bg-iris-400 text-white"
+                    : "border border-iris-400/30 text-fog-400"
                 )}
               >
                 {stepNum < step ? <Check className="w-4 h-4" /> : stepNum}
               </div>
               {stepNum < 3 && (
-                <div className={cn("w-10 h-0.5 rounded-full", stepNum < step ? "bg-success" : "bg-white/10")} />
+                <div className={cn("w-10 h-0.5 rounded-full", stepNum < step ? "bg-mint-500" : "bg-white/10")} />
               )}
             </div>
           ))}
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
+        <div className="rounded-[28px] border border-[rgba(102,153,255,0.25)] bg-iris-400/[0.06] p-6">
           {/* Step 1 */}
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground text-glow mb-1">Create a profile</h2>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">Create a profile</h2>
                 <p className="text-sm text-muted-foreground">Tell us about your child</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <Label className="text-foreground/80 text-sm font-medium mb-1.5 block">Name</Label>
+                  <Label className="text-fog-200 text-sm font-medium mb-1.5 block">Name</Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter name"
-                    className="h-11 rounded-xl bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground"
+                    className="h-11"
                   />
                 </div>
                 <div>
-                  <Label className="text-foreground/80 text-sm font-medium mb-1.5 block">Age</Label>
+                  <Label className="text-fog-200 text-sm font-medium mb-1.5 block">Age</Label>
                   <Input
                     type="number" min="3" max="18"
                     value={formData.age}
                     onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                     placeholder="Enter age"
-                    className="h-11 rounded-xl bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground"
+                    className="h-11"
                   />
                 </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-medium text-foreground/80 mb-3">Choose a pet</h3>
+                <h3 className="text-sm font-medium text-fog-200 mb-3">Choose a pet</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {petTypes.map((pet) => (
                     <button
                       key={pet.type}
                       type="button"
                       className={cn(
-                        "p-4 rounded-2xl transition-all duration-200 border-2",
+                        "p-4 rounded-2xl transition-colors border",
                         formData.petType === pet.type
-                          ? "border-primary glass-strong glow-purple"
-                          : "border-white/5 glass hover:border-white/15"
+                          ? "border-iris-400 bg-iris-400/10"
+                          : "border-iris-400/20 hover:border-iris-400/40"
                       )}
                       onClick={() => setFormData({ ...formData, petType: pet.type as 'fox' | 'panda' | 'owl' })}
                     >
-                      <div className="glass rounded-full p-3 mb-2 mx-auto w-20 h-20 flex items-center justify-center">
+                      <div className="rounded-full p-3 mb-2 mx-auto w-20 h-20 flex items-center justify-center bg-iris-400/10">
                         <PetAvatar petType={pet.type} happiness={85} size="md" className="mx-auto" />
                       </div>
-                      <p className="text-xs font-semibold text-center text-foreground">{pet.name}</p>
+                      <p className="text-xs font-semibold text-center text-fog-50">{pet.name}</p>
                     </button>
                   ))}
                 </div>
@@ -145,31 +147,31 @@ const ChildSetup = () => {
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground text-glow mb-1">{formData.name}'s schedule</h2>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">{formData.name}'s schedule</h2>
                 <p className="text-sm text-muted-foreground">Set daily routines</p>
               </div>
 
               <div className="space-y-3">
-                <div className="glass rounded-2xl p-4">
-                  <h3 className="font-medium text-foreground/80 text-sm mb-3">Sleep</h3>
+                <div className="rounded-2xl border border-iris-400/20 p-4">
+                  <h3 className="font-medium text-fog-200 text-sm mb-3">Sleep</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-muted-foreground text-xs mb-1 block">Wake up</Label>
-                      <Input type="time" value={formData.wakeTime}
-                        onChange={(e) => setFormData({ ...formData, wakeTime: e.target.value })}
-                        className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground" />
+                      <TimeSelect value={formData.wakeTime}
+                        onChange={(v) => setFormData({ ...formData, wakeTime: v })}
+                        className="h-10 rounded-pill text-sm" />
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs mb-1 block">Bedtime</Label>
-                      <Input type="time" value={formData.sleepTime}
-                        onChange={(e) => setFormData({ ...formData, sleepTime: e.target.value })}
-                        className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground" />
+                      <TimeSelect value={formData.sleepTime}
+                        onChange={(v) => setFormData({ ...formData, sleepTime: v })}
+                        className="h-10 rounded-pill text-sm" />
                     </div>
                   </div>
                 </div>
 
-                <div className="glass rounded-2xl p-4">
-                  <h3 className="font-medium text-foreground/80 text-sm mb-3">Meals</h3>
+                <div className="rounded-2xl border border-iris-400/20 p-4">
+                  <h3 className="font-medium text-fog-200 text-sm mb-3">Meals</h3>
                   <div className="space-y-3">
                     {[
                       { label: "Breakfast", key: "breakfastTime" },
@@ -178,9 +180,9 @@ const ChildSetup = () => {
                     ].map((meal) => (
                       <div key={meal.key} className="flex items-center justify-between">
                         <Label className="text-muted-foreground text-xs">{meal.label}</Label>
-                        <Input type="time" value={formData[meal.key as keyof typeof formData]}
-                          onChange={(e) => setFormData({ ...formData, [meal.key]: e.target.value })}
-                          className="h-10 rounded-xl bg-white/5 border-white/10 text-sm text-foreground w-32" />
+                        <TimeSelect value={formData[meal.key as keyof typeof formData]}
+                          onChange={(v) => setFormData({ ...formData, [meal.key]: v })}
+                          className="h-10 rounded-pill text-sm w-32" />
                       </div>
                     ))}
                   </div>
@@ -193,33 +195,33 @@ const ChildSetup = () => {
           {step === 3 && (
             <div className="text-center space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground text-glow mb-1">All set!</h2>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">All set!</h2>
                 <p className="text-sm text-muted-foreground">Ready to create {formData.name}'s profile</p>
               </div>
 
-              <div className="glass rounded-full w-24 h-24 mx-auto flex items-center justify-center glow-purple">
+              <div className="rounded-full w-24 h-24 mx-auto flex items-center justify-center bg-iris-400/10">
                 <PetAvatar petType={formData.petType} happiness={100} size="xl" />
               </div>
 
-              <div className="glass rounded-2xl p-4 text-left">
-                <h3 className="font-bold text-foreground text-sm mb-2">
+              <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
+                <h3 className="font-bold text-fog-50 text-sm mb-2">
                   {formData.name} & {petTypes.find(p => p.type === formData.petType)?.name}
                 </h3>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>Age: {formData.age} years old</p>
-                  <p>Wake: {formData.wakeTime} &middot; Bed: {formData.sleepTime}</p>
+                  <p>Wake: {formatTime12(formData.wakeTime)} &middot; Bed: {formatTime12(formData.sleepTime)}</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Nav */}
-          <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5">
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
             <Button variant="ghost" size="sm" onClick={step === 1 ? () => navigate("/parent") : handleBack} className="gap-1.5">
               <ChevronLeft className="w-4 h-4" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>
-            <Button size="sm" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
+            <Button variant="primary" size="sm" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
               {isLoading ? "Creating..." : step === 3 ? "Create Profile" : "Next"}
               {step < 3 && !isLoading && <ChevronRight className="w-4 h-4" />}
             </Button>
