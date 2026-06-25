@@ -161,7 +161,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const canSubmit = formData.name.trim().length > 0 && !needsDays;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 pt-1 w-full min-w-0 overflow-hidden">
+    <form onSubmit={handleSubmit} className="space-y-3 pt-1 w-full min-w-0">
       {/* Task / Chore Toggle — segmented pill matching the Day/Week/Month tabs. */}
       {!isSystemEvent && (
         <div className="grid grid-cols-2 bg-ink-900/40 rounded-pill p-1">
@@ -577,8 +577,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </FormRow>
       )}
 
-      {/* Submit */}
-      <div className="pt-sp-3 space-y-sp-2">
+      {/* Submit — pinned to the bottom of the dialog so the action buttons
+          are always reachable without scrolling the (often tall) form. */}
+      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-sp-3 pb-5 sm:pb-6 space-y-sp-2 bg-ink-900/85 backdrop-blur-md border-t border-white/10">
         <Button
           type="submit"
           variant="primary"
