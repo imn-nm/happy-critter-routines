@@ -126,5 +126,28 @@ const frog = (): PixelModel => {
 
 export const CRITTERS: PixelModel[] = [bunny(), duck(), cat(), fox(), penguin(), frog()];
 
+export type CritterId = "bunny" | "duck" | "cat" | "fox" | "penguin" | "frog";
+
+export const CRITTER_IDS = CRITTERS.map((c) => c.id) as CritterId[];
+
 export const getCritter = (id: string): PixelModel | undefined =>
   CRITTERS.find((c) => c.id === id);
+
+// Map any stored pet_type — including legacy values from before this
+// collection existed — onto one of the six current critters, so old profiles
+// keep a sensible companion instead of breaking.
+const LEGACY_MAP: Record<string, CritterId> = {
+  panda: "cat",
+  owl: "duck",
+  arctic_fox: "fox",
+};
+
+export const resolveCritterId = (input?: string | null): CritterId => {
+  if (input && CRITTER_IDS.includes(input as CritterId)) return input as CritterId;
+  if (input && LEGACY_MAP[input]) return LEGACY_MAP[input];
+  return "fox";
+};
+
+/** Short companion name, e.g. "Pip" from "Pip the Fox" — used in copy. */
+export const critterNick = (id: string): string =>
+  getCritter(resolveCritterId(id))?.name.split(" ")[0] ?? "Buddy";

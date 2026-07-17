@@ -13,15 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useChildren, type Child } from "@/hooks/useChildren";
-import PetAvatar, { type PetType } from "@/components/PetAvatar";
+import PetAvatar from "@/components/PetAvatar";
+import CritterPicker from "@/components/critters/CritterPicker";
+import { type CritterId } from "@/components/critters/pixelCharacters";
 import HouseholdSettings from "@/components/HouseholdSettings";
 import CalendarConnect from "@/components/CalendarConnect";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-
-const PET_TYPES: { type: PetType; name: string }[] = [
-  { type: "fox", name: "Arctic Fox" },
-];
 
 /**
  * Parent account settings.
@@ -327,7 +325,7 @@ function EditChildDialog({
 }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState<string>("");
-  const [petType, setPetType] = useState<PetType>("fox");
+  const [petType, setPetType] = useState<CritterId>("fox");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -386,26 +384,7 @@ function EditChildDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-12 text-iris-400">Pet</Label>
-            <div className="flex gap-sp-2">
-              {PET_TYPES.map(p => (
-                <button
-                  key={p.type}
-                  type="button"
-                  onClick={() => setPetType(p.type)}
-                  className={cn(
-                    "flex-1 flex flex-col items-center gap-1.5 p-sp-3 rounded-[20px] border transition-colors",
-                    petType === p.type
-                      ? "bg-iris-400/[0.18] border-iris-400"
-                      : "bg-iris-400/[0.04] border-iris-400/20 hover:bg-iris-400/10",
-                  )}
-                >
-                  <div className="w-10 h-10 rounded-pill bg-paper overflow-hidden flex items-center justify-center">
-                    <PetAvatar petType={p.type} happiness={70} size="sm" />
-                  </div>
-                  <span className="text-12 text-fog-50">{p.name}</span>
-                </button>
-              ))}
-            </div>
+            <CritterPicker value={petType} onChange={setPetType} />
           </div>
           {err && <p className="text-12 text-coral-400">{err}</p>}
           <DialogFooter className="gap-sp-2 pt-sp-2">

@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Settings, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
+import CritterPicker from "@/components/critters/CritterPicker";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 
@@ -115,7 +116,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-sp-4 pb-sp-4 sm:px-sp-6 sm:pb-sp-6 space-y-sp-4">
-          {/* Pet Avatar Preview */}
+          {/* Pet Avatar Preview + picker */}
           <div className="text-center">
             <PetAvatar
               petType={formData.petType}
@@ -123,7 +124,11 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
               size="lg"
               className="mx-auto mb-1"
             />
-            <p className="text-xs text-muted-foreground">Preview of {child.name}'s pet</p>
+            <p className="text-xs text-muted-foreground mb-3">{child.name}'s pet</p>
+            <CritterPicker
+              value={formData.petType}
+              onChange={(id) => setFormData({ ...formData, petType: id })}
+            />
           </div>
 
           {/* Name & Age row */}
