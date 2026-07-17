@@ -9,6 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Settings, Save, X, Trash2 } from "lucide-react";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
+import CritterPicker from "@/components/critters/CritterPicker";
+import { getCritter } from "@/components/critters/pixelCharacters";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 
@@ -115,15 +117,26 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-sp-4 pb-sp-4 sm:px-sp-6 sm:pb-sp-6 space-y-sp-4">
-          {/* Pet Avatar Preview */}
-          <div className="text-center">
-            <PetAvatar
-              petType={formData.petType}
-              happiness={child.petHappiness}
-              size="lg"
-              className="mx-auto mb-1"
+          {/* Pet — preview + picker so parents can change the child's pet */}
+          <div className="space-y-3">
+            <div className="text-center">
+              <PetAvatar
+                petType={formData.petType}
+                happiness={child.petHappiness}
+                size="lg"
+                className="mx-auto mb-1"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm">Pet</h4>
+              <span className="text-xs text-muted-foreground">
+                {getCritter(formData.petType)?.name}
+              </span>
+            </div>
+            <CritterPicker
+              value={formData.petType}
+              onChange={(id) => setFormData({ ...formData, petType: id })}
             />
-            <p className="text-xs text-muted-foreground">Preview of {child.name}'s pet</p>
           </div>
 
           {/* Name & Age row */}

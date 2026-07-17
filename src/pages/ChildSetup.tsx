@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import PetAvatar, { type PetType } from "@/components/PetAvatar";
+import PetAvatar from "@/components/PetAvatar";
+import CritterPicker from "@/components/critters/CritterPicker";
+import { getCritter, type CritterId } from "@/components/critters/pixelCharacters";
 import TimeSelect from "@/components/TimeSelect";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -10,10 +12,6 @@ import { cn } from "@/lib/utils";
 import { useChildren } from "@/hooks/useChildren";
 import { useToast } from "@/hooks/use-toast";
 import { formatTime12 } from "@/utils/formatTime";
-
-const petTypes: { type: PetType; name: string }[] = [
-  { type: "fox", name: "Arctic Fox" },
-];
 
 const ChildSetup = () => {
   const navigate = useNavigate();
@@ -24,7 +22,7 @@ const ChildSetup = () => {
   const [formData, setFormData] = useState({
     name: "",
     age: "",
-    petType: "fox" as 'fox' | 'panda' | 'owl',
+    petType: "fox" as CritterId,
     wakeTime: "07:00",
     sleepTime: "20:00",
     breakfastTime: "07:30",
@@ -41,7 +39,7 @@ const ChildSetup = () => {
       await addChild({
         name: formData.name,
         age: parseInt(formData.age),
-        petType: formData.petType as 'fox' | 'panda' | 'owl',
+        petType: formData.petType,
         currentCoins: 0,
         petHappiness: 50,
       });
@@ -119,26 +117,10 @@ const ChildSetup = () => {
 
               <div>
                 <h3 className="text-sm font-medium text-fog-200 mb-3">Choose a pet</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {petTypes.map((pet) => (
-                    <button
-                      key={pet.type}
-                      type="button"
-                      className={cn(
-                        "p-4 rounded-2xl transition-colors border",
-                        formData.petType === pet.type
-                          ? "border-iris-400 bg-iris-400/10"
-                          : "border-iris-400/20 hover:border-iris-400/40"
-                      )}
-                      onClick={() => setFormData({ ...formData, petType: pet.type as 'fox' | 'panda' | 'owl' })}
-                    >
-                      <div className="rounded-full p-3 mb-2 mx-auto w-20 h-20 flex items-center justify-center bg-iris-400/10">
-                        <PetAvatar petType={pet.type} happiness={85} size="md" className="mx-auto" />
-                      </div>
-                      <p className="text-xs font-semibold text-center text-fog-50">{pet.name}</p>
-                    </button>
-                  ))}
-                </div>
+                <CritterPicker
+                  value={formData.petType}
+                  onChange={(id) => setFormData({ ...formData, petType: id })}
+                />
               </div>
             </div>
           )}
@@ -205,7 +187,7 @@ const ChildSetup = () => {
 
               <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
                 <h3 className="font-bold text-fog-50 text-sm mb-2">
-                  {formData.name} & {petTypes.find(p => p.type === formData.petType)?.name}
+                  {formData.name} & {getCritter(formData.petType)?.name}
                 </h3>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>Age: {formData.age} years old</p>

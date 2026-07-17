@@ -1,30 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { resolveCritterId, type CritterId } from '@/components/critters/pixelCharacters';
 
-// Helper function to convert old pet types to new ones
-const convertPetType = (dbPetType: string): 'fox' | 'panda' | 'owl' => {
-  switch(dbPetType) {
-    case 'fox':
-      return 'fox';
-    case 'panda':
-      return 'panda';
-    case 'owl':
-      return 'owl';
-    // Convert old pet types to new ones
-    case 'penguin':
-    case 'bunny':
-    default:
-      return 'panda'; // Default to panda for any old/unknown pet types
-  }
-};
+// Map any stored pet_type (including legacy values) onto a current critter.
+const convertPetType = (dbPetType: string): CritterId => resolveCritterId(dbPetType);
 
 export interface Child {
   id: string;
   parent_id: string;
   name: string;
   age?: number;
-  petType: 'fox' | 'panda' | 'owl';
+  petType: CritterId;
   currentCoins: number;
   petHappiness: number;
   created_at: string;

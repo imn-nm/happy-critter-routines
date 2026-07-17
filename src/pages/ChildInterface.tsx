@@ -11,7 +11,10 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
-import PetGifWobble from "@/components/PetGifWobble";
+import CritterPet from "@/components/critters/CritterPet";
+import CritterPicker from "@/components/critters/CritterPicker";
+import { critterNick } from "@/components/critters/pixelCharacters";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
@@ -41,7 +44,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
-  const { children, loading: childrenLoading, updateChildCoins, updateChildHappiness } = useChildren();
+  const { children, loading: childrenLoading, updateChild, updateChildCoins, updateChildHappiness } = useChildren();
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
@@ -52,6 +55,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [nextTapped, setNextTapped] = useState(false);
   const [petCelebrating, setPetCelebrating] = useState(false);
+  const [showPetPicker, setShowPetPicker] = useState(false);
   // null = follow the default (show the wheel automatically when one is set
   // up); true/false = the child explicitly chose wheel or pet this session.
   const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
@@ -759,7 +763,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <div className="text-4xl mb-3">😴</div>
             <h2 className="text-xl font-bold mb-1 text-foreground">Cozy rest day</h2>
             <p className="text-sm text-muted-foreground">
-              {child.petType === 'fox' ? 'Foxy' : 'Panda'} is resting too!
+              {critterNick(child.petType)} is resting too!
             </p>
           </motion.div>
         </div>
@@ -776,7 +780,17 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             greeting 20px Inter Regular, coin chip 13px Bold with star icon */}
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
-            <p className="text-20 text-fog-50 leading-none">Hi, {child.name}!</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => setShowPetPicker(true)}
+                className="shrink-0 rounded-full p-0.5 border-2 border-iris-400/[0.32] hover:border-iris-400/60 transition-colors"
+                aria-label="Change your pet"
+              >
+                <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
+              </button>
+              <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
+            </div>
             <button
               type="button"
               onClick={() => setShowRewardsShop(true)}
@@ -837,7 +851,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 </h2>
                 <StatusBadge variant="info">Time to rest</StatusBadge>
                 <p className="text-14 text-fog-200 text-center max-w-xs">
-                  {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
+                  {critterNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
               </motion.div>
             );
@@ -851,11 +865,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           // Suppress the overdue/worried branch during freeze — the just-completed
           // task should never look anxious, even if it had been overdue.
           const overdue = !isFrozen && isActiveTaskOverdue();
-          const petGif = petCelebrating
-            ? '/FoxCelebrate.gif'
+          const petMood = petCelebrating
+            ? 'celebrate'
             : overdue
-            ? '/FoxWorried.gif'
-            : '/FoxHappy.gif';
+            ? 'worried'
+            : 'happy';
 
           const remainingMMSS = formatRemaining(remaining);
           // Badge variant for the time chip under the title
@@ -911,10 +925,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   />
                   {/* Pet — small companion above the steps so the screen keeps
                       the warmth the timer ring used to provide. */}
-                  <PetGifWobble
-                    overdue={overdue}
-                    petGif={petGif}
-                    className="w-[96px] h-[96px] rounded-full overflow-hidden relative"
+                  <CritterPet
+                    petType={child.petType}
+                    mood={petMood}
+                    size={96}
+                    className="w-[96px] h-[96px]"
                   />
                   <TaskChecklistView
                     subtasks={displayTask.subtasks}
@@ -931,10 +946,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   isRunning={!isFrozen}
                   onComplete={handleTimerComplete}
                 >
-                  <PetGifWobble
-                    overdue={overdue}
-                    petGif={petGif}
-                    className="relative w-full h-full"
+                  <CritterPet
+                    petType={child.petType}
+                    mood={petMood}
+                    size={168}
+                    className="w-full h-full"
                   />
                 </CircularTimer>
               )}
@@ -1175,7 +1191,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         sizePx={293}
                         isRunning={true}
                       >
-                        <img src="/FoxHappy.gif" alt="fox pet" className="w-full h-full object-contain" />
+                        <CritterPet petType={child.petType} mood="happy" size={168} className="w-full h-full" />
                       </CircularTimer>
                       {wheelReady && (
                         <button
@@ -1335,7 +1351,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             </h2>
             <StatusBadge variant="info">Sleep tight</StatusBadge>
             <p className="text-14 text-fog-200 text-center max-w-xs">
-              {child.petType === 'fox' ? 'Foxy' : child.petType === 'owl' ? 'Owly' : 'Panda'} is going to sleep too. See you tomorrow!
+              {critterNick(child.petType)} is going to sleep too. See you tomorrow!
             </p>
           </motion.div>
         )}
@@ -1461,6 +1477,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         open={showRewardsShop}
         onClose={() => setShowRewardsShop(false)}
       />
+
+      {/* Pet picker — the child chooses their own critter */}
+      <Dialog open={showPetPicker} onOpenChange={setShowPetPicker}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Pick your pet</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-sp-3">
+            <CritterPet petType={child.petType} mood="excited" size={112} />
+            <p className="text-13 text-fog-200 text-center">
+              {critterNick(child.petType)} is your buddy! Tap another friend to switch.
+            </p>
+            <CritterPicker
+              value={child.petType}
+              onChange={async (id) => {
+                await updateChild(child.id, { petType: id });
+              }}
+              className="w-full"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

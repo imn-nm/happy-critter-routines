@@ -20,6 +20,7 @@ import ChildOverduePreview from "./pages/ChildOverduePreview";
 import ChildOverdueSubtasksPreview from "./pages/ChildOverdueSubtasksPreview";
 import ChildOverdueSubtasksCompactPreview from "./pages/ChildOverdueSubtasksCompactPreview";
 import AnimationsPreview from "./pages/AnimationsPreview";
+import CrittersPreview from "./pages/CrittersPreview";
 import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
 
@@ -60,6 +61,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/preview/animations" element={<AnimationsPreview />} />
+          <Route path="/preview/critters" element={<CrittersPreview />} />
           <Route
             path="*"
             element={
