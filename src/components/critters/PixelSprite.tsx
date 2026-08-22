@@ -116,10 +116,22 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
     <div className={cn("inline-block", className)} style={{ width: size, height: size }}>
       <style>{`
         /* Resting moods stay put and come alive through blinking instead of bobbing. */
-        @keyframes critter-excited { 0%,100% { transform: translateY(0) rotate(-2deg); } 25% { transform: translateY(-9%) rotate(2deg); } 50% { transform: translateY(0) rotate(-2deg); } 75% { transform: translateY(-5%) rotate(2deg); } }
+        /* Excited = a natural jump: crouch (anticipation), stretch on launch, hang
+           at the apex, squash on landing, then a small rebound. Feet stay planted
+           via transform-origin: center bottom. */
+        @keyframes critter-excited {
+          0%   { transform: translateY(0) scale(1, 1); }
+          10%  { transform: translateY(3%) scale(1.08, 0.9); }
+          30%  { transform: translateY(-20%) scale(0.95, 1.1); }
+          48%  { transform: translateY(-26%) scale(1, 1); }
+          66%  { transform: translateY(-6%) scale(0.98, 1.04); }
+          82%  { transform: translateY(0) scale(1.12, 0.86); }
+          92%  { transform: translateY(0) scale(0.98, 1.03); }
+          100% { transform: translateY(0) scale(1, 1); }
+        }
         @keyframes critter-celebrate { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-14%) scale(1.06); } 55% { transform: translateY(0) scale(1); } 70% { transform: translateY(-6%) scale(1.03); } 100% { transform: translateY(0) scale(1); } }
         @keyframes critter-worried { 0%,100% { transform: rotate(0deg); } 20% { transform: rotate(-4deg); } 40% { transform: rotate(4deg); } 60% { transform: rotate(-3deg); } 80% { transform: rotate(2deg); } }
-        .critter-excited { animation: critter-excited 0.7s ease-in-out infinite; }
+        .critter-excited { animation: critter-excited 0.9s ease-in-out infinite; }
         .critter-celebrate { animation: critter-celebrate 0.9s ease-in-out infinite; }
         .critter-worried { animation: critter-worried 0.6s ease-in-out infinite; }
         /* Natural blink: eyes stay open, then snap shut and reopen for a moment. */
@@ -130,13 +142,24 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         @keyframes part-swing { 0%,100% { transform: rotate(calc(var(--amp,0) * -1deg)); } 50% { transform: rotate(calc(var(--amp,0) * 1deg)); } }
         @keyframes part-bob { 0%,100% { transform: translateY(calc(var(--amp,0) * -1px)); } 50% { transform: translateY(calc(var(--amp,0) * 1px)); } }
         @keyframes part-sway { 0%,100% { transform: translateX(calc(var(--amp,0) * -1px)); } 50% { transform: translateX(calc(var(--amp,0) * 1px)); } }
+        /* Flop = a damped wiggle for floppy bits (ears): whip out, then settle. */
+        @keyframes part-flop {
+          0%   { transform: rotate(0deg); }
+          15%  { transform: rotate(calc(var(--amp,0) * 1deg)); }
+          35%  { transform: rotate(calc(var(--amp,0) * -0.55deg)); }
+          55%  { transform: rotate(calc(var(--amp,0) * 0.3deg)); }
+          75%  { transform: rotate(calc(var(--amp,0) * -0.15deg)); }
+          90%  { transform: rotate(calc(var(--amp,0) * 0.06deg)); }
+          100% { transform: rotate(0deg); }
+        }
         .critter-part { transform-box: fill-box; }
         .part-swing { animation: part-swing 1s ease-in-out infinite; }
         .part-bob { animation: part-bob 1s ease-in-out infinite; }
         .part-sway { animation: part-sway 1s ease-in-out infinite; }
+        .part-flop { animation: part-flop 1s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
           .critter-excited, .critter-celebrate, .critter-worried, .critter-eyes,
-          .part-swing, .part-bob, .part-sway { animation: none; }
+          .part-swing, .part-bob, .part-sway, .part-flop { animation: none; }
         }
       `}</style>
       <svg
@@ -144,7 +167,8 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         role="img"
         aria-label={model.name}
         className={MOOD_CLASS[effectiveMood]}
-        style={{ width: "100%", height: "100%", transformOrigin: "center bottom" }}
+        // overflow visible so a jump/stretch isn't clipped at the sprite's edge.
+        style={{ width: "100%", height: "100%", transformOrigin: "center bottom", overflow: "visible" }}
         shapeRendering="crispEdges"
         preserveAspectRatio="xMidYMax meet"
       >

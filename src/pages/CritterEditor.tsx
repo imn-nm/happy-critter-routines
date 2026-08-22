@@ -26,7 +26,7 @@ const ROWS = 20;
 const CELL = 22; // px per grid cell in the editing canvas
 
 const MOODS: CritterMood[] = ["idle", "happy", "excited", "celebrate", "worried", "sleep"];
-const MOTIONS: PartMotionType[] = ["none", "swing", "bob", "sway"];
+const MOTIONS: PartMotionType[] = ["none", "swing", "bob", "sway", "flop"];
 // A palette for outlining parts on the grid so each is visually distinct.
 const PART_COLORS = ["#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#ef4444", "#3b82f6"];
 

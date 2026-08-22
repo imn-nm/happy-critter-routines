@@ -17,7 +17,7 @@ export interface EyeBox {
 }
 
 /** How a rigged part moves for a given mood. */
-export type PartMotionType = "none" | "swing" | "bob" | "sway";
+export type PartMotionType = "none" | "swing" | "bob" | "sway" | "flop";
 
 export interface PartMotion {
   type: PartMotionType;

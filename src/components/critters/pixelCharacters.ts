@@ -185,6 +185,31 @@ const bunny = (): PixelModel => ({
     { x1: 3, y1: 10, x2: 4, y2: 11 },
     { x1: 8, y1: 10, x2: 9, y2: 11 },
   ],
+  parts: [
+    {
+      // Left ear — pivots at its base and floppily whips left when excited.
+      name: "earL",
+      pivot: { x: 3, y: 7.5 },
+      motion: { excited: { type: "flop", amp: -24, dur: 0.9, delay: 0.05 } },
+      cells: [
+        { x: 1, y: 3 }, { x: 1, y: 4 },
+        { x: 2, y: 3 }, { x: 2, y: 4 }, { x: 2, y: 5 }, { x: 2, y: 6 }, { x: 2, y: 7 },
+        { x: 3, y: 3 }, { x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }, { x: 3, y: 7 },
+        { x: 4, y: 3 }, { x: 4, y: 4 }, { x: 4, y: 5 }, { x: 4, y: 6 }, { x: 4, y: 7 },
+      ],
+    },
+    {
+      // Right ear — mirrors the left, whipping right with a touch more lag.
+      name: "earR",
+      pivot: { x: 9, y: 7.5 },
+      motion: { excited: { type: "flop", amp: 24, dur: 0.9, delay: 0.09 } },
+      cells: [
+        { x: 8, y: 2 }, { x: 8, y: 3 }, { x: 8, y: 4 }, { x: 8, y: 5 }, { x: 8, y: 6 }, { x: 8, y: 7 },
+        { x: 9, y: 2 }, { x: 9, y: 3 }, { x: 9, y: 4 }, { x: 9, y: 5 }, { x: 9, y: 6 }, { x: 9, y: 7 },
+        { x: 10, y: 2 }, { x: 10, y: 3 }, { x: 10, y: 4 }, { x: 10, y: 5 }, { x: 10, y: 6 }, { x: 10, y: 7 },
+      ],
+    },
+  ],
 });
 
 const duck = (): PixelModel => {
