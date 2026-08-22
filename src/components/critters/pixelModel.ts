@@ -8,11 +8,21 @@ export interface PixelCell {
   c: string; // hex color
 }
 
+/** Inclusive grid box (both corners) marking cells that make up one eye. */
+export interface EyeBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export interface PixelModel {
   id: string;
   name: string;
   description: string;
   cells: PixelCell[];
+  /** Eye regions, so the sprite can blink these cells instead of bobbing. */
+  eyes?: EyeBox[];
 }
 
 const key = (x: number, y: number) => `${x},${y}`;
@@ -45,7 +55,7 @@ export class PixelBuilder {
     return this;
   }
 
-  build(id: string, name: string, description: string): PixelModel {
-    return { id, name, description, cells: [...this.cells.values()] };
+  build(id: string, name: string, description: string, eyes?: EyeBox[]): PixelModel {
+    return { id, name, description, cells: [...this.cells.values()], eyes };
   }
 }
