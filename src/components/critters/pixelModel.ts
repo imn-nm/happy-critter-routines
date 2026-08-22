@@ -16,6 +16,34 @@ export interface EyeBox {
   y2: number;
 }
 
+/** How a rigged part moves for a given mood. */
+export type PartMotionType = "none" | "swing" | "bob" | "sway";
+
+export interface PartMotion {
+  type: PartMotionType;
+  /** Degrees for swing; grid units for bob/sway. */
+  amp: number;
+  /** One full cycle, in seconds. */
+  dur: number;
+  /** Phase offset in seconds — use e.g. dur/2 to alternate opposite limbs. */
+  delay?: number;
+}
+
+/**
+ * A movable cluster of cells (head, arm, leg, tail…) that rotates about a
+ * pivot (its joint) or translates, with a distinct motion per mood.
+ */
+export interface Part {
+  name: string;
+  /** Joint point in grid coordinates that swing rotates around. */
+  pivot: { x: number; y: number };
+  cells: { x: number; y: number }[];
+  /** When true, the eye/blink group rides along inside this part. */
+  holdsEyes?: boolean;
+  /** Motion keyed by CritterMood; a missing mood means the part holds still. */
+  motion?: Record<string, PartMotion>;
+}
+
 export interface PixelModel {
   id: string;
   name: string;
@@ -23,6 +51,8 @@ export interface PixelModel {
   cells: PixelCell[];
   /** Eye regions, so the sprite can blink these cells instead of bobbing. */
   eyes?: EyeBox[];
+  /** Rigged parts for arm/leg/head motion; absent means a static sprite. */
+  parts?: Part[];
 }
 
 const key = (x: number, y: number) => `${x},${y}`;
