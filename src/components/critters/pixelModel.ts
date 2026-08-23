@@ -53,6 +53,12 @@ export interface PixelModel {
   eyes?: EyeBox[];
   /** Rigged parts for arm/leg/head motion; absent means a static sprite. */
   parts?: Part[];
+  /**
+   * Opt into the lo-fi (Tamagotchi-style) reaction set: stepped low-framerate
+   * body moods, ears that skew from their rooted base, and mood props (carrot,
+   * z's, sparkles). Parts named "earL"/"earR" are driven as ears.
+   */
+  lofi?: boolean;
 }
 
 const key = (x: number, y: number) => `${x},${y}`;

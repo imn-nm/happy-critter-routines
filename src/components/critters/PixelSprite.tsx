@@ -2,7 +2,7 @@ import { CSSProperties, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { PixelCell, PixelModel } from "./pixelModel";
 
-export type CritterMood = "none" | "idle" | "happy" | "excited" | "celebrate" | "worried" | "sleep";
+export type CritterMood = "none" | "idle" | "happy" | "excited" | "celebrate" | "worried" | "sleep" | "eating";
 
 interface PixelSpriteProps {
   model: PixelModel;
@@ -21,7 +21,75 @@ const MOOD_CLASS: Record<CritterMood, string> = {
   celebrate: "critter-celebrate",
   worried: "critter-worried",
   sleep: "critter-sleep",
+  eating: "",
 };
+
+// Lo-fi (Tamagotchi-style) reactions for `lofi` models. Every animation snaps
+// between poses (step-end) for a low-framerate feel; ears skew from their rooted
+// bottom edge so they stay attached, and the body squashes/hops in place.
+// Scoped by a `react-<mood>` class on the wrapper.
+const LOFI_CSS = `
+  .pix-body { transform-origin: center bottom; }
+  @keyframes lb-idle    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5%); } }
+  @keyframes lb-happy   { 0% { transform: translateY(0) scale(1,1); } 40% { transform: translateY(-13%) scale(0.95,1.07); } 70% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
+  @keyframes lb-excited { 0% { transform: translateY(0) scale(1,1); } 18% { transform: translateY(-24%) scale(0.92,1.12); } 42% { transform: translateY(0) scale(1.12,0.86); } 64% { transform: translateY(-15%) scale(0.96,1.06); } 84% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
+  @keyframes lb-eat     { 0% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(1.5%) scaleY(0.95); } 100% { transform: translateY(0) scaleY(1); } }
+  @keyframes lb-sleep   { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1%) scaleY(1.04); } }
+  @keyframes lb-sad     { 0% { transform: translateY(4%) scaleY(0.94) translateX(0); } 25% { transform: translateY(4%) scaleY(0.94) translateX(-2%); } 50% { transform: translateY(4%) scaleY(0.94) translateX(0); } 75% { transform: translateY(4%) scaleY(0.94) translateX(2%); } 100% { transform: translateY(4%) scaleY(0.94) translateX(0); } }
+  @keyframes lb-cele    { 0% { transform: translateY(0) rotate(0); } 20% { transform: translateY(-22%) rotate(-5deg); } 40% { transform: translateY(0) rotate(0); } 60% { transform: translateY(-18%) rotate(5deg); } 80% { transform: translateY(0) rotate(0); } 100% { transform: translateY(0) rotate(0); } }
+  .react-idle      .pix-body { animation: lb-idle    2.4s step-end infinite; }
+  .react-happy     .pix-body { animation: lb-happy   0.5s step-end infinite; }
+  .react-excited   .pix-body { animation: lb-excited 0.72s step-end infinite; }
+  .react-eating    .pix-body { animation: lb-eat     0.3s step-end infinite; }
+  .react-sleep     .pix-body { animation: lb-sleep   2.8s step-end infinite; }
+  .react-worried   .pix-body { animation: lb-sad     0.5s step-end infinite; }
+  .react-celebrate .pix-body { animation: lb-cele    0.9s step-end infinite; }
+
+  .ear { transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes le-sway   { 0% { transform: skewX(0); } 40% { transform: skewX(-5deg); } 70% { transform: skewX(3deg); } 100% { transform: skewX(0); } }
+  @keyframes le-flop   { 0% { transform: skewX(0); } 15% { transform: skewX(calc(16deg * var(--s))); } 38% { transform: skewX(calc(-9deg * var(--s))); } 60% { transform: skewX(calc(11deg * var(--s))); } 82% { transform: skewX(calc(-5deg * var(--s))); } 100% { transform: skewX(0); } }
+  @keyframes le-jiggle { 0%,100% { transform: skewX(0); } 50% { transform: skewX(calc(5deg * var(--s))); } }
+  @keyframes le-droop  { 0% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 86% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 93% { transform: scaleY(0.62) skewX(calc(5deg * var(--s))); } 100% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } }
+  @keyframes le-cheer  { 0% { transform: skewX(0); } 20% { transform: skewX(calc(18deg * var(--s))); } 46% { transform: skewX(calc(-12deg * var(--s))); } 72% { transform: skewX(calc(14deg * var(--s))); } 100% { transform: skewX(0); } }
+  @keyframes le-twitchL { 0%,85%,100% { transform: skewX(0); } 88% { transform: skewX(-12deg); } 92% { transform: skewX(-3deg); } 96% { transform: skewX(-9deg); } }
+  .react-happy     .ear { animation: le-sway   0.5s step-end infinite; }
+  .react-excited   .ear { animation: le-flop   0.72s step-end infinite; }
+  .react-eating    .ear { animation: le-jiggle 0.6s step-end infinite; }
+  .react-worried   .ear { animation: le-droop  1.6s step-end infinite; }
+  .react-celebrate .ear { animation: le-cheer  0.9s step-end infinite; }
+  .react-sleep     .ear { transform: skewX(calc(7deg * var(--s))) scaleY(0.92); }
+  .react-idle      .earL { animation: le-twitchL 5s step-end infinite; }
+  .react-sleep     .critter-eyes { transform: scaleY(0.1); animation: none; }
+
+  .pix-carrot { position: absolute; left: 50%; bottom: 25%; width: 12%; height: 22%; transform: translateX(-50%); transform-origin: 50% 100%; z-index: 3; }
+  .pix-carrot .cbody { position: absolute; left: 0; bottom: 0; width: 100%; height: 76%; background: #f4935e; clip-path: polygon(16% 0, 84% 0, 54% 100%, 46% 100%); }
+  .pix-carrot .cleaf { position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 82%; height: 34%; background: #5fa03e; clip-path: polygon(50% 100%, 0 45%, 16% 0, 34% 45%, 50% 0, 66% 45%, 84% 0, 100% 45%); }
+  @keyframes lnibble { 0% { transform: translateX(-50%) scale(1); opacity: 1; } 24% { transform: translateX(-50%) scale(1); opacity: 1; } 25% { transform: translateX(-50%) scale(0.78); } 49% { transform: translateX(-50%) scale(0.78); } 50% { transform: translateX(-50%) scale(0.55); } 74% { transform: translateX(-50%) scale(0.55); } 75% { transform: translateX(-50%) scale(0.3); } 92% { transform: translateX(-50%) scale(0.3); opacity: 1; } 93% { transform: translateX(-50%) scale(0.3); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+  .react-eating .pix-carrot { animation: lnibble 2.4s step-end infinite; }
+
+  .pix-zzz { position: absolute; right: 8%; top: 10%; font-family: system-ui, sans-serif; font-weight: 800; color: currentColor; opacity: 0.75; }
+  .pix-zzz span { display: inline-block; }
+  @keyframes lzfloat { 0% { transform: translateY(30%) scale(0.7); opacity: 0; } 30% { opacity: 0.8; } 100% { transform: translateY(-60%) scale(1.1); opacity: 0; } }
+  .react-sleep .pix-zzz span:nth-child(1) { animation: lzfloat 2.4s step-end infinite; font-size: 0.5em; }
+  .react-sleep .pix-zzz span:nth-child(2) { animation: lzfloat 2.4s step-end infinite; animation-delay: 0.8s; font-size: 0.7em; }
+  .react-sleep .pix-zzz span:nth-child(3) { animation: lzfloat 2.4s step-end infinite; animation-delay: 1.6s; font-size: 0.9em; }
+
+  .pix-sparks { position: absolute; inset: 0; }
+  .pix-sparks b { position: absolute; font-size: 0.5em; opacity: 0; color: #f4935e; }
+  .pix-sparks b:nth-child(1) { left: 16%; top: 18%; }
+  .pix-sparks b:nth-child(2) { left: 76%; top: 14%; }
+  .pix-sparks b:nth-child(3) { left: 24%; top: 46%; }
+  .pix-sparks b:nth-child(4) { left: 72%; top: 42%; }
+  @keyframes lpop { 0%,100% { transform: scale(0); opacity: 0; } 40%,60% { transform: scale(1); opacity: 1; } }
+  .react-celebrate .pix-sparks b { animation: lpop 0.9s step-end infinite; }
+  .react-celebrate .pix-sparks b:nth-child(2) { animation-delay: 0.22s; }
+  .react-celebrate .pix-sparks b:nth-child(3) { animation-delay: 0.45s; }
+  .react-celebrate .pix-sparks b:nth-child(4) { animation-delay: 0.12s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pix-body, .ear, .pix-carrot, .pix-zzz span, .pix-sparks b { animation: none !important; }
+  }
+`;
 
 const key = (x: number, y: number) => `${x},${y}`;
 
@@ -130,8 +198,13 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
     </g>
   );
 
+  const isLofi = !!model.lofi;
+
   return (
-    <div className={cn("inline-block", className)} style={{ width: size, height: size }}>
+    <div
+      className={cn("inline-block", isLofi && effectiveMood !== "none" && `react-${effectiveMood}`, className)}
+      style={{ width: size, height: size, position: isLofi ? "relative" : undefined, fontSize: isLofi ? `${size * 0.16}px` : undefined }}
+    >
       <style>{`
         /* Resting moods stay put and come alive through blinking instead of bobbing. */
         /* Excited = a natural jump: crouch (anticipation), stretch on launch, hang
@@ -179,12 +252,13 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
           .critter-excited, .critter-celebrate, .critter-worried, .critter-eyes,
           .part-swing, .part-bob, .part-sway, .part-flop { animation: none; }
         }
+        ${isLofi ? LOFI_CSS : ""}
       `}</style>
       <svg
         viewBox={viewBox}
         role="img"
         aria-label={model.name}
-        className={MOOD_CLASS[effectiveMood]}
+        className={isLofi ? "pix-body" : MOOD_CLASS[effectiveMood]}
         // overflow visible so a jump/stretch isn't clipped at the sprite's edge.
         style={{ width: "100%", height: "100%", transformOrigin: "center bottom", overflow: "visible" }}
         shapeRendering="crispEdges"
@@ -195,6 +269,15 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         {backingCells.map((c, i) => <Cell key={`bk${i}`} c={c} />)}
 
         {partRenders.map((p, i) => {
+          // Lo-fi: ears skew from their rooted base, driven by mood-scoped CSS.
+          if (isLofi) {
+            return (
+              <g key={i} className={`ear ${p.name}`} style={{ ["--s" as string]: p.name === "earR" ? 1 : -1 } as CSSProperties}>
+                {p.cells.map((c, j) => <Cell key={j} c={c} />)}
+                {p.holdsEyes && eyeGroup}
+              </g>
+            );
+          }
           const style: CSSProperties = {};
           let cls = "";
           if (p.motion) {
@@ -214,6 +297,17 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
 
         {eyeHolder < 0 && eyeGroup}
       </svg>
+
+      {/* Lo-fi mood props layered over the sprite. */}
+      {isLofi && effectiveMood === "eating" && (
+        <div className="pix-carrot" aria-hidden="true"><span className="cleaf" /><span className="cbody" /></div>
+      )}
+      {isLofi && effectiveMood === "sleep" && (
+        <div className="pix-zzz" aria-hidden="true"><span>z</span><span>z</span><span>z</span></div>
+      )}
+      {isLofi && effectiveMood === "celebrate" && (
+        <div className="pix-sparks" aria-hidden="true"><b>✦</b><b>✦</b><b>✦</b><b>✦</b></div>
+      )}
     </div>
   );
 };
