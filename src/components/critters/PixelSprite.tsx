@@ -34,7 +34,7 @@ const Cell = ({ c }: { c: PixelCell }) => (
 const PixelSprite = ({ model, size = 160, animated = false, mood, className }: PixelSpriteProps) => {
   const effectiveMood: CritterMood = mood ?? (animated ? "idle" : "none");
 
-  const { bodyCells, eyeCells, partRenders, eyeHolder, viewBox } = useMemo(() => {
+  const { bodyCells, backingCells, eyeCells, partRenders, eyeHolder, viewBox } = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const c of model.cells) {
       minX = Math.min(minX, c.x);
@@ -57,6 +57,9 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
       })
     );
 
+    const colorAt = new Map<string, string>();
+    for (const c of model.cells) colorAt.set(key(c.x, c.y), c.c);
+
     const bodyCells: PixelCell[] = [];
     const eyeCells: PixelCell[] = [];
     const partCells: PixelCell[][] = parts.map(() => []);
@@ -66,6 +69,20 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
       if (pi !== undefined) partCells[pi].push(c);
       else bodyCells.push(c);
     }
+
+    // Blinking eyes collapse to reveal what's behind them — but the eye cells
+    // were lifted out of the body, leaving a hole. Paint a face-colored backing
+    // behind each eye (sampled from an adjacent non-eye cell) so a blink shows
+    // the face, not the page background.
+    const NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+    const backingCells: PixelCell[] = eyeCells.map((c) => {
+      let col: string | undefined;
+      for (const [dx, dy] of NB) {
+        const nk = key(c.x + dx, c.y + dy);
+        if (colorAt.has(nk) && !inEye({ x: c.x + dx, y: c.y + dy })) { col = colorAt.get(nk); break; }
+      }
+      return { x: c.x, y: c.y, c: col ?? "#f6f1da" };
+    });
 
     const eyeHolder = parts.findIndex((p) => p.holdsEyes);
 
@@ -92,6 +109,7 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
 
     return {
       bodyCells,
+      backingCells,
       eyeCells,
       partRenders,
       eyeHolder,
@@ -173,6 +191,8 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         preserveAspectRatio="xMidYMax meet"
       >
         {bodyCells.map((c, i) => <Cell key={i} c={c} />)}
+        {/* Face-colored backing so a blink reveals the face, not the background. */}
+        {backingCells.map((c, i) => <Cell key={`bk${i}`} c={c} />)}
 
         {partRenders.map((p, i) => {
           const style: CSSProperties = {};
