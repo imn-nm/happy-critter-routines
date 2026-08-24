@@ -31,14 +31,15 @@ const MOOD_CLASS: Record<CritterMood, string> = {
 const LOFI_CSS = `
   .pix-body { transform-origin: center bottom; }
   @keyframes lb-idle    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5%); } }
-  @keyframes lb-happy   { 0% { transform: translateY(0) scale(1,1); } 40% { transform: translateY(-13%) scale(0.95,1.07); } 70% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
+  /* Happy is a calm content state — a gentle 2-frame side shuffle (Tamagotchi idle), not a hop. */
+  @keyframes lb-happy   { 0%,100% { transform: translateX(-1.5%); } 50% { transform: translateX(1.5%); } }
   @keyframes lb-excited { 0% { transform: translateY(0) scale(1,1); } 18% { transform: translateY(-24%) scale(0.92,1.12); } 42% { transform: translateY(0) scale(1.12,0.86); } 64% { transform: translateY(-15%) scale(0.96,1.06); } 84% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
   @keyframes lb-eat     { 0% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(1.5%) scaleY(0.95); } 100% { transform: translateY(0) scaleY(1); } }
   @keyframes lb-sleep   { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1%) scaleY(1.04); } }
   @keyframes lb-sad     { 0% { transform: translateY(4%) scaleY(0.94) translateX(0); } 25% { transform: translateY(4%) scaleY(0.94) translateX(-2%); } 50% { transform: translateY(4%) scaleY(0.94) translateX(0); } 75% { transform: translateY(4%) scaleY(0.94) translateX(2%); } 100% { transform: translateY(4%) scaleY(0.94) translateX(0); } }
   @keyframes lb-cele    { 0% { transform: translateY(0) rotate(0); } 20% { transform: translateY(-22%) rotate(-5deg); } 40% { transform: translateY(0) rotate(0); } 60% { transform: translateY(-18%) rotate(5deg); } 80% { transform: translateY(0) rotate(0); } 100% { transform: translateY(0) rotate(0); } }
   .react-idle      .pix-body { animation: lb-idle    2.4s step-end infinite; }
-  .react-happy     .pix-body { animation: lb-happy   0.5s step-end infinite; }
+  .react-happy     .pix-body { animation: lb-happy   0.9s step-end infinite; }
   .react-excited   .pix-body { animation: lb-excited 0.72s step-end infinite; }
   .react-eating    .pix-body { animation: lb-eat     0.3s step-end infinite; }
   .react-sleep     .pix-body { animation: lb-sleep   2.8s step-end infinite; }
@@ -52,7 +53,7 @@ const LOFI_CSS = `
   @keyframes le-droop  { 0% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 86% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 93% { transform: scaleY(0.62) skewX(calc(5deg * var(--s))); } 100% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } }
   @keyframes le-cheer  { 0% { transform: skewX(0); } 20% { transform: skewX(calc(18deg * var(--s))); } 46% { transform: skewX(calc(-12deg * var(--s))); } 72% { transform: skewX(calc(14deg * var(--s))); } 100% { transform: skewX(0); } }
   @keyframes le-twitchL { 0%,85%,100% { transform: skewX(0); } 88% { transform: skewX(-12deg); } 92% { transform: skewX(-3deg); } 96% { transform: skewX(-9deg); } }
-  .react-happy     .ear { animation: le-sway   0.5s step-end infinite; }
+  .react-happy     .ear { animation: le-sway   0.9s step-end infinite; }
   .react-excited   .ear { animation: le-flop   0.72s step-end infinite; }
   .react-eating    .ear { animation: le-jiggle 0.6s step-end infinite; }
   .react-worried   .ear { animation: le-droop  1.6s step-end infinite; }
