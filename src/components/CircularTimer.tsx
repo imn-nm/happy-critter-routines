@@ -99,7 +99,10 @@ const CircularTimer = ({
   return (
     <div
       className={cn("relative", className)}
-      style={{ width: sizePx, height: sizePx, maxWidth: "100%" }}
+      // aspectRatio (not a fixed height) — with only maxWidth the width could
+      // shrink on narrow screens while the height stayed put, squashing the
+      // ring into an ellipse.
+      style={{ width: sizePx, maxWidth: "100%", aspectRatio: "1 / 1" }}
     >
       <svg
         className="w-full h-full -rotate-90"

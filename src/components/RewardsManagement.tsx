@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, Star, Gift, ShoppingCart, Check, X, Clock } from "lucide-react";
 import { useRewards, type Reward } from "@/hooks/useRewards";
 import { Child } from "@/hooks/useChildren";
@@ -22,6 +23,10 @@ interface RewardsManagementProps {
 const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
+  // Purchase request id currently being approved/denied — blocks double-taps
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  // Reward id currently being redeemed by the parent
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -80,6 +85,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
       return;
     }
 
+    setRedeemingId(reward.id);
     try {
       await purchaseReward(reward.id, reward.cost);
       await onUpdateCoins(child.id, child.currentCoins - reward.cost);
@@ -91,12 +97,15 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     } catch (error) {
       console.error('Error purchasing reward:', error);
       toast.error("Failed to purchase reward. Please try again.");
+    } finally {
+      setRedeemingId(null);
     }
   };
 
   const pendingRequests = purchases.filter(p => p.status === 'pending');
 
   const handleApprove = async (purchaseId: string, coinsSpent: number) => {
+    setProcessingId(purchaseId);
     try {
       await updatePurchaseStatus(purchaseId, 'completed');
       await onUpdateCoins(child.id, child.currentCoins - coinsSpent);
@@ -110,10 +119,13 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     } catch (error) {
       console.error('Error approving purchase:', error);
       toast.error("Failed to approve purchase.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleDeny = async (purchaseId: string) => {
+    setProcessingId(purchaseId);
     try {
       await deletePurchase(purchaseId);
 
@@ -125,13 +137,13 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     } catch (error) {
       console.error('Error denying purchase:', error);
       toast.error("Failed to deny purchase.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleDelete = async (rewardId: string) => {
-    if (confirm('Are you sure you want to delete this reward?')) {
-      await deleteReward(rewardId);
-    }
+    await deleteReward(rewardId);
   };
 
 
@@ -193,6 +205,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                     variant="secondary"
                     size="icon-sm"
                     onClick={() => setFormData({ ...formData, cost: String(Math.max(1, parseInt(formData.cost || '1') - 1)) })}
+                    aria-label="Decrease cost"
                   >
                     −
                   </Button>
@@ -205,6 +218,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                     variant="secondary"
                     size="icon-sm"
                     onClick={() => setFormData({ ...formData, cost: String(parseInt(formData.cost || '1') + 1) })}
+                    aria-label="Increase cost"
                   >
                     +
                   </Button>
@@ -260,6 +274,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                   <Button
                     variant="primary"
                     size="icon-sm"
+                    disabled={processingId === purchase.id}
                     onClick={() => handleApprove(purchase.id, purchase.coins_spent)}
                     aria-label="Approve"
                   >
@@ -269,6 +284,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                     variant="secondary"
                     size="icon-sm"
                     className="text-coral-400 hover:bg-coral-500/10"
+                    disabled={processingId === purchase.id}
                     onClick={() => handleDeny(purchase.id)}
                     aria-label="Deny"
                   >
@@ -307,15 +323,36 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                   <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(reward)} aria-label="Edit reward">
                     <Edit className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => handleDelete(reward.id)}
-                    aria-label="Delete reward"
-                    className="text-coral-400 hover:bg-coral-500/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Delete reward"
+                        className="text-coral-400 hover:bg-coral-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {reward.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete this reward?
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
+                        <AlertDialogCancel asChild>
+                          <Button type="button" variant="secondary" size="md">Cancel</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                          <Button type="button" variant="destructive" size="md" onClick={() => handleDelete(reward.id)}>
+                            Yes, Delete
+                          </Button>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
 
@@ -327,11 +364,11 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
                 <Button
                   variant={canAfford(reward.cost) ? "primary" : "secondary"}
                   size="sm"
-                  disabled={!canAfford(reward.cost)}
+                  disabled={!canAfford(reward.cost) || redeemingId === reward.id}
                   onClick={() => handlePurchase(reward)}
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  {canAfford(reward.cost) ? 'Buy' : 'Need more'}
+                  {canAfford(reward.cost) ? `Redeem for ${child.name}` : 'Need more'}
                 </Button>
               </div>
             </div>

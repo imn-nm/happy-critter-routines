@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, Trash2, Star, ListChecks, Gamepad2, RotateCcw } from 'lucide-react';
+import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, AlertTriangle, Trash2, Star, ListChecks, Gamepad2, RotateCcw } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -11,6 +11,7 @@ import { Child, useChildren } from '@/hooks/useChildren';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
@@ -562,7 +563,7 @@ const TimelineScheduleView = ({
   }, [currentDateKey]);
   const { holidays, isHoliday } = useHolidays(child.id);
   const { completions, toggleCompletion } = useCompletions(child.id);
-  const { updateChildCoins } = useChildren();
+  const { adjustChildCoins } = useChildren();
   const { toast } = useToast();
   const [completionPrompt, setCompletionPrompt] = useState<{ taskId: string; taskName: string; coins: number } | null>(null);
 
@@ -600,12 +601,17 @@ const TimelineScheduleView = ({
     setCompletionPrompt(null);
     await toggleCompletion(taskId, dateStr);
     if (onTime && coins > 0) {
-      await updateChildCoins(child.id, (child.currentCoins || 0) + coins);
+      await adjustChildCoins(child.id, coins);
       toast({ title: `+${coins} star${coins === 1 ? '' : 's'}!`, description: `${taskName} completed on time.` });
     } else {
       toast({ title: onTime ? 'Completed on time' : 'Completed late', description: taskName });
     }
   };
+
+  // "Today" must mean today in PST — date-fns isToday() uses the browser's
+  // timezone, which flips the highlighted day around local midnight for
+  // non-Pacific users while all status math stays on PST.
+  const isPSTToday = (d: Date) => format(d, 'yyyy-MM-dd') === getPSTDateString();
 
   // Check if selected day is a holiday
   const selectedDayString = format(selectedDay, 'yyyy-MM-dd');
@@ -731,7 +737,8 @@ const TimelineScheduleView = ({
       id: task.id,
       name: task.name,
       time: daySpecificSchedule?.time || task.scheduled_time || '09:00',
-      duration: daySpecificSchedule?.duration || task.duration || 30,
+      // ?? not || — a deliberate 0-minute duration must not fall through.
+      duration: daySpecificSchedule?.duration ?? task.duration ?? 30,
       type: 'system' as const,
       color: 'bg-gray-500',
       recurring_days: task.recurring_days,
@@ -742,10 +749,19 @@ const TimelineScheduleView = ({
   // Filter out lunch when school is present (they overlap in time)
   const systemEventsOnly: TimelineEvent[] = systemEvents
     .filter(event => {
-      // If this is lunch and school is also in the events, exclude lunch
+      // Hide Lunch only when it falls inside the School window — matching the
+      // child view (ChildInterface.getTodaysSchedule), which keeps a lunch
+      // scheduled outside school hours. Dropping it whenever School merely
+      // exists made parent and child render different schedules.
       if (event.name === 'Lunch') {
-        const hasSchool = systemEvents.some(e => e.name === 'School');
-        return !hasSchool;
+        const school = systemEvents.find(e => e.name === 'School');
+        if (!school) return true;
+        const [lh, lm] = event.time.slice(0, 5).split(':').map(Number);
+        const [sh, sm] = school.time.slice(0, 5).split(':').map(Number);
+        const lunchMin = lh * 60 + lm;
+        const schoolStart = sh * 60 + sm;
+        const schoolEnd = schoolStart + (school.duration || 0);
+        return lunchMin < schoolStart || lunchMin >= schoolEnd;
       }
       return true;
     })
@@ -931,6 +947,13 @@ const TimelineScheduleView = ({
   };
 
   const allEvents = createEmptyTimeBlocks(sortedEvents);
+
+  // Overlaps the parent should fix: a task whose duration runs past the next
+  // event's start (e.g. a 15-min task with the next event 10 minutes later).
+  // The child view silently clamps these; here we surface them for editing.
+  const scheduleConflicts = findScheduleConflicts(
+    sortedEvents.map(e => ({ id: e.id, name: e.name, scheduled_time: e.time, duration: e.duration }))
+  );
 
   const handleDragStart = (event: any) => {
     setActiveId(event.active.id);
@@ -1129,7 +1152,7 @@ const TimelineScheduleView = ({
                 onDateChange?.(pstToday);
                 setCurrentWeek(pstToday);
               }}
-              disabled={isToday(selectedDay)}
+              disabled={isPSTToday(selectedDay)}
               className="shrink-0"
             >
               Today
@@ -1155,7 +1178,7 @@ const TimelineScheduleView = ({
           <div className="flex items-center justify-between gap-1">
             {weekDays.map((day, index) => {
               const isSelected = isSameDay(day, selectedDay);
-              const isTodayDay = isToday(day);
+              const isTodayDay = isPSTToday(day);
               return (
                 <button
                   key={index}
@@ -1189,6 +1212,25 @@ const TimelineScheduleView = ({
             })}
           </div>
         </>
+      )}
+
+      {/* Schedule conflicts — tasks that run into the next one. The child
+          view auto-shortens them, but the parent should fix the times. */}
+      {scheduleConflicts.length > 0 && (
+        <div className="rounded-[20px] border border-amber-500/40 bg-amber-500/10 px-sp-3 py-sp-2 space-y-1">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-13 font-medium text-amber-300">
+              Schedule overlap{scheduleConflicts.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          {scheduleConflicts.map(conflict => (
+            <p key={conflict.taskId} className="text-12 text-amber-200/90 pl-6">
+              <span className="font-medium">{conflict.taskName}</span> ({formatTimeShortLocal(conflict.taskStart)}) runs {conflict.overlapMinutes}m into{' '}
+              <span className="font-medium">{conflict.nextTaskName}</span> ({formatTimeShortLocal(conflict.nextTaskStart)})
+            </p>
+          ))}
+        </div>
       )}
 
       {/* Timeline + Chores Sidebar */}
@@ -1286,7 +1328,7 @@ const TimelineScheduleView = ({
                               onToggleCompletion={handleToggleCompletion}
                               onAddTask={onAddTask}
                               isActive={isActiveEvent}
-                              isToday={isToday(selectedDay)}
+                              isToday={isPSTToday(selectedDay)}
                               selectedDay={selectedDay}
                               isDraggingAny={!!activeId}
                               highlightMinute={gapHighlightMinute}

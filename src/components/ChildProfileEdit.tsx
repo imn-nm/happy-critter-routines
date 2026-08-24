@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Settings, Save, X, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
@@ -22,6 +23,8 @@ interface ChildProfileEditProps {
 
 const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileEditProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: child.name,
     age: child.age?.toString() || "",
@@ -43,7 +46,8 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    setSaving(true);
     try {
       // Update the child profile (exclude school_start_time/school_end_time
       // since those are managed by SchoolScheduleManager)
@@ -92,15 +96,22 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
       setIsOpen(false);
     } catch (error) {
       console.error('Error updating child profile:', error);
+      toast.error("Failed to save profile. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    setDeleting(true);
     try {
       await deleteChild(child.id);
       setIsOpen(false);
     } catch (error) {
       console.error('Error deleting child profile:', error);
+      toast.error("Failed to delete profile. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -304,9 +315,9 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
           {/* Action Buttons — sticky at bottom */}
           <div className="flex gap-sp-2 pt-sp-3 sticky bottom-0 bg-ink-800/95 backdrop-blur-sm -mx-sp-4 px-sp-4 pb-sp-1 sm:-mx-sp-6 sm:px-sp-6 border-t border-white/10">
-            <Button type="submit" variant="primary" size="md" className="flex-1 gap-2">
+            <Button type="submit" variant="primary" size="md" className="flex-1 gap-2" disabled={saving}>
               <Save className="w-4 h-4" />
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </Button>
             <Button
               type="button"
@@ -340,7 +351,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                     <Button type="button" variant="secondary" size="md">Cancel</Button>
                   </AlertDialogCancel>
                   <AlertDialogAction asChild>
-                    <Button type="button" variant="destructive" size="md" onClick={handleDelete}>
+                    <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
                       Yes, Delete
                     </Button>
                   </AlertDialogAction>

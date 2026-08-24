@@ -101,7 +101,19 @@ export const useGoogleCalendar = () => {
     },
     onSuccess: (data: any) =>
       toast.success(`Synced ${data?.synced ?? 0} events to Google Calendar`),
-    onError: (e: any) => toast.error(e.message ?? 'Sync failed'),
+    onError: async (e: any) => {
+      // FunctionsHttpError hides the function's JSON body behind `context`;
+      // without this the parent only ever sees "non-2xx status code".
+      let message = e?.message ?? 'Sync failed';
+      try {
+        const body = await e?.context?.json?.();
+        if (body?.error) message = body.error;
+      } catch { /* keep the generic message */ }
+      if (/invalid_grant|refresh failed/i.test(message)) {
+        message = 'Google disconnected this calendar — use Disconnect, then Connect again.';
+      }
+      toast.error(message);
+    },
   });
 
   const disconnect = useMutation({

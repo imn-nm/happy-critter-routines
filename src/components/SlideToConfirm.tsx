@@ -56,7 +56,7 @@ export default function SlideToConfirm({
   const labelOpacity = useTransform([x, maxMv], ([xv, m]: number[]) => {
     if (completed) return 0;
     if (m <= 0) return 1;
-    return Math.max(0.4, 1 - (xv / m) * 1.4);
+    return Math.max(0.7, 1 - (xv / m) * 1.4);
   });
 
   useEffect(() => {
@@ -65,8 +65,16 @@ export default function SlideToConfirm({
       setMax(Math.max(0, w - THUMB_W));
     };
     measure();
+    // ResizeObserver, not just window resize — when this mounts inside an
+    // animating container (e.g. a sheet sliding open) clientWidth is 0 on
+    // mount, and a one-shot measure left the slider permanently inert.
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (observer && rootRef.current) observer.observe(rootRef.current);
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [THUMB_W]);
 
   const handleDragEnd = async (_e: unknown, _info: PanInfo) => {
@@ -109,7 +117,7 @@ export default function SlideToConfirm({
         <motion.span
           className="flex items-center gap-2.5 font-normal leading-none whitespace-nowrap"
           style={{
-            color: "rgba(102,153,255,0.6)",
+            color: "rgba(133,175,255,0.95)",
             fontSize: LABEL_FONT_PX,
             opacity: labelOpacity,
           }}

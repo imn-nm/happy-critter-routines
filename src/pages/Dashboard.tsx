@@ -17,6 +17,7 @@ const Dashboard = () => {
   const { children, loading } = useChildren();
   const { user } = useAuth();
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [tasksPending, setTasksPending] = useState(true);
   const [showAlerts, setShowAlerts] = useState(false);
   const alertCount = useAlertCount();
 
@@ -33,11 +34,21 @@ const Dashboard = () => {
   useEffect(() => {
     if (children.length === 0) return;
     const ids = children.map(c => c.id);
+    setTasksPending(true);
     supabase
       .from("tasks")
       .select("*")
       .in("child_id", ids)
-      .then(({ data }) => setAllTasks((data || []) as Task[]));
+      .then(({ data, error }) => {
+        if (error) {
+          // Keep tasksPending true so rows show a neutral placeholder
+          // instead of a misleading "Nothing scheduled".
+          console.error("Failed to load tasks:", error);
+          return;
+        }
+        setAllTasks((data || []) as Task[]);
+        setTasksPending(false);
+      });
   }, [children]);
 
 
@@ -67,9 +78,14 @@ const Dashboard = () => {
         .filter(t => t.scheduled_time)
         .sort((a, b) => a.scheduled_time!.localeCompare(b.scheduled_time!));
 
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const current = [...tasks].reverse().find(t => {
         const start = t.scheduled_time!.slice(0, 5);
-        return start <= currentTime;
+        if (start > currentTime) return false;
+        // Only "Now" while the task is actually in progress — bounded by its
+        // duration (default 30 min) so a 7am task doesn't linger all day.
+        const [h, m] = start.split(":").map(Number);
+        return nowMinutes < h * 60 + m + (t.duration || 30);
       });
       const next = tasks.find(t => t.scheduled_time!.slice(0, 5) > currentTime);
       const fmt = (t?: Task) => {
@@ -238,6 +254,7 @@ const Dashboard = () => {
                   child={child}
                   now={childNowNext[child.id]?.now}
                   next={childNowNext[child.id]?.next}
+                  pending={tasksPending}
                   onOpen={() => navigate(`/child-dashboard/${child.id}`)}
                 />
               </div>
@@ -281,11 +298,13 @@ function ChildRow({
   child,
   now,
   next,
+  pending,
   onOpen,
 }: {
   child: Child;
   now?: string;
   next?: string;
+  pending?: boolean;
   onOpen: () => void;
 }) {
   return (
@@ -303,7 +322,7 @@ function ChildRow({
       <div className="flex-1 min-w-0 flex flex-col gap-1">
         <p className="text-20 text-fog-50 leading-none truncate">{child.name}</p>
         <p className="text-12 font-medium text-[#9EBEFF] truncate">
-          Now: {now || "Nothing scheduled"}
+          Now: {now || (pending ? "—" : "Nothing scheduled")}
         </p>
         <p className="text-12 font-medium text-[#9EBEFF] truncate">
           Next: {next || "—"}

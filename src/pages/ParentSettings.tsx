@@ -195,6 +195,10 @@ function EditableRow({
     try {
       await onSave(draft);
       setEditing(false);
+      setMsg({
+        kind: "ok",
+        text: type === "email" ? "Check your inbox to confirm the change." : "Saved.",
+      });
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message ?? "Failed to save." });
     } finally {

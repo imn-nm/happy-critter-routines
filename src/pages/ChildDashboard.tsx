@@ -31,11 +31,12 @@ import TaskForm from "@/components/TaskForm";
 import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
+import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { children, loading, updateChild, updateChildCoins } = useChildren();
+  const { children, loading, updateChild, updateChildCoins, adjustChildCoins } = useChildren();
 
   const child = children.find(c => c.id === childId) || null;
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -181,6 +182,19 @@ const ChildDashboard = () => {
     }
     if (Object.keys(updateData).length > 0) {
       await updateChild(child.id, updateData);
+      // Keep the tasks-table copy of the system task in sync — conflict
+      // checks and auto-placement read tasks.scheduled_time, and leaving the
+      // old time there makes them compute against a schedule that no longer
+      // exists. Display already prefers the children record, so only the
+      // time needs mirroring.
+      const timeField = { wake: 'wake_time', breakfast: 'breakfast_time', school: 'school_start_time', lunch: 'lunch_time', dinner: 'dinner_time', bedtime: 'bedtime' }[systemKey];
+      if (timeField && updateData[timeField]) {
+        try {
+          await updateAllSystemTaskInstances(child.id, { [timeField]: updateData[timeField] });
+        } catch (error) {
+          console.error('Error syncing system task time:', error);
+        }
+      }
     }
     await refetch();
   };
@@ -367,7 +381,7 @@ const ChildDashboard = () => {
                   className="shrink-0"
                   onClick={async () => {
                     if (child.currentCoins <= 0) return;
-                    await updateChildCoins(child.id, child.currentCoins - 1);
+                    await adjustChildCoins(child.id, -1);
                   }}
                   disabled={child.currentCoins <= 0}
                   aria-label="Remove star"
@@ -385,7 +399,7 @@ const ChildDashboard = () => {
                   size="icon-sm"
                   className="shrink-0"
                   onClick={async () => {
-                    await updateChildCoins(child.id, child.currentCoins + 1);
+                    await adjustChildCoins(child.id, 1);
                   }}
                   aria-label="Add star"
                 >
@@ -515,12 +529,16 @@ const ChildDashboard = () => {
                     })
                     .sort((a, b) => a.start - b.start);
 
-                  // Place each reordered task sequentially, finding next available slot
+                  // Place each reordered task sequentially, finding next available slot.
+                  // Never earlier than the child's wake time — starting the scan at
+                  // 00:00 dumped tasks at midnight when the earliest gap fit.
+                  const [wakeH, wakeM] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+                  const dayStartMin = wakeH * 60 + wakeM;
                   const placedSlots = [...fixedSlots];
                   const updatePromises = reorderedTasks.map((task, index) => {
                     const duration = task.duration || 30;
                     // Find first gap that fits this task
-                    let bestStart = 0;
+                    let bestStart = dayStartMin;
                     const sorted = [...placedSlots].sort((a, b) => a.start - b.start);
                     for (const slot of sorted) {
                       if (bestStart + duration <= slot.start) break;

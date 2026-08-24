@@ -247,11 +247,18 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
       
       console.log(`Updating all instances of "${taskName}" to time ${newTime}`);
       
+      // Normalize to HH:MM:SS. Values may arrive as "HH:MM" (time inputs) or
+      // already "HH:MM:SS" (round-tripped from the DB) — blindly appending
+      // ":00" produced "07:00:00:00", which Postgres rejects and made the
+      // whole system-task sync fail.
+      const parts = newTime.split(':');
+      const normalizedTime = parts.length >= 3
+        ? parts.slice(0, 3).join(':')
+        : `${newTime}:00`;
+
       const updatePromise = supabase
         .from('tasks')
-        .update({ 
-          scheduled_time: newTime.includes(':') ? `${newTime}:00` : newTime // Ensure HH:MM:SS format
-        })
+        .update({ scheduled_time: normalizedTime })
         .eq('child_id', childId)
         .eq('name', taskName);
       

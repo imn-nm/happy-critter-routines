@@ -19,14 +19,17 @@ const ChildNameGate = () => {
     const trimmed = name.trim().toLowerCase();
     if (!trimmed) return;
 
+    // Trim the stored name too — profiles have been saved with stray
+    // whitespace (e.g. "Haniya "), which made an exact match impossible.
     const match = children.find(
-      (c) => c.name.toLowerCase() === trimmed
+      (c) => c.name.trim().toLowerCase() === trimmed
     );
     if (match) {
       navigate(`/child/${match.id}`);
     } else {
-      setError("Name not found. Try again.");
-      setName("");
+      // Keep what they typed — wiping the field forced a full retype
+      // after a single-letter typo.
+      setError("Name not found. Check the spelling and try again.");
     }
   };
 
@@ -95,7 +98,7 @@ const ChildNameGate = () => {
               autoComplete="off"
             />
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={!name.trim()}>
               Let's go!
             </Button>
           </form>

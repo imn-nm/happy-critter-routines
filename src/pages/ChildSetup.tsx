@@ -2,6 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
 import { getCritter, type CritterId } from "@/components/critters/pixelCharacters";
@@ -19,6 +29,7 @@ const ChildSetup = () => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     age: "",
@@ -37,7 +48,7 @@ const ChildSetup = () => {
     setIsLoading(true);
     try {
       await addChild({
-        name: formData.name,
+        name: formData.name.trim(),
         age: parseInt(formData.age),
         petType: formData.petType,
         currentCoins: 0,
@@ -53,9 +64,21 @@ const ChildSetup = () => {
   };
 
   const isStepValid = () => {
-    if (step === 1) return formData.name && formData.age;
+    if (step === 1) {
+      const age = parseInt(formData.age, 10);
+      return formData.name.trim().length > 0 && !isNaN(age) && age >= 3 && age <= 18;
+    }
     if (step === 2) return formData.wakeTime && formData.sleepTime;
     return true;
+  };
+
+  const handleCancel = () => {
+    // Confirm before discarding if the user has started entering anything.
+    if (step > 1 || formData.name.trim() || formData.age) {
+      setShowDiscardConfirm(true);
+    } else {
+      navigate("/parent");
+    }
   };
 
   return (
@@ -129,7 +152,7 @@ const ChildSetup = () => {
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">{formData.name}'s schedule</h2>
+                <h2 className="text-xl font-bold text-fog-50 mb-1 truncate">{formData.name}'s schedule</h2>
                 <p className="text-sm text-muted-foreground">Set daily routines</p>
               </div>
 
@@ -186,7 +209,7 @@ const ChildSetup = () => {
               </div>
 
               <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
-                <h3 className="font-bold text-fog-50 text-sm mb-2">
+                <h3 className="font-bold text-fog-50 text-sm mb-2 truncate">
                   {formData.name} & {getCritter(formData.petType)?.name}
                 </h3>
                 <div className="space-y-1 text-xs text-muted-foreground">
@@ -199,7 +222,7 @@ const ChildSetup = () => {
 
           {/* Nav */}
           <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
-            <Button variant="ghost" size="sm" onClick={step === 1 ? () => navigate("/parent") : handleBack} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={step === 1 ? handleCancel : handleBack} className="gap-1.5">
               <ChevronLeft className="w-4 h-4" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>
@@ -210,6 +233,21 @@ const ChildSetup = () => {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard setup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Everything you've entered so far will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate("/parent")}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

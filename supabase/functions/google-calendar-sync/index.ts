@@ -165,6 +165,9 @@ Deno.serve(async (req) => {
 
     return json({ synced });
   } catch (e) {
+    // Log server-side too — the client's generic "non-2xx" error hides the
+    // real cause (e.g. Google refusing a stale refresh token) otherwise.
+    console.error('google-calendar-sync failed:', String(e?.message ?? e));
     return json({ error: String(e?.message ?? e) }, 400);
   }
 });

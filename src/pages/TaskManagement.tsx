@@ -17,6 +17,13 @@ const TaskManagement = () => {
   const { tasks, addTask, updateTask, deleteTask, loading: tasksLoading } = useTasks(selectedChild?.id);
   const { completions, toggleCompletion } = useCompletions(selectedChild?.id);
 
+  // Default to the first child once children load so the page isn't empty.
+  useEffect(() => {
+    if (!selectedChild && children.length > 0) {
+      setSelectedChild(children[0]);
+    }
+  }, [children, selectedChild, setSelectedChild]);
+
   const tasksWithCompletion = tasks.map(task => ({
     ...task,
     isCompleted: completions.some(
@@ -97,18 +104,24 @@ const TaskManagement = () => {
 
           <div className="glass-card rounded-[20px] p-4">
             <h2 className="text-lg font-semibold mb-2">Select Child</h2>
-            <div className="space-y-2">
-              {children.map((child) => (
-                <Button
-                  key={child.id}
-                  variant={selectedChild?.id === child.id ? "default" : "outline"}
-                  className="w-full"
-                  onClick={() => setSelectedChild(child)}
-                >
-                  {child.name}
-                </Button>
-              ))}
-            </div>
+            {children.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No children yet — set one up first.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {children.map((child) => (
+                  <Button
+                    key={child.id}
+                    variant={selectedChild?.id === child.id ? "default" : "outline"}
+                    className="w-full"
+                    onClick={() => setSelectedChild(child)}
+                  >
+                    {child.name}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -136,12 +149,18 @@ const TaskManagement = () => {
             />
           )}
 
-          <TaskList
-            tasks={getTasksForCurrentDay()}
-            onToggleCompletion={toggleCompletion}
-            onEditTask={handleEditTask}
-            onDeleteTask={handleDeleteTask}
-          />
+          {tasksLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading tasks…
+            </div>
+          ) : (
+            <TaskList
+              tasks={getTasksForCurrentDay()}
+              onToggleCompletion={toggleCompletion}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+            />
+          )}
         </div>
       </div>
     </div>

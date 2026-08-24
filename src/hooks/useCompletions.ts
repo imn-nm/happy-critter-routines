@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { TaskCompletion } from '@/types/Task';
@@ -8,6 +8,11 @@ export const useCompletions = (childId?: string) => {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  // Toggles currently in flight, keyed by `${taskId}:${date}`. The
+  // exists-check below reads local state, so a double-tap before the first
+  // insert lands would create two completion rows (and undo would then leave
+  // the task permanently completed).
+  const pendingToggles = useRef(new Set<string>());
 
   const fetchCompletions = async () => {
     if (!childId) {
@@ -40,15 +45,19 @@ export const useCompletions = (childId?: string) => {
   const toggleCompletion = async (taskId: string, dateOrDay?: Date | string) => {
     if (!childId) return;
 
-    try {
-      // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
-      const formatDateLocal = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const targetDate = dateOrDay
-        ? (typeof dateOrDay === 'string' ? dateOrDay : formatDateLocal(dateOrDay))
-        : getPSTDateString();
+    // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
+    const formatDateLocal = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const targetDate = dateOrDay
+      ? (typeof dateOrDay === 'string' ? dateOrDay : formatDateLocal(dateOrDay))
+      : getPSTDateString();
 
-      console.log('useCompletions: toggleCompletion called', { 
+    const toggleKey = `${taskId}:${targetDate}`;
+    if (pendingToggles.current.has(toggleKey)) return;
+    pendingToggles.current.add(toggleKey);
+
+    try {
+      console.log('useCompletions: toggleCompletion called', {
         taskId, 
         dateOrDay, 
         targetDate,
@@ -102,6 +111,8 @@ export const useCompletions = (childId?: string) => {
         description: "Failed to update task completion",
         variant: "destructive",
       });
+    } finally {
+      pendingToggles.current.delete(toggleKey);
     }
   };
 

@@ -9,7 +9,6 @@ import TaskChecklistView from "@/components/TaskChecklistView";
 import LinearTimer from "@/components/LinearTimer";
 import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
-import TodaysScheduleTimeline from "@/components/TodaysScheduleTimeline";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import CritterPicker from "@/components/critters/CritterPicker";
@@ -28,6 +27,7 @@ import { useHolidays } from "@/hooks/useHolidays";
 import { useCompletions } from "@/hooks/useCompletions";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
+import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
@@ -391,12 +391,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
     // Filter out lunch during school
     const schoolTask = sortedTasks.find(t => t.name.toLowerCase() === 'school');
+    let finalTasks = sortedTasks;
     if (schoolTask && schoolTask.scheduled_time && schoolTask.duration) {
       const schoolStart = schoolTask.scheduled_time.slice(0, 5);
       const [schoolHours, schoolMinutes] = schoolStart.split(':').map(Number);
       const schoolEndMinutes = schoolHours * 60 + schoolMinutes + schoolTask.duration;
       const schoolEnd = `${Math.floor(schoolEndMinutes / 60).toString().padStart(2, '0')}:${(schoolEndMinutes % 60).toString().padStart(2, '0')}`;
-      return sortedTasks.filter(task => {
+      finalTasks = sortedTasks.filter(task => {
         if (task.name.toLowerCase() !== 'lunch') return true;
         if (!task.scheduled_time) return true;
         const lunchTime = task.scheduled_time.slice(0, 5);
@@ -404,7 +405,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       });
     }
 
-    return sortedTasks;
+    // A task whose duration runs past the next task's start (parents can save
+    // that) would otherwise keep its timer running while the next task is due.
+    // Clamp effective durations so each timed task ends when the next begins.
+    return clampScheduleOverlaps(finalTasks);
   };
 
   const todaysSchedule = getTodaysSchedule();
@@ -748,8 +752,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return (
       <div className={`${!propChildId ? 'min-h-screen' : ''} p-5`}>
         <div className="max-w-md mx-auto">
-          {false && /* Parent pill removed — parent portal is at /parent */
-            null}
           <div className="flex items-center gap-4 mb-6">
             <PetAvatar petType={child.petType} happiness={80} emotion="resting" size="md" />
             <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
@@ -1054,7 +1056,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 return (
                   <div className="w-full px-sp-4 flex flex-col gap-sp-1">
                     <p className="text-14 text-iris-400 leading-none">Chores</p>
-                    <div className="w-full flex items-stretch gap-sp-1">
+                    <div className="w-full flex flex-wrap items-stretch gap-sp-1">
                       {activeChores.map(chore => {
                         const done = !!chore.isCompleted;
                         return (
@@ -1075,7 +1077,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                               }
                             }}
                             className={cn(
-                              "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                              "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                               done
                                 ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
                                 : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
@@ -1216,7 +1218,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               return (
                 <div className="w-full flex flex-col gap-sp-1">
                   <p className="text-14 text-iris-400 leading-none">Chores</p>
-                  <div className="w-full flex items-stretch gap-sp-1">
+                  <div className="w-full flex flex-wrap items-stretch gap-sp-1">
                     {activeChores.map(chore => {
                       const done = !!chore.isCompleted;
                       return (
@@ -1237,7 +1239,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             }
                           }}
                           className={cn(
-                            "flex-1 min-w-0 flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                            "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                             done
                               ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
                               : "bg-[#271447] border-transparent hover:bg-[#2f1856]",

@@ -363,7 +363,11 @@ export const useTasks = (childId?: string) => {
             if (payload.eventType === 'DELETE' && payload.old) {
               setTasks(prev => prev.filter(task => task.id !== payload.old.id));
             } else if (payload.eventType === 'INSERT' && payload.new) {
-              setTasks(prev => [...prev, payload.new as Task]);
+              // addTask() already appended this row optimistically — the echo
+              // from our own insert must not duplicate it.
+              setTasks(prev => prev.some(task => task.id === payload.new.id)
+                ? prev.map(task => task.id === payload.new.id ? payload.new as Task : task)
+                : [...prev, payload.new as Task]);
             } else if (payload.eventType === 'UPDATE' && payload.new) {
               setTasks(prev => prev.map(task =>
                 task.id === payload.new.id ? payload.new as Task : task

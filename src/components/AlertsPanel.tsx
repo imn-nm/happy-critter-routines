@@ -28,7 +28,7 @@ interface AlertsPanelProps {
 }
 
 const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
-  const { children, updateChildCoins } = useChildren();
+  const { children, adjustChildCoins } = useChildren();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<Set<string>>(new Set());
@@ -99,7 +99,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
 
       const child = children.find(c => c.id === alert.childId);
       if (child) {
-        await updateChildCoins(child.id, child.currentCoins - alert.coins);
+        await adjustChildCoins(child.id, -alert.coins);
       }
 
       setAlerts(prev => prev.filter(a => a.id !== alert.id));

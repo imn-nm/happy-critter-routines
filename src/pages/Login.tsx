@@ -126,31 +126,47 @@ const Login = () => {
               </div>
             )}
             <Button type="submit" disabled={busy} className="w-full">
-              {mode === 'reset' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create account'}
+              {busy
+                ? mode === 'reset' ? 'Sending…' : mode === 'signin' ? 'Signing in…' : 'Creating account…'
+                : mode === 'reset' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </Button>
           </form>
 
-          {mode === 'signin' && (
+          <div className="pt-3 border-t border-white/10 space-y-3">
+            {mode === 'signin' && (
+              <button
+                type="button"
+                onClick={() => setMode('reset')}
+                className="w-full text-xs text-center"
+              >
+                <span className="text-muted-foreground">Forgot password?</span>{' '}
+                <span className="text-primary-light hover:underline">Set one</span>
+                <span className="block text-[11px] text-muted-foreground/70 mt-0.5">
+                  Set one to enable email sign-in.
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => setMode('reset')}
-              className="w-full text-xs text-muted-foreground hover:text-foreground transition"
+              onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+              className="w-full text-xs text-center"
             >
-              Forgot password? Set one for email sign-in
+              {mode === 'reset' ? (
+                <span className="text-primary-light hover:underline">Back to sign in</span>
+              ) : mode === 'signin' ? (
+                <>
+                  <span className="text-muted-foreground">Don't have an account?</span>{' '}
+                  <span className="text-primary-light hover:underline">Sign up</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">Already have an account?</span>{' '}
+                  <span className="text-primary-light hover:underline">Sign in</span>
+                </>
+              )}
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="w-full text-xs text-muted-foreground hover:text-foreground transition"
-          >
-            {mode === 'reset'
-              ? 'Back to sign in'
-              : mode === 'signin'
-                ? "Don't have an account? Sign up"
-                : 'Already have an account? Sign in'}
-          </button>
+          </div>
         </div>
       </div>
     </div>

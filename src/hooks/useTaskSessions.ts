@@ -39,15 +39,17 @@ export const useTaskSessions = (childId?: string) => {
 
   const startSession = async (taskId: string) => {
     try {
-      // End any existing active sessions for this child
-      await supabase
+      // End any existing active sessions for this child. If this fails we
+      // must not insert — the child would end up with two active sessions.
+      const { error: closeError } = await supabase
         .from('task_sessions')
-        .update({ 
+        .update({
           is_active: false,
           ended_at: new Date().toISOString(),
         })
         .eq('child_id', childId!)
         .eq('is_active', true);
+      if (closeError) throw closeError;
 
       // Start new session
       const { data, error } = await supabase

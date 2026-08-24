@@ -306,6 +306,33 @@ export const useChildren = () => {
     return updateChild(id, { currentCoins: coins });
   };
 
+  // Atomic +/- on the coin balance via the adjust_child_coins RPC. Unlike
+  // updateChildCoins (which overwrites with a client-computed total and can
+  // lose concurrent awards/spends), the DB applies the delta to the current
+  // value and returns the new balance.
+  const adjustChildCoins = async (id: string, delta: number) => {
+    try {
+      const { data, error } = await supabase.rpc('adjust_child_coins', {
+        p_child_id: id,
+        p_delta: delta,
+      });
+      if (error) throw error;
+      const newBalance = data as number;
+      setChildren(prev => prev.map(child =>
+        child.id === id ? { ...child, currentCoins: newBalance } : child
+      ));
+      return newBalance;
+    } catch (error) {
+      console.error('Error adjusting coins:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update stars",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const updateChildHappiness = async (id: string, happiness: number) => {
     return updateChild(id, { petHappiness: happiness });
   };
@@ -402,6 +429,7 @@ export const useChildren = () => {
     addChild,
     updateChild,
     updateChildCoins,
+    adjustChildCoins,
     updateChildHappiness,
     deleteChild,
     refetch: fetchChildren,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, Gift, X, ShoppingCart, Clock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRewards } from "@/hooks/useRewards";
@@ -17,18 +17,32 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
   const { rewards, purchases, loading, purchaseReward } = useRewards(childId);
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [justRequested, setJustRequested] = useState<Set<string>>(new Set());
+  // Reward id whose request failed — renders a child-legible retry line.
+  const [failedId, setFailedId] = useState<string | null>(null);
 
   const handleRequest = async (rewardId: string, cost: number) => {
     setRequestingId(rewardId);
+    setFailedId(null);
     try {
       await purchaseReward(rewardId, cost, "pending");
       setJustRequested(prev => new Set(prev).add(rewardId));
     } catch (error) {
       console.error("Error requesting reward:", error);
+      setFailedId(rewardId);
     } finally {
       setRequestingId(null);
     }
   };
+
+  // Escape closes the sheet, like a real dialog.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
 
   // Check if there's already a pending request for a reward
   const hasPendingRequest = (rewardId: string) =>
@@ -49,6 +63,9 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
           />
           {/* Sheet */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Rewards Shop"
             className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] px-sp-4 pt-sp-5 pb-sp-8"
             style={{ background: "#3D2B6B", maxHeight: "75vh" }}
             initial={{ y: "100%" }}
@@ -77,7 +94,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 rounded-full hover:bg-fog-50/10 transition-colors"
+                  className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full hover:bg-fog-50/10 transition-colors"
                   aria-label="Close shop"
                 >
                   <X className="w-5 h-5 text-fog-300" />
@@ -133,16 +150,23 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                           </span>
                         </div>
                       ) : canAfford ? (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="w-full"
-                          disabled={isRequesting}
-                          onClick={() => handleRequest(reward.id, reward.cost)}
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                          {isRequesting ? "Requesting..." : "Buy"}
-                        </Button>
+                        <>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="w-full"
+                            disabled={isRequesting}
+                            onClick={() => handleRequest(reward.id, reward.cost)}
+                          >
+                            <ShoppingCart className="w-4 h-4" />
+                            {isRequesting ? "Requesting..." : "Buy"}
+                          </Button>
+                          {failedId === reward.id && (
+                            <p className="text-12 text-coral-400 text-center">
+                              Couldn't send that — try again!
+                            </p>
+                          )}
+                        </>
                       ) : (
                         <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
                           <Star className="w-3.5 h-3.5 text-fog-400" strokeWidth={1.5} />
