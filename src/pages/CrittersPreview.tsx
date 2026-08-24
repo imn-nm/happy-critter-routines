@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import PixelSprite, { type CritterMood } from "@/components/critters/PixelSprite";
 import { CRITTERS } from "@/components/critters/pixelCharacters";
 
-const MOODS: CritterMood[] = ["idle", "happy", "excited", "eating", "celebrate", "worried", "sleep"];
+const MOODS: CritterMood[] = ["idle", "happy", "eating", "celebrate", "worried", "sleep"];
 
 /**
  * Gallery of the six pixel critters at /preview/critters — handy for

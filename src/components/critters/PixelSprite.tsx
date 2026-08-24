@@ -31,35 +31,29 @@ const MOOD_CLASS: Record<CritterMood, string> = {
 const LOFI_CSS = `
   .pix-body { transform-origin: center bottom; }
   @keyframes lb-idle    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5%); } }
-  /* Happy is a calm content state — a gentle 2-frame side shuffle (Tamagotchi idle), not a hop. */
-  @keyframes lb-happy   { 0%,100% { transform: translateX(-1.5%); } 50% { transform: translateX(1.5%); } }
-  @keyframes lb-excited { 0% { transform: translateY(0) scale(1,1); } 18% { transform: translateY(-24%) scale(0.92,1.12); } 42% { transform: translateY(0) scale(1.12,0.86); } 64% { transform: translateY(-15%) scale(0.96,1.06); } 84% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
   @keyframes lb-eat     { 0% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(1.5%) scaleY(0.95); } 100% { transform: translateY(0) scaleY(1); } }
   @keyframes lb-sleep   { 0%,100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-1%) scaleY(1.04); } }
   @keyframes lb-sad     { 0% { transform: translateY(4%) scaleY(0.94) translateX(0); } 25% { transform: translateY(4%) scaleY(0.94) translateX(-2%); } 50% { transform: translateY(4%) scaleY(0.94) translateX(0); } 75% { transform: translateY(4%) scaleY(0.94) translateX(2%); } 100% { transform: translateY(4%) scaleY(0.94) translateX(0); } }
   @keyframes lb-cele    { 0% { transform: translateY(0) rotate(0); } 20% { transform: translateY(-22%) rotate(-5deg); } 40% { transform: translateY(0) rotate(0); } 60% { transform: translateY(-18%) rotate(5deg); } 80% { transform: translateY(0) rotate(0); } 100% { transform: translateY(0) rotate(0); } }
-  .react-idle      .pix-body { animation: lb-idle    2.4s step-end infinite; }
-  .react-happy     .pix-body { animation: lb-happy   0.9s step-end infinite; }
-  .react-excited   .pix-body { animation: lb-excited 0.72s step-end infinite; }
+  /* Happy currently rests the same as idle (calm breathe), no shuffle. */
+  .react-idle      .pix-body,
+  .react-happy     .pix-body { animation: lb-idle 2.4s step-end infinite; }
   .react-eating    .pix-body { animation: lb-eat     0.3s step-end infinite; }
   .react-sleep     .pix-body { animation: lb-sleep   2.8s step-end infinite; }
   .react-worried   .pix-body { animation: lb-sad     0.5s step-end infinite; }
   .react-celebrate .pix-body { animation: lb-cele    0.9s step-end infinite; }
 
   .ear { transform-box: fill-box; transform-origin: 50% 100%; }
-  @keyframes le-sway   { 0% { transform: skewX(0); } 40% { transform: skewX(-5deg); } 70% { transform: skewX(3deg); } 100% { transform: skewX(0); } }
-  @keyframes le-flop   { 0% { transform: skewX(0); } 15% { transform: skewX(calc(16deg * var(--s))); } 38% { transform: skewX(calc(-9deg * var(--s))); } 60% { transform: skewX(calc(11deg * var(--s))); } 82% { transform: skewX(calc(-5deg * var(--s))); } 100% { transform: skewX(0); } }
   @keyframes le-jiggle { 0%,100% { transform: skewX(0); } 50% { transform: skewX(calc(5deg * var(--s))); } }
   @keyframes le-droop  { 0% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 86% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } 93% { transform: scaleY(0.62) skewX(calc(5deg * var(--s))); } 100% { transform: scaleY(0.58) skewX(calc(8deg * var(--s))); } }
   @keyframes le-cheer  { 0% { transform: skewX(0); } 20% { transform: skewX(calc(18deg * var(--s))); } 46% { transform: skewX(calc(-12deg * var(--s))); } 72% { transform: skewX(calc(14deg * var(--s))); } 100% { transform: skewX(0); } }
   @keyframes le-twitchL { 0%,85%,100% { transform: skewX(0); } 88% { transform: skewX(-12deg); } 92% { transform: skewX(-3deg); } 96% { transform: skewX(-9deg); } }
-  .react-happy     .ear { animation: le-sway   0.9s step-end infinite; }
-  .react-excited   .ear { animation: le-flop   0.72s step-end infinite; }
   .react-eating    .ear { animation: le-jiggle 0.6s step-end infinite; }
   .react-worried   .ear { animation: le-droop  1.6s step-end infinite; }
   .react-celebrate .ear { animation: le-cheer  0.9s step-end infinite; }
   .react-sleep     .ear { transform: skewX(calc(7deg * var(--s))) scaleY(0.92); }
-  .react-idle      .earL { animation: le-twitchL 5s step-end infinite; }
+  .react-idle      .earL,
+  .react-happy     .earL { animation: le-twitchL 5s step-end infinite; }
   .react-sleep     .critter-eyes { transform: scaleY(0.1); animation: none; }
 
   .pix-carrot { position: absolute; left: 50%; bottom: 25%; width: 12%; height: 22%; transform: translateX(-50%); transform-origin: 50% 100%; z-index: 3; }
@@ -75,22 +69,28 @@ const LOFI_CSS = `
   .react-sleep .pix-zzz span:nth-child(2) { animation: lzfloat 2.4s step-end infinite; animation-delay: 0.8s; font-size: 0.7em; }
   .react-sleep .pix-zzz span:nth-child(3) { animation: lzfloat 2.4s step-end infinite; animation-delay: 1.6s; font-size: 0.9em; }
 
-  .pix-sparks { position: absolute; inset: 0; }
-  .pix-sparks b { position: absolute; font-size: 0.5em; opacity: 0; color: #f4935e; }
-  .pix-sparks b:nth-child(1) { left: 16%; top: 18%; }
-  .pix-sparks b:nth-child(2) { left: 76%; top: 14%; }
-  .pix-sparks b:nth-child(3) { left: 24%; top: 46%; }
-  .pix-sparks b:nth-child(4) { left: 72%; top: 42%; }
-  @keyframes lpop { 0%,100% { transform: scale(0); opacity: 0; } 40%,60% { transform: scale(1); opacity: 1; } }
-  .react-celebrate .pix-sparks b { animation: lpop 0.9s step-end infinite; }
-  .react-celebrate .pix-sparks b:nth-child(2) { animation-delay: 0.22s; }
-  .react-celebrate .pix-sparks b:nth-child(3) { animation-delay: 0.45s; }
-  .react-celebrate .pix-sparks b:nth-child(4) { animation-delay: 0.12s; }
+  .pix-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .pix-confetti i { position: absolute; top: -12%; width: 0.26em; height: 0.42em; border-radius: 1px; opacity: 0; }
+  @keyframes lconfetti { 0% { top: -12%; opacity: 1; transform: translateX(0) rotate(0deg); } 100% { top: 112%; opacity: 1; transform: translateX(var(--dx, 0)) rotate(560deg); } }
+  .react-celebrate .pix-confetti i { animation: lconfetti 1.1s linear infinite; }
 
   @media (prefers-reduced-motion: reduce) {
-    .pix-body, .ear, .pix-carrot, .pix-zzz span, .pix-sparks b { animation: none !important; }
+    .pix-body, .ear, .pix-carrot, .pix-zzz span, .pix-confetti i { animation: none !important; }
   }
 `;
+
+// Confetti pieces for the celebrate reaction: staggered falls with sideways drift.
+const CONFETTI = [
+  { left: "12%", background: "#ee6fa4", "--dx": "1.2em", animationDelay: "0s" },
+  { left: "24%", background: "#f4935e", "--dx": "-0.8em", animationDelay: "0.5s" },
+  { left: "36%", background: "#f6d743", "--dx": "0.6em", animationDelay: "0.2s" },
+  { left: "48%", background: "#8fbf6f", "--dx": "-1em", animationDelay: "0.8s" },
+  { left: "58%", background: "#7ec8e3", "--dx": "1em", animationDelay: "0.35s" },
+  { left: "68%", background: "#ee6fa4", "--dx": "-0.6em", animationDelay: "0.15s" },
+  { left: "78%", background: "#f4935e", "--dx": "0.9em", animationDelay: "0.6s" },
+  { left: "88%", background: "#f6d743", "--dx": "-1.1em", animationDelay: "0.9s" },
+  { left: "18%", background: "#8fbf6f", "--dx": "0.7em", animationDelay: "1s" },
+] as const;
 
 const key = (x: number, y: number) => `${x},${y}`;
 
@@ -307,7 +307,9 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         <div className="pix-zzz" aria-hidden="true"><span>z</span><span>z</span><span>z</span></div>
       )}
       {isLofi && effectiveMood === "celebrate" && (
-        <div className="pix-sparks" aria-hidden="true"><b>✦</b><b>✦</b><b>✦</b><b>✦</b></div>
+        <div className="pix-confetti" aria-hidden="true">
+          {CONFETTI.map((p, i) => <i key={i} style={p as CSSProperties} />)}
+        </div>
       )}
     </div>
   );
