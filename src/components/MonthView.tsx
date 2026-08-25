@@ -422,9 +422,9 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
               </p>
             </div>
 
-            {/* Parent-planning actions lead the sheet: events, note, holiday,
-                rest day. Add Task sits last — it touches the child's schedule
-                rather than the parent's own marks on the day. */}
+            {/* What's already on the day renders as cards; everything addable
+                lives behind one "Add to this day" menu so an empty day shows a
+                single button instead of five. */}
 
             {/* Parent events — appointments only the parent sees */}
             {selectedDayData?.parentEvents.map(event => (
@@ -457,9 +457,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                 </div>
               </div>
             ))}
-            <Button onClick={() => handleAddEvent(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
-              <CalendarClock className="w-3.5 h-3.5 mr-1.5" /> Add Event
-            </Button>
 
             {/* Note */}
             {selectedDayData?.note ? (
@@ -481,11 +478,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   </Button>
                 </div>
               </div>
-            ) : (
-              <Button onClick={() => handleAddOrEditNote(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
-                <StickyNote className="w-3.5 h-3.5 mr-1.5" /> Add Note
-              </Button>
-            )}
+            ) : null}
 
             {/* Holiday */}
             {selectedDayData?.holiday ? (
@@ -516,57 +509,92 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   <span className="inline-block text-[10px] mt-1.5 px-2 py-0.5 rounded-full bg-background/50 font-medium">No School</span>
                 )}
               </div>
-            ) : (
-              <Button onClick={() => handleAddHoliday(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
-                <PartyPopper className="w-3.5 h-3.5 mr-1.5" /> Mark as Holiday
-              </Button>
-            )}
+            ) : null}
 
             {/* Rest day — set here, on the day it applies to, rather than
                 from a header toggle that gave no clue which day it meant. */}
-            {onToggleRestDay && (
-              selectedDayData?.isRestDay ? (
-                <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Moon className="w-4 h-4 text-emerald-300 shrink-0" />
-                    <span className="text-sm font-semibold text-emerald-200">Rest day</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), false)}
-                    className="h-6 px-2 text-xs shrink-0"
-                  >
-                    Clear
-                  </Button>
+            {onToggleRestDay && selectedDayData?.isRestDay && (
+              <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Moon className="w-4 h-4 text-emerald-300 shrink-0" />
+                  <span className="text-sm font-semibold text-emerald-200">Rest day</span>
                 </div>
-              ) : (
-                <>
-                  <Button
-                    onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), true)}
-                    className="w-full mb-2"
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Moon className="w-3.5 h-3.5 mr-1.5" /> Mark as Rest Day
-                  </Button>
-                  {/* Only one rest day is stored per child, so setting one
-                      moves it — say which day is about to lose it. */}
-                  {child.rest_day_date && (
-                    <p className="text-[11px] text-muted-foreground/70 -mt-1 mb-3 text-center">
-                      Moves the rest day from {format(new Date(`${child.rest_day_date}T00:00:00`), 'EEE, MMM d')}.
-                    </p>
-                  )}
-                </>
-              )
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), false)}
+                  className="h-6 px-2 text-xs shrink-0"
+                >
+                  Clear
+                </Button>
+              </div>
             )}
 
-            {/* Add task */}
-            {onAddTask && (
-              <Button onClick={() => onAddTask(selectedDate)} className="w-full mb-3" variant="outline" size="sm">
-                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Task
-              </Button>
-            )}
+            {/* Add actions as a compact tile grid — everything visible, one
+                tap each. Tiles for one-per-day things (note, holiday, rest
+                day) disappear once the day has one. */}
+            {(() => {
+              const tileBase =
+                'flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 min-h-[52px] transition-colors';
+              return (
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleAddEvent(selectedDate)}
+                    className={`${tileBase} border-sky-400/30 text-sky-200 hover:bg-sky-400/10`}
+                  >
+                    <CalendarClock className="w-4 h-4" />
+                    <span className="text-[11px] font-medium leading-none">Event</span>
+                  </button>
+                  {!selectedDayData?.note && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddOrEditNote(selectedDate)}
+                      className={`${tileBase} border-amber-400/30 text-amber-200 hover:bg-amber-400/10`}
+                    >
+                      <StickyNote className="w-4 h-4" />
+                      <span className="text-[11px] font-medium leading-none">Note</span>
+                    </button>
+                  )}
+                  {onAddTask && (
+                    <button
+                      type="button"
+                      onClick={() => onAddTask(selectedDate)}
+                      className={`${tileBase} border-iris-400/40 text-iris-200 hover:bg-iris-400/10`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-[11px] font-medium leading-none">Task</span>
+                    </button>
+                  )}
+                  {!selectedDayData?.holiday && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddHoliday(selectedDate)}
+                      className={`${tileBase} border-pink-400/30 text-pink-200 hover:bg-pink-400/10`}
+                    >
+                      <PartyPopper className="w-4 h-4" />
+                      <span className="text-[11px] font-medium leading-none">Holiday</span>
+                    </button>
+                  )}
+                  {onToggleRestDay && !selectedDayData?.isRestDay && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), true)}
+                      className={`${tileBase} border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10`}
+                    >
+                      <Moon className="w-4 h-4" />
+                      <span className="text-[11px] font-medium leading-none">Rest day</span>
+                      {/* Only one rest day is stored per child, so setting one moves it. */}
+                      {child.rest_day_date && (
+                        <span className="text-[9px] text-muted-foreground leading-none">
+                          moves from {format(new Date(`${child.rest_day_date}T00:00:00`), 'MMM d')}
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Schedule for this day */}
             <div className="space-y-1.5">
