@@ -224,6 +224,47 @@ export type Database = {
           },
         ]
       }
+      parent_events: {
+        Row: {
+          child_id: string
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          time: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          time?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          time?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parent_events_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

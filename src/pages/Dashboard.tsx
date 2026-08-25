@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
+import { Bell, CalendarClock, LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Task } from "@/hooks/useTasks";
+import { useParentEventsForChildren } from "@/hooks/useParentEvents";
 import PetAvatar from "@/components/PetAvatar";
 import OnboardingSlides from "@/components/OnboardingSlides";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
@@ -121,6 +122,14 @@ const Dashboard = () => {
     return out;
   }, [allTasks, children]);
 
+  // Parent-only appointments (teacher conference, doctor visit) within the
+  // same 14-day window the task-derived events use.
+  const { events: parentEvents } = useParentEventsForChildren(
+    children.map(c => c.id),
+    format(new Date(), "yyyy-MM-dd"),
+    format(addDays(new Date(), 14), "yyyy-MM-dd"),
+  );
+
   const upcomingEvents = useMemo(() => {
     type Group = {
       id: string;
@@ -129,6 +138,8 @@ const Dashboard = () => {
       date: Date;
       childNames: string[];
       childIds: string[];
+      isParentEvent?: boolean;
+      allDay?: boolean;
     };
     const grouped = new Map<string, Group>();
     const now = new Date();
@@ -185,10 +196,31 @@ const Dashboard = () => {
       }
     }
 
+    // Parent events — no cross-child grouping (each is one appointment).
+    for (const ev of parentEvents) {
+      const child = children.find(c => c.id === ev.child_id);
+      if (!child) continue;
+      const date = parse(ev.date, "yyyy-MM-dd", new Date());
+      if (date < today || date > horizon) continue;
+      const time = ev.time ? ev.time.slice(0, 5) : "00:00";
+      const isToday = ev.date === format(now, "yyyy-MM-dd");
+      if (isToday && ev.time && time <= currentTime) continue;
+      grouped.set(`pe|${ev.id}`, {
+        id: `pe|${ev.id}`,
+        name: ev.title,
+        time,
+        date,
+        childNames: [child.name],
+        childIds: [child.id],
+        isParentEvent: true,
+        allDay: !ev.time,
+      });
+    }
+
     return Array.from(grouped.values())
       .sort((a, b) => parse(a.time, "HH:mm", a.date).getTime() - parse(b.time, "HH:mm", b.date).getTime())
       .slice(0, 5);
-  }, [allTasks, children]);
+  }, [allTasks, children, parentEvents]);
 
   if (loading) {
     return (
@@ -313,6 +345,8 @@ const Dashboard = () => {
                   name: event.childNames[i],
                   color: childIdToBadge[cid],
                 }))}
+                isParentEvent={event.isParentEvent}
+                allDay={event.allDay}
               />
             ))
           )}
@@ -374,19 +408,29 @@ function EventCard({
   title,
   subtitle,
   badges,
+  isParentEvent,
+  allDay,
 }: {
   time: string;
   title: string;
   subtitle: string;
   badges: { name: string; color: string }[];
+  isParentEvent?: boolean;
+  allDay?: boolean;
 }) {
   const [hourMin, ampm] = splitTime(time);
   return (
     <div className="flex items-center gap-sp-3 p-sp-4 rounded-[28px] bg-[#8C94FF]/20">
       {/* Time column — stacked hour + am/pm, both 12px (Figma 174:7504) */}
       <div className="shrink-0 w-11 text-right text-white leading-tight flex flex-col">
-        <span className="text-12">{hourMin}</span>
-        <span className="text-12">{ampm}</span>
+        {allDay ? (
+          <span className="text-12">All day</span>
+        ) : (
+          <>
+            <span className="text-12">{hourMin}</span>
+            <span className="text-12">{ampm}</span>
+          </>
+        )}
       </div>
 
       {/* Divider */}
@@ -394,7 +438,11 @@ function EventCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-16 text-white truncate">{title}</p>
+        <p className="text-16 text-white truncate flex items-center gap-1.5">
+          {/* Sky calendar icon marks a parent-only appointment */}
+          {isParentEvent && <CalendarClock className="w-4 h-4 text-sky-300 shrink-0" />}
+          <span className="truncate">{title}</span>
+        </p>
         <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
       </div>
 

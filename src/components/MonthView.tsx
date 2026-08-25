@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Calendar, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarClock, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
@@ -10,8 +10,10 @@ import { useHolidays, Holiday } from '@/hooks/useHolidays';
 import { useDayNotes, DayNote } from '@/hooks/useDayNotes';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
+import { useParentEvents, ParentEvent } from '@/hooks/useParentEvents';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
 import DayNoteDialog from './DayNoteDialog';
+import ParentEventDialog, { ParentEventFormData } from './ParentEventDialog';
 
 interface MonthViewProps {
   child: Child;
@@ -31,6 +33,7 @@ interface DayData {
   isCurrentMonth: boolean;
   holiday?: Holiday;
   note?: DayNote;
+  parentEvents: ParentEvent[];
   isRestDay: boolean;
 }
 
@@ -51,6 +54,9 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
   const [holidayFormDate, setHolidayFormDate] = useState<Date | undefined>(undefined);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteFormDate, setNoteFormDate] = useState<Date | undefined>(undefined);
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<ParentEvent | null>(null);
+  const [eventFormDate, setEventFormDate] = useState<Date | undefined>(undefined);
 
   const {
     holidays,
@@ -62,6 +68,16 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
   } = useHolidays(child.id);
 
   const { notes, upsertNote, deleteNote, isSaving: isSavingNote } = useDayNotes(child.id);
+
+  const {
+    events: parentEvents,
+    getEventsForDate,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    isCreating: isCreatingEvent,
+    isUpdating: isUpdatingEvent,
+  } = useParentEvents(child.id);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -143,11 +159,12 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         isCurrentMonth: isSameMonth(day, currentMonth),
         holiday: dayHoliday,
         note: dayNote,
+        parentEvents: getEventsForDate(dateKey),
         isRestDay: child.rest_day_date === dateKey,
       };
     });
     setMonthData(data);
-  }, [currentMonth, tasks, holidays, notes, child]);
+  }, [currentMonth, tasks, holidays, notes, parentEvents, child]);
 
   const formatTime = (timeStr: string) => {
     if (!timeStr) return '';
@@ -200,6 +217,35 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
     setNoteDialogOpen(false);
   };
 
+  // Parent event handlers
+  const handleAddEvent = (date: Date) => {
+    setEventFormDate(date);
+    setEditingEvent(null);
+    setEventDialogOpen(true);
+  };
+
+  const handleEditEvent = (event: ParentEvent) => {
+    setEditingEvent(event);
+    setEventFormDate(new Date(`${event.date}T00:00:00`));
+    setEventDialogOpen(true);
+  };
+
+  const handleDeleteEvent = (eventId: string) => {
+    if (confirm('Delete this event?')) {
+      deleteEvent(eventId);
+    }
+  };
+
+  const handleEventSubmit = (data: ParentEventFormData) => {
+    if (editingEvent) {
+      updateEvent({ id: editingEvent.id, updates: data });
+    } else {
+      createEvent({ child_id: child.id, ...data });
+    }
+    setEventDialogOpen(false);
+    setEditingEvent(null);
+  };
+
   const handleHolidaySubmit = (data: HolidayFormData) => {
     if (editingHoliday) {
       updateHoliday({ id: editingHoliday.id, updates: data });
@@ -224,12 +270,15 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
    * bury the handful of days that actually differ. They stay in the day sheet.
    */
   const getCellEvents = (dayData: DayData) => {
-    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'rest' }[] = [];
+    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'rest' | 'parent' }[] = [];
     if (dayData.holiday) {
       events.push({ key: `h-${dayData.holiday.id}`, label: dayData.holiday.name, color: dayData.holiday.color, kind: 'holiday' });
     }
     if (dayData.isRestDay) {
       events.push({ key: `r-${format(dayData.date, 'yyyy-MM-dd')}`, label: 'Rest day', kind: 'rest' });
+    }
+    for (const ev of dayData.parentEvents) {
+      events.push({ key: `p-${ev.id}`, label: ev.title, kind: 'parent' });
     }
     if (dayData.note) {
       events.push({ key: `n-${dayData.note.id}`, label: dayData.note.text.split('\n')[0], kind: 'note' });
@@ -320,6 +369,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                           ? 'font-semibold'
                           : ev.kind === 'note'
                           ? 'bg-amber-400/15 text-amber-200'
+                          : ev.kind === 'parent'
+                          ? 'bg-sky-400/15 text-sky-200'
                           : 'bg-emerald-400/15 text-emerald-200'
                       }`}
                       style={ev.kind === 'holiday' ? { backgroundColor: `${ev.color}26`, color: ev.color } : undefined}
@@ -348,6 +399,10 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
             Note
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="w-3 h-2 rounded-sm bg-sky-400/40" />
+            Event
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <PartyPopper className="w-3 h-3 text-muted-foreground" />
             Holiday
           </div>
@@ -366,6 +421,106 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                 {selectedDayData?.tasksForDay.length || 0} item{(selectedDayData?.tasksForDay.length || 0) !== 1 ? 's' : ''} scheduled
               </p>
             </div>
+
+            {/* Parent-planning actions lead the sheet: events, note, holiday,
+                rest day. Add Task sits last — it touches the child's schedule
+                rather than the parent's own marks on the day. */}
+
+            {/* Parent events — appointments only the parent sees */}
+            {selectedDayData?.parentEvents.map(event => (
+              <div key={event.id} className="rounded-xl p-3 mb-2 border border-sky-400/40 bg-sky-400/10">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <CalendarClock className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-semibold text-sky-100 break-words">
+                        {event.title}
+                      </span>
+                      <div className="text-[11px] text-sky-200/70 mt-0.5">
+                        {event.time ? formatTime(event.time.slice(0, 5)) : 'All day'}
+                      </div>
+                      {event.notes && (
+                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                          {event.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditEvent(event)} className="h-6 w-6 p-0">
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEvent(event.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <Button onClick={() => handleAddEvent(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
+              <CalendarClock className="w-3.5 h-3.5 mr-1.5" /> Add Event
+            </Button>
+
+            {/* Note */}
+            {selectedDayData?.note ? (
+              <div className="rounded-xl p-3 mb-3 border border-amber-400/40 bg-amber-400/10">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <StickyNote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span className="text-sm text-amber-100 whitespace-pre-wrap break-words">
+                      {selectedDayData.note.text}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleAddOrEditNote(selectedDate)}
+                    className="h-6 w-6 p-0 shrink-0"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button onClick={() => handleAddOrEditNote(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
+                <StickyNote className="w-3.5 h-3.5 mr-1.5" /> Add Note
+              </Button>
+            )}
+
+            {/* Holiday */}
+            {selectedDayData?.holiday ? (
+              <div
+                className="rounded-xl p-3 mb-3 border"
+                style={{ backgroundColor: `${selectedDayData.holiday.color}12`, borderColor: `${selectedDayData.holiday.color}40` }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <PartyPopper className="w-4 h-4" style={{ color: selectedDayData.holiday.color }} />
+                    <span className="text-sm font-semibold" style={{ color: selectedDayData.holiday.color }}>
+                      {selectedDayData.holiday.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditHoliday(selectedDayData.holiday!)} className="h-6 w-6 p-0">
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                {selectedDayData.holiday.description && (
+                  <p className="text-xs text-muted-foreground mt-1">{selectedDayData.holiday.description}</p>
+                )}
+                {selectedDayData.holiday.is_no_school && (
+                  <span className="inline-block text-[10px] mt-1.5 px-2 py-0.5 rounded-full bg-background/50 font-medium">No School</span>
+                )}
+              </div>
+            ) : (
+              <Button onClick={() => handleAddHoliday(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
+                <PartyPopper className="w-3.5 h-3.5 mr-1.5" /> Mark as Holiday
+              </Button>
+            )}
 
             {/* Rest day — set here, on the day it applies to, rather than
                 from a header toggle that gave no clue which day it meant. */}
@@ -404,67 +559,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   )}
                 </>
               )
-            )}
-
-            {/* Holiday */}
-            {selectedDayData?.holiday ? (
-              <div
-                className="rounded-xl p-3 mb-3 border"
-                style={{ backgroundColor: `${selectedDayData.holiday.color}12`, borderColor: `${selectedDayData.holiday.color}40` }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <PartyPopper className="w-4 h-4" style={{ color: selectedDayData.holiday.color }} />
-                    <span className="text-sm font-semibold" style={{ color: selectedDayData.holiday.color }}>
-                      {selectedDayData.holiday.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditHoliday(selectedDayData.holiday!)} className="h-6 w-6 p-0">
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-                {selectedDayData.holiday.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{selectedDayData.holiday.description}</p>
-                )}
-                {selectedDayData.holiday.is_no_school && (
-                  <span className="inline-block text-[10px] mt-1.5 px-2 py-0.5 rounded-full bg-background/50 font-medium">No School</span>
-                )}
-              </div>
-            ) : (
-              <Button onClick={() => handleAddHoliday(selectedDate)} className="w-full mb-2" variant="outline" size="sm">
-                <PartyPopper className="w-3.5 h-3.5 mr-1.5" /> Mark as Holiday
-              </Button>
-            )}
-
-            {/* Note */}
-            {selectedDayData?.note ? (
-              <div className="rounded-xl p-3 mb-3 border border-amber-400/40 bg-amber-400/10">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <StickyNote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <span className="text-sm text-amber-100 whitespace-pre-wrap break-words">
-                      {selectedDayData.note.text}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleAddOrEditNote(selectedDate)}
-                    className="h-6 w-6 p-0 shrink-0"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button onClick={() => handleAddOrEditNote(selectedDate)} className="w-full mb-3" variant="outline" size="sm">
-                <StickyNote className="w-3.5 h-3.5 mr-1.5" /> Add Note
-              </Button>
             )}
 
             {/* Add task */}
@@ -562,6 +656,19 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         initialDate={holidayFormDate}
         holiday={editingHoliday}
         isLoading={isCreating || isUpdating}
+      />
+
+      {/* Parent Event Dialog */}
+      <ParentEventDialog
+        open={eventDialogOpen}
+        onOpenChange={(open) => {
+          setEventDialogOpen(open);
+          if (!open) setEditingEvent(null);
+        }}
+        onSubmit={handleEventSubmit}
+        initialDate={eventFormDate}
+        event={editingEvent}
+        isLoading={isCreatingEvent || isUpdatingEvent}
       />
 
       {/* Day Note Dialog */}

@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, PartyPopper, StickyNote } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, PartyPopper, StickyNote } from "lucide-react";
 import { addDays, format, isSameDay, isToday, startOfWeek } from "date-fns";
 import { getPSTDate } from "@/utils/pstDate";
 import { useHolidays } from "@/hooks/useHolidays";
 import { useDayNotes } from "@/hooks/useDayNotes";
+import { useParentEvents } from "@/hooks/useParentEvents";
+import { formatTime12 } from "@/utils/formatTime";
 import { Child } from "@/hooks/useChildren";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,7 @@ export default function TimelineHeader({
   const [currentWeek, setCurrentWeek] = useState(selectedDay);
   const { isHoliday } = useHolidays(child.id);
   const { getNoteForDate } = useDayNotes(child.id);
+  const { getEventsForDate } = useParentEvents(child.id);
 
   // Keep the visible week aligned to whatever day is selected externally.
   const selectedDayKey = format(selectedDay, "yyyy-MM-dd");
@@ -44,6 +47,7 @@ export default function TimelineHeader({
   const selectedDayString = format(selectedDay, "yyyy-MM-dd");
   const selectedDayHoliday = isHoliday(selectedDayString);
   const selectedDayNote = getNoteForDate(selectedDayString);
+  const selectedDayEvents = getEventsForDate(selectedDayString);
 
   const formatWeekRange = (start: Date) => {
     const end = addDays(start, 6);
@@ -127,6 +131,19 @@ export default function TimelineHeader({
           </div>
         </div>
       )}
+
+      {/* Parent events — appointments only the parent sees (edit them from
+          the month view's day sheet). */}
+      {selectedDayEvents.map(event => (
+        <div key={event.id} className="flex items-center justify-center">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-pill text-14 font-medium bg-sky-400/15 text-sky-300 max-w-full">
+            <CalendarClock className="w-4 h-4 shrink-0" />
+            <span className="truncate">
+              {event.time ? `${formatTime12(event.time.slice(0, 5))} · ` : ''}{event.title}
+            </span>
+          </div>
+        </div>
+      ))}
 
       {/* Week strip — matches Figma 145:6996.
           Selected day is wrapped in a white-glass pill (rgba(255,255,255,0.14)

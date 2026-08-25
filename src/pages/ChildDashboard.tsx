@@ -475,13 +475,13 @@ const ChildDashboard = () => {
                   value="timeline"
                   className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
                 >
-                  Day
+                  Schedule
                 </TabsTrigger>
                 <TabsTrigger
                   value="month"
                   className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
                 >
-                  Month
+                  Planner
                 </TabsTrigger>
               </TabsList>
 
