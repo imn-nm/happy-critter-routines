@@ -366,7 +366,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           // title) from the primary action (a taller filled button at the
           // row's action edge). The two used to share a single slot.
           const markDoneBtnClass =
-            "self-stretch px-4 inline-flex items-center rounded-[20px] " +
+            "self-stretch px-3 inline-flex items-center rounded-[20px] " +
             "bg-iris-400/20 border border-iris-400 text-13 font-semibold " +
             "text-fog-50 hover:bg-iris-400/30 transition-colors";
 
@@ -479,25 +479,32 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 <div className="shrink-0 w-px h-9 bg-white/30" />
 
                 {/* Info */}
+                {/* Title owns the first line. The status pill used to sit
+                    beside it, which — next to a Mark done button — squeezed
+                    the name down to a few characters, so it rides with the
+                    duration instead. */}
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  {/* Wraps rather than truncates — a long name next to a
+                      Mark done button lost most of its characters. Capped at
+                      two lines so one long title can't stretch the row. */}
+                  <span className={cn(
+                    "text-16 line-clamp-2 break-words",
+                    event.isCompleted ? "text-fog-200" : "text-fog-50"
+                  )}>
+                    {event.name}
+                  </span>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={cn(
-                      "text-16 truncate",
-                      event.isCompleted ? "text-fog-200" : "text-fog-50"
+                      "text-14 truncate",
+                      event.isCompleted ? "text-fog-300" : "text-[#9EBEFF]"
                     )}>
-                      {event.name}
+                      {event.name !== 'Bedtime' && formatDuration(event.duration)}
+                      {event.coins != null && event.coins > 0 && (
+                        <> · {event.coins} stars</>
+                      )}
                     </span>
                     {statusPill}
                   </div>
-                  <span className={cn(
-                    "text-14 truncate",
-                    event.isCompleted ? "text-fog-300" : "text-[#9EBEFF]"
-                  )}>
-                    {event.name !== 'Bedtime' && formatDuration(event.duration)}
-                    {event.coins != null && event.coins > 0 && (
-                      <> · {event.coins} stars</>
-                    )}
-                  </span>
                 </div>
 
                 {/* Primary action — Mark done / Undo */}

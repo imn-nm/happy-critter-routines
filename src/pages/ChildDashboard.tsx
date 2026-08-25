@@ -363,7 +363,9 @@ const ChildDashboard = () => {
 
             {/* Summary card — transparent with blue hairline (matches Figma
                 145:6970): rgba(102,153,255,0.25) border, 16px padding, 28 radius. */}
-            <div className="flex items-center justify-between gap-sp-3 p-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
+            {/* Wraps: the stepper plus both CTAs exceed a 375px screen, and
+                without wrapping the Rewards button ran off the right edge. */}
+            <div className="flex flex-wrap items-center justify-between gap-sp-2 p-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
               {/* Coin adjust group */}
               <div className="flex items-center gap-sp-3">
                 <Button

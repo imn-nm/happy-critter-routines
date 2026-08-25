@@ -696,7 +696,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {/* Submit — pinned to the bottom of the dialog so the action buttons
           are always reachable without scrolling the (often tall) form. */}
-      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-sp-3 pb-5 sm:pb-6 space-y-sp-2 bg-ink-900/85 backdrop-blur-md border-t border-white/10">
+      {/* No opaque fill: the form now fits without scrolling, so a solid bar
+          read as a dark rectangle floating on the dialog. Blur alone is
+          invisible when nothing is behind it and still veils scrolled
+          content when More options is open. */}
+      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-sp-3 pb-5 sm:pb-6 space-y-sp-2 backdrop-blur-md">
         <Button
           type="submit"
           variant="primary"
