@@ -60,7 +60,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // up); true/false = the child explicitly chose wheel or pet this session.
   const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
   // Snapshot of the just-completed task; while non-null, the active-task UI
-  // stays frozen on this task so the celebrate gif + pause can play out
+  // stays frozen on this task so the celebration can play out
   // before the schedule advances.
   const [frozenTask, setFrozenTask] = useState<any>(null);
   const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
@@ -690,19 +690,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     setNextTapped(true);
     setTimeout(() => setNextTapped(false), 400);
 
-    // Freeze the current task on screen so the celebrate gif plays through
-    // (4.12s), then hold on its last frame for 4s, then advance.
-    // NOTE: For the "hold on last frame" to actually freeze visually, the
-    // FoxCelebrate.gif must be exported with loop count = 1 (i.e. play once,
-    // then stop). A normal looping gif will restart instead of holding.
-    const CELEBRATE_GIF_MS = 4120;
-    const HOLD_LAST_FRAME_MS = 4000;
+    // Freeze the current task on screen while the pet celebrates, then
+    // advance. Kept short — a long hold made the child wait on a static
+    // screen before the next task appeared.
+    const CELEBRATE_MS = 3000;
     setFrozenTask(activeTask);
     setPetCelebrating(true);
     setTimeout(() => {
       setPetCelebrating(false);
       setFrozenTask(null);
-    }, CELEBRATE_GIF_MS + HOLD_LAST_FRAME_MS);
+    }, CELEBRATE_MS);
 
     const remaining = getActiveTaskRemainingTime();
 
@@ -831,7 +828,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {/* Current Task — front and center.
             When `frozenTask` is set we hold the just-completed task in place
             (timer paused, slide disabled, "Done" badge, never-worried pet) so
-            the celebrate gif + 5s pause play out without any layout shift. */}
+            the celebration plays out without any layout shift. */}
         <AnimatePresence mode="wait" initial={false}>
         {(frozenTask || activeTask) && (() => {
           const displayTask = frozenTask ?? activeTask;
