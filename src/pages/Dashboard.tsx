@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Task } from "@/hooks/useTasks";
 import PetAvatar from "@/components/PetAvatar";
+import OnboardingSlides from "@/components/OnboardingSlides";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format, parse, addDays, startOfDay } from "date-fns";
 
@@ -20,6 +21,28 @@ const Dashboard = () => {
   const [tasksPending, setTasksPending] = useState(true);
   const [showAlerts, setShowAlerts] = useState(false);
   const alertCount = useAlertCount();
+
+  // First-run onboarding, once per signed-in parent. Keyed by user id so a
+  // second parent on a shared device still gets the intro.
+  const onboardingKey = user?.id ? `onboarding_seen:${user.id}` : null;
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (!onboardingKey) return;
+    try {
+      if (!window.localStorage.getItem(onboardingKey)) setShowOnboarding(true);
+    } catch {
+      /* private mode — just skip the intro rather than showing it every load */
+    }
+  }, [onboardingKey]);
+
+  const dismissOnboarding = () => {
+    setShowOnboarding(false);
+    try {
+      if (onboardingKey) window.localStorage.setItem(onboardingKey, "1");
+    } catch {
+      /* ignore storage errors */
+    }
+  };
 
   const firstName = useMemo(() => {
     const meta = user?.user_metadata?.full_name as string | undefined;
@@ -178,6 +201,13 @@ const Dashboard = () => {
   if (children.length === 0) {
     return (
       <div className="min-h-screen p-4">
+        {/* No children yet — the intro ends by sending them into setup. */}
+        <OnboardingSlides
+          open={showOnboarding}
+          onDone={dismissOnboarding}
+          finishLabel="Add your first child"
+          onFinish={() => navigate("/setup")}
+        />
         <div className="max-w-sm mx-auto text-center pt-24">
           <div className="w-16 h-16 rounded-[20px] glass-strong flex items-center justify-center mx-auto mb-5 glow-iris">
             <Sparkles className="w-7 h-7 text-iris-300" />
@@ -200,6 +230,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen pb-sp-5">
+      <OnboardingSlides open={showOnboarding} onDone={dismissOnboarding} />
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
         {/* Hero panel — iris-tinted, rounded-bottom; wraps the header row +
             children list together. Matches Figma node 174:7514. */}

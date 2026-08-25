@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, LogOut, Mail, Lock, User, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, LogOut, Mail, Lock, User, Pencil, Check, X, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,6 +85,25 @@ const ParentSettings = () => {
           />
 
           <PasswordChange />
+
+          {/* Onboarding is dismissed for good once seen — this is the only
+              way back to it. Clearing the flag makes the dashboard show it
+              on the next visit. */}
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                if (user?.id) window.localStorage.removeItem(`onboarding_seen:${user.id}`);
+              } catch {
+                /* ignore storage errors */
+              }
+              navigate("/parent");
+            }}
+            className="self-start flex items-center gap-2 text-14 text-iris-400 hover:underline"
+          >
+            <PlayCircle className="w-4 h-4" />
+            Replay welcome tour
+          </button>
 
           <button
             type="button"
