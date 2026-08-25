@@ -74,7 +74,7 @@ const SLIDES: Slide[] = [
     petType: "bunny",
     mood: "happy",
     title: "Every kid gets a critter",
-    body: "Pick a pixel pet for each child. It follows their day — cheering when they finish on time, drooping when something runs late.",
+    body: "Pick a pixel pet for each child. It stays by their side all day, cheering them on from task to task.",
   },
   {
     key: "task-types",
@@ -85,25 +85,25 @@ const SLIDES: Slide[] = [
         Icon: Clock,
         tint: "text-iris-200 bg-iris-400/20 border-iris-400/30",
         term: "Timed",
-        text: "Pinned to a clock time and counts down — school, dinner, bedtime.",
+        text: "Pinned to a clock time, counts down. School at 8:30, dinner at 6, bedtime at 8.",
       },
       {
         Icon: Shuffle,
         tint: "text-lilac-300 bg-lilac-500/20 border-lilac-500/30",
         term: "Flexible",
-        text: "No set time. It settles into the first gap in their day.",
+        text: "Settles into the first gap in the day — piano practice, reading. Drag and drop to fine-tune.",
       },
       {
         Icon: Star,
         tint: "text-amber-400 bg-amber-500/20 border-amber-500/30",
         term: "Important",
-        text: "Can't be skipped. They must mark it done, and it goes overdue if it runs late.",
+        text: "Must be checked off or it goes overdue — homework, take medicine, pack school bag.",
       },
       {
         Icon: ListChecks,
         tint: "text-mint-300 bg-mint-500/20 border-mint-500/30",
         term: "Chores",
-        text: "Done anytime, or inside a window you set. They tap a tile to tick one off.",
+        text: "Anytime, or in a window you set. Feed the dog, tidy room — tapped off as tiles.",
       },
     ],
   },
@@ -112,14 +112,14 @@ const SLIDES: Slide[] = [
     visual: <WormDemo />,
     Icon: Gamepad2,
     title: "The worm eats their fun time",
-    body: "Mark TV or Roblox as fun time. When an important task runs late, a worm creeps toward it and eats it minute by minute — so dawdling costs them something they can see.",
+    body: "Mark TV or Roblox as fun time. When an important task runs late, the worm creeps toward it and eats it — the time window shrinks before their eyes.",
   },
   {
     key: "wheel",
     visual: <SpinningWheel options={["Draw", "Lego", "Read", "Outside", "Puzzle", "Dance"]} sizePx={200} />,
     Icon: Shuffle,
     title: "Free time spins a wheel",
-    body: "Fill the wheel with things you're happy for them to do. When a gap opens up in the day, they spin instead of asking you what's next.",
+    body: "You fill the wheel with ideas. When free time comes, they spin — instead of asking you what to do.",
   },
   {
     key: "stars",
@@ -127,7 +127,7 @@ const SLIDES: Slide[] = [
     mood: "happy",
     Icon: Gift,
     title: "Stars buy rewards",
-    body: "Tasks are worth stars, and you decide what stars can buy. When they ask to spend, the request comes to you for approval first.",
+    body: "They earn stars for finishing tasks. When they want a reward, they request it — and you approve.",
   },
   {
     key: "calendar",
@@ -135,7 +135,7 @@ const SLIDES: Slide[] = [
     mood: "idle",
     Icon: CalendarDays,
     title: "Mark up the calendar",
-    body: "Add holidays, birthdays and snow days — flag one as no-school and school drops off that day automatically. Leave notes too, like \"early dismissal at 1pm\".",
+    body: "Holidays, birthdays, snow days. Flag a day as no-school and School drops off automatically. Add notes like \"early dismissal at 1pm\".",
   },
   {
     key: "sync",
@@ -143,7 +143,7 @@ const SLIDES: Slide[] = [
     mood: "idle",
     Icon: Smartphone,
     title: "It syncs to your phone",
-    body: "Connect Google Calendar and those days and notes show up in your own calendar. The app writes to a calendar of its own — your other calendars are untouched.",
+    body: "Connect Google Calendar and it all shows up on your phone. It writes only to its own calendar — yours stay untouched.",
   },
   {
     key: "child-device",
@@ -151,7 +151,7 @@ const SLIDES: Slide[] = [
     mood: "celebrate",
     Icon: Tablet,
     title: "Their own screen",
-    body: "Hand a phone or tablet to your child and they tap their own pet to open their day. You keep the parent view to yourself.",
+    body: "Hand them a device and the day is theirs to run. They feel in control — and learn to be independent.",
   },
 ];
 
