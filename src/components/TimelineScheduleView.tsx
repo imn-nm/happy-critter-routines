@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
+import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
@@ -286,10 +287,15 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
 
             return (
               <div className="animate-in fade-in duration-200 rounded-lg border border-dashed border-muted-foreground/10 overflow-hidden">
-                {ticks.map((tick) => {
-                  const inWindow = highlightMinute != null && tick.time >= hlStart && tick.time < hlEnd;
-                  const isStart = highlightMinute != null && tick.time === hlStart;
-                  const isEnd = highlightMinute != null && tick.time === hlEnd - 15;
+                {ticks.map((tick, tickIdx) => {
+                  // The resolved landing time can sit off the 15-min tick grid
+                  // (edge snap / 5-min grid), so mark the first and last tick
+                  // rows the window touches by range, not exact equality.
+                  const tickInWindow = (t: number) =>
+                    highlightMinute != null && t + 15 > hlStart && t < hlEnd;
+                  const inWindow = tickInWindow(tick.time);
+                  const isStart = inWindow && (tickIdx === 0 || !tickInWindow(ticks[tickIdx - 1].time));
+                  const isEnd = inWindow && (tickIdx === ticks.length - 1 || !tickInWindow(ticks[tickIdx + 1].time));
                   return (
                     <DroppableTickSlot
                       key={tick.time}
@@ -794,6 +800,19 @@ const TimelineScheduleView = ({
       };
     });
 
+  const minutesToTimeStr = (minutes: number): string => {
+    const h = Math.floor(minutes / 60) % 24;
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
+  // Tasks may never land before the child's wake time — without this bound
+  // the "nearest fitting gap" could be the empty stretch before dawn.
+  const dayBounds = (() => {
+    const [wh, wm] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+    return { dayStart: wh * 60 + wm };
+  })();
+
   // Resolve day-specific overrides for a task. Per-date wins over per-weekday.
   const getTaskTimeForDay = (task: any): { time: string; duration: number } => {
     const dateOverride = task.date_overrides?.[selectedDayDateString];
@@ -870,13 +889,43 @@ const TimelineScheduleView = ({
     return '09:00';
   };
 
-  // Use day-specific overrides or actual scheduled times for draggable tasks, or auto-place them in gaps
+  // Use day-specific overrides or actual scheduled times for draggable tasks,
+  // or auto-place them in gaps.
+  //
+  // Flex tasks (no pinned time) are placed sequentially through the same
+  // overlap-safe resolver the drag & drop uses: their window_start is only a
+  // *hint*, so when it collides with a pinned task — or with a flex task
+  // placed just before it — the task slides to the nearest free gap instead
+  // of rendering on top of something.
+  const flexOccupied: { start: number; end: number }[] = [
+    ...fixedEvents,
+    // Pinned draggable tasks block flex placement too.
+    ...draggableTasks
+      .filter(t => t.date_overrides?.[selectedDayDateString]?.scheduled_time || t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
+      .map(t => ({ time: getTaskTimeForDay(t).time, duration: getTaskTimeForDay(t).duration })),
+  ].map(e => {
+    const [h, m] = e.time.split(':').map(Number);
+    return { start: h * 60 + m, end: h * 60 + m + e.duration };
+  });
+
   const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
     const resolved = getTaskTimeForDay(task);
     const taskDuration = resolved.duration;
     // Fallback order: day-specific override → task's scheduled_time → window_start (placement hint
     // from a gap when "Set Time" was off) → next available slot.
-    const taskTime = (task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time) || task.window_start || findNextAvailableTime(taskDuration);
+    const pinnedTime = task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time;
+    let taskTime: string;
+    if (pinnedTime) {
+      taskTime = pinnedTime;
+    } else {
+      const hint = task.window_start || findNextAvailableTime(taskDuration);
+      const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
+      const placedStart = resolveDropStart(flexOccupied, hh * 60 + hm, taskDuration, dayBounds);
+      const startMin = placedStart ?? hh * 60 + hm;
+      // Whatever spot this task took is occupied for the next flex task.
+      flexOccupied.push({ start: startMin, end: startMin + taskDuration });
+      taskTime = minutesToTimeStr(startMin);
+    }
     const isCompleted = completions.some(c => c.task_id === task.id && c.date === selectedDayString);
     return {
       id: task.id,
@@ -966,12 +1015,6 @@ const TimelineScheduleView = ({
     setActiveId(event.active.id);
   };
 
-  const minutesToTimeStr = (minutes: number): string => {
-    const h = Math.floor(minutes / 60) % 24;
-    const m = minutes % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  };
-
   const formatTimeShortLocal = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':');
     const hour = parseInt(hours);
@@ -980,7 +1023,19 @@ const TimelineScheduleView = ({
     return `${displayHour}:${minutes}${ampm}`;
   };
 
-  // Calculate the landing time for a drop — used by both indicators and handleDragEnd
+  // Timed blocks the dragged task must not overlap (excluding itself).
+  const buildOccupied = (excludeTaskId?: string): OccupiedBlock[] =>
+    allEvents
+      .filter(e => e.type !== 'gap' && e.id !== excludeTaskId)
+      .map(e => {
+        const [h, m] = e.time.split(':').map(Number);
+        return { start: h * 60 + m, end: h * 60 + m + e.duration };
+      });
+
+  // Calculate the landing time for a drop — used by both indicators and
+  // handleDragEnd. Delegates the overlap/snap math to resolveDropStart, which
+  // guarantees the result fits in a free gap (or returns null when nothing
+  // fits, so the drop is rejected instead of overlapping).
   const calculateDropTime = (overEventId: string, position: 'before' | 'after', taskDuration: number, excludeTaskId?: string): number | null => {
     const overEvent = allEvents.find(e => e.id === overEventId);
     if (!overEvent) return null;
@@ -989,60 +1044,22 @@ const TimelineScheduleView = ({
     const overStart = oh * 60 + om;
     const overEnd = overStart + overEvent.duration;
 
-    // Build occupied list (excluding the task being moved)
-    const occupied = allEvents
-      .filter(e => e.type !== 'gap' && e.id !== excludeTaskId)
-      .map(e => {
-        const [h, m] = e.time.split(':').map(Number);
-        return { start: h * 60 + m, end: h * 60 + m + e.duration };
-      })
-      .sort((a, b) => a.start - b.start);
+    const occupied = buildOccupied(excludeTaskId);
 
     let proposed: number;
-
     if (overEvent.type === 'gap') {
-      // Dropping on a free time block → place at start of gap
+      // Dropping on a free time block → aim for the start of the gap
       proposed = overStart;
     } else if (position === 'before') {
-      // Before an event → end of previous event, or event.start - duration
-      const prevOccupied = occupied.filter(e => e.end <= overStart);
-      const prev = prevOccupied.length > 0 ? prevOccupied[prevOccupied.length - 1] : null;
-      if (prev) {
-        proposed = prev.end;
-      } else {
-        proposed = Math.max(0, overStart - taskDuration);
-      }
+      // Before an event → aim to end right where it starts (snap-to-previous
+      // happens inside resolveDropStart when the gap is tight)
+      proposed = overStart - taskDuration;
     } else {
-      // After an event → place at end of this event
+      // After an event → aim to start right where it ends
       proposed = overEnd;
     }
 
-    // Snap to nearest 15-minute increment
-    proposed = Math.round(proposed / 15) * 15;
-
-    // Clamp: ensure no overlap with any occupied slot
-    const proposedEnd = proposed + taskDuration;
-
-    // Check overlap with next event after proposed start
-    const nextOccupied = occupied.find(e => e.start > proposed && e.start < proposedEnd);
-    if (nextOccupied) {
-      proposed = Math.max(0, nextOccupied.start - taskDuration);
-    }
-
-    // Check overlap with previous event
-    const prevOverlap = [...occupied].reverse().find(e => e.end > proposed && e.start < proposed);
-    if (prevOverlap) {
-      proposed = prevOverlap.end;
-    }
-
-    // Final check: make sure we don't go past next event after adjustment
-    const finalEnd = proposed + taskDuration;
-    const finalNext = occupied.find(e => e.start > proposed && e.start < finalEnd);
-    if (finalNext) {
-      proposed = Math.max(0, finalNext.start - taskDuration);
-    }
-
-    return Math.max(0, proposed);
+    return resolveDropStart(occupied, proposed, taskDuration, dayBounds);
   };
 
   const handleDragOver = (event: any) => {
@@ -1079,20 +1096,26 @@ const TimelineScheduleView = ({
 
     const taskDuration = activeTask.duration || 30;
 
-    // Drop on a specific 15-min tick slot (e.g. "tick-300" = 5:00pm)
+    // Drop on a specific 15-min tick slot (e.g. "tick-300" = 5:00am).
+    // Still resolved through the overlap-safe placement so a tick near the
+    // end of a gap can't make the task spill into the next event — it snaps
+    // back so the task ends exactly when the next one starts.
     const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
-    if (tickMatch && onTaskTimeUpdate) {
-      const tickMinutes = parseInt(tickMatch[1]);
-      onTaskTimeUpdate(activeTask.id, minutesToTimeStr(tickMinutes), dayOfWeek);
+    const landingMinutes = tickMatch
+      ? resolveDropStart(buildOccupied(activeTask.id), parseInt(tickMatch[1]), taskDuration, dayBounds)
+      : calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
+
+    if (landingMinutes == null) {
+      toast({
+        title: "No room there",
+        description: `${activeTask.name} needs ${taskDuration} minutes of free time.`,
+        variant: "destructive",
+      });
       return;
     }
 
-    // Time-based drop (on any timeline event, gap, or draggable task)
     if (onTaskTimeUpdate) {
-      const landingMinutes = calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
-      if (landingMinutes != null) {
-        onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes), dayOfWeek);
-      }
+      onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes), dayOfWeek);
     }
   };
 
@@ -1281,10 +1304,17 @@ const TimelineScheduleView = ({
                       const activeTaskForDrop = activeId ? draggableTasks.find(t => t.id === activeId) : null;
                       const dropTimeMinutes = (() => {
                         if (!activeTaskForDrop || !overId || !dropPosition) return null;
-                        // If hovering a tick, use tick time directly
+                        // If hovering a tick, resolve it through the same
+                        // overlap-safe placement used on drop so the preview
+                        // shows the real landing time.
                         if (typeof overId === 'string' && overId.startsWith('tick-')) {
                           if (overId !== event.id) return null; // only for non-gap indicators
-                          return parseInt(overId.replace('tick-', ''));
+                          return resolveDropStart(
+                            buildOccupied(activeTaskForDrop.id),
+                            parseInt(overId.replace('tick-', '')),
+                            activeTaskForDrop.duration || 30,
+                            dayBounds
+                          );
                         }
                         if (overId !== event.id) return null;
                         return calculateDropTime(event.id, dropPosition, activeTaskForDrop.duration || 30, activeTaskForDrop.id);
@@ -1294,17 +1324,27 @@ const TimelineScheduleView = ({
                       // For gap events: highlight based on which tick slot is being hovered
                       const gapHighlightMinute = (() => {
                         if (!activeTaskForDrop || !activeId || event.type !== 'gap') return null;
-                        // Check if a tick within this gap is being hovered
+                        // Hovering a tick within this gap: resolve the tick
+                        // through the same placement math as the drop, so the
+                        // highlighted window is exactly where the task lands
+                        // (snapped back from the gap edge when needed).
                         if (overId && typeof overId === 'string' && overId.startsWith('tick-')) {
                           const tickMin = parseInt(overId.replace('tick-', ''));
                           const [gH, gM] = event.time.split(':').map(Number);
                           const gStart = gH * 60 + gM;
                           const gEnd = gStart + event.duration;
-                          if (tickMin >= gStart && tickMin < gEnd) return tickMin;
+                          if (tickMin >= gStart && tickMin < gEnd) {
+                            return resolveDropStart(
+                              buildOccupied(activeTaskForDrop.id),
+                              tickMin,
+                              activeTaskForDrop.duration || 30,
+                              dayBounds
+                            );
+                          }
                         }
                         // If hovering this gap directly (not a tick), use calculated drop time
                         if (overId === event.id && dropTimeMinutes != null) {
-                          return Math.round(dropTimeMinutes / 15) * 15;
+                          return dropTimeMinutes;
                         }
                         return null;
                       })();
