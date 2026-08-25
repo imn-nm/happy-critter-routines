@@ -1,37 +1,14 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useChildren } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
+import CritterPet from "@/components/critters/CritterPet";
 
 const ChildNameGate = () => {
   const navigate = useNavigate();
   const { children, loading } = useChildren();
   const { signOut, user } = useAuth();
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const trimmed = name.trim().toLowerCase();
-    if (!trimmed) return;
-
-    // Trim the stored name too — profiles have been saved with stray
-    // whitespace (e.g. "Haniya "), which made an exact match impossible.
-    const match = children.find(
-      (c) => c.name.trim().toLowerCase() === trimmed
-    );
-    if (match) {
-      navigate(`/child/${match.id}`);
-    } else {
-      // Keep what they typed — wiping the field forced a full retype
-      // after a single-letter typo.
-      setError("Name not found. Check the spelling and try again.");
-    }
-  };
 
   if (loading) {
     return (
@@ -83,25 +60,25 @@ const ChildNameGate = () => {
             <Sparkles className="w-8 h-8 text-primary-light" />
           </div>
           <h1 className="text-2xl font-bold text-foreground text-glow">Who's using this?</h1>
-          <p className="text-sm text-muted-foreground">Type your name to get started</p>
+          <p className="text-sm text-muted-foreground">Tap your name to get started</p>
         </div>
 
-        <div className="glass-card rounded-3xl p-6">
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <Input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="text-center text-lg"
-              autoFocus
-              autoComplete="off"
-            />
-            {error && <p className="text-destructive text-sm text-center">{error}</p>}
-            <Button type="submit" className="w-full" disabled={!name.trim()}>
-              Let's go!
-            </Button>
-          </form>
+        {/* One tile per child — pet + name, big tap targets so even
+            pre-readers can pick themselves out by their critter. */}
+        <div className="grid grid-cols-2 gap-3">
+          {children.map((child) => (
+            <button
+              key={child.id}
+              type="button"
+              onClick={() => navigate(`/child/${child.id}`)}
+              className="glass-card rounded-3xl p-4 flex flex-col items-center gap-2 transition-transform hover:scale-[1.03] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <CritterPet petType={child.petType} mood="happy" size={96} />
+              <span className="text-lg font-semibold text-foreground truncate w-full text-center">
+                {child.name}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
