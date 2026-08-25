@@ -227,10 +227,15 @@ const duck = (): PixelModel => {
   // webbed feet — dark ankle, light L-shaped foot
   b.rect(6, 15, 7, 16, dark).rect(3, 17, 7, 19, light);
   b.rect(11, 15, 12, 16, dark).rect(8, 17, 12, 19, light);
-  return b.build("duck", "Puddle the Duck", "A snowy duck with a two-tone tangerine bill and webbed feet.", [
-    { x1: 4, y1: 2, x2: 5, y2: 5 },
-    { x1: 9, y1: 2, x2: 10, y2: 5 },
-  ]);
+  return {
+    ...b.build("duck", "Puddle the Duck", "A snowy duck with a two-tone tangerine bill and webbed feet.", [
+      { x1: 4, y1: 2, x2: 5, y2: 5 },
+      { x1: 9, y1: 2, x2: 10, y2: 5 },
+    ]),
+    // Lo-fi body reactions + mood props. No rigged parts — the duck has no
+    // ears to flop.
+    lofi: true,
+  };
 };
 
 const cat = (): PixelModel => {
@@ -250,10 +255,37 @@ const cat = (): PixelModel => {
   b.rect(4, 12, 12, 19, gray);
   b.rect(15, 12, 16, 16, gray).set(16, 11, gray);
   b.rect(13, 17, 16, 19, gray);
-  return b.build("cat", "Smokey the Cat", "A gray cat with whiskery cheeks, a pink nose and a curled tail.", [
-    { x1: 4, y1: 6, x2: 5, y2: 7 },
-    { x1: 9, y1: 6, x2: 10, y2: 7 },
-  ]);
+  return {
+    ...b.build("cat", "Smokey the Cat", "A gray cat with whiskery cheeks, a pink nose and a curled tail.", [
+      { x1: 4, y1: 6, x2: 5, y2: 7 },
+      { x1: 9, y1: 6, x2: 10, y2: 7 },
+    ]),
+    // Same lo-fi reaction set as the bunny; the triangle ears skew from the
+    // head line so they stay rooted.
+    lofi: true,
+    parts: [
+      {
+        name: "earL",
+        pivot: { x: 4, y: 4 },
+        cells: [
+          { x: 4, y: 0 },
+          { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 },
+          { x: 3, y: 2 }, { x: 4, y: 2 }, { x: 5, y: 2 },
+          { x: 3, y: 3 }, { x: 4, y: 3 }, { x: 5, y: 3 }, { x: 6, y: 3 },
+        ],
+      },
+      {
+        name: "earR",
+        pivot: { x: 12, y: 4 },
+        cells: [
+          { x: 12, y: 0 },
+          { x: 11, y: 1 }, { x: 12, y: 1 }, { x: 13, y: 1 },
+          { x: 11, y: 2 }, { x: 12, y: 2 }, { x: 13, y: 2 },
+          { x: 10, y: 3 }, { x: 11, y: 3 }, { x: 12, y: 3 }, { x: 13, y: 3 },
+        ],
+      },
+    ],
+  };
 };
 
 // Hand-tuned in the critter editor (/preview/critter-editor).
@@ -461,6 +493,29 @@ const fox = (): PixelModel => ({
   eyes: [
     { x1: 3, y1: 7, x2: 4, y2: 8 },
     { x1: 9, y1: 7, x2: 10, y2: 8 },
+  ],
+  // Same lo-fi reaction set as the bunny; the ear triangles skew from the
+  // head line so they stay rooted.
+  lofi: true,
+  parts: [
+    {
+      name: "earL",
+      pivot: { x: 3, y: 5 },
+      cells: [
+        { x: 2, y: 2 }, { x: 3, y: 2 },
+        { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 },
+        { x: 1, y: 4 }, { x: 2, y: 4 }, { x: 3, y: 4 },
+      ],
+    },
+    {
+      name: "earR",
+      pivot: { x: 11, y: 5 },
+      cells: [
+        { x: 11, y: 2 }, { x: 12, y: 2 },
+        { x: 10, y: 3 }, { x: 11, y: 3 }, { x: 12, y: 3 },
+        { x: 11, y: 4 }, { x: 12, y: 4 }, { x: 13, y: 4 },
+      ],
+    },
   ],
 });
 
@@ -717,6 +772,10 @@ const penguin = (): PixelModel => ({
     { x1: 10, y1: 4, x2: 11, y2: 5 },
     { x1: 4, y1: 4, x2: 5, y2: 5 },
   ],
+  // Lo-fi body reactions + mood props. No rigged parts: a penguin's flippers
+  // hang from the shoulder, and the ear rig skews from the *bottom* edge,
+  // which would swing them from the tip instead.
+  lofi: true,
 });
 
 // Hand-tuned in the critter editor (/preview/critter-editor).
@@ -978,6 +1037,10 @@ const frog = (): PixelModel => ({
     { x1: 3, y1: 1, x2: 4, y2: 2 },
     { x1: 11, y1: 1, x2: 12, y2: 2 },
   ],
+  // Lo-fi body reactions + mood props. No rigged parts: the frog's eyes sit
+  // inside its two turrets, and only one part can carry the blink group — so
+  // skewing the turrets would leave an eye behind.
+  lofi: true,
 });
 
 export const CRITTERS: PixelModel[] = [bunny(), duck(), cat(), fox(), penguin(), frog()];

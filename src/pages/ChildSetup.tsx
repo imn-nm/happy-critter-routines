@@ -204,8 +204,10 @@ const ChildSetup = () => {
                 <p className="text-sm text-muted-foreground">Ready to create {formData.name}'s profile</p>
               </div>
 
-              <div className="rounded-full w-24 h-24 mx-auto flex items-center justify-center bg-iris-400/10">
-                <PetAvatar petType={formData.petType} happiness={100} size="xl" />
+              {/* size="xl" is a 192px sprite — it burst out of this circle and
+                  overlapped the heading and summary card. "md" (80px) fits. */}
+              <div className="rounded-full w-28 h-28 mx-auto flex items-center justify-center bg-iris-400/10 shrink-0">
+                <PetAvatar petType={formData.petType} happiness={100} size="md" />
               </div>
 
               <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
