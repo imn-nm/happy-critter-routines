@@ -69,6 +69,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   });
   const [newSubtaskText, setNewSubtaskText] = useState("");
 
+  // Time to restore when "Set Time" is switched back on. A flexible task
+  // still has a slot in the day — it's kept in window_start — so switching to
+  // a fixed time should pin it where it already sits rather than jumping to a
+  // default. Falls back to the gap the form was opened from.
+  const [lastTime, setLastTime] = useState(
+    toHHMM(task?.scheduled_time) || toHHMM(task?.window_start) || toHHMM(prefillTime) || "09:00",
+  );
+
   const addSubtask = () => {
     const text = newSubtaskText.trim();
     if (!text) return;
@@ -270,14 +278,23 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               <Input
                 type="time"
                 value={formData.scheduledTime}
-                onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value) setLastTime(value);
+                  setFormData({ ...formData, scheduledTime: value });
+                }}
                 className="w-full sm:w-[130px] rounded-pill mr-3"
               />
             )}
             <Switch
               id="scheduledTimeToggle"
               checked={!!formData.scheduledTime}
-              onCheckedChange={(checked) => setFormData({ ...formData, scheduledTime: checked ? '09:00' : '' })}
+              onCheckedChange={(checked) => {
+                // Toggling only changes whether the task is pinned — it never
+                // moves it. Off remembers the time; on restores it.
+                if (!checked && formData.scheduledTime) setLastTime(formData.scheduledTime);
+                setFormData({ ...formData, scheduledTime: checked ? lastTime : '' });
+              }}
               className="data-[state=checked]:bg-blue-500"
             />
           </FormRow>
