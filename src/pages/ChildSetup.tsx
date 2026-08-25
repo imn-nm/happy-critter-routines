@@ -159,14 +159,16 @@ const ChildSetup = () => {
               <div className="space-y-3">
                 <div className="rounded-2xl border border-iris-400/20 p-4">
                   <h3 className="font-medium text-fog-200 text-sm mb-3">Sleep</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-muted-foreground text-xs mb-1 block">Wake up</Label>
+                  {/* One row per time — side by side, the three-part picker
+                      (hour / minutes / am-pm) doesn't fit a half-width column. */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-muted-foreground text-xs">Wake up</Label>
                       <TimeSelect value={formData.wakeTime}
                         onChange={(v) => setFormData({ ...formData, wakeTime: v })} />
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs mb-1 block">Bedtime</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-muted-foreground text-xs">Bedtime</Label>
                       <TimeSelect value={formData.sleepTime}
                         onChange={(v) => setFormData({ ...formData, sleepTime: v })} />
                     </div>

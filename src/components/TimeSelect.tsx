@@ -32,10 +32,15 @@ const TimeSelect = ({ value, onChange, className, stepMinutes = 5 }: TimeSelectP
     minuteOptions.sort((a, b) => a - b);
   }
 
+  // Widths account for the trigger's chevron (16px) and horizontal padding —
+  // px-4 left barely 14px for the label, which clipped "12" and ":00". Tighter
+  // padding plus shrink-0 so a narrow container can't squeeze them either.
+  const trigger = "shrink-0 rounded-pill px-3 gap-1";
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <Select value={String(hour12)} onValueChange={(v) => emit(Number(v), mm, isPm)}>
-        <SelectTrigger className="w-[62px] rounded-pill" aria-label="Hour">
+        <SelectTrigger className={cn(trigger, "w-[72px]")} aria-label="Hour">
           <SelectValue>{hour12}</SelectValue>
         </SelectTrigger>
         <SelectContent className="max-h-60">
@@ -47,7 +52,7 @@ const TimeSelect = ({ value, onChange, className, stepMinutes = 5 }: TimeSelectP
         </SelectContent>
       </Select>
       <Select value={String(mm)} onValueChange={(v) => emit(hour12, Number(v), isPm)}>
-        <SelectTrigger className="w-[68px] rounded-pill" aria-label="Minutes">
+        <SelectTrigger className={cn(trigger, "w-[80px]")} aria-label="Minutes">
           <SelectValue>:{pad(mm)}</SelectValue>
         </SelectTrigger>
         <SelectContent className="max-h-60">
@@ -59,7 +64,7 @@ const TimeSelect = ({ value, onChange, className, stepMinutes = 5 }: TimeSelectP
         </SelectContent>
       </Select>
       <Select value={isPm ? "pm" : "am"} onValueChange={(v) => emit(hour12, mm, v === "pm")}>
-        <SelectTrigger className="w-[64px] rounded-pill" aria-label="AM or PM">
+        <SelectTrigger className={cn(trigger, "w-[78px]")} aria-label="AM or PM">
           <SelectValue>{isPm ? "pm" : "am"}</SelectValue>
         </SelectTrigger>
         <SelectContent>

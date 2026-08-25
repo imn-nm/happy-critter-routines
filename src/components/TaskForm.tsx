@@ -481,7 +481,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             type="date"
             value={formData.taskDate}
             onChange={(e) => setFormData({ ...formData, taskDate: e.target.value })}
-            className="w-[160px] rounded-pill"
+            className="w-[192px] shrink-0 rounded-pill px-3"
           />
         </FormRow>
       )}
@@ -494,7 +494,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             value={String(durationTotal)}
             onValueChange={(value) => setDuration(parseInt(value))}
           >
-            <SelectTrigger className="w-[120px] rounded-pill" aria-label="How long">
+            <SelectTrigger className="w-[136px] shrink-0 rounded-pill px-3 gap-1" aria-label="How long">
               <SelectValue>{formatDurationLabel(durationTotal)}</SelectValue>
             </SelectTrigger>
             <SelectContent className="max-h-60">
