@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Calendar, Clock, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
@@ -20,6 +20,8 @@ interface MonthViewProps {
   onEditTask?: (task: Task) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
   onSelectedDateChange?: (date: Date) => void;
+  /** Set or clear the child's rest day for a given yyyy-MM-dd. */
+  onToggleRestDay?: (dateStr: string, isRestDay: boolean) => void | Promise<void>;
   getTasksWithCompletionStatus: () => Task[];
 }
 
@@ -32,7 +34,7 @@ interface DayData {
   isRestDay: boolean;
 }
 
-const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelectedDateChange }: MonthViewProps) => {
+const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelectedDateChange, onToggleRestDay }: MonthViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(getPSTDate());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -365,12 +367,43 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
               </p>
             </div>
 
-            {/* Rest day — set from the day view; shown here so the cell's
-                marker and the sheet agree. */}
-            {selectedDayData?.isRestDay && (
-              <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10">
-                <span className="text-sm font-semibold text-emerald-200">Rest day</span>
-              </div>
+            {/* Rest day — set here, on the day it applies to, rather than
+                from a header toggle that gave no clue which day it meant. */}
+            {onToggleRestDay && (
+              selectedDayData?.isRestDay ? (
+                <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Moon className="w-4 h-4 text-emerald-300 shrink-0" />
+                    <span className="text-sm font-semibold text-emerald-200">Rest day</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), false)}
+                    className="h-6 px-2 text-xs shrink-0"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), true)}
+                    className="w-full mb-2"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Moon className="w-3.5 h-3.5 mr-1.5" /> Mark as Rest Day
+                  </Button>
+                  {/* Only one rest day is stored per child, so setting one
+                      moves it — say which day is about to lose it. */}
+                  {child.rest_day_date && (
+                    <p className="text-[11px] text-muted-foreground/70 -mt-1 mb-3 text-center">
+                      Moves the rest day from {format(new Date(`${child.rest_day_date}T00:00:00`), 'EEE, MMM d')}.
+                    </p>
+                  )}
+                </>
+              )
             )}
 
             {/* Holiday */}

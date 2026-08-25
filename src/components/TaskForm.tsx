@@ -83,6 +83,13 @@ const SegmentedField = <T extends string>({
   </div>
 );
 
+// Duration is picked as hours + minutes so 5-minute granularity doesn't
+// require a hundred-item list. 0-8h covers School's 7h.
+const HOUR_OPTIONS = Array.from({ length: 9 }, (_, i) => i);
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
+/** Every task has a length; this is what a new one starts at. */
+const DEFAULT_DURATION_MINUTES = 30;
+
 type Behavior = 'normal' | 'important' | 'fun';
 
 // The three ways a task can behave. Modelled as one choice because they are
@@ -111,8 +118,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
     scheduledTime: toHHMM(task?.scheduled_time) || toHHMM(prefillTime) || "",
     choreAnytime: task?.type === 'floating' && !task?.window_start,
-    durationHours: task?.duration ? Math.floor(task.duration / 60).toString() : "",
-    durationMinutes: task?.duration ? (task.duration % 60).toString() : "",
+    // Tasks always carry a length now; ones saved before that (and new ones)
+    // start at the same 30m the timeline already assumed for placement.
+    durationHours: Math.floor((task?.duration || DEFAULT_DURATION_MINUTES) / 60).toString(),
+    durationMinutes: ((task?.duration || DEFAULT_DURATION_MINUTES) % 60).toString(),
     coins: task?.coins?.toString() || "0",
     icon: task?.icon || "",
     isRecurring: task?.is_recurring ?? false,
@@ -179,6 +188,19 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const isChore = formData.mode === 'chore';
   const atTime = !!formData.scheduledTime;
+
+  const durationTotal = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
+  const durationH = Math.floor(durationTotal / 60);
+  const durationM = durationTotal % 60;
+  const setDuration = (minutes: number) => {
+    // "As long as it takes" is gone, so never let the pair land on zero.
+    const safe = minutes > 0 ? minutes : 5;
+    setFormData({
+      ...formData,
+      durationHours: Math.floor(safe / 60).toString(),
+      durationMinutes: (safe % 60).toString(),
+    });
+  };
 
   const behavior: Behavior = formData.isImportant ? 'important' : formData.isFunTime ? 'fun' : 'normal';
   const setBehavior = (next: Behavior) =>
@@ -437,35 +459,39 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </div>
       )}
 
-      {/* === HOW LONG === */}
+      {/* === HOW LONG === Split hours and minutes so 5-minute granularity
+          doesn't mean a 100-item list, and so long system tasks (School is
+          7h) stay reachable. Every task has a length now. */}
       {!isChore && (
         <FormRow label="How long">
-          <Select
-            value={`${(parseInt(formData.durationHours || '0') * 60 + parseInt(formData.durationMinutes || '0'))}`}
-            onValueChange={(value) => {
-              const m = parseInt(value);
-              setFormData({ ...formData, durationHours: Math.floor(m / 60).toString(), durationMinutes: (m % 60).toString() });
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[170px] rounded-pill">
-              <SelectValue>
-                {formData.durationHours || formData.durationMinutes
-                  ? `${parseInt(formData.durationHours || '0')}h ${parseInt(formData.durationMinutes || '0')}m`
-                  : 'As long as it takes'}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">As long as it takes</SelectItem>
-              <SelectItem value="15">15m</SelectItem>
-              <SelectItem value="30">30m</SelectItem>
-              <SelectItem value="45">45m</SelectItem>
-              <SelectItem value="60">1h 0m</SelectItem>
-              <SelectItem value="90">1h 30m</SelectItem>
-              <SelectItem value="120">2h 0m</SelectItem>
-              <SelectItem value="180">3h 0m</SelectItem>
-              <SelectItem value="240">4h 0m</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={String(durationH)}
+              onValueChange={(value) => setDuration(parseInt(value) * 60 + durationM)}
+            >
+              <SelectTrigger className="w-[76px] rounded-pill" aria-label="Hours">
+                <SelectValue>{durationH}h</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {HOUR_OPTIONS.map(h => (
+                  <SelectItem key={h} value={String(h)}>{h}h</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(durationM)}
+              onValueChange={(value) => setDuration(durationH * 60 + parseInt(value))}
+            >
+              <SelectTrigger className="w-[86px] rounded-pill" aria-label="Minutes">
+                <SelectValue>{durationM}m</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {MINUTE_OPTIONS.map(m => (
+                  <SelectItem key={m} value={String(m)}>{m}m</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </FormRow>
       )}
 

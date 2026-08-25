@@ -363,11 +363,11 @@ const ChildDashboard = () => {
 
             {/* Summary card — transparent with blue hairline (matches Figma
                 145:6970): rgba(102,153,255,0.25) border, 16px padding, 28 radius. */}
-            {/* Wraps: the stepper plus both CTAs exceed a 375px screen, and
-                without wrapping the Rewards button ran off the right edge. */}
-            <div className="flex flex-wrap items-center justify-between gap-sp-2 p-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
+            {/* Stepper + both CTAs stay on one line. Padding and gaps are
+                tightened so the row fits a 375px screen without wrapping. */}
+            <div className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
               {/* Coin adjust group */}
-              <div className="flex items-center gap-sp-3">
+              <div className="flex items-center gap-sp-2">
                 <Button
                   variant="secondary"
                   size="icon-sm"
@@ -401,12 +401,12 @@ const ChildDashboard = () => {
               </div>
 
               {/* Rewards + Wheel CTAs — transparent (no border), matches Figma 145:6976 */}
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-0.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowWheelEditor(true)}
                   aria-label="Set up spinning wheel"
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Shuffle className="w-4 h-4" />
                   Wheel
@@ -414,7 +414,7 @@ const ChildDashboard = () => {
                 <button
                   type="button"
                   onClick={() => setShowRewards(true)}
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Gift className="w-4 h-4" />
                   Rewards
@@ -427,29 +427,35 @@ const ChildDashboard = () => {
                 28×18 thumb in #aab4ff. Add Task is a transparent button with
                 no border (matches Figma 145:6982). */}
             <div className="flex items-center justify-between gap-sp-3 px-sp-2">
-              <div className="flex items-center gap-sp-3">
-                <span className="text-14 text-fog-50">Rest Day</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isRestDay}
-                  aria-label="Rest day toggle"
-                  onClick={async () => {
-                    await updateChild(child.id, {
-                      rest_day_date: !isRestDay ? selectedDayString : null,
-                    });
-                  }}
-                  className="relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
-                >
-                  <span
-                    aria-hidden
-                    className="absolute top-[3px] h-[18px] w-[28px] rounded-pill bg-[#AAB4FF] transition-all"
-                    style={{ left: isRestDay ? "calc(100% - 28px - 3px)" : 3 }}
-                  />
-                </button>
-              </div>
+              {/* Day tab only — in the month grid this toggle gave no clue
+                  which day it applied to, so it lives in the day sheet there. */}
+              {scheduleTab === "timeline" ? (
+                <div className="flex items-center gap-sp-3">
+                  <span className="text-14 text-fog-50">Rest Day</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isRestDay}
+                    aria-label="Rest day toggle"
+                    onClick={async () => {
+                      await updateChild(child.id, {
+                        rest_day_date: !isRestDay ? selectedDayString : null,
+                      });
+                    }}
+                    className="relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
+                  >
+                    <span
+                      aria-hidden
+                      className="absolute top-[3px] h-[18px] w-[28px] rounded-pill bg-[#AAB4FF] transition-all"
+                      style={{ left: isRestDay ? "calc(100% - 28px - 3px)" : 3 }}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <span />
+              )}
 
-              {!isRestDay && (
+              {(!isRestDay || scheduleTab !== "timeline") && (
                 <button
                   type="button"
                   onClick={() => handleAddTask()}
@@ -585,7 +591,10 @@ const ChildDashboard = () => {
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
               onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
-              onSelectedDateChange={setCurrentDate} />
+              onSelectedDateChange={setCurrentDate}
+              onToggleRestDay={async (dateStr, next) => {
+                await updateChild(child.id, { rest_day_date: next ? dateStr : null });
+              }} />
           </TabsContent>
         </div>
       </Tabs>
