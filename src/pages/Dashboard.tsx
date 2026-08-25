@@ -217,9 +217,15 @@ const Dashboard = () => {
       });
     }
 
-    return Array.from(grouped.values())
-      .sort((a, b) => parse(a.time, "HH:mm", a.date).getTime() - parse(b.time, "HH:mm", b.date).getTime())
-      .slice(0, 5);
+    // Parent events (appointments) always make the list — recurring daily
+    // tasks would otherwise fill the 5-entry cap days before an appointment
+    // later in the window ever surfaces. The cap applies to task entries only.
+    const byDateTime = (a: Group, b: Group) =>
+      parse(a.time, "HH:mm", a.date).getTime() - parse(b.time, "HH:mm", b.date).getTime();
+    const all = Array.from(grouped.values()).sort(byDateTime);
+    const appointments = all.filter(g => g.isParentEvent).slice(0, 5);
+    const taskEntries = all.filter(g => !g.isParentEvent).slice(0, 5);
+    return [...appointments, ...taskEntries].sort(byDateTime);
   }, [allTasks, children, parentEvents]);
 
   if (loading) {
