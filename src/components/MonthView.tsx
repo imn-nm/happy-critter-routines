@@ -29,6 +29,7 @@ interface DayData {
   isCurrentMonth: boolean;
   holiday?: Holiday;
   note?: DayNote;
+  isRestDay: boolean;
 }
 
 const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelectedDateChange }: MonthViewProps) => {
@@ -140,6 +141,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         isCurrentMonth: isSameMonth(day, currentMonth),
         holiday: dayHoliday,
         note: dayNote,
+        isRestDay: child.rest_day_date === dateKey,
       };
     });
     setMonthData(data);
@@ -155,10 +157,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
   };
 
   const selectedDayData = selectedDate ? monthData.find(d => isSameDay(d.date, selectedDate)) : null;
-
-  const hasSchool = (dayData: DayData) => {
-    return dayData.tasksForDay.some(t => t.name === 'School');
-  };
 
   // Holiday handlers
   const handleAddHoliday = (date: Date) => {
@@ -218,27 +216,26 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
   };
 
   /**
-   * What a day cell actually names, most notable first: the holiday, then a
-   * note, then the parent's own tasks. System tasks (wake/meals/school/bed)
-   * repeat every day, so listing them would bury the days that differ — they
-   * stay as the school dot and are still listed in full in the day sheet.
+   * A day cell names only what the parent has marked the day as — holiday,
+   * note, rest day. Tasks (fixed, flexible, important, chores, fun) are the
+   * child's routine and repeat across the month, so listing them here would
+   * bury the handful of days that actually differ. They stay in the day sheet.
    */
   const getCellEvents = (dayData: DayData) => {
-    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'task' }[] = [];
+    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'rest' }[] = [];
     if (dayData.holiday) {
       events.push({ key: `h-${dayData.holiday.id}`, label: dayData.holiday.name, color: dayData.holiday.color, kind: 'holiday' });
+    }
+    if (dayData.isRestDay) {
+      events.push({ key: `r-${format(dayData.date, 'yyyy-MM-dd')}`, label: 'Rest day', kind: 'rest' });
     }
     if (dayData.note) {
       events.push({ key: `n-${dayData.note.id}`, label: dayData.note.text.split('\n')[0], kind: 'note' });
     }
-    for (const task of dayData.tasksForDay) {
-      if (systemTaskNames.includes(task.name)) continue;
-      events.push({ key: task.id, label: task.name, kind: 'task' });
-    }
     return events;
   };
 
-  const MAX_CELL_EVENTS = 2;
+  const MAX_CELL_EVENTS = 3;
 
   return (
     <div className="space-y-4">
@@ -279,7 +276,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         <div className="grid grid-cols-7 gap-1">
           {monthData.map((dayData) => {
             const isToday = isSameDay(dayData.date, getPSTDate());
-            const school = hasSchool(dayData);
             const events = getCellEvents(dayData);
             const shown = events.slice(0, MAX_CELL_EVENTS);
             const overflow = events.length - shown.length;
@@ -293,7 +289,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   if (!dayData.isCurrentMonth) setCurrentMonth(dayData.date);
                   setSelectedDate(dayData.date);
                 }}
-                aria-label={`${format(dayData.date, 'EEEE, MMMM d')}${events.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ', nothing scheduled'}`}
+                aria-label={`${format(dayData.date, 'EEEE, MMMM d')}${events.length ? `, ${events.map(e => e.label).join(', ')}` : ''}`}
                 className={`
                   relative flex flex-col items-stretch gap-0.5 p-1 min-h-[64px] rounded-xl text-left transition-all
                   hover:bg-white/5 cursor-pointer
@@ -310,11 +306,9 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   }`}>
                     {format(dayData.date, 'd')}
                   </span>
-                  {school && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" aria-hidden />}
                 </div>
 
-                {/* Named events — a glance at the month should say what's on,
-                    not just that something is. */}
+                {/* Only the parent's own marks on the day. */}
                 <div className="flex flex-col gap-0.5 min-w-0">
                   {shown.map(ev => (
                     <span
@@ -324,7 +318,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                           ? 'font-semibold'
                           : ev.kind === 'note'
                           ? 'bg-amber-400/15 text-amber-200'
-                          : 'bg-cyan-400/15 text-cyan-100'
+                          : 'bg-emerald-400/15 text-emerald-200'
                       }`}
                       style={ev.kind === 'holiday' ? { backgroundColor: `${ev.color}26`, color: ev.color } : undefined}
                       title={ev.label}
@@ -344,12 +338,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         {/* Legend */}
         <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border/20">
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <div className="w-2 h-2 rounded-full bg-blue-400" />
-            School day
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="w-3 h-2 rounded-sm bg-cyan-400/40" />
-            Task
+            <span className="w-3 h-2 rounded-sm bg-emerald-400/40" />
+            Rest day
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <span className="w-3 h-2 rounded-sm bg-amber-400/40" />
@@ -374,6 +364,14 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                 {selectedDayData?.tasksForDay.length || 0} item{(selectedDayData?.tasksForDay.length || 0) !== 1 ? 's' : ''} scheduled
               </p>
             </div>
+
+            {/* Rest day — set from the day view; shown here so the cell's
+                marker and the sheet agree. */}
+            {selectedDayData?.isRestDay && (
+              <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10">
+                <span className="text-sm font-semibold text-emerald-200">Rest day</span>
+              </div>
+            )}
 
             {/* Holiday */}
             {selectedDayData?.holiday ? (
