@@ -32,6 +32,7 @@ import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
+import { findNextFreeSlot, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -83,7 +84,10 @@ const ChildDashboard = () => {
     // Guard against accidental event/object args from `onClick={handleAddTask}`
     const safeTime = typeof time === 'string' ? time : undefined;
     setEditingTask(null);
-    setPrefillTime(safeTime);
+    // Opened from the generic button rather than a specific gap: show the slot
+    // the task would land in anyway, so the parent can see and change it
+    // instead of discovering it after saving.
+    setPrefillTime(safeTime ?? findNextFreeSlot(tasks));
     setShowTaskForm(true);
   };
   const handleEditTask = (task) => {
@@ -245,36 +249,22 @@ const ChildDashboard = () => {
         // Skip auto-calc when window_start is present — that's a placement hint
         // from the user tapping a specific gap, and it should be respected.
         const finalTaskData = { ...taskData, child_id: childId };
+        // Safety net for anything that still reaches save without a placement
+        // (e.g. the /tasks page, which doesn't prefill). Say where it landed.
+        let autoPlacedAt: string | undefined;
         if (!finalTaskData.scheduled_time && !finalTaskData.window_start && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
-          const existingTasks = tasks.filter(t => t.is_active && t.scheduled_time);
-          const occupied = existingTasks.map(t => {
-            const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
-            const start = h * 60 + m;
-            return { start, end: start + (t.duration || 30) };
-          }).sort((a, b) => a.start - b.start);
-
-          const duration = finalTaskData.duration || 30;
-          let placed = false;
-          for (const block of occupied) {
-            const candidate = block.end;
-            const candidateEnd = candidate + duration;
-            const overlaps = occupied.some(b => candidate < b.end && candidateEnd > b.start);
-            if (!overlaps) {
-              const h = Math.floor(candidate / 60);
-              const m = candidate % 60;
-              finalTaskData.scheduled_time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-              placed = true;
-              break;
-            }
-          }
-          if (!placed && occupied.length > 0) {
-            const last = occupied[occupied.length - 1];
-            const h = Math.floor(last.end / 60);
-            const m = last.end % 60;
-            finalTaskData.scheduled_time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          }
+          autoPlacedAt = findNextFreeSlot(tasks, finalTaskData.duration || DEFAULT_SLOT_MINUTES);
+          if (autoPlacedAt) finalTaskData.scheduled_time = autoPlacedAt;
         }
         await addTask(finalTaskData);
+        if (autoPlacedAt) {
+          const [h, m] = autoPlacedAt.split(':').map(Number);
+          const hour12 = h % 12 === 0 ? 12 : h % 12;
+          toast({
+            title: `Added at ${hour12}:${String(m).padStart(2, '0')}${h >= 12 ? 'pm' : 'am'}`,
+            description: 'Tap the task to change its time.',
+          });
+        }
 
         // Also create the same task for any other selected children
         if (_additionalChildIds && _additionalChildIds.length > 0) {
