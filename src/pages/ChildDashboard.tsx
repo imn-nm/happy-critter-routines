@@ -43,6 +43,7 @@ const ChildDashboard = () => {
   const [editingTask, setEditingTask] = useState(null);
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
   const [currentDate, setCurrentDate] = useState(getPSTDate());
+  const [scheduleTab, setScheduleTab] = useState("timeline");
   const [showRewards, setShowRewards] = useState(false);
   const [showWheelEditor, setShowWheelEditor] = useState(false);
   // Rest day applies to whichever day the parent is currently viewing — the
@@ -328,7 +329,7 @@ const ChildDashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Tabs defaultValue="timeline" className="flex flex-col">
+      <Tabs value={scheduleTab} onValueChange={setScheduleTab} className="flex flex-col">
         {/* Iris-tinted "cabinet" panel — header through schedule controls.
             Full-width, rounds off at the bottom so the cosmic gradient
             shows through behind the rows below. */}
@@ -486,11 +487,15 @@ const ChildDashboard = () => {
                 </TabsTrigger>
               </TabsList>
 
-              <TimelineHeader
-                child={child}
-                selectedDay={currentDate}
-                onSelectedDayChange={setCurrentDate}
-              />
+              {/* Day-picker strip belongs to the Day tab only — the month
+                  grid has its own month navigation and day selection. */}
+              {scheduleTab === "timeline" && (
+                <TimelineHeader
+                  child={child}
+                  selectedDay={currentDate}
+                  onSelectedDayChange={setCurrentDate}
+                />
+              )}
             </div>
           </div>
         </div>

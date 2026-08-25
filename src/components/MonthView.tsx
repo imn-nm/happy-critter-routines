@@ -156,11 +156,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
 
   const selectedDayData = selectedDate ? monthData.find(d => isSameDay(d.date, selectedDate)) : null;
 
-  // Count non-system tasks for a day (what actually matters to parents)
-  const getUserTaskCount = (dayData: DayData) => {
-    return dayData.tasksForDay.filter(t => !systemTaskNames.includes(t.name)).length;
-  };
-
   const hasSchool = (dayData: DayData) => {
     return dayData.tasksForDay.some(t => t.name === 'School');
   };
@@ -222,6 +217,29 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
     return 'bg-cyan-400';
   };
 
+  /**
+   * What a day cell actually names, most notable first: the holiday, then a
+   * note, then the parent's own tasks. System tasks (wake/meals/school/bed)
+   * repeat every day, so listing them would bury the days that differ — they
+   * stay as the school dot and are still listed in full in the day sheet.
+   */
+  const getCellEvents = (dayData: DayData) => {
+    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'task' }[] = [];
+    if (dayData.holiday) {
+      events.push({ key: `h-${dayData.holiday.id}`, label: dayData.holiday.name, color: dayData.holiday.color, kind: 'holiday' });
+    }
+    if (dayData.note) {
+      events.push({ key: `n-${dayData.note.id}`, label: dayData.note.text.split('\n')[0], kind: 'note' });
+    }
+    for (const task of dayData.tasksForDay) {
+      if (systemTaskNames.includes(task.name)) continue;
+      events.push({ key: task.id, label: task.name, kind: 'task' });
+    }
+    return events;
+  };
+
+  const MAX_CELL_EVENTS = 2;
+
   return (
     <div className="space-y-4">
       {/* Calendar */}
@@ -261,47 +279,62 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         <div className="grid grid-cols-7 gap-1">
           {monthData.map((dayData) => {
             const isToday = isSameDay(dayData.date, getPSTDate());
-            const userTaskCount = getUserTaskCount(dayData);
             const school = hasSchool(dayData);
+            const events = getCellEvents(dayData);
+            const shown = events.slice(0, MAX_CELL_EVENTS);
+            const overflow = events.length - shown.length;
 
             return (
               <button
                 key={format(dayData.date, 'yyyy-MM-dd')}
-                onClick={() => dayData.isCurrentMonth && setSelectedDate(dayData.date)}
+                onClick={() => {
+                  // Any day is tappable. Tapping into a neighbouring month
+                  // brings that month into view so the sheet has context.
+                  if (!dayData.isCurrentMonth) setCurrentMonth(dayData.date);
+                  setSelectedDate(dayData.date);
+                }}
+                aria-label={`${format(dayData.date, 'EEEE, MMMM d')}${events.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ', nothing scheduled'}`}
                 className={`
-                  relative p-1 h-14 sm:h-16 rounded-xl transition-all
-                  ${dayData.isCurrentMonth ? 'hover:bg-white/5 cursor-pointer' : 'opacity-25 cursor-default'}
+                  relative flex flex-col items-stretch gap-0.5 p-1 min-h-[64px] rounded-xl text-left transition-all
+                  hover:bg-white/5 cursor-pointer
+                  ${dayData.isCurrentMonth ? '' : 'opacity-40'}
                   ${isToday ? 'ring-2 ring-primary bg-primary/10' : ''}
                   ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-primary/60' : ''}
                 `}
-                style={dayData.holiday ? {
-                  backgroundColor: `${dayData.holiday.color}12`,
-                } : {}}
-                disabled={!dayData.isCurrentMonth}
+                style={dayData.holiday ? { backgroundColor: `${dayData.holiday.color}12` } : {}}
               >
-                <div className="flex flex-col items-center h-full">
-                  <span className={`text-xs font-semibold ${
+                <div className="flex items-center justify-between gap-0.5">
+                  <span className={`text-xs font-semibold leading-none ${
                     isToday ? 'text-primary' :
                     dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
                   }`}>
                     {format(dayData.date, 'd')}
                   </span>
+                  {school && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" aria-hidden />}
+                </div>
 
-                  {/* Indicators */}
-                  <div className="flex items-center gap-0.5 mt-auto mb-0.5">
-                    {dayData.holiday && (
-                      <PartyPopper className="w-3 h-3" style={{ color: dayData.holiday.color }} />
-                    )}
-                    {dayData.note && (
-                      <StickyNote className="w-3 h-3 text-amber-400" />
-                    )}
-                    {!dayData.holiday && school && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                    )}
-                    {!dayData.holiday && userTaskCount > 0 && (
-                      <span className="text-[9px] font-semibold text-cyan-400">{userTaskCount}</span>
-                    )}
-                  </div>
+                {/* Named events — a glance at the month should say what's on,
+                    not just that something is. */}
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  {shown.map(ev => (
+                    <span
+                      key={ev.key}
+                      className={`block w-full truncate rounded px-1 py-[1px] text-[9px] leading-[1.25] ${
+                        ev.kind === 'holiday'
+                          ? 'font-semibold'
+                          : ev.kind === 'note'
+                          ? 'bg-amber-400/15 text-amber-200'
+                          : 'bg-cyan-400/15 text-cyan-100'
+                      }`}
+                      style={ev.kind === 'holiday' ? { backgroundColor: `${ev.color}26`, color: ev.color } : undefined}
+                      title={ev.label}
+                    >
+                      {ev.label}
+                    </span>
+                  ))}
+                  {overflow > 0 && (
+                    <span className="px-1 text-[9px] leading-[1.25] text-muted-foreground">+{overflow} more</span>
+                  )}
                 </div>
               </button>
             );
@@ -309,14 +342,18 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-border/20">
+        <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border/20">
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <div className="w-2 h-2 rounded-full bg-blue-400" />
             School day
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="text-[10px] font-semibold text-cyan-400">3</span>
-            Task count
+            <span className="w-3 h-2 rounded-sm bg-cyan-400/40" />
+            Task
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="w-3 h-2 rounded-sm bg-amber-400/40" />
+            Note
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <PartyPopper className="w-3 h-3 text-muted-foreground" />
@@ -328,7 +365,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
       {/* Day Detail Dialog */}
       {selectedDate && (
         <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
             <div className="mb-3">
               <h3 className="text-lg font-semibold">
                 {format(selectedDate, 'EEEE, MMMM d')}
