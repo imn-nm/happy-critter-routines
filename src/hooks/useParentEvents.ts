@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { useHousehold } from '@/hooks/useHousehold';
+import { scheduleCalendarAutoSync } from '@/utils/calendarAutoSync';
 
 /**
  * Parent events: parent-only appointments (teacher conference, doctor visit).
@@ -28,6 +30,7 @@ export interface UpdateParentEventData {
 
 export const useParentEvents = (childId?: string) => {
   const queryClient = useQueryClient();
+  const { household } = useHousehold();
 
   const { data: events, isLoading, error, refetch } = useQuery({
     queryKey: ['parent_events', childId],
@@ -57,6 +60,7 @@ export const useParentEvents = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parent_events'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Event added.');
     },
     onError: (error) => {
@@ -78,6 +82,7 @@ export const useParentEvents = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parent_events'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Event updated.');
     },
     onError: (error) => {
@@ -93,6 +98,7 @@ export const useParentEvents = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parent_events'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Event deleted.');
     },
     onError: (error) => {

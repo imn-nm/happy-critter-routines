@@ -2,11 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { useHousehold } from '@/hooks/useHousehold';
+import { scheduleCalendarAutoSync } from '@/utils/calendarAutoSync';
 
 export type DayNote = Tables<'day_notes'>;
 
 export const useDayNotes = (childId?: string) => {
   const queryClient = useQueryClient();
+  const { household } = useHousehold();
 
   const { data: notes, isLoading, error, refetch } = useQuery({
     queryKey: ['day_notes', childId],
@@ -36,6 +39,7 @@ export const useDayNotes = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['day_notes'] });
+      scheduleCalendarAutoSync(household?.id);
     },
     onError: (e) => {
       console.error('Error saving day note:', e);
@@ -50,6 +54,7 @@ export const useDayNotes = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['day_notes'] });
+      scheduleCalendarAutoSync(household?.id);
     },
     onError: (e) => {
       console.error('Error deleting day note:', e);

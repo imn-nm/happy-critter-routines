@@ -83,6 +83,11 @@ export interface CalendarEventInput {
   // All-day event uses { date: 'YYYY-MM-DD' }. End is exclusive per RFC 5545.
   startDate: string;
   endDate: string; // exclusive
+  // Timed event: when set, these override the all-day dates.
+  // Local wall-clock 'YYYY-MM-DDTHH:MM:SS' interpreted in `timeZone`.
+  startDateTime?: string;
+  endDateTime?: string;
+  timeZone?: string;
 }
 
 export async function upsertEvent(
@@ -91,11 +96,18 @@ export async function upsertEvent(
   eventId: string | null,
   input: CalendarEventInput,
 ): Promise<{ id: string }> {
+  const timed = !!(input.startDateTime && input.endDateTime);
   const body = {
     summary: input.summary,
     description: input.description,
-    start: { date: input.startDate },
-    end: { date: input.endDate },
+    // On PATCH, Google keeps the old date/dateTime unless it's explicitly
+    // nulled — required when an event toggles between all-day and timed.
+    start: timed
+      ? { dateTime: input.startDateTime, timeZone: input.timeZone ?? 'UTC', date: null }
+      : { date: input.startDate, dateTime: null },
+    end: timed
+      ? { dateTime: input.endDateTime, timeZone: input.timeZone ?? 'UTC', date: null }
+      : { date: input.endDate, dateTime: null },
   };
 
   if (eventId) {

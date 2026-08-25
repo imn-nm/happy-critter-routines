@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { useHousehold } from '@/hooks/useHousehold';
+import { scheduleCalendarAutoSync } from '@/utils/calendarAutoSync';
 
 export type Holiday = Tables<'holidays'>;
 
@@ -26,6 +28,7 @@ export interface UpdateHolidayData {
 
 export const useHolidays = (childId?: string) => {
   const queryClient = useQueryClient();
+  const { household } = useHousehold();
 
   // Fetch all holidays for a child
   const { data: holidays, isLoading, error, refetch } = useQuery({
@@ -73,6 +76,7 @@ export const useHolidays = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Holiday added successfully!');
     },
     onError: (error) => {
@@ -96,6 +100,7 @@ export const useHolidays = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Holiday updated successfully!');
     },
     onError: (error) => {
@@ -116,6 +121,7 @@ export const useHolidays = (childId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['holidays'] });
+      scheduleCalendarAutoSync(household?.id);
       toast.success('Holiday deleted successfully!');
     },
     onError: (error) => {
