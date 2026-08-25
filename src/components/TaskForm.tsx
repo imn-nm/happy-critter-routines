@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import TimeSelect from "@/components/TimeSelect";
 import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
+import { formatDuration as formatDurationLabel } from "@/utils/formatDuration";
 import { type Task, type Subtask } from "@/types/Task";
 
 interface TaskFormProps {
@@ -83,10 +84,13 @@ const SegmentedField = <T extends string>({
   </div>
 );
 
-// Duration is picked as hours + minutes so 5-minute granularity doesn't
-// require a hundred-item list. 0-8h covers School's 7h.
-const HOUR_OPTIONS = Array.from({ length: 9 }, (_, i) => i);
-const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
+// One curated duration list instead of separate hour + minute dropdowns —
+// picking "45min" directly beats composing it from two controls. Fine steps
+// where tasks actually live (5–60min), coarser above; 8h covers School's 7h.
+const DURATION_OPTIONS = [
+  5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60,
+  75, 90, 105, 120, 150, 180, 240, 300, 360, 420, 480,
+];
 /** Every task has a length; this is what a new one starts at. */
 const DEFAULT_DURATION_MINUTES = 30;
 
@@ -190,8 +194,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const atTime = !!formData.scheduledTime;
 
   const durationTotal = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
-  const durationH = Math.floor(durationTotal / 60);
-  const durationM = durationTotal % 60;
   const setDuration = (minutes: number) => {
     // "As long as it takes" is gone, so never let the pair land on zero.
     const safe = minutes > 0 ? minutes : 5;
@@ -401,19 +403,20 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {!isChore ? (
         <div className="w-full min-w-0">
           <Label className="text-sm text-muted-foreground">When</Label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <SegmentedField
-              ariaLabel="When this happens"
-              className="flex-1 min-w-0"
-              options={[{ value: 'at', label: 'At a time' }, { value: 'any', label: 'Anytime' }]}
-              value={atTime ? 'at' : 'any'}
-              onChange={(v) => {
-                // Only changes whether the task is pinned — never where it sits.
-                if (v === 'any' && formData.scheduledTime) setLastTime(formData.scheduledTime);
-                setFormData({ ...formData, scheduledTime: v === 'at' ? lastTime : '' });
-              }}
-            />
-            {atTime && (
+          <SegmentedField
+            ariaLabel="When this happens"
+            className="mt-1.5"
+            options={[{ value: 'at', label: 'At a time' }, { value: 'any', label: 'Anytime' }]}
+            value={atTime ? 'at' : 'any'}
+            onChange={(v) => {
+              // Only changes whether the task is pinned — never where it sits.
+              if (v === 'any' && formData.scheduledTime) setLastTime(formData.scheduledTime);
+              setFormData({ ...formData, scheduledTime: v === 'at' ? lastTime : '' });
+            }}
+          />
+          {atTime && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-sm text-muted-foreground">Starts at</span>
               <TimeSelect
                 value={formData.scheduledTime}
                 onChange={(value) => {
@@ -421,10 +424,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   setFormData({ ...formData, scheduledTime: value });
                 }}
                 stepMinutes={5}
-                className="w-[104px] shrink-0 rounded-pill"
+                className="shrink-0"
               />
-            )}
-          </div>
+            </div>
+          )}
           {!atTime && (
             <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1">
               Fits into free time between the fixed things.
@@ -442,56 +445,67 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             onChange={(v) => setFormData({ ...formData, choreAnytime: v === 'any' })}
           />
           {!formData.choreAnytime && (
-            <div className="mt-2 flex items-center gap-2">
-              <TimeSelect
-                value={formData.windowStart}
-                onChange={(value) => setFormData({ ...formData, windowStart: value })}
-                className="flex-1 min-w-0 rounded-pill"
-              />
-              <span className="text-muted-foreground text-xs shrink-0">to</span>
-              <TimeSelect
-                value={formData.windowEnd}
-                onChange={(value) => setFormData({ ...formData, windowEnd: value })}
-                className="flex-1 min-w-0 rounded-pill"
-              />
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">From</span>
+                <TimeSelect
+                  value={formData.windowStart}
+                  onChange={(value) => setFormData({ ...formData, windowStart: value })}
+                  className="shrink-0"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">To</span>
+                <TimeSelect
+                  value={formData.windowEnd}
+                  onChange={(value) => setFormData({ ...formData, windowEnd: value })}
+                  className="shrink-0"
+                />
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* === HOW LONG === Split hours and minutes so 5-minute granularity
-          doesn't mean a 100-item list, and so long system tasks (School is
-          7h) stay reachable. Every task has a length now. */}
+      {/* === DATE === One-off tasks and chores live on a single day; make
+          that day editable so a task added to the wrong date can be moved.
+          Recurring tasks pick weekdays instead. */}
+      {!isSystemEvent && (isChore || !formData.isRecurring) && (
+        <FormRow
+          label="Date"
+          htmlFor="taskDate"
+          hint={isEdit ? "Change this to move it to another day." : undefined}
+        >
+          <Input
+            id="taskDate"
+            type="date"
+            value={formData.taskDate}
+            onChange={(e) => setFormData({ ...formData, taskDate: e.target.value })}
+            className="w-[160px] rounded-pill"
+          />
+        </FormRow>
+      )}
+
+      {/* === HOW LONG === One curated list — "45min" is picked directly
+          instead of composed from hour + minute dropdowns. */}
       {!isChore && (
         <FormRow label="How long">
-          <div className="flex items-center gap-1.5">
-            <Select
-              value={String(durationH)}
-              onValueChange={(value) => setDuration(parseInt(value) * 60 + durationM)}
-            >
-              <SelectTrigger className="w-[76px] rounded-pill" aria-label="Hours">
-                <SelectValue>{durationH}h</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {HOUR_OPTIONS.map(h => (
-                  <SelectItem key={h} value={String(h)}>{h}h</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={String(durationM)}
-              onValueChange={(value) => setDuration(durationH * 60 + parseInt(value))}
-            >
-              <SelectTrigger className="w-[86px] rounded-pill" aria-label="Minutes">
-                <SelectValue>{durationM}m</SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {MINUTE_OPTIONS.map(m => (
-                  <SelectItem key={m} value={String(m)}>{m}m</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={String(durationTotal)}
+            onValueChange={(value) => setDuration(parseInt(value))}
+          >
+            <SelectTrigger className="w-[120px] rounded-pill" aria-label="How long">
+              <SelectValue>{formatDurationLabel(durationTotal)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {(DURATION_OPTIONS.includes(durationTotal)
+                ? DURATION_OPTIONS
+                : [...DURATION_OPTIONS, durationTotal].sort((a, b) => a - b)
+              ).map(m => (
+                <SelectItem key={m} value={String(m)}>{formatDurationLabel(m)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormRow>
       )}
 

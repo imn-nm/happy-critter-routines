@@ -163,14 +163,12 @@ const ChildSetup = () => {
                     <div>
                       <Label className="text-muted-foreground text-xs mb-1 block">Wake up</Label>
                       <TimeSelect value={formData.wakeTime}
-                        onChange={(v) => setFormData({ ...formData, wakeTime: v })}
-                        className="h-10 rounded-pill text-sm" />
+                        onChange={(v) => setFormData({ ...formData, wakeTime: v })} />
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs mb-1 block">Bedtime</Label>
                       <TimeSelect value={formData.sleepTime}
-                        onChange={(v) => setFormData({ ...formData, sleepTime: v })}
-                        className="h-10 rounded-pill text-sm" />
+                        onChange={(v) => setFormData({ ...formData, sleepTime: v })} />
                     </div>
                   </div>
                 </div>
@@ -187,7 +185,7 @@ const ChildSetup = () => {
                         <Label className="text-muted-foreground text-xs">{meal.label}</Label>
                         <TimeSelect value={formData[meal.key as keyof typeof formData]}
                           onChange={(v) => setFormData({ ...formData, [meal.key]: v })}
-                          className="h-10 rounded-pill text-sm w-32" />
+                          className="shrink-0" />
                       </div>
                     ))}
                   </div>

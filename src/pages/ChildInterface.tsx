@@ -18,6 +18,7 @@ import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
+import { resolveDropStart } from "@/utils/dragSnap";
 import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
@@ -344,22 +345,31 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       })
       .sort((a, b) => a.start - b.start);
 
-    // Mirrors TimelineScheduleView.findNextAvailableTime — try to fit
-    // immediately AFTER each existing block; fall back to after the last.
-    const findNextSlot = (duration: number): string => {
-      const fmt = (mins: number) => {
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-      };
-      for (const block of occupied) {
-        const candidate = block.end;
-        const candidateEnd = candidate + duration;
-        const overlaps = occupied.some(b => candidate < b.end && candidateEnd > b.start);
-        if (!overlaps) return fmt(candidate);
+    // Overlap-safe placement bounded by the child's day: never before wake,
+    // never after bedtime. Matches the parent timeline's rules — a task with
+    // no set time used to fall past bedtime when the day was full.
+    const dayBounds = (() => {
+      const [wh, wm] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+      const dayStart = wh * 60 + wm;
+      const bedtimeTask = tasksWithDaySpecificTimes.find(
+        t => t.name === 'Bedtime' && t.scheduled_time,
+      );
+      const bedtimeStr = (bedtimeTask?.scheduled_time || child.bedtime || '').slice(0, 5);
+      let dayEnd: number | undefined;
+      if (bedtimeStr) {
+        const [bh, bm] = bedtimeStr.split(':').map(Number);
+        const end = bh * 60 + bm;
+        if (end > dayStart) dayEnd = end;
       }
-      if (occupied.length > 0) return fmt(occupied[occupied.length - 1].end);
-      return '09:00';
+      return { dayStart, dayEnd };
+    })();
+
+    const findNextSlot = (duration: number): string | null => {
+      const start = resolveDropStart(occupied, dayBounds.dayStart, duration, dayBounds);
+      if (start == null) return null; // day is full — leave the task untimed
+      const h = Math.floor(start / 60);
+      const m = start % 60;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     };
 
     const withAutoPlacement = tasksWithDaySpecificTimes.map(task => {
@@ -368,6 +378,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       // Only auto-place non-chores; chores without windows keep their "Today" label.
       if (task.type === 'floating') return task;
       const slot = findNextSlot(task.duration ?? 30);
+      if (!slot) return task;
       const [h, m] = slot.split(':').map(Number);
       occupied.push({ start: h * 60 + m, end: h * 60 + m + (task.duration ?? 30) });
       occupied.sort((a, b) => a.start - b.start);

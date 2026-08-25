@@ -806,11 +806,23 @@ const TimelineScheduleView = ({
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   };
 
-  // Tasks may never land before the child's wake time — without this bound
-  // the "nearest fitting gap" could be the empty stretch before dawn.
+  // Tasks may never land before the child's wake time or after bedtime —
+  // without these bounds the "nearest fitting gap" could be the empty
+  // stretch before dawn or after lights-out.
   const dayBounds = (() => {
     const [wh, wm] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
-    return { dayStart: wh * 60 + wm };
+    // Bedtime start for this specific day (day-specific overrides included);
+    // fall back to the child's base bedtime.
+    const bedtimeEvent = systemEvents.find(e => e.name === 'Bedtime');
+    const bedtimeStr = (bedtimeEvent?.time || child.bedtime || '').slice(0, 5);
+    const dayEnd = (() => {
+      if (!bedtimeStr) return undefined;
+      const [bh, bm] = bedtimeStr.split(':').map(Number);
+      const end = bh * 60 + bm;
+      // A bedtime at/before wake would make the day empty — ignore it.
+      return end > wh * 60 + wm ? end : undefined;
+    })();
+    return { dayStart: wh * 60 + wm, dayEnd };
   })();
 
   // Resolve day-specific overrides for a task. Per-date wins over per-weekday.
@@ -921,7 +933,14 @@ const TimelineScheduleView = ({
       const hint = task.window_start || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
       const placedStart = resolveDropStart(flexOccupied, hh * 60 + hm, taskDuration, dayBounds);
-      const startMin = placedStart ?? hh * 60 + hm;
+      // No free gap fits (day is full): still keep the task inside the waking
+      // day — overlapping visibly (the conflict banner flags it) beats
+      // silently parking it after bedtime.
+      const clampedHint = Math.max(
+        dayBounds.dayStart,
+        Math.min((dayBounds.dayEnd ?? 24 * 60) - taskDuration, hh * 60 + hm),
+      );
+      const startMin = placedStart ?? clampedHint;
       // Whatever spot this task took is occupied for the next flex task.
       flexOccupied.push({ start: startMin, end: startMin + taskDuration });
       taskTime = minutesToTimeStr(startMin);
