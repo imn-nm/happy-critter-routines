@@ -1,5 +1,6 @@
 // POST { household_id }
-// Deletes the app-owned calendar and clears the connection.
+// Deletes the caller's app-owned calendar and clears their own connection.
+// Other parents' connections in the household are untouched.
 
 import { corsHeaders } from '../_shared/google.ts';
 import { requireHouseholdMember } from '../_shared/auth.ts';
@@ -11,12 +12,12 @@ Deno.serve(async (req) => {
     const { household_id } = await req.json();
     if (!household_id) return json({ error: 'household_id required' }, 400);
 
-    const { admin } = await requireHouseholdMember(req, household_id);
+    const { userId, admin } = await requireHouseholdMember(req, household_id);
 
     const { data: conn } = await admin
       .from('google_calendar_connections')
       .select('access_token, refresh_token, calendar_id')
-      .eq('household_id', household_id)
+      .match({ household_id, user_id: userId })
       .maybeSingle();
 
     if (conn?.calendar_id && conn.access_token) {
@@ -35,12 +36,12 @@ Deno.serve(async (req) => {
     await admin
       .from('google_calendar_events')
       .delete()
-      .eq('household_id', household_id);
+      .match({ household_id, user_id: userId });
 
     await admin
       .from('google_calendar_connections')
       .delete()
-      .eq('household_id', household_id);
+      .match({ household_id, user_id: userId });
 
     return json({ ok: true });
   } catch (e) {

@@ -1,6 +1,7 @@
 // POST { household_id, access_token, refresh_token }
 // Stores tokens, fetches Google email/sub, and creates an app-owned calendar
-// if one doesn't exist yet.
+// if one doesn't exist yet. Connections are per-parent: each household member
+// links their own Google account and gets their own calendar.
 
 import { corsHeaders, createAppCalendar, getUserInfo } from '../_shared/google.ts';
 import { requireHouseholdMember } from '../_shared/auth.ts';
@@ -18,11 +19,12 @@ Deno.serve(async (req) => {
 
     const info = await getUserInfo(access_token);
 
-    // Check if we already have a connection (and a calendar) for this household.
+    // Check if this parent already has a connection (and a calendar).
     const { data: existing } = await admin
       .from('google_calendar_connections')
       .select('calendar_id')
       .eq('household_id', household_id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     let calendarId = existing?.calendar_id ?? null;
@@ -35,6 +37,7 @@ Deno.serve(async (req) => {
       .from('google_calendar_connections')
       .upsert({
         household_id,
+        user_id: userId,
         google_user_id: info.sub,
         google_email: info.email ?? null,
         calendar_id: calendarId,

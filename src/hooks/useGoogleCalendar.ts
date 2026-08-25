@@ -24,9 +24,11 @@ export const useGoogleCalendar = () => {
   const { household } = useHousehold();
   const qc = useQueryClient();
 
+  // Connections are per-parent: the RPC returns only the signed-in user's
+  // connection, so key the cache on the user too.
   const { data: status, isLoading } = useQuery({
-    queryKey: ['google_calendar_status', household?.id],
-    enabled: !!household,
+    queryKey: ['google_calendar_status', household?.id, user?.id],
+    enabled: !!household && !!user,
     queryFn: async (): Promise<CalendarStatus | null> => {
       const { data, error } = await supabase.rpc('get_google_calendar_status', {
         hid: household!.id,
