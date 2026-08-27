@@ -1,9 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ButtonHTMLAttributes, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import PixelSprite, { type CritterMood } from "@/components/critters/PixelSprite";
 import { CRITTERS } from "@/components/critters/pixelCharacters";
 import type { EyeBox, PixelModel } from "@/components/critters/pixelModel";
+
+// This page is deliberately a light design, so its controls use explicit
+// colors instead of the app's theme tokens — otherwise a dark app theme
+// renders unreadable dark-on-dark buttons and fields here.
+const UIButton = ({ active, danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; danger?: boolean }) => (
+  <button
+    {...props}
+    className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+      active
+        ? "border-slate-800 bg-slate-800 text-white"
+        : danger
+        ? "border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
+        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+    } ${className ?? ""}`}
+  />
+);
+
+const Panel = ({ className, children }: { className?: string; children: ReactNode }) => (
+  <div className={`rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm ${className ?? ""}`}>
+    {children}
+  </div>
+);
 
 /**
  * Visual pixel editor at /preview/critter-editor for hand-tuning the six
@@ -328,21 +348,21 @@ const CritterEditor = () => {
         {/* Critter picker */}
         <div className="mb-6 flex flex-wrap gap-2">
           {CRITTERS.map((c) => (
-            <Button
+            <UIButton
               key={c.id}
-              variant={c.id === activeId ? "default" : "outline"}
+              active={c.id === activeId}
               onClick={() => setActiveId(c.id)}
               className="capitalize"
             >
               {c.id}
-            </Button>
+            </UIButton>
           ))}
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[auto,1fr]">
           {/* Editing canvas */}
-          <Card>
-            <CardContent className="p-4">
+          <Panel>
+            <div className="p-4">
               {/* Frame selector: base + poses */}
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 <button
@@ -364,7 +384,7 @@ const CritterEditor = () => {
                     {p.name}
                   </button>
                 ))}
-                <Button size="sm" variant="outline" onClick={addPose}>+ pose</Button>
+                <UIButton onClick={addPose} className="px-2.5 py-1">+ pose</UIButton>
               </div>
 
               {editingPose && (
@@ -373,7 +393,7 @@ const CritterEditor = () => {
                   <select
                     value={MOODS.includes(draft.poses[frame].name as CritterMood) ? draft.poses[frame].name : "__custom"}
                     onChange={(e) => { if (e.target.value !== "__custom") renamePose(frame, e.target.value); }}
-                    className="rounded border border-slate-200 px-1.5 py-1 capitalize"
+                    className="rounded border border-slate-300 bg-white px-1.5 py-1 capitalize text-slate-700"
                   >
                     {MOODS.filter((m) => m !== "idle").map((m) => <option key={m} value={m}>{m}</option>)}
                     <option value="__custom">custom…</option>
@@ -381,7 +401,7 @@ const CritterEditor = () => {
                   <input
                     value={draft.poses[frame].name}
                     onChange={(e) => renamePose(frame, e.target.value)}
-                    className="w-24 rounded border border-slate-200 px-1.5 py-0.5"
+                    className="w-24 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-slate-700"
                   />
                   <button onClick={() => deletePose(frame)} className="text-xs text-rose-500">delete pose</button>
                 </div>
@@ -498,61 +518,60 @@ const CritterEditor = () => {
                   Faint cells are the base frame (onion skin) — paint over them to build the pose.
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </Panel>
 
           {/* Live preview + export */}
           <div className="flex flex-col gap-6">
-            <Card>
-              <CardContent className="p-6">
+            <Panel>
+              <div className="p-6">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="rounded-xl bg-white/60 p-4">
+                  <div className="rounded-xl bg-slate-100 p-4">
                     <PixelSprite model={model} size={200} mood={mood} />
                   </div>
                   <div className="flex flex-wrap justify-center gap-2">
                     {MOODS.map((m) => (
-                      <Button
+                      <UIButton
                         key={m}
-                        size="sm"
-                        variant={m === mood ? "default" : "outline"}
+                        active={m === mood}
                         onClick={() => setMood(m)}
                         className="capitalize"
                       >
                         {m}
-                      </Button>
+                      </UIButton>
                     ))}
                   </div>
                   <p className="text-center text-xs text-slate-500">
                     A pose named after a mood flips base ↔ pose in that mood, replacing
                     the built-in motion. Pick the mood above to watch it.
                   </p>
-                  <Button variant="ghost" size="sm" onClick={resetCritter} className="text-rose-600">
+                  <UIButton danger onClick={resetCritter}>
                     Reset {activeId} to original
-                  </Button>
+                  </UIButton>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </Panel>
 
-            <Card>
-              <CardContent className="p-4">
+            <Panel>
+              <div className="p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <h2 className="font-semibold text-slate-800">Export</h2>
-                  <Button size="sm" onClick={copyExport}>
+                  <UIButton active onClick={copyExport}>
                     {copied ? "Copied!" : "Copy code"}
-                  </Button>
+                  </UIButton>
                 </div>
                 <textarea
                   readOnly
                   value={exportCode(model)}
-                  className="h-56 w-full rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700"
+                  className="h-56 w-full rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs text-slate-700"
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   Paste this over the matching critter in{" "}
                   <code>src/components/critters/pixelCharacters.ts</code>, or send it to
                   Claude to apply.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </Panel>
           </div>
         </div>
       </div>
