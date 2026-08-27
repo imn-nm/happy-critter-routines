@@ -44,6 +44,16 @@ export interface Part {
   motion?: Record<string, PartMotion>;
 }
 
+/**
+ * A named alternate full-frame drawing. When a pose's name matches the current
+ * mood, the sprite flips between the base drawing and this pose — a classic
+ * 2-frame Tamagotchi animation — instead of using CSS transform motion.
+ */
+export interface Pose {
+  name: string;
+  cells: PixelCell[];
+}
+
 export interface PixelModel {
   id: string;
   name: string;
@@ -53,6 +63,8 @@ export interface PixelModel {
   eyes?: EyeBox[];
   /** Rigged parts for arm/leg/head motion; absent means a static sprite. */
   parts?: Part[];
+  /** Hand-drawn alternate frames, keyed to moods by name (see Pose). */
+  poses?: Pose[];
   /**
    * Opt into the lo-fi (Tamagotchi-style) reaction set: stepped low-framerate
    * body moods, ears that skew from their rooted base, and mood props (carrot,

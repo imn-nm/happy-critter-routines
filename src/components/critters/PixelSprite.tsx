@@ -105,7 +105,10 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
 
   const { bodyCells, backingCells, eyeCells, partRenders, eyeHolder, viewBox } = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const c of model.cells) {
+    // Bounds cover the base drawing and every pose so the sprite doesn't
+    // reframe when a pose frame extends past the base silhouette.
+    const allCells = [...model.cells, ...(model.poses ?? []).flatMap((p) => p.cells)];
+    for (const c of allCells) {
       minX = Math.min(minX, c.x);
       maxX = Math.max(maxX, c.x + 1);
       minY = Math.min(minY, c.y);
@@ -186,6 +189,13 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
     };
   }, [model, effectiveMood]);
 
+  // A pose named after the current mood replaces transform motion with a
+  // hand-drawn 2-frame flip: base drawing ↔ pose drawing, lo-fi stepped.
+  const pose = useMemo(
+    () => (model.poses ?? []).find((p) => p.name === effectiveMood && p.cells.length > 0) ?? null,
+    [model, effectiveMood]
+  );
+
   // Stagger blinks so a group of critters doesn't blink in unison.
   const blinkDelay = useMemo(() => {
     let h = 0;
@@ -203,7 +213,12 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
 
   return (
     <div
-      className={cn("inline-block", isLofi && effectiveMood !== "none" && `react-${effectiveMood}`, className)}
+      className={cn(
+        "inline-block",
+        isLofi && effectiveMood !== "none" && `react-${effectiveMood}`,
+        pose && "pose-flip",
+        className
+      )}
       style={{ width: size, height: size, position: isLofi ? "relative" : undefined, fontSize: isLofi ? `${size * 0.16}px` : undefined }}
     >
       <style>{`
@@ -249,9 +264,18 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         .part-bob { animation: part-bob 1s ease-in-out infinite; }
         .part-sway { animation: part-sway 1s ease-in-out infinite; }
         .part-flop { animation: part-flop 1s ease-in-out infinite; }
+        /* Hand-drawn pose flip: base frame ↔ pose frame, stepped (2-frame lo-fi). */
+        @keyframes pose-frame-a { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes pose-frame-b { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+        .pose-b { opacity: 0; }
+        .pose-flip .pose-a { animation: pose-frame-a 0.8s step-end infinite; }
+        .pose-flip .pose-b { animation: pose-frame-b 0.8s step-end infinite; }
+        /* A pose replaces transform motion for its mood. */
+        .pose-flip .pix-body, .pose-flip svg { animation: none !important; }
         @media (prefers-reduced-motion: reduce) {
           .critter-excited, .critter-celebrate, .critter-worried, .critter-eyes,
-          .part-swing, .part-bob, .part-sway, .part-flop { animation: none; }
+          .part-swing, .part-bob, .part-sway, .part-flop,
+          .pose-a, .pose-b { animation: none !important; }
         }
         ${isLofi ? LOFI_CSS : ""}
       `}</style>
@@ -265,6 +289,14 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         shapeRendering="crispEdges"
         preserveAspectRatio="xMidYMax meet"
       >
+        {pose ? (
+          <>
+            {/* 2-frame flip between the full base drawing and the pose drawing. */}
+            <g className="pose-a">{model.cells.map((c, i) => <Cell key={i} c={c} />)}</g>
+            <g className="pose-b">{pose.cells.map((c, i) => <Cell key={i} c={c} />)}</g>
+          </>
+        ) : (
+          <>
         {bodyCells.map((c, i) => <Cell key={i} c={c} />)}
         {/* Face-colored backing so a blink reveals the face, not the background. */}
         {backingCells.map((c, i) => <Cell key={`bk${i}`} c={c} />)}
@@ -297,6 +329,8 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         })}
 
         {eyeHolder < 0 && eyeGroup}
+          </>
+        )}
       </svg>
 
       {/* Lo-fi mood props layered over the sprite. */}
