@@ -78,6 +78,19 @@ const eyeBoxesFromKeys = (keys: Set<string>): EyeBox[] => {
   return boxes;
 };
 
+/**
+ * Cheap stable fingerprint of a shipped model, stored on each draft. When the
+ * shipped art changes under a saved draft (a new pose landed, art was
+ * retouched), the stamps stop matching and the editor offers to load the
+ * shipped version instead of silently showing stale work.
+ */
+const fingerprint = (m: PixelModel): string => {
+  const s = JSON.stringify([m.cells, m.eyes ?? null, m.poses ?? null, m.parts ?? null]);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return String(h);
+};
+
 interface PoseDraft {
   name: string;
   cells: Map<string, string>; // "x,y" -> hex
@@ -96,6 +109,8 @@ interface Draft {
    * export so e.g. the bunny's ears stay glued to the moved drawing.
    */
   shift: { x: number; y: number };
+  /** Fingerprint of the shipped model this draft was created from. */
+  srcStamp?: string;
 }
 
 const cellsToMap = (cells: { x: number; y: number; c: string }[]) => {
@@ -121,7 +136,7 @@ const draftFromModel = (m: PixelModel): Draft => {
       for (let y = e.y1 + oy; y <= e.y2 + oy; y++)
         if (cells.has(key(x, y))) eyeKeys.add(key(x, y));
   const poses: PoseDraft[] = (m.poses ?? []).map((p) => ({ name: p.name, cells: cellsToMap(shifted(p.cells)) }));
-  return { id: m.id, name: m.name, description: m.description, cells, eyeKeys, poses, shift: { ...LOAD_OFFSET } };
+  return { id: m.id, name: m.name, description: m.description, cells, eyeKeys, poses, shift: { ...LOAD_OFFSET }, srcStamp: fingerprint(m) };
 };
 
 // The editor doesn't touch lofi/parts — they pass through from the shipped
@@ -228,7 +243,15 @@ const CritterEditor = () => {
   // Last grid cell the cursor visited while dragging with the move tool.
   const moveAnchor = useRef<{ x: number; y: number } | null>(null);
 
-  useEffect(() => { setDraft(loadDraft(activeId)); setFrame(-1); }, [activeId]);
+  // True when the shipped art changed since this draft was saved.
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    const d = loadDraft(activeId);
+    setDraft(d);
+    setFrame(-1);
+    setStale(d.srcStamp !== fingerprint(CRITTERS.find((c) => c.id === activeId)!));
+  }, [activeId]);
 
   useEffect(() => {
     try { localStorage.setItem(storeKey(activeId), serialise(draft)); } catch { /* quota */ }
@@ -302,12 +325,26 @@ const CritterEditor = () => {
     setDraft((d) => {
       // Duplicate whichever frame is showing, so a pose starts as a copy to nudge.
       const source = frame < 0 ? d.cells : d.poses[frame]?.cells ?? d.cells;
+      // Duplicating a pose keeps its name — that's the next frame of the same
+      // sequence; frames sharing a name play in order (base → 1 → 2 → …).
       const taken = new Set(d.poses.map((p) => p.name));
-      const name = MOODS.find((m) => m !== "idle" && !taken.has(m)) ?? `pose${d.poses.length + 1}`;
+      const name =
+        frame >= 0
+          ? d.poses[frame].name
+          : MOODS.find((m) => m !== "idle" && !taken.has(m)) ?? `pose${d.poses.length + 1}`;
       return { ...d, poses: [...d.poses, { name, cells: new Map(source) }] };
     });
     setFrame(draft.poses.length);
     if (tool === "eye") setTool("paint");
+  };
+
+  /** Chip label; frames sharing a name get sequence numbers ("celebrate 2"). */
+  const poseLabel = (i: number) => {
+    const name = draft.poses[i].name;
+    const total = draft.poses.filter((p) => p.name === name).length;
+    if (total < 2) return name;
+    const nth = draft.poses.slice(0, i + 1).filter((p) => p.name === name).length;
+    return `${name} ${nth}`;
   };
 
   const deletePose = (i: number) => {
@@ -322,6 +359,13 @@ const CritterEditor = () => {
     localStorage.removeItem(storeKey(activeId));
     setDraft(draftFromModel(CRITTERS.find((c) => c.id === activeId)!));
     setFrame(-1);
+    setStale(false);
+  };
+
+  const keepDraft = () => {
+    // Adopt the current shipped stamp so the notice doesn't nag again.
+    setDraft((d) => ({ ...d, srcStamp: fingerprint(CRITTERS.find((c) => c.id === activeId)!) }));
+    setStale(false);
   };
 
   const copyExport = async () => {
@@ -335,11 +379,11 @@ const CritterEditor = () => {
   const editingPose = frame >= 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 p-6">
+    <div className="min-h-screen p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
       <div className="mx-auto max-w-6xl">
         <header className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-800">Critter Editor</h1>
-          <p className="text-slate-500">
+          <h1 className="text-3xl font-bold text-white">Critter Editor</h1>
+          <p className="text-slate-300">
             Paint cells, mark eyes, and draw poses — alternate frames named after a
             mood. Edits auto-save locally; copy the export into <code>pixelCharacters.ts</code>.
           </p>
@@ -359,6 +403,17 @@ const CritterEditor = () => {
           ))}
         </div>
 
+        {stale && (
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <span>
+              The shipped <b className="capitalize">{activeId}</b> art changed since this draft
+              was saved — your draft may be out of date.
+            </span>
+            <UIButton active onClick={resetCritter}>Load shipped version</UIButton>
+            <UIButton onClick={keepDraft}>Keep my draft</UIButton>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[auto,1fr]">
           {/* Editing canvas */}
           <Panel>
@@ -373,7 +428,7 @@ const CritterEditor = () => {
                 >
                   base
                 </button>
-                {draft.poses.map((p, i) => (
+                {draft.poses.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => { setFrame(i); if (tool === "eye") setTool("paint"); }}
@@ -381,7 +436,7 @@ const CritterEditor = () => {
                       frame === i ? "bg-amber-500 text-white" : "bg-white text-slate-600 border border-slate-200"
                     }`}
                   >
-                    {p.name}
+                    {poseLabel(i)}
                   </button>
                 ))}
                 <UIButton onClick={addPose} className="px-2.5 py-1">+ pose</UIButton>
@@ -467,8 +522,9 @@ const CritterEditor = () => {
                 style={{
                   width: COLS * CELL,
                   height: ROWS * CELL,
-                  // Checkerboard so transparent (empty) cells are obvious.
-                  backgroundImage: "repeating-conic-gradient(#f1f1ef 0 25%, #e7e7e4 0 50%)",
+                  // Dark purple checkerboard: empty cells stay obvious and the
+                  // cream critters pop against it.
+                  backgroundImage: "repeating-conic-gradient(#31205a 0 25%, #281848 0 50%)",
                   backgroundSize: "16px 16px",
                 }}
                 onMouseLeave={() => { painting.current = false; }}
@@ -499,7 +555,7 @@ const CritterEditor = () => {
                             applyCell(x, y);
                           }
                         }}
-                        className="absolute border border-black/5"
+                        className="absolute border border-white/5"
                         style={{
                           left: x * CELL,
                           top: y * CELL,
@@ -526,7 +582,7 @@ const CritterEditor = () => {
             <Panel>
               <div className="p-6">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="rounded-xl bg-slate-100 p-4">
+                  <div className="rounded-xl p-4" style={{ background: "#271447" }}>
                     <PixelSprite model={model} size={200} mood={mood} />
                   </div>
                   <div className="flex flex-wrap justify-center gap-2">
@@ -542,8 +598,9 @@ const CritterEditor = () => {
                     ))}
                   </div>
                   <p className="text-center text-xs text-slate-500">
-                    A pose named after a mood flips base ↔ pose in that mood, replacing
-                    the built-in motion. Pick the mood above to watch it.
+                    Poses named after a mood play in that mood as a flipbook:
+                    base → frame 1 → frame 2 → … Duplicate a pose (+ pose while
+                    it's selected) to add the next frame of its sequence.
                   </p>
                   <UIButton danger onClick={resetCritter}>
                     Reset {activeId} to original

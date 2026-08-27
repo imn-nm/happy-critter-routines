@@ -15,11 +15,11 @@ const CrittersPreview = () => {
   const [mood, setMood] = useState<CritterMood>("idle");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 p-6">
+    <div className="min-h-screen p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
       <div className="mx-auto max-w-4xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-800">Pixel Critters</h1>
-          <p className="text-slate-500">
+          <h1 className="text-3xl font-bold text-white">Pixel Critters</h1>
+          <p className="text-slate-300">
             Six original characters in one flat blocky style.
           </p>
         </div>
@@ -45,7 +45,10 @@ const CrittersPreview = () => {
           {CRITTERS.map((c) => (
             <div key={c.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col items-center gap-3 p-6">
-                <div className="flex h-[190px] items-end justify-center">
+                <div
+                  className="flex h-[190px] w-full items-end justify-center rounded-lg pb-2"
+                  style={{ background: "#271447" }}
+                >
                   <PixelSprite model={c} size={170} mood={mood} />
                 </div>
                 <div className="text-center">

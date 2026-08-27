@@ -94,6 +94,31 @@ const CONFETTI = [
 
 const key = (x: number, y: number) => `${x},${y}`;
 
+// Seconds each pose frame is held on screen; total cycle = frames × this.
+const POSE_FRAME_SECS = 0.4;
+
+/**
+ * Stepped show/hide keyframes for a sequence of `total` frames: frame i is
+ * visible during its 1/total slice of the cycle, everything else hidden —
+ * a lo-fi flipbook driven purely by CSS.
+ */
+const poseSeqCss = (total: number): string => {
+  const dur = (total * POSE_FRAME_SECS).toFixed(2);
+  let css = "";
+  for (let i = 0; i < total; i++) {
+    const from = ((i / total) * 100).toFixed(2);
+    const to = (((i + 1) / total) * 100).toFixed(2);
+    const kf =
+      i === 0
+        ? `0% { opacity: 1; } ${to}% { opacity: 0; } 100% { opacity: 0; }`
+        : i === total - 1
+        ? `0% { opacity: 0; } ${from}% { opacity: 1; } 100% { opacity: 1; }`
+        : `0% { opacity: 0; } ${from}% { opacity: 1; } ${to}% { opacity: 0; } 100% { opacity: 0; }`;
+    css += `@keyframes pose-f${i} { ${kf} }\n.pose-flip .pose-f${i} { animation: pose-f${i} ${dur}s step-end infinite; }\n`;
+  }
+  return css;
+};
+
 /** One pixel cell rendered as a hair-overdrawn rect so seams never show. */
 const Cell = ({ c }: { c: PixelCell }) => (
   <rect x={c.x - 0.02} y={c.y - 0.02} width={1.04} height={1.04} fill={c.c} />
@@ -189,12 +214,15 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
     };
   }, [model, effectiveMood]);
 
-  // A pose named after the current mood replaces transform motion with a
-  // hand-drawn 2-frame flip: base drawing ↔ pose drawing, lo-fi stepped.
-  const pose = useMemo(
-    () => (model.poses ?? []).find((p) => p.name === effectiveMood && p.cells.length > 0) ?? null,
-    [model, effectiveMood]
-  );
+  // Poses named after the current mood replace transform motion with a
+  // hand-drawn stepped frame sequence: base → pose 1 → pose 2 → …, cycling.
+  // Several poses sharing one name are that mood's frames, in array order.
+  const poseSeq = useMemo(() => {
+    const frames = (model.poses ?? [])
+      .filter((p) => p.name === effectiveMood && p.cells.length > 0)
+      .map((p) => p.cells);
+    return frames.length ? [model.cells, ...frames] : null;
+  }, [model, effectiveMood]);
 
   // Stagger blinks so a group of critters doesn't blink in unison.
   const blinkDelay = useMemo(() => {
@@ -216,7 +244,7 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
       className={cn(
         "inline-block",
         isLofi && effectiveMood !== "none" && `react-${effectiveMood}`,
-        pose && "pose-flip",
+        poseSeq && "pose-flip",
         className
       )}
       style={{ width: size, height: size, position: isLofi ? "relative" : undefined, fontSize: isLofi ? `${size * 0.16}px` : undefined }}
@@ -264,18 +292,17 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         .part-bob { animation: part-bob 1s ease-in-out infinite; }
         .part-sway { animation: part-sway 1s ease-in-out infinite; }
         .part-flop { animation: part-flop 1s ease-in-out infinite; }
-        /* Hand-drawn pose flip: base frame ↔ pose frame, stepped (2-frame lo-fi). */
-        @keyframes pose-frame-a { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
-        @keyframes pose-frame-b { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
-        .pose-b { opacity: 0; }
-        .pose-flip .pose-a { animation: pose-frame-a 0.8s step-end infinite; }
-        .pose-flip .pose-b { animation: pose-frame-b 0.8s step-end infinite; }
-        /* A pose replaces transform motion for its mood. */
+        /* Hand-drawn pose sequence: base → pose frames, stepped lo-fi flipbook.
+           Only the first frame shows until its animation kicks in. */
+        .pose-f { opacity: 0; }
+        .pose-frame-first { opacity: 1; }
+        /* A pose sequence replaces transform motion for its mood. */
         .pose-flip .pix-body, .pose-flip svg { animation: none !important; }
+        ${poseSeq ? poseSeqCss(poseSeq.length) : ""}
         @media (prefers-reduced-motion: reduce) {
           .critter-excited, .critter-celebrate, .critter-worried, .critter-eyes,
           .part-swing, .part-bob, .part-sway, .part-flop,
-          .pose-a, .pose-b { animation: none !important; }
+          .pose-f { animation: none !important; }
         }
         ${isLofi ? LOFI_CSS : ""}
       `}</style>
@@ -289,11 +316,14 @@ const PixelSprite = ({ model, size = 160, animated = false, mood, className }: P
         shapeRendering="crispEdges"
         preserveAspectRatio="xMidYMax meet"
       >
-        {pose ? (
+        {poseSeq ? (
           <>
-            {/* 2-frame flip between the full base drawing and the pose drawing. */}
-            <g className="pose-a">{model.cells.map((c, i) => <Cell key={i} c={c} />)}</g>
-            <g className="pose-b">{pose.cells.map((c, i) => <Cell key={i} c={c} />)}</g>
+            {/* Flipbook: each frame is a full drawing shown for its slice of the cycle. */}
+            {poseSeq.map((cells, i) => (
+              <g key={i} className={`pose-f pose-f${i}${i === 0 ? " pose-frame-first" : ""}`}>
+                {cells.map((c, j) => <Cell key={j} c={c} />)}
+              </g>
+            ))}
           </>
         ) : (
           <>
