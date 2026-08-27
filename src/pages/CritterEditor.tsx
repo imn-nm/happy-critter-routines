@@ -16,19 +16,23 @@ import type { EyeBox, PixelModel } from "@/components/critters/pixelModel";
  * shipped art — it's a tuning bench.
  */
 
-// A generous canvas: existing critters live within x 0–16, y 0–19.
-const COLS = 18;
-const ROWS = 20;
-const CELL = 22; // px per grid cell in the editing canvas
+// A roomy canvas with free cells on every side, so poses can extend arms,
+// legs and ears past the base silhouette.
+const COLS = 26;
+const ROWS = 26;
+const CELL = 20; // px per grid cell in the editing canvas
+// Shipped critters live within x 0–16, y 0–19; shift them on load so the
+// drawing sits centered with working room all around.
+const LOAD_OFFSET = { x: 4, y: 3 };
 
 const MOODS: CritterMood[] = ["idle", "happy", "eating", "celebrate", "worried", "sleep"];
 
-type Tool = "paint" | "erase" | "eye";
+type Tool = "paint" | "erase" | "eye" | "move";
 
 const key = (x: number, y: number) => `${x},${y}`;
 const parseKey = (k: string) => k.split(",").map(Number) as [number, number];
-// v2: pose-based drafts; old rig-era drafts are intentionally left behind.
-const storeKey = (id: string) => `critter-editor:v2:${id}`;
+// v3: pose drafts on the enlarged canvas; older drafts are left behind.
+const storeKey = (id: string) => `critter-editor:v3:${id}`;
 
 /** Merge a set of eye cells into one bounding box per 4-connected group. */
 const eyeBoxesFromKeys = (keys: Set<string>): EyeBox[] => {
@@ -66,6 +70,12 @@ interface Draft {
   cells: Map<string, string>; // base frame
   eyeKeys: Set<string>;
   poses: PoseDraft[];
+  /**
+   * Cumulative offset of the base frame vs the shipped model's coordinates
+   * (load centering + any moves). Applied to the pass-through parts rig on
+   * export so e.g. the bunny's ears stay glued to the moved drawing.
+   */
+  shift: { x: number; y: number };
 }
 
 const cellsToMap = (cells: { x: number; y: number; c: string }[]) => {
@@ -81,14 +91,17 @@ const mapToCells = (m: Map<string, string>) =>
   });
 
 const draftFromModel = (m: PixelModel): Draft => {
-  const cells = cellsToMap(m.cells);
+  const ox = LOAD_OFFSET.x, oy = LOAD_OFFSET.y;
+  const shifted = (cs: { x: number; y: number; c: string }[]) =>
+    cs.map((c) => ({ ...c, x: c.x + ox, y: c.y + oy }));
+  const cells = cellsToMap(shifted(m.cells));
   const eyeKeys = new Set<string>();
   for (const e of m.eyes ?? [])
-    for (let x = e.x1; x <= e.x2; x++)
-      for (let y = e.y1; y <= e.y2; y++)
+    for (let x = e.x1 + ox; x <= e.x2 + ox; x++)
+      for (let y = e.y1 + oy; y <= e.y2 + oy; y++)
         if (cells.has(key(x, y))) eyeKeys.add(key(x, y));
-  const poses: PoseDraft[] = (m.poses ?? []).map((p) => ({ name: p.name, cells: cellsToMap(p.cells) }));
-  return { id: m.id, name: m.name, description: m.description, cells, eyeKeys, poses };
+  const poses: PoseDraft[] = (m.poses ?? []).map((p) => ({ name: p.name, cells: cellsToMap(shifted(p.cells)) }));
+  return { id: m.id, name: m.name, description: m.description, cells, eyeKeys, poses, shift: { ...LOAD_OFFSET } };
 };
 
 // The editor doesn't touch lofi/parts — they pass through from the shipped
@@ -103,7 +116,14 @@ const draftToModel = (d: Draft): PixelModel => {
     eyes: eyeBoxesFromKeys(d.eyeKeys),
   };
   if (src?.lofi) model.lofi = true;
-  if (src?.parts?.length) model.parts = src.parts;
+  if (src?.parts?.length) {
+    // Shift the rig by the same offset as the base drawing so it stays attached.
+    model.parts = src.parts.map((p) => ({
+      ...p,
+      pivot: { x: p.pivot.x + d.shift.x, y: p.pivot.y + d.shift.y },
+      cells: p.cells.map((c) => ({ x: c.x + d.shift.x, y: c.y + d.shift.y })),
+    }));
+  }
   const poses = d.poses.filter((p) => p.cells.size > 0);
   if (poses.length) model.poses = poses.map((p) => ({ name: p.name, cells: mapToCells(p.cells) }));
   return model;
@@ -127,6 +147,7 @@ const deserialise = (raw: string): Draft => {
       name: p.name,
       cells: new Map(p.cells),
     })),
+    shift: o.shift ?? { ...LOAD_OFFSET },
   };
 };
 
@@ -184,6 +205,8 @@ const CritterEditor = () => {
   const [frame, setFrame] = useState(-1);
   const [copied, setCopied] = useState(false);
   const painting = useRef(false);
+  // Last grid cell the cursor visited while dragging with the move tool.
+  const moveAnchor = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => { setDraft(loadDraft(activeId)); setFrame(-1); }, [activeId]);
 
@@ -227,6 +250,31 @@ const CritterEditor = () => {
         return { ...p, cells };
       });
       return { ...d, poses };
+    });
+  };
+
+  /** Shift the whole active frame by (dx, dy); refused if anything would leave the grid. */
+  const moveFrame = (dx: number, dy: number) => {
+    if (!dx && !dy) return;
+    setDraft((d) => {
+      const source = frame < 0 ? d.cells : d.poses[frame]?.cells;
+      if (!source || source.size === 0) return d;
+      const moved = new Map<string, string>();
+      for (const [k, c] of source) {
+        const [x, y] = parseKey(k);
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return d; // would fall off — refuse
+        moved.set(key(nx, ny), c);
+      }
+      if (frame < 0) {
+        const eyeKeys = new Set<string>();
+        for (const k of d.eyeKeys) {
+          const [x, y] = parseKey(k);
+          eyeKeys.add(key(x + dx, y + dy));
+        }
+        return { ...d, cells: moved, eyeKeys, shift: { x: d.shift.x + dx, y: d.shift.y + dy } };
+      }
+      return { ...d, poses: d.poses.map((p, i) => (i === frame ? { ...p, cells: moved } : p)) };
     });
   };
 
@@ -341,7 +389,7 @@ const CritterEditor = () => {
 
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <div className="flex rounded-md border border-slate-200 p-0.5">
-                  {(["paint", "erase", ...(editingPose ? [] : ["eye"])] as Tool[]).map((t) => (
+                  {(["paint", "erase", ...(editingPose ? [] : ["eye"]), "move"] as Tool[]).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTool(t)}
@@ -360,6 +408,21 @@ const CritterEditor = () => {
                   className="h-8 w-10 cursor-pointer rounded border border-slate-200 bg-white"
                   title="Pick paint color"
                 />
+                {tool === "move" && (
+                  <div className="flex items-center gap-1">
+                    {([["←", -1, 0], ["↑", 0, -1], ["↓", 0, 1], ["→", 1, 0]] as const).map(([label, dx, dy]) => (
+                      <button
+                        key={label}
+                        onClick={() => moveFrame(dx, dy)}
+                        className="h-8 w-8 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        title={`Nudge ${editingPose ? "pose" : "pet"} 1 cell`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <span className="ml-1 text-xs text-slate-400">or drag the drawing</span>
+                  </div>
+                )}
               </div>
 
               {/* Palette swatches */}
@@ -380,7 +443,7 @@ const CritterEditor = () => {
               </div>
 
               <div
-                className="relative select-none rounded"
+                className={`relative select-none rounded ${tool === "move" ? "cursor-move" : ""}`}
                 style={{
                   width: COLS * CELL,
                   height: ROWS * CELL,
@@ -401,8 +464,21 @@ const CritterEditor = () => {
                     return (
                       <div
                         key={k}
-                        onMouseDown={() => { painting.current = true; applyCell(x, y); }}
-                        onMouseEnter={() => { if (painting.current) applyCell(x, y); }}
+                        onMouseDown={() => {
+                          painting.current = true;
+                          if (tool === "move") moveAnchor.current = { x, y };
+                          else applyCell(x, y);
+                        }}
+                        onMouseEnter={() => {
+                          if (!painting.current) return;
+                          if (tool === "move") {
+                            const a = moveAnchor.current;
+                            if (a) moveFrame(x - a.x, y - a.y);
+                            moveAnchor.current = { x, y };
+                          } else {
+                            applyCell(x, y);
+                          }
+                        }}
                         className="absolute border border-black/5"
                         style={{
                           left: x * CELL,
