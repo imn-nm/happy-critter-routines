@@ -332,7 +332,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           <div className="border-t border-white/10 pt-sp-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full gap-2 text-coral-400 hover:text-coral-300 hover:bg-coral-500/10">
+                <Button variant="ghost" size="md" className="w-full gap-2 text-coral-400 hover:text-coral-300 hover:bg-coral-500/10">
                   <Trash2 className="w-4 h-4" />
                   Delete {child.name}'s Profile
                 </Button>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Bell, CalendarClock, Plus, Settings, Sparkles, Star, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { formatTime12 } from "@/utils/formatTime";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
@@ -480,12 +481,9 @@ function EventCard({
   );
 }
 
+// Same "9:39pm" style as every other screen; this used to print "9:39PM".
 function formatTime(sql: string): string {
-  const [h, m] = sql.split(":");
-  const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? "PM" : "AM";
-  const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${display}:${m}${ampm}`;
+  return formatTime12(sql);
 }
 
 function splitTime(hhmm: string): [string, string] {

@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Calendar, CalendarClock, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
+import { formatTime12 } from '@/utils/formatTime';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
@@ -166,14 +167,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
     setMonthData(data);
   }, [currentMonth, tasks, holidays, notes, parentEvents, child]);
 
-  const formatTime = (timeStr: string) => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:${minutes}${ampm}`;
-  };
+  // Same "7:00am" style as every other screen.
+  const formatTime = (timeStr: string) => formatTime12(timeStr);
 
   const selectedDayData = selectedDate ? monthData.find(d => isSameDay(d.date, selectedDate)) : null;
 
@@ -297,7 +292,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
             {format(currentMonth, 'MMMM yyyy')}
           </h3>
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => subMonths(prev, 1))} className="h-8 w-8 rounded-xl">
+            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => subMonths(prev, 1))} className="tap-target h-8 w-8 rounded-xl">
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <Button
@@ -308,7 +303,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
             >
               Today
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))} className="h-8 w-8 rounded-xl">
+            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))} className="tap-target h-8 w-8 rounded-xl">
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -447,10 +442,10 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditEvent(event)} className="h-6 w-6 p-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditEvent(event)} className="tap-target h-6 w-6 p-0">
                       <Edit className="w-3 h-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEvent(event.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEvent(event.id)} className="tap-target h-6 w-6 p-0 text-destructive hover:text-destructive">
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </div>
@@ -472,7 +467,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                     variant="ghost"
                     size="sm"
                     onClick={() => handleAddOrEditNote(selectedDate)}
-                    className="h-6 w-6 p-0 shrink-0"
+                    className="tap-target h-6 w-6 p-0 shrink-0"
                   >
                     <Edit className="w-3 h-3" />
                   </Button>
@@ -494,10 +489,10 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditHoliday(selectedDayData.holiday!)} className="h-6 w-6 p-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditHoliday(selectedDayData.holiday!)} className="tap-target h-6 w-6 p-0">
                       <Edit className="w-3 h-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)} className="tap-target h-6 w-6 p-0 text-destructive hover:text-destructive">
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </div>

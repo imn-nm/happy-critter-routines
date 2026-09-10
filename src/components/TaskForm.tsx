@@ -744,11 +744,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {/* Submit — pinned to the bottom of the dialog so the action buttons
           are always reachable without scrolling the (often tall) form. */}
-      {/* No opaque fill: the form now fits without scrolling, so a solid bar
-          read as a dark rectangle floating on the dialog. Blur alone is
-          invisible when nothing is behind it and still veils scrolled
-          content when More options is open. */}
-      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-sp-3 pb-5 sm:pb-6 space-y-sp-2 backdrop-blur-md">
+      {/* Tinted fill + strong blur + hairline: with More options open the
+          form scrolls behind this bar, and a light blur alone let the
+          checklist row bleed through the buttons on a phone. */}
+      <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-sp-3 pb-5 sm:pb-6 space-y-sp-2 backdrop-blur-xl bg-ink-800/70 border-t border-iris-400/20">
         <Button
           type="submit"
           variant="primary"
@@ -768,7 +767,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-full text-fog-300 hover:text-coral-400 hover:bg-coral-500/10"
+                className="w-full text-coral-300 hover:text-coral-400 hover:bg-coral-500/10"
               >
                 Delete {isChore ? 'Chore' : 'Task'}
               </Button>
