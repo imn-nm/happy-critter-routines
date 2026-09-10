@@ -60,7 +60,8 @@ const Dashboard = () => {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
-  const dateLabel = useMemo(() => format(now, "EEEE, MMMM d"), [now]);
+  // "Wed, Sep 9": the long form truncated to "Wednesday, Se..." next to the header buttons.
+  const dateLabel = useMemo(() => format(now, "EEE, MMM d"), [now]);
 
   useEffect(() => {
     if (children.length === 0) return;
@@ -287,7 +288,7 @@ const Dashboard = () => {
                 type="button"
                 aria-label="Switch to the kids' screen"
                 onClick={() => navigate("/")}
-                className="h-9 px-sp-3 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center gap-1.5 text-fog-50 text-14 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="h-11 px-sp-3 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center gap-1.5 text-fog-50 text-14 hover:bg-iris-400/10 transition-colors duration-sm"
               >
                 <Users className="w-4 h-4" />
                 Kids
@@ -296,7 +297,7 @@ const Dashboard = () => {
                 type="button"
                 aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
                 onClick={() => setShowAlerts(true)}
-                className="relative w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="relative w-11 h-11 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
               >
                 <Bell className="w-4 h-4" />
                 {alertCount > 0 && (
@@ -309,7 +310,7 @@ const Dashboard = () => {
                 type="button"
                 aria-label="Settings"
                 onClick={() => navigate("/settings")}
-                className="w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="w-11 h-11 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
               >
                 <Settings className="w-4 h-4" />
               </button>
@@ -331,6 +332,18 @@ const Dashboard = () => {
                 />
               </div>
             ))}
+            {/* Adding a child used to live only in Settings; parents look for it here. */}
+            <div className="h-px bg-iris-400/25 mb-sp-1" />
+            <button
+              type="button"
+              onClick={() => navigate("/setup")}
+              className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left text-fog-200 hover:bg-white/[0.03] transition-colors duration-sm"
+            >
+              <span className="shrink-0 w-14 h-[62px] rounded-[28px] border border-dashed border-iris-400/40 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-iris-300" />
+              </span>
+              <span className="text-16">Add a child</span>
+            </button>
           </section>
         </div>
 

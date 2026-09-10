@@ -73,8 +73,8 @@ const SLIDES: Slide[] = [
     key: "welcome",
     petType: "bunny",
     mood: "happy",
-    title: "Every kid gets a critter",
-    body: "Pick a pixel pet for each child. It stays by their side all day, cheering them on from task to task.",
+    title: "Meet Biscuit",
+    body: "Biscuit the rabbit stays by their side all day, doing each task alongside them and cheering them on.",
   },
   {
     key: "task-types",

@@ -85,12 +85,12 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
 
   // Calendar grid
+  // Weeks start on Sunday, the same as the week strip on the Schedule tab.
   const calendarStart = new Date(monthStart);
-  calendarStart.setDate(calendarStart.getDate() - getDay(monthStart) + 1);
-  if (getDay(monthStart) === 0) calendarStart.setDate(calendarStart.getDate() - 7); // Sunday edge case
+  calendarStart.setDate(calendarStart.getDate() - getDay(monthStart));
   const calendarEnd = new Date(monthEnd);
-  const remainingDays = 7 - getDay(monthEnd);
-  if (remainingDays < 7) {
+  const remainingDays = 6 - getDay(monthEnd);
+  if (remainingDays > 0) {
     calendarEnd.setDate(calendarEnd.getDate() + remainingDays);
   }
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
@@ -316,7 +316,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
 
         {/* Day headers */}
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider py-1.5">
               {day}
             </div>

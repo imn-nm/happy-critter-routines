@@ -55,11 +55,12 @@ export default function TimelineHeader({
     const endMonth = format(end, "MMMM");
     const startDay = format(start, "d");
     const endDay = format(end, "d");
-    const year = format(start, "yyyy");
+    // Short months: "Sep 6–12" fits between the arrows and Today on a 375px
+    // screen; the full name truncated to "September 6–12..." there.
     if (startMonth === endMonth) {
-      return `${startMonth} ${startDay}–${endDay}, ${year}`;
+      return `${startMonth.slice(0, 3)} ${startDay}–${endDay}`;
     }
-    return `${startMonth.slice(0, 3)} ${startDay} – ${endMonth.slice(0, 3)} ${endDay}, ${year}`;
+    return `${startMonth.slice(0, 3)} ${startDay} – ${endMonth.slice(0, 3)} ${endDay}`;
   };
 
   const goToPreviousWeek = () => setCurrentWeek(prev => addDays(prev, -7));

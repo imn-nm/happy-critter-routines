@@ -366,9 +366,9 @@ const ChildDashboard = () => {
                 145:6970): rgba(102,153,255,0.25) border, 16px padding, 28 radius. */}
             {/* Stepper + both CTAs stay on one line. Padding and gaps are
                 tightened so the row fits a 375px screen without wrapping. */}
-            <div className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
+            <div className="flex flex-col gap-sp-3 px-sp-3 py-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
               {/* Coin adjust group */}
-              <div className="flex items-center gap-sp-2">
+              <div className="flex items-center justify-center gap-sp-2">
                 <Button
                   variant="secondary"
                   size="icon-sm"
@@ -401,13 +401,14 @@ const ChildDashboard = () => {
                 </Button>
               </div>
 
-              {/* Rewards + Wheel CTAs — transparent (no border), matches Figma 145:6976 */}
-              <div className="flex items-center gap-0.5 shrink-0">
+              {/* Three equal actions so the row fits any phone without wrapping
+                  or overflowing (it used to push Report off a 375px screen). */}
+              <div className="grid grid-cols-3 gap-sp-1">
                 <button
                   type="button"
                   onClick={() => setShowWheelEditor(true)}
                   aria-label="Set up spinning wheel"
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Shuffle className="w-4 h-4" />
                   Wheel
@@ -415,7 +416,7 @@ const ChildDashboard = () => {
                 <button
                   type="button"
                   onClick={() => setShowRewards(true)}
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Gift className="w-4 h-4" />
                   Rewards
@@ -423,7 +424,7 @@ const ChildDashboard = () => {
                 <button
                   type="button"
                   onClick={() => navigate(`/reports/${child.id}`)}
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <BarChart3 className="w-4 h-4" />
                   Report
@@ -451,7 +452,7 @@ const ChildDashboard = () => {
                         rest_day_date: !isRestDay ? selectedDayString : null,
                       });
                     }}
-                    className="relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
+                    className="tap-target relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
                   >
                     <span
                       aria-hidden
@@ -468,7 +469,7 @@ const ChildDashboard = () => {
                 <button
                   type="button"
                   onClick={() => handleAddTask()}
-                  className="shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  className="shrink-0 inline-flex items-center gap-2 h-11 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   Add Task

@@ -231,11 +231,11 @@ const ChildSetup = () => {
 
           {/* Nav */}
           <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
-            <Button variant="ghost" size="sm" onClick={step === 1 ? handleCancel : handleBack} className="gap-1.5">
+            <Button variant="ghost" size="md" onClick={step === 1 ? handleCancel : handleBack} className="gap-1.5">
               <ChevronLeft className="w-4 h-4" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>
-            <Button variant="primary" size="sm" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
+            <Button variant="primary" size="md" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
               {isLoading ? "Creating..." : step === 3 ? "Create Profile" : "Next"}
               {step < 3 && !isLoading && <ChevronRight className="w-4 h-4" />}
             </Button>

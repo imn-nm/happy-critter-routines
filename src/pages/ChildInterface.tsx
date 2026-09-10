@@ -951,7 +951,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             : isImportantAndDone
             ? 'complete'
             : 'time';
-          const badgeLabel = isFrozen ? 'Done' : overdue ? 'Overdue' : isImportantAndDone ? 'Done' : remainingMMSS;
+          const badgeLabel = isFrozen ? 'Done' : overdue ? 'Still to do' : isImportantAndDone ? 'Done' : remainingMMSS;
 
           return (
             <motion.div
@@ -1623,7 +1623,7 @@ function ScheduleRow({
   })();
 
   return (
-    <li
+    <div
       className={cn(
         'flex items-stretch gap-sp-3 p-sp-4 rounded-[24px]',
         state === 'now'
@@ -1666,7 +1666,7 @@ function ScheduleRow({
           )}
         </div>
       </div>
-    </li>
+    </div>
   );
 }
 

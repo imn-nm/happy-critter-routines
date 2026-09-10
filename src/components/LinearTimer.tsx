@@ -56,7 +56,7 @@ const LinearTimer = ({
       case "ahead":    return "#879bff"; // iris-400
       case "behind":
       case "critical": return "#ff6666"; // coral-400
-      case "overtime": return "#ff5c5f"; // coral-500
+      case "overtime": return "#fab047"; // amber-400: time ran out, not a failure
       default:         return "#38b2a4";
     }
   };

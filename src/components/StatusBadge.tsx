@@ -32,7 +32,7 @@ export default function StatusBadge({
   //   Info      → iris-400 @ 30%
   const stroke = {
     time:     "border-mint-500/40",
-    overdue:  "border-coral-400/[0.22]",
+    overdue:  "border-amber-400/[0.4]",
     complete: "border-mint-500",
     info:     "border-iris-400/30",
   }[variant];

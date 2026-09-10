@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
-import { type PetId } from "@/components/pets/petCatalog";
+import { getPet, type PetId } from "@/components/pets/petCatalog";
 import HouseholdSettings from "@/components/HouseholdSettings";
 import CalendarConnect from "@/components/CalendarConnect";
 import { Switch } from "@/components/ui/switch";
@@ -102,7 +102,7 @@ const ParentSettings = () => {
               }
               navigate("/parent");
             }}
-            className="self-start flex items-center gap-2 text-14 text-iris-400 hover:underline"
+            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-iris-400 hover:underline"
           >
             <PlayCircle className="w-4 h-4" />
             Replay welcome tour
@@ -111,7 +111,7 @@ const ParentSettings = () => {
           <button
             type="button"
             onClick={async () => { await signOut(); navigate("/"); }}
-            className="self-start flex items-center gap-2 text-14 text-coral-400 hover:underline"
+            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-coral-400 hover:underline"
           >
             <LogOut className="w-4 h-4" />
             Sign out
@@ -159,13 +159,13 @@ const ParentSettings = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-16 text-fog-50 truncate">{child.name}</p>
                     <p className="text-12 text-fog-200 truncate">
-                      {child.age ? `Age ${child.age} · ` : ""}{child.petType}
+                      {child.age ? `Age ${child.age} · ` : ""}{getPet(child.petType).name}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setEditingChild(child)}
-                    className="text-12 text-iris-400 hover:underline"
+                    className="tap-target min-h-11 px-2 text-12 text-iris-400 hover:underline"
                   >
                     Edit
                   </button>

@@ -186,7 +186,7 @@ const Reports = () => {
             )}
             {days.filter(d => d.items.length > 0).map(d => (
               <div key={d.date} className="flex items-start gap-sp-3">
-                <span className={cn("w-12 shrink-0 text-12 tabular-nums", d.date === today ? "text-fog-50 font-medium" : "text-fog-300")}>{d.label}</span>
+                <span className={cn("w-14 shrink-0 text-12 tabular-nums whitespace-nowrap", d.date === today ? "text-fog-50 font-medium" : "text-fog-300")}>{d.label}</span>
                 <div className="flex flex-wrap gap-1.5">
                   {d.items.map((it, i) => (
                     <span
