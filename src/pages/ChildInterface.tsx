@@ -833,10 +833,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
             <div className="flex items-center gap-2 min-w-0">
-              {/* The pet is chosen by a grown-up in the child's profile. */}
-              <div className="shrink-0 rounded-full p-0.5 border-2 border-iris-400/[0.32]">
-                <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
-              </div>
               <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
             </div>
             <button
@@ -1224,8 +1220,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            {/* Ambient face: the clock and what's next, glanceable across a room. */}
-            <AmbientClock next={{ name: freeTimeCountdown.nextTask.name, time: freeTimeCountdown.nextTask.scheduled_time }} />
             <div className="flex flex-col items-center gap-1 py-2">
               <h2
                 className="text-fog-50"
@@ -1284,7 +1278,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         sizePx={293}
                         isRunning={true}
                       >
-                        <CritterPet petType={child.petType} mood="happy" size={168} className="w-full h-full" />
+                        <CritterPet petType={child.petType} mood="happy" size={210} className="w-full h-full" />
                       </CircularTimer>
                       {wheelReady && (
                         <button
