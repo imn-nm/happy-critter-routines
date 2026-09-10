@@ -101,32 +101,6 @@ export default function SlideToConfirm({
     }
   };
 
-  // Press-and-hold alternative to dragging: hold the thumb still and it
-  // travels the track on its own, confirming when it arrives. Kids with less
-  // fine-motor control (and a device with a plain touch panel) can use this.
-  const HOLD_MS = 900;
-  const holdAnim = useRef<ReturnType<typeof animate> | null>(null);
-  const holding = useRef(false);
-
-  const startHold = () => {
-    if (disabled || completed || max <= 0) return;
-    holding.current = true;
-    holdAnim.current = animate(x, max, { duration: HOLD_MS / 1000, ease: "easeIn" });
-    holdAnim.current.then(() => {
-      if (holding.current) {
-        holding.current = false;
-        confirm();
-      }
-    });
-  };
-
-  const cancelHold = () => {
-    if (!holding.current) return;
-    holding.current = false;
-    holdAnim.current?.stop();
-    if (!completed) animate(x, 0, t(springs.gentle));
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -166,9 +140,6 @@ export default function SlideToConfirm({
             strokeWidth={2}
           />
           {completed ? "Done!" : label}
-          {!completed && !compact && (
-            <span className="text-12 opacity-70">slide or hold</span>
-          )}
         </motion.span>
       </div>
 
@@ -182,12 +153,7 @@ export default function SlideToConfirm({
         dragConstraints={{ left: 0, right: max }}
         dragElastic={0.05}
         dragMomentum={false}
-        onDragStart={cancelHold}
         onDragEnd={handleDragEnd}
-        onPointerDown={startHold}
-        onPointerUp={cancelHold}
-        onPointerCancel={cancelHold}
-        onPointerLeave={cancelHold}
         onKeyDown={handleKeyDown}
         whileTap={disabled || completed ? undefined : { scale: 0.96 }}
         className={cn(
