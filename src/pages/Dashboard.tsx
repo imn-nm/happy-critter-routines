@@ -385,7 +385,7 @@ function ChildRow({
       className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left hover:bg-white/[0.03] transition-colors duration-sm"
     >
       {/* Pet avatar */}
-      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-paper flex items-center justify-center overflow-hidden">
+      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-ink-700 flex items-center justify-center overflow-hidden">
         <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
       </div>
 
