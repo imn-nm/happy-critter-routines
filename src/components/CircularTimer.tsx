@@ -141,8 +141,7 @@ const CircularTimer = ({
       </svg>
       {children && (
         <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          aria-hidden
+          className="absolute inset-0 flex items-center justify-center"
         >
           <div
             className="rounded-full overflow-hidden"

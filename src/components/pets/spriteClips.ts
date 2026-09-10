@@ -64,7 +64,7 @@ export interface MoodPlan {
   /** Pause between self-initiated behaviours, in ms: [min, max]. */
   pauseMs?: [number, number];
   /** What the pet does when the child taps it. */
-  onTap?: ClipName;
+  onTap?: ClipName | ClipName[];
   /** Hold the first frame — no motion at all. */
   still?: boolean;
 }
@@ -75,45 +75,45 @@ export const MOOD_PLAN: Record<PetMood, MoodPlan> = {
     base: "Idle",
     life: [{ clip: "Curious", weight: 3 }, { clip: "Wave", weight: 1 }],
     pauseMs: [6000, 14000],
-    onTap: "Wave",
+    onTap: ["Wave", "Curious"],
   },
   happy: {
     base: "Idle",
     life: [{ clip: "Curious", weight: 2 }, { clip: "Encourage", weight: 2 }, { clip: "Wave", weight: 1 }],
     pauseMs: [5000, 12000],
-    onTap: "Wave",
+    onTap: ["Wave", "Curious", "Encourage"],
   },
   excited: {
     base: "Idle",
     life: [{ clip: "Wave", weight: 2 }, { clip: "Celebrate", weight: 1 }, { clip: "Curious", weight: 1 }],
     pauseMs: [4000, 9000],
-    onTap: "Celebrate",
+    onTap: ["Celebrate", "Wave", "Curious"],
   },
   drowsy: {
     base: "Idle",
     life: [{ clip: "Sleepy", weight: 2 }, { clip: "Curious", weight: 1 }],
     pauseMs: [8000, 16000],
-    onTap: "Curious",
+    onTap: ["Curious", "Wave"],
   },
-  celebrate: { base: "Celebrate", onTap: "Celebrate" },
+  celebrate: { base: "Celebrate", onTap: ["Celebrate", "Wave"] },
   worried: {
     base: "Idle",
     life: [{ clip: "Curious", weight: 2 }, { clip: "Encourage", weight: 2 }, { clip: "Wave", weight: 1 }],
     pauseMs: [5000, 12000],
-    onTap: "Wave",
+    onTap: ["Wave", "Curious", "Encourage"],
   },
-  sleep: { base: "Sleepy", onTap: "Curious" },
-  eating: { base: "Eating", onTap: "Curious" },
+  sleep: { base: "Sleepy", onTap: ["Curious", "Wave"] },
+  eating: { base: "Eating", onTap: ["Curious", "Wave"] },
 };
 
 /**
  * While the pet is busy with an activity it still looks up now and then, so
  * a twenty-minute reading task isn't one perfectly repeating loop.
  */
-export const ACTIVITY_LIFE: { life: LifeBehaviour[]; pauseMs: [number, number]; onTap: ClipName } = {
+export const ACTIVITY_LIFE: { life: LifeBehaviour[]; pauseMs: [number, number]; onTap: ClipName[] } = {
   life: [{ clip: "Curious", weight: 1 }],
   pauseMs: [14000, 26000],
-  onTap: "Wave",
+  onTap: ["Wave", "Curious", "Encourage"],
 };
 
 /**
@@ -125,7 +125,7 @@ export const activityForTask = (name?: string | null): PetActivity | undefined =
   if (!n) return undefined;
   if (/brush|teeth|tooth/.test(n)) return "brushing";
   if (/breakfast|lunch|dinner|snack|eat|meal|supper/.test(n)) return "eating";
-  if (/read|book|homework|study|story/.test(n)) return "reading";
+  if (/school|class|lesson|learn|read|book|homework|study|story/.test(n)) return "reading";
   if (/game|gaming|play|screen|tv|video|tablet/.test(n)) return "gaming";
   if (/bed|sleep|nap|night/.test(n)) return "sleeping";
   return undefined;

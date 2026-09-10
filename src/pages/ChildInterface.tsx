@@ -11,8 +11,9 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
+import PetClub from "@/components/pets/PetClub";
 import { petNick } from "@/components/pets/petCatalog";
-import { activityForTask } from "@/components/pets/spriteClips";
+import { activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
 import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
@@ -68,7 +69,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // before the schedule advances.
   const [frozenTask, setFrozenTask] = useState<any>(null);
   const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
+  const [returnGreeting, setReturnGreeting] = useState<{ id: number; text: string } | null>(null);
   const [, setTick] = useState(0);
+  const hiddenAtRef = useRef<number | null>(null);
+  const greetingIdRef = useRef(0);
+  const freeTimeActivityRef = useRef<{ key: string; activity: PetActivity }>({ key: "", activity: "gaming" });
 
   // Floating "+N" coin deltas. Each entry self-removes after its animation.
   const [coinDeltas, setCoinDeltas] = useState<{ id: number; amount: number }[]>([]);
@@ -208,8 +213,15 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Refetch data when tab becomes visible (fixes stale state after overnight)
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+      } else {
         refetchTasks();
+        if (hiddenAtRef.current && Date.now() - hiddenAtRef.current >= 15_000) {
+          setReturnGreeting({ id: ++greetingIdRef.current, text: `You’re back!` });
+          window.setTimeout(() => setReturnGreeting(null), 2800);
+        }
+        hiddenAtRef.current = null;
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -640,6 +652,48 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const freeTimeCountdown = getFreeTimeCountdown();
 
+  // Pet context for the quiet spaces between tasks. It plays during longer
+  // breaks, then looks up as the next scheduled activity gets close.
+  const minutesToNextTask = freeTimeCountdown ? freeTimeCountdown.remaining / 60 : null;
+  const petIsCheckingClock = minutesToNextTask !== null && minutesToNextTask <= 5;
+  const nowMinutes = (() => {
+    const [h, m] = getPSTTimeString().split(':').map(Number);
+    return h * 60 + m;
+  })();
+  const wakeMinutes = (() => {
+    const [h, m] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
+  })();
+  const beforeWake = nowMinutes < wakeMinutes;
+
+  // Pick once per free-time block so the pet has a believable activity rather
+  // than changing its mind on every one-second timer render.
+  const freeTimeKey = freeTimeCountdown?.nextTask.id ?? "after-tasks";
+  if (freeTimeActivityRef.current.key !== freeTimeKey) {
+    const choices: PetActivity[] = ["gaming", "reading"];
+    freeTimeActivityRef.current = {
+      key: freeTimeKey,
+      activity: choices[Math.floor(Math.random() * choices.length)],
+    };
+  }
+
+  const promptForTask = (name: string): string | null => {
+    const normalized = name.toLowerCase();
+    if (/school|class|lesson|learn/.test(normalized)) return "Let’s learn together!";
+    if (/wake|morning/.test(normalized)) return "Good morning!";
+    if (/breakfast|lunch|dinner|snack|meal/.test(normalized)) return "Let’s eat together!";
+    if (/brush|teeth|tooth/.test(normalized)) return "Brush, brush, brush!";
+    if (/read|book|homework|study/.test(normalized)) return "I’ll do it with you!";
+    return null;
+  };
+
+  const petMoodForTask = (name: string) => {
+    const normalized = name.toLowerCase();
+    if (/wake|morning/.test(normalized)) return 'excited' as const;
+    if (/bed|sleep|nap|night/.test(normalized)) return 'sleep' as const;
+    return drowsy ? 'drowsy' as const : 'happy' as const;
+  };
+
   const getTodaysTaskCompletion = () => {
     const completedCount = todaysSchedule.filter(task => task.isCompleted).length;
     return { completed: completedCount, total: todaysSchedule.length };
@@ -798,7 +852,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       <div className={`${!propChildId ? 'min-h-dvh' : ''} p-5`}>
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <PetAvatar petType={child.petType} happiness={80} emotion="resting" size="md" />
+            <CritterPet petType={child.petType} mood="happy" activity="reading" size={80} interactive prompt="Cozy day!" />
             <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
           </div>
           <motion.div
@@ -813,6 +867,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               {petNick(child.petType)} is resting too!
             </p>
           </motion.div>
+          <PetClub key={child.id} childId={child.id} petType={child.petType} day={today} completed={getTodaysTaskCompletion().completed} />
         </div>
       </div>
     );
@@ -953,6 +1008,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   Goodnight, {child.name}! 🌙
                 </h2>
                 <StatusBadge variant="info">Time to rest</StatusBadge>
+                <CritterPet petType={child.petType} mood="sleep" size={168} interactive prompt="Sweet dreams!" />
                 <p className="text-14 text-fog-200 text-center max-w-xs">
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
@@ -970,7 +1026,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const overdue = !isFrozen && isActiveTaskOverdue();
           // The pet never looks worried — when a task runs long it keeps
           // cheering. Overdue is expressed by the timer and worm, not the pet.
-          const petMood = petCelebrating ? 'celebrate' : drowsy ? 'drowsy' : 'happy';
+          const petMood = petCelebrating ? 'celebrate' : petMoodForTask(displayTask.name);
 
           const remainingMMSS = formatRemaining(remaining);
           // Badge variant for the time chip under the title
@@ -1032,6 +1088,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={96}
                     interactive
+                    prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
+                    reaction={returnGreeting ? "Wave" : undefined}
+                    reactionKey={returnGreeting?.id}
                     className="w-[96px] h-[96px]"
                   />
                   <TaskChecklistView
@@ -1055,6 +1114,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={168}
                     interactive
+                    prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
+                    reaction={returnGreeting ? "Wave" : undefined}
+                    reactionKey={returnGreeting?.id}
                     className="w-full h-full"
                   />
                 </CircularTimer>
@@ -1301,7 +1363,26 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         sizePx={293}
                         isRunning={true}
                       >
-                        <CritterPet petType={child.petType} mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"} size={168} interactive className="w-full h-full" />
+                        <CritterPet
+                          petType={child.petType}
+                          mood={petCelebrating ? "celebrate" : beforeWake ? "sleep" : petIsCheckingClock ? "excited" : drowsy ? "drowsy" : "happy"}
+                          activity={petCelebrating || beforeWake || petIsCheckingClock || drowsy ? undefined : freeTimeActivityRef.current.activity}
+                          size={168}
+                          interactive
+                          prompt={
+                            returnGreeting?.text
+                            ?? (beforeWake
+                              ? "Still sleepy…"
+                              : petIsCheckingClock
+                                ? `Almost time for ${freeTimeCountdown.nextTask.name}!`
+                                : freeTimeActivityRef.current.activity === "reading"
+                                  ? "A little quiet time!"
+                                  : "Let’s have some fun!")
+                          }
+                          reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
+                          reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
+                          className="w-full h-full"
+                        />
                       </CircularTimer>
                       {wheelReady && (
                         <button
@@ -1439,6 +1520,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         )}
 
         {/* Goodnight — day is over */}
+        {!dayOver && <PetClub key={child.id} childId={child.id} petType={child.petType} day={today} completed={getTodaysTaskCompletion().completed} />}
         {dayOver && (
           <motion.div
             className="flex flex-col items-center gap-sp-4 mt-sp-4"
@@ -1450,14 +1532,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               animate={{ rotate: [-2, 2, -2] }}
               transition={tMotion({ duration: 4, repeat: Infinity, ease: "easeInOut" })}
             >
-              <PetAvatar
-                petType={child.petType}
-                happiness={90}
-                emotion="resting"
-                size="xl"
-                completedTasks={getTodaysTaskCompletion().completed}
-                totalTasks={getTodaysTaskCompletion().total}
-              />
+              <CritterPet petType={child.petType} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
             </motion.div>
             <h2 className="text-24 text-fog-50 text-center leading-tight">
               Goodnight, {child.name}! 🌙
@@ -1478,7 +1553,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             transition={tMotion(springs.gentle)}
           >
             <AmbientClock next={null} />
-            <CritterPet petType={child.petType} mood="excited" size={168} interactive />
+            <CritterPet
+              petType={child.petType}
+              mood="excited"
+              activity={freeTimeActivityRef.current.activity}
+              size={168}
+              interactive
+              prompt={returnGreeting?.text ?? "We did it!"}
+              reaction={returnGreeting ? "Wave" : undefined}
+              reactionKey={returnGreeting?.id}
+            />
             <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
             <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
               <span className="text-12 font-medium text-ink-900">Nice work</span>

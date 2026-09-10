@@ -38,6 +38,10 @@ interface SpritePetProps {
   interactive?: boolean;
   /** Called after the pet reacts to a tap. */
   onTap?: () => void;
+  /** A parent-triggered one-shot, such as waving when the child returns. */
+  reaction?: ClipName;
+  /** Change this value to replay the same parent-triggered reaction. */
+  reactionKey?: string | number;
   className?: string;
 }
 
@@ -60,6 +64,11 @@ const pick = (options: LifeBehaviour[]): ClipName => {
 };
 
 const rand = ([min, max]: [number, number]) => min + Math.random() * (max - min);
+
+const pickClip = (clips: ClipName | ClipName[]): ClipName => {
+  if (!Array.isArray(clips)) return clips;
+  return clips[Math.floor(Math.random() * clips.length)];
+};
 
 /**
  * The rabbit as a creature rather than a clip player.
@@ -85,6 +94,8 @@ const SpritePet = ({
   label = "Pet",
   interactive = false,
   onTap,
+  reaction,
+  reactionKey,
   className,
 }: SpritePetProps) => {
   const reduced = useReducedMotion();
@@ -97,7 +108,7 @@ const SpritePet = ({
       : plan.life
         ? { life: plan.life, pauseMs: plan.pauseMs ?? ([6000, 14000] as [number, number]) }
         : null;
-  const tapClip: ClipName | null = clip ? null : activity ? ACTIVITY_LIFE.onTap : plan.onTap ?? null;
+  const tapClips: ClipName | ClipName[] | null = clip ? null : activity ? ACTIVITY_LIFE.onTap : plan.onTap ?? null;
   const still = reduced || (!!plan.still && !activity && !clip);
 
   const [playing, setPlaying] = useState<Playing>({ name: base, once: false, n: 0 });
@@ -117,7 +128,7 @@ const SpritePet = ({
     (name: ClipName) => {
       const cur = playingRef.current;
       if (cur.name === "Idle" && !cur.once) play(name, true);
-      else if (!queueRef.current.includes(name)) queueRef.current.push(name);
+      else queueRef.current = [name];
     },
     [play],
   );
@@ -138,8 +149,14 @@ const SpritePet = ({
   useEffect(() => {
     const cur = playingRef.current;
     if (cur.name === base) return;
+    if (reduced) { queueRef.current = []; play(base, false); return; }
     if (cur.name === "Idle" && !cur.once) play(base, false);
-  }, [base, play]);
+  }, [base, play, reduced]);
+
+  useEffect(() => {
+    if (!reaction || reduced) return;
+    request(reaction);
+  }, [reaction, reactionKey, reduced, request]);
 
   // Self-initiated behaviour on a random schedule, re-armed after each one.
   useEffect(() => {
@@ -157,8 +174,8 @@ const SpritePet = ({
   }, [mood, activity, clip, reduced, still]);
 
   const handleTap = () => {
-    if (!interactive || reduced) return;
-    if (tapClip) request(tapClip);
+    if (!interactive) return;
+    if (!reduced && tapClips) request(pickClip(tapClips));
     onTap?.();
   };
 
@@ -180,7 +197,11 @@ const SpritePet = ({
       role={interactive ? "button" : "img"}
       aria-label={interactive ? `${label}. Tap to say hi.` : label}
       data-clip={playing.name}
-      className={cn("relative overflow-hidden shrink-0", interactive && "cursor-pointer select-none", className)}
+      className={cn(
+        "relative overflow-hidden shrink-0",
+        interactive && "cursor-pointer select-none transition-transform duration-100 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-iris-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900",
+        className,
+      )}
       style={{ width: w, height: h, touchAction: "manipulation" }}
       onPointerDown={interactive ? handleTap : undefined}
       onKeyDown={
