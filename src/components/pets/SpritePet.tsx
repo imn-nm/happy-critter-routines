@@ -12,6 +12,13 @@ import {
   type PetMood,
 } from "./spriteClips";
 
+/**
+ * Union of the rabbit's opaque pixels across all nine strips, measured from
+ * the sheets: x 13..76, y 15..71 of the 104x80 frame. Idle occupies
+ * x 37..66, y 30..70 with the feet on y=70.
+ */
+const CONTENT = { x: 13, y: 15, w: 63, h: 56 };
+
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and an occasional flourish. */
   mood?: PetMood;
@@ -57,14 +64,18 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
 
   const { src, frameCount, durationMs } = CLIPS[playing.name];
 
-  // Prefer whole-number magnification so the 1x1 pixel cells stay even.
-  // Fall back to an exact scale when rounding down would leave the pet
-  // visibly too small for its slot.
-  const whole = Math.floor(size / FRAME_H);
-  const scale = size >= FRAME_H && whole * FRAME_H >= size * 0.8 ? whole : size / FRAME_H;
-  const w = Math.round(FRAME_W * scale);
-  const h = Math.round(FRAME_H * scale);
-  const still = reduced || plan.still && !activity && !clip;
+  // The rabbit sits inside a 104x80 frame with a lot of transparent margin
+  // (the idle body is only 29x40). Scaling the whole frame left every avatar
+  // at half its slot, so the player crops to a window that covers the rabbit
+  // across every clip (jump, wave, monitor) and scales *that* to `size`.
+  // Prefer whole-number magnification so the pixel cells stay even.
+  const whole = Math.floor(size / CONTENT.h);
+  const scale = size >= CONTENT.h && whole * CONTENT.h >= size * 0.8 ? whole : size / CONTENT.h;
+  const fw = FRAME_W * scale;
+  const fh = FRAME_H * scale;
+  const w = Math.round(CONTENT.w * scale);
+  const h = Math.round(CONTENT.h * scale);
+  const still = reduced || (plan.still && !activity && !clip);
 
   return (
     <div
@@ -73,26 +84,29 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
       className={cn("relative overflow-hidden shrink-0", className)}
       style={{ width: w, height: h }}
     >
-      <img
-        key={`${playing.name}-${playing.n}`}
-        src={src}
-        alt=""
-        draggable={false}
-        onAnimationEnd={() => {
-          if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
-        }}
-        className="absolute left-0 top-0 max-w-none select-none"
-        style={{
-          width: w * frameCount,
-          height: h,
-          imageRendering: "pixelated",
-          // One keyframe rule in index.css; the end offset is the last frame.
-          ["--strip-end" as string]: `${-(frameCount - 1) * w}px`,
-          animation: still
-            ? "none"
-            : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
-        }}
-      />
+      {/* Offsets the strip so the content window sits at the box origin. */}
+      <div className="absolute" style={{ left: -CONTENT.x * scale, top: -CONTENT.y * scale, width: fw * frameCount, height: fh }}>
+        <img
+          key={`${playing.name}-${playing.n}`}
+          src={src}
+          alt=""
+          draggable={false}
+          onAnimationEnd={() => {
+            if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
+          }}
+          className="absolute left-0 top-0 max-w-none select-none"
+          style={{
+            width: fw * frameCount,
+            height: fh,
+            imageRendering: "pixelated",
+            // One keyframe rule in index.css; the end offset is the last frame.
+            ["--strip-end" as string]: `${-(frameCount - 1) * fw}px`,
+            animation: still
+              ? "none"
+              : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
+          }}
+        />
+      </div>
     </div>
   );
 };
