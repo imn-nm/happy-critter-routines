@@ -1,0 +1,65 @@
+{
+  "frameWidth": 104,
+  "frameHeight": 80,
+  "fps": 30,
+  "anchor": [
+    50,
+    70
+  ],
+  "animations": {
+    "Idle": {
+      "sheet": "idle-sheet.png",
+      "count": 120,
+      "loop": true,
+      "durationMs": 4000
+    },
+    "Celebrate": {
+      "sheet": "celebrate-sheet.png",
+      "count": 108,
+      "loop": false,
+      "durationMs": 3600
+    },
+    "Encourage": {
+      "sheet": "encourage-sheet.png",
+      "count": 120,
+      "loop": false,
+      "durationMs": 4000
+    },
+    "Wave": {
+      "sheet": "wave-sheet.png",
+      "count": 120,
+      "loop": false,
+      "durationMs": 4000
+    },
+    "Sleepy": {
+      "sheet": "sleepy-sheet.png",
+      "count": 120,
+      "loop": false,
+      "durationMs": 4000
+    },
+    "Eating": {
+      "sheet": "eating-sheet.png",
+      "count": 180,
+      "loop": false,
+      "durationMs": 6000
+    },
+    "Reading": {
+      "sheet": "reading-sheet.png",
+      "count": 180,
+      "loop": false,
+      "durationMs": 6000
+    },
+    "Gaming": {
+      "sheet": "gaming-sheet.png",
+      "count": 180,
+      "loop": false,
+      "durationMs": 6000
+    },
+    "BrushingTeeth": {
+      "sheet": "brushingteeth-sheet.png",
+      "count": 180,
+      "loop": false,
+      "durationMs": 6000
+    }
+  }
+}

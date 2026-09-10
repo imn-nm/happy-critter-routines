@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
-import { type CritterId } from "@/components/critters/pixelCharacters";
+import { type PetId } from "@/components/pets/petCatalog";
 import HouseholdSettings from "@/components/HouseholdSettings";
 import CalendarConnect from "@/components/CalendarConnect";
 import { supabase } from "@/integrations/supabase/client";
@@ -348,7 +348,7 @@ function EditChildDialog({
 }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState<string>("");
-  const [petType, setPetType] = useState<CritterId>("fox");
+  const [petType, setPetType] = useState<PetId>("rabbit");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 

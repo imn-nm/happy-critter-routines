@@ -156,7 +156,6 @@ export const cleanupDuplicateSystemTasks = async (childId: string) => {
   });
   
   if (tasksToDelete.length > 0) {
-    console.log(`Removing ${tasksToDelete.length} duplicate system tasks for child ${childId}`);
     const { error } = await supabase
       .from('tasks')
       .delete()
@@ -177,14 +176,12 @@ export const ensureSystemTasksExist = async (childId: string) => {
   const existingTasks = await getSystemTasksForChild(childId);
   const existingTaskNames = existingTasks.map(task => task.name);
   
-  console.log(`Child ${childId} has existing system tasks:`, existingTaskNames);
   
   // Create missing system tasks
   const missingTemplates = systemTaskTemplates.filter(
     template => !existingTaskNames.includes(template.name)
   );
   
-  console.log(`Missing system tasks for child ${childId}:`, missingTemplates.map(t => t.name));
   
   if (missingTemplates.length > 0) {
     const tasksToCreate = missingTemplates.map((template, index) => ({
@@ -201,7 +198,6 @@ export const ensureSystemTasksExist = async (childId: string) => {
       is_active: true
     }));
 
-    console.log(`Creating system tasks for child ${childId}:`, tasksToCreate);
 
     const { error } = await supabase
       .from('tasks')
@@ -212,9 +208,7 @@ export const ensureSystemTasksExist = async (childId: string) => {
       throw error;
     }
     
-    console.log(`Successfully created ${missingTemplates.length} system tasks for child ${childId}`);
   } else {
-    console.log(`All system tasks already exist for child ${childId}`);
   }
 };
 
@@ -227,7 +221,6 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
   dinner_time?: string;
   bedtime?: string;
 }) => {
-  console.log(`Updating all system task instances for child ${childId}:`, systemTaskUpdates);
   
   // Map profile field names to system task names and times
   const taskNameMapping = {
@@ -245,7 +238,6 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
     if (newTime && taskNameMapping[profileField as keyof typeof taskNameMapping]) {
       const taskName = taskNameMapping[profileField as keyof typeof taskNameMapping];
       
-      console.log(`Updating all instances of "${taskName}" to time ${newTime}`);
       
       // Normalize to HH:MM:SS. Values may arrive as "HH:MM" (time inputs) or
       // already "HH:MM:SS" (round-tripped from the DB) — blindly appending
@@ -276,9 +268,7 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
       throw errors[0].error;
     }
     
-    console.log(`Successfully updated ${updatePromises.length} system task types for child ${childId}`);
   } else {
-    console.log(`No system task updates needed for child ${childId}`);
   }
 };
 

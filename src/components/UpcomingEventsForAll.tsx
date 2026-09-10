@@ -31,7 +31,6 @@ const UpcomingEventsForAll = () => {
       
       try {
         const childIds = children.map(c => c.id);
-        console.log('Fetching tasks for children:', childIds);
         const { data, error } = await supabase
           .from('tasks')
           .select('*')
@@ -39,7 +38,6 @@ const UpcomingEventsForAll = () => {
           .order('sort_order', { ascending: true });
 
         if (error) throw error;
-        console.log('Fetched tasks:', data);
         console.log('All tasks with details:', data?.map(t => ({
           id: t.id,
           name: t.name,

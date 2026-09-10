@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CritterPet from "@/components/critters/CritterPet";
-import type { CritterMood } from "@/components/critters/PixelSprite";
+import type { CritterMood } from "@/components/critters/CritterPet";
 import WormTimer from "@/components/WormTimer";
 import SpinningWheel from "@/components/SpinningWheel";
 import { cn } from "@/lib/utils";

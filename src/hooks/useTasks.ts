@@ -359,7 +359,6 @@ export const useTasks = (childId?: string) => {
             filter: `child_id=eq.${childId}`
           },
           (payload) => {
-            console.log('Real-time task change for child', childId, ':', payload);
             if (payload.eventType === 'DELETE' && payload.old) {
               setTasks(prev => prev.filter(task => task.id !== payload.old.id));
             } else if (payload.eventType === 'INSERT' && payload.new) {

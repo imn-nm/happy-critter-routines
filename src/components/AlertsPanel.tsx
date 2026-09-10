@@ -3,6 +3,7 @@ import { Bell, Check, X, Clock, Star, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
 import { supabase } from "@/integrations/supabase/client";
+import { approveRewardPurchase, denyRewardPurchase } from "@/hooks/useRewards";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -28,7 +29,7 @@ interface AlertsPanelProps {
 }
 
 const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
-  const { children, adjustChildCoins } = useChildren();
+  const { children } = useChildren();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<Set<string>>(new Set());
@@ -92,15 +93,8 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
   const handleApprove = async (alert: PendingRewardAlert) => {
     setProcessing(prev => new Set(prev).add(alert.id));
     try {
-      await supabase
-        .from("reward_purchases")
-        .update({ status: "completed" })
-        .eq("id", alert.purchaseId);
-
-      const child = children.find(c => c.id === alert.childId);
-      if (child) {
-        await adjustChildCoins(child.id, -alert.coins);
-      }
+      // Single shared approve path (status flip + atomic star deduction).
+      await approveRewardPurchase(alert.purchaseId);
 
       setAlerts(prev => prev.filter(a => a.id !== alert.id));
       toast.success(`Approved: ${alert.rewardName}!`, {
@@ -118,14 +112,11 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
   const handleDeny = async (alert: PendingRewardAlert) => {
     setProcessing(prev => new Set(prev).add(alert.id));
     try {
-      await supabase
-        .from("reward_purchases")
-        .delete()
-        .eq("id", alert.purchaseId);
+      await denyRewardPurchase(alert.purchaseId);
 
       setAlerts(prev => prev.filter(a => a.id !== alert.id));
-      toast("Request denied", {
-        description: `${alert.rewardName} request from ${alert.childName} removed`,
+      toast("Not this time", {
+        description: `${alert.childName} will see that ${alert.rewardName} wasn't approved`,
       });
     } catch (error) {
       console.error("Error denying:", error);

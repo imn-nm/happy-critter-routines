@@ -11,9 +11,8 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
-import CritterPicker from "@/components/critters/CritterPicker";
-import { critterNick } from "@/components/critters/pixelCharacters";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { petNick } from "@/components/pets/petCatalog";
+import { activityForTask } from "@/components/pets/spriteClips";
 import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
@@ -25,7 +24,6 @@ import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
-import { useCompletions } from "@/hooks/useCompletions";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
@@ -45,18 +43,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
-  const { children, loading: childrenLoading, updateChild, updateChildCoins, updateChildHappiness } = useChildren();
+  const { children, loading: childrenLoading, adjustChildCoins, updateChildHappiness } = useChildren();
   const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
-  const { toggleCompletion } = useCompletions(childId);
 
   const [showSchedule, setShowSchedule] = useState(false);
   const [showRewardsShop, setShowRewardsShop] = useState(false);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [nextTapped, setNextTapped] = useState(false);
   const [petCelebrating, setPetCelebrating] = useState(false);
-  const [showPetPicker, setShowPetPicker] = useState(false);
+  // Name of a reward a grown-up just approved — drives the full-screen
+  // celebration. Cleared after a few seconds.
+  const [approvedReward, setApprovedReward] = useState<string | null>(null);
   // null = follow the default (show the wheel automatically when one is set
   // up); true/false = the child explicitly chose wheel or pet this session.
   const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
@@ -66,7 +65,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [frozenTask, setFrozenTask] = useState<any>(null);
   const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
   const [, setTick] = useState(0);
-  const [autoAdvancing, setAutoAdvancing] = useState(false);
 
   // Floating "+N" coin deltas. Each entry self-removes after its animation.
   const [coinDeltas, setCoinDeltas] = useState<{ id: number; amount: number }[]>([]);
@@ -125,6 +123,39 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     }, 1000);
     return () => window.clearTimeout(timeout);
   }, [child?.currentCoins]);
+
+  // Close the reward loop: when a parent approves a request, celebrate here
+  // the moment it happens. Deny needs no fanfare — the shop shows a gentle
+  // "not this time" on the card.
+  useEffect(() => {
+    if (!childId) return;
+    const channel = supabase
+      .channel(`reward-outcomes-${childId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
+        async payload => {
+          const row = payload.new as { reward_id: string; status: string };
+          const was = (payload.old as { status?: string })?.status;
+          if (row.status !== 'approved' || was === 'approved') return;
+          const { data: reward } = await supabase
+            .from('rewards')
+            .select('name')
+            .eq('id', row.reward_id)
+            .maybeSingle();
+          setApprovedReward(reward?.name ?? 'Your reward');
+          setPetCelebrating(true);
+          window.setTimeout(() => {
+            setApprovedReward(null);
+            setPetCelebrating(false);
+          }, 4500);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [childId]);
 
   // Ensure system tasks exist
   useEffect(() => {
@@ -208,25 +239,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   // Get current time in PST
   const getCurrentTime = getPSTDate;
-
-  // Progress
-  const completedTasks = tasksWithCompletion.filter(t => t.isCompleted).length;
-  const totalTasks = tasksWithCompletion.length;
-  const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-  const calculateHappiness = () => {
-    if (progressPercent >= 60) return 95;
-    if (completedTasks > 0) return 70;
-    return 50;
-  };
-
-  const calculatePetEmotion = (): 'encouraging' | 'happy' | 'excited' | 'resting' => {
-    // During a squeeze, stay in encouraging mode regardless of progress
-    if (activeTask && isActiveTaskOverdue() && activeTask.is_important) return 'encouraging';
-    if (progressPercent >= 60) return 'excited';
-    if (completedTasks > 0) return 'happy';
-    return 'encouraging';
-  };
 
   // Context-aware pet message. Returns null when no special message is needed.
   const getPetMessage = (): string | null => {
@@ -423,6 +435,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   };
 
   const todaysSchedule = getTodaysSchedule();
+
+  // Progress — measured against today's schedule only (it used to count every
+  // task the child ever had, which pinned the pet at one mood forever).
+  const completedTasks = todaysSchedule.filter(t => t.isCompleted).length;
+  const totalTasks = todaysSchedule.length;
+  const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+  // Pet "energy": only ever climbs during the day. The child never sees a
+  // number, and the pet never gets sadder — decision: always encouraging.
+  const calculateHappiness = () => {
+    const fromToday = progressPercent >= 60 ? 95 : completedTasks > 0 ? 70 : 50;
+    return Math.max(child?.petHappiness ?? 0, fromToday);
+  };
 
   // Get today's chores (floating tasks)
   const getTodaysChores = () => {
@@ -715,7 +740,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const remaining = getActiveTaskRemainingTime();
 
     try {
-      await completeTask(activeTask.id, 0, activeTask.duration);
+      // Only important tasks reach this handler (regular tasks have no Done).
+      // Stars: the task's value, plus a small on-time bonus so promptness is
+      // rewarded without lateness being punished.
+      const base = activeTask.coins || 0;
+      const onTimeBonus = base > 0 && remaining > 0 ? 1 : 0;
+      const earned = base + onTimeBonus;
+      await completeTask(activeTask.id, earned, activeTask.duration);
+      if (earned > 0) await adjustChildCoins(child.id, earned);
       const newHappiness = calculateHappiness();
       await updateChildHappiness(child.id, newHappiness);
 
@@ -734,25 +766,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     }
   };
 
-  // Auto-advance: timer hits zero → complete unless important
+  // Timer hits zero. Regular tasks simply flow to the next one by the clock
+  // (categorizeTasks drops them once their window ends) — nothing is recorded
+  // as done or missed, because nobody had to check them off. Important tasks
+  // stay pinned until the child holds Done.
   const handleTimerComplete = () => {
-    if (!activeTask || autoAdvancing) return;
-
-    // If important, don't auto-advance — child must tap Next
-    if (activeTask.is_important) return;
-
-    setAutoAdvancing(true);
-    (async () => {
-      try {
-        await completeTask(activeTask.id, 0, activeTask.duration);
-        const newHappiness = calculateHappiness();
-        await updateChildHappiness(child.id, newHappiness);
-      } catch (error) {
-        console.error('Error auto-completing task:', error);
-      } finally {
-        setAutoAdvancing(false);
-      }
-    })();
+    // Intentionally a no-op; the one-second tick re-categorizes the schedule.
   };
 
   // Rest day
@@ -773,7 +792,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <div className="text-4xl mb-3">😴</div>
             <h2 className="text-xl font-bold mb-1 text-foreground">Cozy rest day</h2>
             <p className="text-sm text-muted-foreground">
-              {critterNick(child.petType)} is resting too!
+              {petNick(child.petType)} is resting too!
             </p>
           </motion.div>
         </div>
@@ -791,14 +810,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
             <div className="flex items-center gap-2 min-w-0">
-              <button
-                type="button"
-                onClick={() => setShowPetPicker(true)}
-                className="shrink-0 rounded-full p-0.5 border-2 border-iris-400/[0.32] hover:border-iris-400/60 transition-colors"
-                aria-label="Change your pet"
-              >
+              {/* The pet is chosen by a grown-up in the child's profile. */}
+              <div className="shrink-0 rounded-full p-0.5 border-2 border-iris-400/[0.32]">
                 <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
-              </button>
+              </div>
               <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
             </div>
             <button
@@ -861,7 +876,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 </h2>
                 <StatusBadge variant="info">Time to rest</StatusBadge>
                 <p className="text-14 text-fog-200 text-center max-w-xs">
-                  {critterNick(child.petType)} is going to sleep too. See you tomorrow!
+                  {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
               </motion.div>
             );
@@ -875,11 +890,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           // Suppress the overdue/worried branch during freeze — the just-completed
           // task should never look anxious, even if it had been overdue.
           const overdue = !isFrozen && isActiveTaskOverdue();
-          const petMood = petCelebrating
-            ? 'celebrate'
-            : overdue
-            ? 'worried'
-            : 'happy';
+          // The pet never looks worried — when a task runs long it keeps
+          // cheering. Overdue is expressed by the timer and worm, not the pet.
+          const petMood = petCelebrating ? 'celebrate' : 'happy';
 
           const remainingMMSS = formatRemaining(remaining);
           // Badge variant for the time chip under the title
@@ -938,6 +951,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   <CritterPet
                     petType={child.petType}
                     mood={petMood}
+                    activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={96}
                     className="w-[96px] h-[96px]"
                   />
@@ -959,6 +973,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   <CritterPet
                     petType={child.petType}
                     mood={petMood}
+                    activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={168}
                     className="w-full h-full"
                   />
@@ -970,9 +985,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   uses a 30-minute default window so the visual still appears. */}
               {overdue && (() => {
                 const nextFunTask = findNextFunTimeTask(displayTask);
+                // No fun time behind this task means there is nothing real
+                // being lost — don't show a made-up loss.
+                if (!nextFunTask?.duration) return null;
                 const overdueS = getOverdueSeconds();
-                const DEFAULT_WINDOW_MIN = 30;
-                const funTotalS = (nextFunTask?.duration ?? DEFAULT_WINDOW_MIN) * 60;
+                const funTotalS = nextFunTask.duration * 60;
                 const progress = Math.min(1, overdueS / funTotalS);
                 const funRemainingMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
                 return (
@@ -983,13 +1000,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     transition={tMotion({ duration: durations.quick })}
                   >
                     <WormTimer progress={progress} />
-                    {nextFunTask ? (
-                      <p className="text-12 text-fog-200">
-                        <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
-                      </p>
-                    ) : (
-                      <p className="text-12 text-fog-200">Overdue — finish soon</p>
-                    )}
+                    <p className="text-12 text-fog-200">
+                      <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
+                    </p>
                   </motion.div>
                 );
               })()}
@@ -1048,13 +1061,17 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               {/* Slide-to-confirm — full-width pill below the timer, matches Figma
                   "Child Dashboard - overtime-new". Disabled (but still rendered)
                   during freeze so the layout doesn't shift. */}
-              <div className="w-full px-sp-4 mt-sp-2">
-                <SlideToConfirm
-                  label="Mark as Done"
-                  onConfirm={handleNextTap}
-                  disabled={isFrozen}
-                />
-              </div>
+              {/* Only important tasks ask for a Done. Regular tasks just run
+                  their timer and flow to the next one — no checking off. */}
+              {displayTask.is_important && (
+                <div className="w-full px-sp-4 mt-sp-2">
+                  <SlideToConfirm
+                    label="I did it!"
+                    onConfirm={handleNextTap}
+                    disabled={isFrozen}
+                  />
+                </div>
+              )}
 
               {/* Chore tiles — between slide and Next row, per Figma
                   "Child Dashboard - overtime-new". */}
@@ -1073,13 +1090,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             type="button"
                             onClick={async () => {
                               try {
-                                if (done) {
-                                  await toggleCompletion(chore.id);
-                                } else {
-                                  await completeTask(chore.id, chore.coins || 0, 0);
-                                  const newHappiness = calculateHappiness();
-                                  await updateChildHappiness(child.id, newHappiness);
-                                }
+                                // Done is done — no un-checking from the child side.
+                                if (done) return;
+                                const earned = chore.coins || 0;
+                                await completeTask(chore.id, earned, 0);
+                                if (earned > 0) await adjustChildCoins(child.id, earned);
+                                const newHappiness = calculateHappiness();
+                                await updateChildHappiness(child.id, newHappiness);
                               } catch (error) {
                                 console.error('Error toggling chore:', error);
                               }
@@ -1235,13 +1252,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           type="button"
                           onClick={async () => {
                             try {
-                              if (done) {
-                                await toggleCompletion(chore.id);
-                              } else {
-                                await completeTask(chore.id, chore.coins || 0, 0);
-                                const newHappiness = calculateHappiness();
-                                await updateChildHappiness(child.id, newHappiness);
-                              }
+                              // Done is done — no un-checking from the child side.
+                              if (done) return;
+                              const earned = chore.coins || 0;
+                              await completeTask(chore.id, earned, 0);
+                              if (earned > 0) await adjustChildCoins(child.id, earned);
+                              const newHappiness = calculateHappiness();
+                              await updateChildHappiness(child.id, newHappiness);
                             } catch (error) {
                               console.error('Error toggling chore:', error);
                             }
@@ -1361,7 +1378,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             </h2>
             <StatusBadge variant="info">Sleep tight</StatusBadge>
             <p className="text-14 text-fog-200 text-center max-w-xs">
-              {critterNick(child.petType)} is going to sleep too. See you tomorrow!
+              {petNick(child.petType)} is going to sleep too. See you tomorrow!
             </p>
           </motion.div>
         )}
@@ -1488,27 +1505,32 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         onClose={() => setShowRewardsShop(false)}
       />
 
-      {/* Pet picker — the child chooses their own critter */}
-      <Dialog open={showPetPicker} onOpenChange={setShowPetPicker}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Pick your pet</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-sp-3">
-            <CritterPet petType={child.petType} mood="excited" size={112} />
-            <p className="text-13 text-fog-200 text-center">
-              {critterNick(child.petType)} is your buddy! Tap another friend to switch.
+      {/* A grown-up said yes — full-screen celebration with the pet */}
+      <AnimatePresence>
+        {approvedReward && (
+          <motion.div
+            className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-sp-4 px-sp-6 bg-[#08011A]/90"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={tMotion({ duration: durations.quick })}
+            role="status"
+            aria-live="polite"
+          >
+            <motion.div
+              initial={{ scale: 0.6 }}
+              animate={{ scale: 1 }}
+              transition={tMotion(springs.bouncy)}
+            >
+              <CritterPet petType={child.petType} mood="celebrate" size={192} />
+            </motion.div>
+            <p className="text-2xl font-bold text-fog-50 text-center">Yes! {approvedReward} is yours!</p>
+            <p className="text-16 text-fog-200 text-center">
+              {petNick(child.petType)} is so happy for you, {child.name}!
             </p>
-            <CritterPicker
-              value={child.petType}
-              onChange={async (id) => {
-                await updateChild(child.id, { petType: id });
-              }}
-              className="w-full"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

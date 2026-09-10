@@ -19,6 +19,18 @@
         "preview"
       ],
       "port": 4173
+    },
+    {
+      "name": "rabbit-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5175",
+        "--directory",
+        "assets/pets/rabbit/living-pet"
+      ],
+      "port": 5175
     }
   ]
 }

@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
-import { getCritter } from "@/components/critters/pixelCharacters";
+import { getPet } from "@/components/pets/petCatalog";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 
@@ -89,7 +89,6 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
       // Update all system task instances if there are changes
       if (Object.keys(systemTaskUpdates).length > 0) {
-        console.log('Profile edit: Updating all system task instances:', systemTaskUpdates);
         await updateAllSystemTaskInstances(child.id, systemTaskUpdates);
       }
 
@@ -141,7 +140,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-sm">Pet</h4>
               <span className="text-xs text-muted-foreground">
-                {getCritter(formData.petType)?.name}
+                {getPet(formData.petType).name}
               </span>
             </div>
             <CritterPicker

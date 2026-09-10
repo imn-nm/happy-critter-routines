@@ -272,3 +272,10 @@
     border-color: rgba(135, 155, 255, 0.3);
   }
 }
+
+/* Retro rabbit sprite strips (src/components/pets/SpritePet.tsx). The strip
+   image is stepped one frame at a time; --strip-end is the last frame's
+   offset, set inline per clip. */
+@keyframes retro-strip {
+  to { transform: translateX(var(--strip-end)); }
+}

@@ -14,14 +14,63 @@ export interface Reward {
   updated_at: string;
 }
 
+/**
+ * Lifecycle of a reward request:
+ *   pending  -> child asked, parent hasn't answered
+ *   approved -> parent said yes, stars deducted (legacy rows use 'completed')
+ *   denied   -> parent said not now; row is kept so the child sees the outcome
+ */
+export type PurchaseStatus = 'pending' | 'approved' | 'denied' | 'completed';
+
 export interface RewardPurchase {
   id: string;
   child_id: string;
   reward_id: string;
   coins_spent: number;
   purchased_at: string;
-  status: string;
+  status: PurchaseStatus | string;
 }
+
+export const isApprovedStatus = (s: string) => s === 'approved' || s === 'completed';
+
+/**
+ * Approve a pending request: flip the status, then deduct stars through the
+ * atomic adjust_child_coins RPC. The status update is conditional on
+ * status='pending' so two parents tapping Approve at once can't deduct twice.
+ * Shared by every parent surface so there is exactly one deduction path.
+ */
+export const approveRewardPurchase = async (purchaseId: string) => {
+  const { data: updated, error } = await supabase
+    .from('reward_purchases')
+    .update({ status: 'approved' })
+    .eq('id', purchaseId)
+    .eq('status', 'pending')
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  if (!updated) throw new Error('This request was already handled.');
+
+  const { error: coinErr } = await supabase.rpc('adjust_child_coins', {
+    p_child_id: updated.child_id,
+    p_delta: -updated.coins_spent,
+  });
+  if (coinErr) throw coinErr;
+  return updated as RewardPurchase;
+};
+
+/** Decline a pending request. The row is kept as 'denied' so the child sees it. */
+export const denyRewardPurchase = async (purchaseId: string) => {
+  const { data, error } = await supabase
+    .from('reward_purchases')
+    .update({ status: 'denied' })
+    .eq('id', purchaseId)
+    .eq('status', 'pending')
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('This request was already handled.');
+  return data as RewardPurchase;
+};
 
 export const useRewards = (childId?: string) => {
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -183,37 +232,30 @@ export const useRewards = (childId?: string) => {
     }
   };
 
-  const updatePurchaseStatus = async (purchaseId: string, status: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('reward_purchases')
-        .update({ status })
-        .eq('id', purchaseId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setPurchases(prev => prev.map(p => p.id === purchaseId ? data : p));
-      return data;
-    } catch (error) {
-      console.error('Error updating purchase status:', error);
-      throw error;
-    }
+  const approvePurchase = async (purchaseId: string) => {
+    const updated = await approveRewardPurchase(purchaseId);
+    setPurchases(prev => prev.map(p => p.id === purchaseId ? updated : p));
+    return updated;
   };
 
-  const deletePurchase = async (purchaseId: string) => {
-    try {
-      const { error } = await supabase
-        .from('reward_purchases')
-        .delete()
-        .eq('id', purchaseId);
+  const denyPurchase = async (purchaseId: string) => {
+    const updated = await denyRewardPurchase(purchaseId);
+    setPurchases(prev => prev.map(p => p.id === purchaseId ? updated : p));
+    return updated;
+  };
 
-      if (error) throw error;
-      setPurchases(prev => prev.filter(p => p.id !== purchaseId));
-    } catch (error) {
-      console.error('Error deleting purchase:', error);
-      throw error;
-    }
+  /**
+   * Parent redeems on the child's behalf: record an approved purchase and
+   * deduct atomically. Same coin path as approval.
+   */
+  const redeemForChild = async (rewardId: string, cost: number) => {
+    const purchase = await purchaseReward(rewardId, cost, 'approved');
+    const { error } = await supabase.rpc('adjust_child_coins', {
+      p_child_id: childId!,
+      p_delta: -cost,
+    });
+    if (error) throw error;
+    return purchase;
   };
 
   useEffect(() => {
@@ -221,6 +263,36 @@ export const useRewards = (childId?: string) => {
       fetchRewards();
       fetchPurchases();
     }
+  }, [childId]);
+
+  // Keep purchases live so the child's shop reflects approve/deny the moment
+  // the parent acts, and the parent's pending list clears when the other
+  // parent handles a request.
+  useEffect(() => {
+    if (!childId) return;
+    const channel = supabase
+      .channel(`reward-purchases-${childId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
+        payload => {
+          if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) setPurchases(prev => prev.filter(p => p.id !== oldId));
+            return;
+          }
+          const row = payload.new as RewardPurchase;
+          setPurchases(prev => {
+            const exists = prev.some(p => p.id === row.id);
+            const next = exists ? prev.map(p => (p.id === row.id ? row : p)) : [row, ...prev];
+            return next.sort((a, b) => b.purchased_at.localeCompare(a.purchased_at));
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [childId]);
 
   return {
@@ -231,8 +303,9 @@ export const useRewards = (childId?: string) => {
     updateReward,
     deleteReward,
     purchaseReward,
-    updatePurchaseStatus,
-    deletePurchase,
+    approvePurchase,
+    denyPurchase,
+    redeemForChild,
     refetch: () => {
       fetchRewards();
       fetchPurchases();

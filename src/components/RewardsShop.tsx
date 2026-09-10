@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Star, Gift, X, ShoppingCart, Clock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useRewards } from "@/hooks/useRewards";
+import { useRewards, isApprovedStatus } from "@/hooks/useRewards";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useMotionPrefs } from "@/lib/motion";
+import { getPSTDateString } from "@/utils/pstDate";
 
 interface RewardsShopProps {
   childId: string;
@@ -13,10 +15,16 @@ interface RewardsShopProps {
   onClose: () => void;
 }
 
+/**
+ * The child's reward shop. The only things a child can do here are look at
+ * stars, ask for a reward, and see what happened to earlier asks. State comes
+ * from the purchases feed (kept live by useRewards), so approve / deny from
+ * the parent's phone shows up here without a reload.
+ */
 const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: RewardsShopProps) => {
   const { rewards, purchases, loading, purchaseReward } = useRewards(childId);
+  const { t: tMotion } = useMotionPrefs();
   const [requestingId, setRequestingId] = useState<string | null>(null);
-  const [justRequested, setJustRequested] = useState<Set<string>>(new Set());
   // Reward id whose request failed — renders a child-legible retry line.
   const [failedId, setFailedId] = useState<string | null>(null);
 
@@ -25,7 +33,6 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
     setFailedId(null);
     try {
       await purchaseReward(rewardId, cost, "pending");
-      setJustRequested(prev => new Set(prev).add(rewardId));
     } catch (error) {
       console.error("Error requesting reward:", error);
       setFailedId(rewardId);
@@ -44,10 +51,27 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
-  // Check if there's already a pending request for a reward
+  const pendingPurchases = purchases.filter(p => p.status === "pending");
+  // Stars already spoken for by open requests. A child with 10 stars can't
+  // queue up three 10-star asks.
+  const reserved = pendingPurchases.reduce((sum, p) => sum + p.coins_spent, 0);
+  const available = Math.max(0, currentCoins - reserved);
+
   const hasPendingRequest = (rewardId: string) =>
-    justRequested.has(rewardId) ||
-    purchases.some(p => p.reward_id === rewardId && p.status === "pending");
+    pendingPurchases.some(p => p.reward_id === rewardId);
+
+  // "Not this time" only shows for a deny that happened today, so an old no
+  // doesn't haunt the card forever.
+  const today = getPSTDateString();
+  const deniedToday = (rewardId: string) =>
+    purchases.some(
+      p => p.reward_id === rewardId && p.status === "denied" && p.purchased_at.slice(0, 10) === today,
+    );
+
+  const mine = purchases
+    .filter(p => isApprovedStatus(p.status))
+    .map(p => ({ purchase: p, reward: rewards.find(r => r.id === p.reward_id) }))
+    .filter(x => x.reward);
 
   return (
     <AnimatePresence>
@@ -59,6 +83,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={tMotion({ duration: 0.2 })}
             onClick={onClose}
           />
           {/* Sheet */}
@@ -71,7 +96,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            transition={tMotion({ type: "spring", damping: 28, stiffness: 300 })}
           >
             {/* Handle */}
             <div className="flex justify-center mb-sp-3">
@@ -82,7 +107,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             <div className="flex items-center justify-between mb-sp-4">
               <div className="flex items-center gap-sp-2">
                 <Gift className="w-5 h-5 text-iris-400" />
-                <h2 className="text-18 font-bold text-fog-50">Rewards Shop</h2>
+                <h2 className="text-18 font-bold text-fog-50">Rewards</h2>
               </div>
               <div className="flex items-center gap-sp-2">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
@@ -105,19 +130,20 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             {/* Rewards list */}
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75vh - 120px)" }}>
               {loading ? (
-                <div className="text-center py-sp-6 text-fog-300 text-14">Loading...</div>
+                <div className="text-center py-sp-6 text-fog-300 text-14">Just a sec...</div>
               ) : rewards.length === 0 ? (
                 <div className="text-center py-sp-8 flex flex-col items-center gap-sp-2">
                   <Gift className="w-10 h-10 text-iris-400/40" />
-                  <p className="text-fog-200 text-14">No rewards available yet</p>
-                  <p className="text-fog-400 text-12">Ask your parent to add some rewards!</p>
+                  <p className="text-fog-200 text-14">No rewards yet</p>
+                  <p className="text-fog-400 text-12">Ask a grown-up to add some!</p>
                 </div>
               ) : (
                 rewards.map(reward => {
-                  const canAfford = currentCoins >= reward.cost;
-                  const deficit = reward.cost - currentCoins;
                   const pending = hasPendingRequest(reward.id);
+                  const canAfford = available >= reward.cost;
+                  const deficit = reward.cost - available;
                   const isRequesting = requestingId === reward.id;
+                  const denied = !pending && deniedToday(reward.id);
 
                   return (
                     <div
@@ -146,24 +172,29 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                         <div className="flex items-center gap-sp-2 py-1">
                           <Clock className="w-4 h-4 text-iris-400" />
                           <span className="text-13 text-iris-400 font-medium">
-                            Waiting for parent approval
+                            Asked! Waiting for a grown-up
                           </span>
                         </div>
                       ) : canAfford ? (
                         <>
                           <Button
                             variant="primary"
-                            size="sm"
+                            size="md"
                             className="w-full"
                             disabled={isRequesting}
                             onClick={() => handleRequest(reward.id, reward.cost)}
                           >
                             <ShoppingCart className="w-4 h-4" />
-                            {isRequesting ? "Requesting..." : "Buy"}
+                            {isRequesting ? "Asking..." : "Ask for it"}
                           </Button>
+                          {denied && (
+                            <p className="text-12 text-fog-300 text-center">
+                              Not this time. Keep earning and try again!
+                            </p>
+                          )}
                           {failedId === reward.id && (
                             <p className="text-12 text-coral-400 text-center">
-                              Couldn't send that — try again!
+                              Couldn't send that. Try again!
                             </p>
                           )}
                         </>
@@ -171,13 +202,32 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                         <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
                           <Star className="w-3.5 h-3.5 text-fog-400" strokeWidth={1.5} />
                           <span className="text-13 text-fog-300">
-                            You need {deficit} more star{deficit !== 1 ? "s" : ""}
+                            {deficit} more star{deficit !== 1 ? "s" : ""} to go
                           </span>
                         </div>
                       )}
                     </div>
                   );
                 })
+              )}
+
+              {/* Mine — rewards a grown-up already said yes to */}
+              {mine.length > 0 && (
+                <div className="flex flex-col gap-sp-2 mt-sp-3">
+                  <div className="flex items-center gap-sp-2">
+                    <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
+                    <span className="text-14 font-medium text-mint-500">Mine</span>
+                  </div>
+                  {mine.slice(0, 5).map(({ purchase, reward }) => (
+                    <div
+                      key={purchase.id}
+                      className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-2 rounded-[16px] bg-mint-500/10 border border-mint-500/30"
+                    >
+                      <p className="text-14 text-fog-50 truncate">{reward!.name}</p>
+                      <span className="text-12 text-fog-300 shrink-0">Yes!</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </motion.div>

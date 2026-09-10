@@ -1,26 +1,28 @@
 import { cn } from "@/lib/utils";
-import PixelSprite, { type CritterMood } from "./PixelSprite";
-import { getCritter, resolveCritterId } from "./pixelCharacters";
+import SpritePet from "@/components/pets/SpritePet";
+import { getPet } from "@/components/pets/petCatalog";
+import type { PetActivity, PetMood } from "@/components/pets/spriteClips";
+
+export type { PetMood as CritterMood };
 
 interface CritterPetProps {
   petType: string;
-  mood?: CritterMood;
+  mood?: PetMood;
+  /** What the pet is doing with the child; wins over the mood's base clip. */
+  activity?: PetActivity;
   size?: number;
   className?: string;
 }
 
 /**
- * A child's chosen critter at a given mood, centered in its box. Used for the
- * big timer companion where the pet reacts to task state (celebrate / worried).
+ * A child's pet at a given mood, centered in its box. Used for the big timer
+ * companion where the pet reacts to task state. `petType` is kept for the
+ * call sites; every value renders the rabbit for now.
  */
-const CritterPet = ({ petType, mood = "idle", size = 128, className }: CritterPetProps) => {
-  const critter = getCritter(resolveCritterId(petType));
-  if (!critter) return null;
-  return (
-    <div className={cn("flex items-center justify-center", className)}>
-      <PixelSprite model={critter} size={size} mood={mood} />
-    </div>
-  );
-};
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, className }: CritterPetProps) => (
+  <div className={cn("flex items-center justify-center", className)}>
+    <SpritePet mood={mood} activity={activity} size={size} label={getPet(petType).name} />
+  </div>
+);
 
 export default CritterPet;

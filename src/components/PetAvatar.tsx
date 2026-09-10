@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
-import PixelSprite, { type CritterMood } from "@/components/critters/PixelSprite";
-import { getCritter, resolveCritterId, type CritterId } from "@/components/critters/pixelCharacters";
+import SpritePet from "@/components/pets/SpritePet";
+import { getPet, type PetId } from "@/components/pets/petCatalog";
+import type { PetMood } from "@/components/pets/spriteClips";
 
-// Pet identity across the app is now one of the six pixel critters.
-export type PetType = CritterId;
+export type PetType = PetId;
 export type PetEmotion = "encouraging" | "happy" | "excited" | "resting";
 
 interface PetAvatarProps {
@@ -20,7 +20,7 @@ interface PetAvatarProps {
 
 const sizePx = { sm: 48, md: 80, lg: 128, xl: 192 } as const;
 
-const moodFromEmotion = (emotion?: PetEmotion, happiness = 70): CritterMood => {
+const moodFromEmotion = (emotion?: PetEmotion, happiness = 70): PetMood => {
   switch (emotion) {
     case "excited": return "excited";
     case "happy": return "happy";
@@ -30,19 +30,11 @@ const moodFromEmotion = (emotion?: PetEmotion, happiness = 70): CritterMood => {
   }
 };
 
-/**
- * Renders a child's chosen pixel critter. Legacy pet_type values are mapped
- * onto a current critter by resolveCritterId, so old profiles still render.
- */
-const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetAvatarProps) => {
-  const critter = getCritter(resolveCritterId(petType));
-  if (!critter) return null;
-
-  return (
-    <div className={cn("relative flex items-center justify-center", className)}>
-      <PixelSprite model={critter} size={sizePx[size]} mood={moodFromEmotion(emotion, happiness)} />
-    </div>
-  );
-};
+/** Small avatar of the child's pet for lists, headers and the setup flow. */
+const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetAvatarProps) => (
+  <div className={cn("relative flex items-center justify-center", className)}>
+    <SpritePet size={sizePx[size]} mood={moodFromEmotion(emotion, happiness)} label={getPet(petType).name} />
+  </div>
+);
 
 export default PetAvatar;

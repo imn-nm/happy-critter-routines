@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
-import { getCritter, type CritterId } from "@/components/critters/pixelCharacters";
+import { getPet, type PetId } from "@/components/pets/petCatalog";
 import TimeSelect from "@/components/TimeSelect";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -33,7 +33,7 @@ const ChildSetup = () => {
   const [formData, setFormData] = useState({
     name: "",
     age: "",
-    petType: "fox" as CritterId,
+    petType: "rabbit" as PetId,
     wakeTime: "07:00",
     sleepTime: "20:00",
     breakfastTime: "07:30",
@@ -53,6 +53,13 @@ const ChildSetup = () => {
         petType: formData.petType,
         currentCoins: 0,
         petHappiness: 50,
+        // Step 2 of the wizard. These were collected and echoed on step 3
+        // but never persisted.
+        wake_time: formData.wakeTime,
+        bedtime: formData.sleepTime,
+        breakfast_time: formData.breakfastTime,
+        lunch_time: formData.lunchTime,
+        dinner_time: formData.dinnerTime,
       });
       toast({ title: "Success!", description: `${formData.name} has been added!` });
       navigate("/parent");
@@ -212,7 +219,7 @@ const ChildSetup = () => {
 
               <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
                 <h3 className="font-bold text-fog-50 text-sm mb-2 truncate">
-                  {formData.name} & {getCritter(formData.petType)?.name}
+                  {formData.name} & {getPet(formData.petType).name}
                 </h3>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>Age: {formData.age} years old</p>

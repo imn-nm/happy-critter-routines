@@ -1,36 +1,36 @@
 import { cn } from "@/lib/utils";
-import PixelSprite from "./PixelSprite";
-import { CRITTERS, resolveCritterId, type CritterId } from "./pixelCharacters";
+import SpritePet from "@/components/pets/SpritePet";
+import { PETS, resolvePetId, type PetId } from "@/components/pets/petCatalog";
 
 interface CritterPickerProps {
   value: string;
-  onChange: (id: CritterId) => void;
+  onChange: (id: PetId) => void;
   /** Sprite size in px for each tile. */
   spriteSize?: number;
   className?: string;
-  /** Show the "Pip the Fox" name under each sprite. */
+  /** Show the pet's short name under each sprite. */
   showNames?: boolean;
 }
 
 /**
- * A grid of the six critters as selectable tiles. Shared by the parent setup
- * and edit flows and the child's own pet picker, so the choice looks and
- * behaves the same wherever it appears.
+ * Selectable pet tiles, shared by the parent setup and edit flows. There is
+ * one pet today; the grid is kept so more can be added without touching the
+ * forms that use it.
  */
 const CritterPicker = ({ value, onChange, spriteSize = 72, className, showNames = true }: CritterPickerProps) => {
-  const selected = resolveCritterId(value);
+  const selected = resolvePetId(value);
 
   return (
     <div className={cn("grid grid-cols-3 gap-sp-2", className)}>
-      {CRITTERS.map((c) => {
-        const isSelected = c.id === selected;
+      {PETS.map((p) => {
+        const isSelected = p.id === selected;
         return (
           <button
-            key={c.id}
+            key={p.id}
             type="button"
-            onClick={() => onChange(c.id as CritterId)}
+            onClick={() => onChange(p.id)}
             aria-pressed={isSelected}
-            aria-label={`Choose ${c.name}`}
+            aria-label={`Choose ${p.name}`}
             className={cn(
               "flex flex-col items-center gap-1 rounded-2xl border-2 p-sp-2 transition-colors",
               isSelected
@@ -38,10 +38,10 @@ const CritterPicker = ({ value, onChange, spriteSize = 72, className, showNames 
                 : "border-iris-400/15 hover:border-iris-400/40 hover:bg-iris-400/[0.06]",
             )}
           >
-            <PixelSprite model={c} size={spriteSize} mood={isSelected ? "happy" : "idle"} />
+            <SpritePet size={spriteSize} mood={isSelected ? "happy" : "idle"} label={p.name} />
             {showNames && (
               <span className="text-11 font-medium text-fog-100 leading-tight text-center">
-                {c.name.split(" ").pop()}
+                {p.name.split(" ")[0]}
               </span>
             )}
           </button>

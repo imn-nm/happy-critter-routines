@@ -17,10 +17,11 @@ interface RewardsManagementProps {
    * here read from the same useChildren() instance — avoids stale display
    * caused by parallel hook copies.
    */
-  onUpdateCoins: (id: string, coins: number) => Promise<unknown>;
+  /** Kept for the call site; star changes now go through the atomic RPC. */
+  onUpdateCoins?: (id: string, coins: number) => Promise<unknown>;
 }
 
-const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => {
+const RewardsManagement = ({ child }: RewardsManagementProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
   // Purchase request id currently being approved/denied — blocks double-taps
@@ -33,7 +34,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
     cost: "10",
   });
 
-  const { rewards, purchases, loading, addReward, updateReward, deleteReward, purchaseReward, updatePurchaseStatus, deletePurchase } = useRewards(child.id);
+  const { rewards, purchases, loading, addReward, updateReward, deleteReward, approvePurchase, denyPurchase, redeemForChild } = useRewards(child.id);
 
   const resetForm = () => {
     setFormData({
@@ -87,8 +88,9 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
 
     setRedeemingId(reward.id);
     try {
-      await purchaseReward(reward.id, reward.cost);
-      await onUpdateCoins(child.id, child.currentCoins - reward.cost);
+      // Atomic deduction via the RPC; the parent's balance display updates
+      // through the children realtime feed.
+      await redeemForChild(reward.id, reward.cost);
 
       toast.success(`${child.name} purchased: ${reward.name}!`, {
         description: `Spent ${reward.cost} stars`,
@@ -107,8 +109,7 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
   const handleApprove = async (purchaseId: string, coinsSpent: number) => {
     setProcessingId(purchaseId);
     try {
-      await updatePurchaseStatus(purchaseId, 'completed');
-      await onUpdateCoins(child.id, child.currentCoins - coinsSpent);
+      await approvePurchase(purchaseId);
 
       const purchase = purchases.find(p => p.id === purchaseId);
       const reward = rewards.find(r => r.id === purchase?.reward_id);
@@ -127,12 +128,12 @@ const RewardsManagement = ({ child, onUpdateCoins }: RewardsManagementProps) => 
   const handleDeny = async (purchaseId: string) => {
     setProcessingId(purchaseId);
     try {
-      await deletePurchase(purchaseId);
+      await denyPurchase(purchaseId);
 
       const purchase = purchases.find(p => p.id === purchaseId);
       const reward = rewards.find(r => r.id === purchase?.reward_id);
-      toast("Request denied", {
-        description: `${reward?.name ?? 'Reward'} request removed`,
+      toast("Not this time", {
+        description: `${child.name} will see that ${reward?.name ?? 'the reward'} wasn't approved`,
       });
     } catch (error) {
       console.error('Error denying purchase:', error);

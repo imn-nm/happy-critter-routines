@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { resolveCritterId, type CritterId } from '@/components/critters/pixelCharacters';
+import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
-const convertPetType = (dbPetType: string): CritterId => resolveCritterId(dbPetType);
+const convertPetType = (dbPetType: string): PetId => resolvePetId(dbPetType);
 
 export interface Child {
   id: string;
   parent_id: string;
   name: string;
   age?: number;
-  petType: CritterId;
+  petType: PetId;
   currentCoins: number;
   petHappiness: number;
   created_at: string;
@@ -95,13 +95,10 @@ export const useChildren = () => {
       if (error) throw error;
       
       // Map database format to interface format
-      console.log('Raw children data from database:', data);
       const mappedData = (data || []).map(child => {
-        console.log(`Mapping child ${child.name}: pet_type="${child.pet_type}"`);
         const convertedPetType = convertPetType(child.pet_type);
 
         if (child.pet_type !== convertedPetType) {
-          console.log(`Converting old pet type "${child.pet_type}" to "${convertedPetType}" for ${child.name}`);
         }
 
         return {
@@ -159,9 +156,16 @@ export const useChildren = () => {
         age: childData.age,
         parent_id: user.id,
         household_id: membership.household_id,
-        pet_type: childData.petType || 'fox',
+        pet_type: childData.petType || 'rabbit',
         current_coins: childData.currentCoins,
         pet_happiness: childData.petHappiness,
+        // Optional schedule times from the setup wizard. Omitted keys keep
+        // the column defaults.
+        ...(childData.wake_time && { wake_time: childData.wake_time }),
+        ...(childData.bedtime && { bedtime: childData.bedtime }),
+        ...(childData.breakfast_time && { breakfast_time: childData.breakfast_time }),
+        ...(childData.lunch_time && { lunch_time: childData.lunch_time }),
+        ...(childData.dinner_time && { dinner_time: childData.dinner_time }),
       };
 
       const { data, error } = await supabase
@@ -213,8 +217,6 @@ export const useChildren = () => {
 
   const updateChild = async (id: string, updates: Partial<Child>) => {
     try {
-      console.log('Updating child with:', { id, updates });
-      console.log('Available pet types in system:', ['fox', 'panda']);
       
       // Optimistically update UI first
       setChildren(prev => prev.map(child => 
@@ -252,7 +254,6 @@ export const useChildren = () => {
       delete (dbUpdates as any).currentCoins;
       delete (dbUpdates as any).petHappiness;
 
-      console.log('Database updates being sent:', dbUpdates);
 
       const { data, error } = await supabase
         .from('children')
@@ -263,7 +264,6 @@ export const useChildren = () => {
 
       if (error) throw error;
       
-      console.log('Child updated successfully:', data);
 
       // Map database format to interface format
       const mappedChild = {
@@ -365,7 +365,6 @@ export const useChildren = () => {
   useEffect(() => {
     fetchChildren();
     
-    console.log('Setting up real-time subscription for children changes');
     
     // Set up real-time subscription for children changes
     const childrenChannel = supabase
@@ -378,7 +377,6 @@ export const useChildren = () => {
           table: 'children'
         },
         (payload) => {
-          console.log('Real-time child change detected:', payload);
           if (payload.eventType === 'UPDATE') {
             // Map database format to interface format for real-time updates
             const mappedChild = {
@@ -387,7 +385,6 @@ export const useChildren = () => {
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
-            console.log('Updating children state with real-time change:', mappedChild);
             setChildren(prev => prev.map(child => 
               child.id === payload.new?.id ? mappedChild as Child : child
             ));
@@ -403,20 +400,16 @@ export const useChildren = () => {
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
-            console.log('Adding new child via real-time:', mappedChild);
             setChildren(prev => [...prev, mappedChild as Child]);
           } else if (payload.eventType === 'DELETE') {
-            console.log('Removing child via real-time:', payload.old?.id);
             setChildren(prev => prev.filter(child => child.id !== payload.old?.id));
           }
         }
       )
       .subscribe((status) => {
-        console.log('Children real-time subscription status:', status);
       });
 
     return () => {
-      console.log('Cleaning up children real-time subscription');
       supabase.removeChannel(childrenChannel);
     };
   }, []);

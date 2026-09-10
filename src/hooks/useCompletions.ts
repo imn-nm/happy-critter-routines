@@ -57,14 +57,6 @@ export const useCompletions = (childId?: string) => {
     pendingToggles.current.add(toggleKey);
 
     try {
-      console.log('useCompletions: toggleCompletion called', {
-        taskId, 
-        dateOrDay, 
-        targetDate,
-        childId,
-        completionsCount: completions.length 
-      });
-
       // Check if task is already completed for the target date
       const existingCompletion = completions.find(
         completion => completion.task_id === taskId && 
