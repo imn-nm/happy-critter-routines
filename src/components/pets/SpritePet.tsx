@@ -13,11 +13,13 @@ import {
 } from "./spriteClips";
 
 /**
- * Union of the rabbit's opaque pixels across all nine strips, measured from
- * the sheets: x 13..76, y 15..71 of the 104x80 frame. Idle occupies
- * x 37..66, y 30..70 with the feet on y=70.
+ * Crop window measured from the sheets. The idle body occupies x 37..66,
+ * y 30..70 of the 104x80 frame (centre x = 51.5, feet on y = 70). The window
+ * is centred on that body so the rabbit sits in the middle of its slot, and
+ * is wide and tall enough (x 13..90, y 15..71) for the gaming monitor, the
+ * waving arm and the celebrate jump.
  */
-const CONTENT = { x: 13, y: 15, w: 63, h: 56 };
+const CONTENT = { x: 13, y: 15, w: 77, h: 56 };
 
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and an occasional flourish. */
@@ -64,17 +66,18 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
 
   const { src, frameCount, durationMs } = CLIPS[playing.name];
 
-  // The rabbit sits inside a 104x80 frame with a lot of transparent margin
-  // (the idle body is only 29x40). Scaling the whole frame left every avatar
-  // at half its slot, so the player crops to a window that covers the rabbit
-  // across every clip (jump, wave, monitor) and scales *that* to `size`.
-  // Prefer whole-number magnification so the pixel cells stay even.
-  const whole = Math.floor(size / CONTENT.h);
-  const scale = size >= CONTENT.h && whole * CONTENT.h >= size * 0.8 ? whole : size / CONTENT.h;
-  const fw = FRAME_W * scale;
-  const fh = FRAME_H * scale;
-  const w = Math.round(CONTENT.w * scale);
-  const h = Math.round(CONTENT.h * scale);
+  // The strip is always laid out at a whole-number magnification so every
+  // frame step lands on whole pixels; fractional steps made the rabbit
+  // shimmer. The box is then scaled to the requested size with a transform,
+  // which only resamples once.
+  const intScale = Math.max(1, Math.floor(size / CONTENT.h));
+  const fit = size / (CONTENT.h * intScale);
+  const fw = FRAME_W * intScale;
+  const fh = FRAME_H * intScale;
+  const boxW = CONTENT.w * intScale;
+  const boxH = CONTENT.h * intScale;
+  const w = Math.round(boxW * fit);
+  const h = Math.round(boxH * fit);
   const still = reduced || (plan.still && !activity && !clip);
 
   return (
@@ -84,28 +87,33 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
       className={cn("relative overflow-hidden shrink-0", className)}
       style={{ width: w, height: h }}
     >
-      {/* Offsets the strip so the content window sits at the box origin. */}
-      <div className="absolute" style={{ left: -CONTENT.x * scale, top: -CONTENT.y * scale, width: fw * frameCount, height: fh }}>
-        <img
-          key={`${playing.name}-${playing.n}`}
-          src={src}
-          alt=""
-          draggable={false}
-          onAnimationEnd={() => {
-            if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
-          }}
-          className="absolute left-0 top-0 max-w-none select-none"
-          style={{
-            width: fw * frameCount,
-            height: fh,
-            imageRendering: "pixelated",
-            // One keyframe rule in index.css; the end offset is the last frame.
-            ["--strip-end" as string]: `${-(frameCount - 1) * fw}px`,
-            animation: still
-              ? "none"
-              : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
-          }}
-        />
+      <div
+        className="absolute left-0 top-0 overflow-hidden"
+        style={{ width: boxW, height: boxH, transform: `scale(${fit})`, transformOrigin: "top left" }}
+      >
+        {/* Offsets the strip so the content window sits at the box origin. */}
+        <div className="absolute" style={{ left: -CONTENT.x * intScale, top: -CONTENT.y * intScale, width: fw * frameCount, height: fh }}>
+          <img
+            key={`${playing.name}-${playing.n}`}
+            src={src}
+            alt=""
+            draggable={false}
+            onAnimationEnd={() => {
+              if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
+            }}
+            className="absolute left-0 top-0 max-w-none select-none"
+            style={{
+              width: fw * frameCount,
+              height: fh,
+              imageRendering: "pixelated",
+              // One keyframe rule in index.css; the end offset is the last frame.
+              ["--strip-end" as string]: `${-(frameCount - 1) * fw}px`,
+              animation: still
+                ? "none"
+                : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
+            }}
+          />
+        </div>
       </div>
     </div>
   );

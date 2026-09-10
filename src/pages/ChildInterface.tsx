@@ -1162,6 +1162,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                                 if (done) return;
                                 const earned = chore.coins || 0;
                                 sounds.done();
+                                setPetCelebrating(true);
+                                window.setTimeout(() => setPetCelebrating(false), 3000);
                                 await completeTask(chore.id, earned, 0);
                                 if (earned > 0) await adjustChildCoins(child.id, earned);
                                 const newHappiness = calculateHappiness();
@@ -1325,6 +1327,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                               if (done) return;
                               const earned = chore.coins || 0;
                               sounds.done();
+                              setPetCelebrating(true);
+                              window.setTimeout(() => setPetCelebrating(false), 3000);
                               await completeTask(chore.id, earned, 0);
                               if (earned > 0) await adjustChildCoins(child.id, earned);
                               const newHappiness = calculateHappiness();
