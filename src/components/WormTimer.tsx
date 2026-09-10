@@ -5,6 +5,8 @@ import "./WormTimer.css";
 
 interface WormTimerProps { progress: number; icon?: ReactNode; className?: string }
 const FUR = '#F9F5E1', CORAL = '#F1945A', INK = '#010101', MINT = '#509797';
+// Screen pixels per art cell. 2 keeps the bar 42px tall; 4 was too chunky.
+const CELL = 2, ROWS = 21;
 const controller = ['..XXXXXX..','XXXXXXXXXX','XX.XXXX.XX','X...XXXX.X','XX.XXX.XXX','XXX....XXX','XX......XX'];
 
 /** All artwork is made of equal square cells. Consumption follows the mouth,
@@ -24,7 +26,7 @@ export default function WormTimer({ progress, icon, className }: WormTimerProps)
     return () => window.clearInterval(timer);
   }, [reduce, chewing]);
   useEffect(() => {
-    const observer = new ResizeObserver(([entry]) => setColumns(Math.max(28, Math.floor(entry.contentRect.width / 4))));
+    const observer = new ResizeObserver(([entry]) => setColumns(Math.max(28, Math.floor(entry.contentRect.width / CELL))));
     if (root.current) observer.observe(root.current);
     return () => observer.disconnect();
   }, []);
@@ -75,9 +77,9 @@ export default function WormTimer({ progress, icon, className }: WormTimerProps)
   if(full) for(let x=mouth-2;x<mouth+1;x++) cell(x,11,INK,`s${x}`);
   return <div ref={root} className={cn('pixel-worm',className)} role="progressbar" aria-label="Optional task time used"
     aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(target*100)}>
-    <div style={{position:'relative',width:columns*4,height:84,maxWidth:'100%'}}>
-      <svg width={columns*4} height="84" viewBox={`0 0 ${columns} 21`} aria-hidden shapeRendering="crispEdges">{cells}</svg>
-      {icon && <div aria-hidden className="pixel-worm-custom-icon" style={{left:taskLeft*4,clipPath:`inset(0 0 0 ${Math.max(0,mouth-taskLeft)*4}px)`}}>{icon}</div>}
+    <div style={{position:'relative',width:columns*CELL,height:ROWS*CELL,maxWidth:'100%'}}>
+      <svg width={columns*CELL} height={ROWS*CELL} viewBox={`0 0 ${columns} ${ROWS}`} aria-hidden shapeRendering="crispEdges">{cells}</svg>
+      {icon && <div aria-hidden className="pixel-worm-custom-icon" style={{left:taskLeft*CELL,top:4*CELL,width:14*CELL,height:14*CELL,clipPath:`inset(0 0 0 ${Math.max(0,mouth-taskLeft)*CELL}px)`}}>{icon}</div>}
     </div>
   </div>;
 }
