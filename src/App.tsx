@@ -1,7 +1,7 @@
 import React from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthProvider from "@/components/AuthProvider";
 import ImportantTaskNotifier from "@/components/ImportantTaskNotifier";
 import RewardRequestNotifier from "@/components/RewardRequestNotifier";
@@ -23,19 +23,14 @@ import ChildOverdueSubtasksCompactPreview from "./pages/ChildOverdueSubtasksComp
 import CrittersPreview from "./pages/CrittersPreview";
 import SpritePetPreview from "./pages/SpritePetPreview";
 import CritterEditor from "./pages/CritterEditor";
+import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 
 // Design/preview tool pages only exist in local dev builds. They are never
 // linked from the app and must not ship to the deployed site.
 const DEV_TOOLS = import.meta.env.DEV;
-
-const ReportsRedirect = () => {
-  const { childId } = useParams();
-  return <Navigate to={`/child-dashboard/${childId}`} replace />;
-};
 
 const queryClient = new QueryClient();
 
@@ -50,7 +45,7 @@ const ProtectedRoutes = () => (
     <Route path="/child/:childId" element={<ChildInterface />} />
     <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
     <Route path="/tasks" element={<TaskManagement />} />
-    <Route path="/reports/:childId" element={<ReportsRedirect />} />
+    <Route path="/reports/:childId" element={<Reports />} />
     {DEV_TOOLS && (
       <>
         <Route path="/preview/checklist" element={<ChecklistPreview />} />
@@ -67,9 +62,7 @@ const ProtectedRoutes = () => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      {/* Both toast systems are in use across the app (shadcn use-toast and
-          sonner). Neither was mounted before, so every toast was silent. */}
-      <Toaster />
+      {/* The one toast system. hooks/use-toast.ts is a thin shim over it. */}
       <Sonner />
       <BrowserRouter>
         <Routes>

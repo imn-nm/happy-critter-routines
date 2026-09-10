@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle, BarChart3 } from "lucide-react";
 import SpinningWheelEditor from "@/components/SpinningWheelEditor";
 import { normalizeWheelOptions } from "@/lib/spinningWheel";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
@@ -418,6 +418,14 @@ const ChildDashboard = () => {
                 >
                   <Gift className="w-4 h-4" />
                   Rewards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/reports/${child.id}`)}
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Report
                 </button>
               </div>
             </div>

@@ -13,6 +13,8 @@ import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask } from "@/components/pets/spriteClips";
+import AmbientClock from "@/components/AmbientClock";
+import { sounds, unlockSounds } from "@/lib/sounds";
 import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
@@ -156,6 +158,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       supabase.removeChannel(channel);
     };
   }, [childId]);
+
+  // Sound cues. Audio needs a user gesture first, so unlock on the first
+  // pointer event; after that the cues fire from schedule changes alone.
+  useEffect(() => {
+    const unlock = () => unlockSounds();
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, []);
+
+  useEffect(() => {
+    if (approvedReward) sounds.approved();
+  }, [approvedReward]);
 
   // Ensure system tasks exist
   useEffect(() => {
@@ -581,6 +595,34 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const { current: activeTask, upcoming: upcomingTasks, freeTimeUntil, stillToDo } = categorizeTasks();
 
+  // A new activity took the stage: soft start chime. Skips the first render so
+  // opening the page mid-task is silent.
+  const prevActiveIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const id = activeTask?.id ?? null;
+    const prev = prevActiveIdRef.current;
+    prevActiveIdRef.current = id;
+    if (prev === undefined || !id || id === prev) return;
+    if (activeTask?.name.toLowerCase().includes('bedtime')) sounds.bedtime();
+    else sounds.start();
+  }, [activeTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // An important task just ran out of time while something else is running.
+  const stillIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set(stillToDo.map(t => t.id));
+    const prev = stillIdsRef.current;
+    stillIdsRef.current = ids;
+    if (!prev) return;
+    for (const id of ids) if (!prev.has(id)) { sounds.stillToDo(); break; }
+  }, [stillToDo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const prevDayOverRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (prevDayOverRef.current === false && dayOver) sounds.bedtime();
+    prevDayOverRef.current = dayOver;
+  }, [dayOver]);
+
   // The "focus" task — the in-progress task if any, otherwise the next upcoming task.
   // Used to highlight the "current" row in Today's Schedule so both children see
   // a consistent view regardless of whether a task is actively running.
@@ -748,6 +790,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       const base = task.coins || 0;
       const onTimeBonus = base > 0 && remaining > 0 ? 1 : 0;
       const earned = base + onTimeBonus;
+      sounds.done();
       await completeTask(task.id, earned, task.duration);
       if (earned > 0) await adjustChildCoins(child.id, earned);
       const newHappiness = calculateHappiness();
@@ -1135,6 +1178,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                                 // Done is done — no un-checking from the child side.
                                 if (done) return;
                                 const earned = chore.coins || 0;
+                                sounds.done();
                                 await completeTask(chore.id, earned, 0);
                                 if (earned > 0) await adjustChildCoins(child.id, earned);
                                 const newHappiness = calculateHappiness();
@@ -1202,6 +1246,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
+            {/* Ambient face: the clock and what's next, glanceable across a room. */}
+            <AmbientClock next={freeTimeCountdown.nextTask} />
             <div className="flex flex-col items-center gap-1 py-2">
               <h2
                 className="text-fog-50"
@@ -1297,6 +1343,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                               // Done is done — no un-checking from the child side.
                               if (done) return;
                               const earned = chore.coins || 0;
+                              sounds.done();
                               await completeTask(chore.id, earned, 0);
                               if (earned > 0) await adjustChildCoins(child.id, earned);
                               const newHappiness = calculateHappiness();
@@ -1433,25 +1480,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <h2 className="text-24 text-fog-50 text-center leading-tight">All done!</h2>
+            <AmbientClock next={null} />
+            <CritterPet petType={child.petType} mood="excited" size={168} />
+            <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
             <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
               <span className="text-12 font-medium text-ink-900">Nice work</span>
             </div>
-            <div className="relative">
-              <CircularTimer
-                totalSeconds={1}
-                remainingSeconds={0}
-                status="on-track"
-                size="lg"
-                isRunning={false}
-                showLabel={false}
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Check className="w-16 h-16 text-mint-400" strokeWidth={2.5} />
-              </div>
-            </div>
             <p className="text-14 text-fog-200 text-center max-w-xs">
-              Great job {child.name} — every task is done and your pet is super happy.
+              Great job {child.name}. {petNick(child.petType)} is so proud of you.
             </p>
           </motion.div>
         )}

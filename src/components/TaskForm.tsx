@@ -100,8 +100,8 @@ type Behavior = 'normal' | 'important' | 'fun';
 // mutually exclusive — as two switches the exclusion was invisible, and
 // "Free time" went unnoticed despite the worm mechanic depending on it.
 const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = [
-  { value: 'normal', label: 'Normal', caption: 'They move through it at their own pace.' },
-  { value: 'important', label: 'Must finish', caption: "Your child can't move on until they mark it done. It goes overdue if it runs late." },
+  { value: 'normal', label: 'Normal', caption: 'Runs on the clock and flows into the next thing. Nothing to check off.' },
+  { value: 'important', label: 'Must finish', caption: "They mark it done and earn stars. If time runs out you get an alert and it stays on their screen until it's done." },
   { value: 'fun', label: 'Free time', caption: 'TV, Roblox, playtime. When a Must-finish task runs late, the worm eats into this.' },
 ];
 
@@ -598,8 +598,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </div>
           )}
 
-          {/* Stars */}
-          <FormRow label="Stars" hint="Earned for finishing. They spend them in the Rewards shop.">
+          {/* Stars — only tasks the child marks done can earn them: chores and
+              Must-finish tasks. Regular tasks just happen by the clock. */}
+          {(isChore || behavior === 'important') && (
+          <FormRow
+            label="Stars"
+            hint={isChore
+              ? "Earned when they tap the chore done. Spent in the Rewards shop."
+              : "Earned when they mark it done, plus 1 bonus star if it's on time."}
+          >
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -636,6 +643,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               </Button>
             </div>
           </FormRow>
+          )}
 
           {/* Checklist — task mode only */}
           {!isChore && (

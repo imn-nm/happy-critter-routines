@@ -18,6 +18,8 @@ import CritterPicker from "@/components/critters/CritterPicker";
 import { type PetId } from "@/components/pets/petCatalog";
 import HouseholdSettings from "@/components/HouseholdSettings";
 import CalendarConnect from "@/components/CalendarConnect";
+import { Switch } from "@/components/ui/switch";
+import { soundsEnabled, setSoundsEnabled } from "@/lib/sounds";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +34,7 @@ import { cn } from "@/lib/utils";
  */
 const ParentSettings = () => {
   const navigate = useNavigate();
+  const [soundsOn, setSoundsOn] = useState(() => soundsEnabled());
   const { user, signOut } = useAuth();
   const { children, updateChild } = useChildren();
 
@@ -113,6 +116,17 @@ const ParentSettings = () => {
             <LogOut className="w-4 h-4" />
             Sign out
           </button>
+        </section>
+
+        {/* Sounds — per device, so set it on the child's screen itself. */}
+        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-2">
+          <div className="flex items-center justify-between gap-sp-3">
+            <div>
+              <h2 className="text-14 font-medium text-iris-400">Sounds on this device</h2>
+              <p className="text-12 text-fog-200">Soft chimes when a task starts, is done, or a reward is approved. Saved on this device only.</p>
+            </div>
+            <Switch checked={soundsOn} onCheckedChange={(v) => { setSoundsOn(v); setSoundsEnabled(v); }} aria-label="Sounds on this device" />
+          </div>
         </section>
 
         <HouseholdSettings />

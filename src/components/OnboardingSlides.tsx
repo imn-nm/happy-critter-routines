@@ -79,31 +79,25 @@ const SLIDES: Slide[] = [
   {
     key: "task-types",
     Icon: ListChecks,
-    title: "Four kinds of task",
+    title: "Three kinds of task",
     bullets: [
       {
         Icon: Clock,
         tint: "text-iris-200 bg-iris-400/20 border-iris-400/30",
-        term: "Timed",
-        text: "Pinned to a clock time, counts down. School at 8:30, dinner at 6, bedtime at 8.",
-      },
-      {
-        Icon: Shuffle,
-        tint: "text-lilac-300 bg-lilac-500/20 border-lilac-500/30",
-        term: "Flexible",
-        text: "Settles into the first gap in the day — piano practice, reading. Drag and drop to fine-tune.",
+        term: "Normal",
+        text: "Runs on the clock and flows into the next thing — breakfast, school, bath. Nothing to check off, so nobody nags.",
       },
       {
         Icon: Star,
         tint: "text-amber-400 bg-amber-500/20 border-amber-500/30",
-        term: "Important",
-        text: "Must be checked off or it goes overdue — homework, take medicine, pack school bag.",
+        term: "Must finish",
+        text: "Homework, medicine, packing the bag. They mark it done and earn stars. If time runs out, you get an alert and it stays on their screen.",
       },
       {
         Icon: ListChecks,
         tint: "text-mint-300 bg-mint-500/20 border-mint-500/30",
         term: "Chores",
-        text: "Anytime, or in a window you set. Feed the dog, tidy room — tapped off as tiles.",
+        text: "Anytime, or in a window you set. Feed the dog, tidy room — tapped off as tiles for stars.",
       },
     ],
   },
