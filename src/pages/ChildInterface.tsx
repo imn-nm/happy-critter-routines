@@ -513,6 +513,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const dayOver = isDayOver();
 
+  // The last 40 minutes before bedtime: the rabbit starts yawning on its own.
+  const drowsy = (() => {
+    const bed = todaysSchedule.find(t => t.name.toLowerCase().includes('bedtime'))?.scheduled_time;
+    if (!bed) return false;
+    const [bh, bm] = bed.slice(0, 5).split(':').map(Number);
+    const [nh, nm] = getPSTTimeString().split(':').map(Number);
+    const until = bh * 60 + bm - (nh * 60 + nm);
+    return until > 0 && until <= 40;
+  })();
+
   // Simplified categorization: current (in-progress) + upcoming
   // A task is "current" only when current time is within its time window
   // Otherwise it's upcoming and we show free time
@@ -960,7 +970,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const overdue = !isFrozen && isActiveTaskOverdue();
           // The pet never looks worried — when a task runs long it keeps
           // cheering. Overdue is expressed by the timer and worm, not the pet.
-          const petMood = petCelebrating ? 'celebrate' : 'happy';
+          const petMood = petCelebrating ? 'celebrate' : drowsy ? 'drowsy' : 'happy';
 
           const remainingMMSS = formatRemaining(remaining);
           // Badge variant for the time chip under the title
@@ -1021,6 +1031,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     mood={petMood}
                     activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={96}
+                    interactive
                     className="w-[96px] h-[96px]"
                   />
                   <TaskChecklistView
@@ -1043,6 +1054,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     mood={petMood}
                     activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                     size={168}
+                    interactive
                     className="w-full h-full"
                   />
                 </CircularTimer>
@@ -1289,7 +1301,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         sizePx={293}
                         isRunning={true}
                       >
-                        <CritterPet petType={child.petType} mood="happy" size={168} className="w-full h-full" />
+                        <CritterPet petType={child.petType} mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"} size={168} interactive className="w-full h-full" />
                       </CircularTimer>
                       {wheelReady && (
                         <button
@@ -1466,7 +1478,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             transition={tMotion(springs.gentle)}
           >
             <AmbientClock next={null} />
-            <CritterPet petType={child.petType} mood="excited" size={168} />
+            <CritterPet petType={child.petType} mood="excited" size={168} interactive />
             <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
             <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
               <span className="text-12 font-medium text-ink-900">Nice work</span>

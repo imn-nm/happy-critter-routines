@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   ACTIVITY_CLIP,
+  ACTIVITY_LIFE,
   CLIPS,
   FRAME_H,
   FRAME_W,
   MOOD_PLAN,
   type ClipName,
+  type LifeBehaviour,
   type PetActivity,
   type PetMood,
 } from "./spriteClips";
@@ -22,54 +24,148 @@ import {
 const CONTENT = { x: 13, y: 15, w: 77, h: 56 };
 
 interface SpritePetProps {
-  /** Emotional state; picks a looping base clip and an occasional flourish. */
+  /** Emotional state; picks a looping base clip and the pet's own habits. */
   mood?: PetMood;
   /** What the pet is doing with the child. Wins over the mood's base clip. */
   activity?: PetActivity;
   /** Force one clip (used by the preview bench). Wins over everything. */
   clip?: ClipName;
-  /** Rendered height in px. Width follows the 104:80 frame. */
+  /** Rendered height in px. Width follows the crop window. */
   size?: number;
   /** Accessible name, e.g. "Biscuit the Rabbit". */
   label?: string;
+  /** Let the child poke the pet. */
+  interactive?: boolean;
+  /** Called after the pet reacts to a tap. */
+  onTap?: () => void;
   className?: string;
 }
 
+interface Playing {
+  name: ClipName;
+  /** One-shot: hand back to the base when it ends. */
+  once: boolean;
+  /** Bumps to restart the CSS animation when the same clip plays again. */
+  n: number;
+}
+
+const pick = (options: LifeBehaviour[]): ClipName => {
+  const total = options.reduce((s, o) => s + o.weight, 0);
+  let r = Math.random() * total;
+  for (const o of options) {
+    r -= o.weight;
+    if (r <= 0) return o.clip;
+  }
+  return options[options.length - 1].clip;
+};
+
+const rand = ([min, max]: [number, number]) => min + Math.random() * (max - min);
+
 /**
- * Plays the retro rabbit strips with a CSS `steps()` animation: the strip
- * image sits inside an overflow-hidden frame and is stepped one frame at a
- * time. No JS timer runs per frame, so a shelf device can leave this on all
- * day. A one-shot flourish (wave, encourage) is layered on a timer and hands
- * back to the base clip when it ends.
+ * The rabbit as a creature rather than a clip player.
+ *
+ * Three rules make it feel alive:
+ *  1. Nothing interrupts a movement. Every clip starts and ends on the same
+ *     neutral pose, so clips only ever change at a loop boundary or when a
+ *     one-shot finishes. A change of mood or activity waits its turn. The one
+ *     exception is Idle, whose frames are all near-neutral, so a reaction can
+ *     cut in immediately and still look continuous.
+ *  2. It does things on its own, at random: a sniff, a wave, a yawn near
+ *     bedtime, after a pause that is never the same twice.
+ *  3. It reacts when touched.
+ *
+ * Playback is a CSS background-position animation stepped by whole frames;
+ * the strip is never a composited layer, so it stays sharp at any size.
  */
-const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", className }: SpritePetProps) => {
+const SpritePet = ({
+  mood = "idle",
+  activity,
+  clip,
+  size = 160,
+  label = "Pet",
+  interactive = false,
+  onTap,
+  className,
+}: SpritePetProps) => {
   const reduced = useReducedMotion();
   const plan = MOOD_PLAN[mood];
   const base: ClipName = clip ?? (activity ? ACTIVITY_CLIP[activity] : plan.base);
-  const flourish = clip || activity ? undefined : plan.flourish;
+  const habits = clip
+    ? null
+    : activity
+      ? ACTIVITY_LIFE
+      : plan.life
+        ? { life: plan.life, pauseMs: plan.pauseMs ?? ([6000, 14000] as [number, number]) }
+        : null;
+  const tapClip: ClipName | null = clip ? null : activity ? ACTIVITY_LIFE.onTap : plan.onTap ?? null;
+  const still = reduced || (!!plan.still && !activity && !clip);
 
-  // Which clip is on screen right now, plus a nonce so replaying the same
-  // one-shot restarts its animation.
-  const [playing, setPlaying] = useState<{ name: ClipName; once: boolean; n: number }>({ name: base, once: false, n: 0 });
+  const [playing, setPlaying] = useState<Playing>({ name: base, once: false, n: 0 });
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  const baseRef = useRef(base);
+  baseRef.current = base;
+  // One-shots waiting for the current movement to finish.
+  const queueRef = useRef<ClipName[]>([]);
 
+  const play = useCallback((name: ClipName, once: boolean) => {
+    setPlaying(p => ({ name, once, n: p.n + 1 }));
+  }, []);
+
+  /** Start something now if the rabbit is only idling, otherwise queue it. */
+  const request = useCallback(
+    (name: ClipName) => {
+      const cur = playingRef.current;
+      if (cur.name === "Idle" && !cur.once) play(name, true);
+      else if (!queueRef.current.includes(name)) queueRef.current.push(name);
+    },
+    [play],
+  );
+
+  // A loop boundary or the end of a one-shot: the only moments a clip changes.
+  const atBoundary = useCallback(() => {
+    const next = queueRef.current.shift();
+    if (next) {
+      play(next, true);
+      return;
+    }
+    const cur = playingRef.current;
+    if (cur.once || cur.name !== baseRef.current) play(baseRef.current, false);
+  }, [play]);
+
+  // Mood or activity changed: switch at once from Idle, otherwise at the
+  // next boundary (atBoundary reads baseRef).
   useEffect(() => {
-    setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
-  }, [base]);
+    const cur = playingRef.current;
+    if (cur.name === base) return;
+    if (cur.name === "Idle" && !cur.once) play(base, false);
+  }, [base, play]);
 
+  // Self-initiated behaviour on a random schedule, re-armed after each one.
   useEffect(() => {
-    if (!flourish || !plan.everyMs || reduced) return;
-    const timer = window.setInterval(() => {
-      setPlaying(p => ({ name: flourish, once: true, n: p.n + 1 }));
-    }, plan.everyMs);
-    return () => window.clearInterval(timer);
-  }, [flourish, plan.everyMs, reduced]);
+    if (!habits || reduced || still) return;
+    let timer = 0;
+    const arm = () => {
+      timer = window.setTimeout(() => {
+        request(pick(habits.life));
+        arm();
+      }, rand(habits.pauseMs));
+    };
+    arm();
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mood, activity, clip, reduced, still]);
+
+  const handleTap = () => {
+    if (!interactive || reduced) return;
+    if (tapClip) request(tapClip);
+    onTap?.();
+  };
 
   const { src, frameCount, durationMs } = CLIPS[playing.name];
 
-  // The strip is always laid out at a whole-number magnification so every
-  // frame step lands on whole pixels; fractional steps made the rabbit
-  // shimmer. The box is then scaled to the requested size with a transform,
-  // which only resamples once.
+  // Whole-number magnification so every frame step lands on whole pixels;
+  // the box is then fitted to `size` with a single transform.
   const intScale = Math.max(1, Math.floor(size / CONTENT.h));
   const fit = size / (CONTENT.h * intScale);
   const fw = FRAME_W * intScale;
@@ -78,25 +174,32 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
   const boxH = CONTENT.h * intScale;
   const w = Math.round(boxW * fit);
   const h = Math.round(boxH * fit);
-  const still = reduced || (plan.still && !activity && !clip);
 
   return (
     <div
-      role="img"
-      aria-label={label}
-      className={cn("relative overflow-hidden shrink-0", className)}
-      style={{ width: w, height: h }}
+      role={interactive ? "button" : "img"}
+      aria-label={interactive ? `${label}. Tap to say hi.` : label}
+      data-clip={playing.name}
+      className={cn("relative overflow-hidden shrink-0", interactive && "cursor-pointer select-none", className)}
+      style={{ width: w, height: h, touchAction: "manipulation" }}
+      onPointerDown={interactive ? handleTap : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleTap();
+              }
+            }
+          : undefined
+      }
+      tabIndex={interactive ? 0 : undefined}
     >
-      {/* The strip is a background image stepped with background-position.
-          Translating an <img> instead made a composited layer up to 50,000px
-          wide, which the GPU re-rasterised in tiles on every frame — that was
-          the shimmer. Background-position repaints a 77x56-cell box only. */}
       <div
         key={`${playing.name}-${playing.n}`}
         className="absolute left-0 top-0"
-        onAnimationEnd={() => {
-          if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
-        }}
+        onAnimationEnd={atBoundary}
+        onAnimationIteration={atBoundary}
         style={{
           width: boxW,
           height: boxH,
@@ -106,8 +209,6 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
           backgroundRepeat: "no-repeat",
           backgroundSize: `${fw * frameCount}px ${fh}px`,
           imageRendering: "pixelated",
-          // Frame 0 with the content window at the box origin; the keyframe
-          // in index.css walks --strip-end to the last frame.
           ["--strip-start" as string]: `${-CONTENT.x * intScale}px`,
           ["--strip-end" as string]: `${-CONTENT.x * intScale - (frameCount - 1) * fw}px`,
           backgroundPosition: `var(--strip-start) ${-CONTENT.y * intScale}px`,

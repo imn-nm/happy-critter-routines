@@ -11,6 +11,9 @@ interface CritterPetProps {
   /** What the pet is doing with the child; wins over the mood's base clip. */
   activity?: PetActivity;
   size?: number;
+  /** Let the child poke the pet. */
+  interactive?: boolean;
+  onTap?: () => void;
   className?: string;
 }
 
@@ -19,9 +22,9 @@ interface CritterPetProps {
  * companion where the pet reacts to task state. `petType` is kept for the
  * call sites; every value renders the rabbit for now.
  */
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, className }: CritterPetProps) => (
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, className }: CritterPetProps) => (
   <div className={cn("flex items-center justify-center", className)}>
-    <SpritePet mood={mood} activity={activity} size={size} label={getPet(petType).name} />
+    <SpritePet mood={mood} activity={activity} size={size} label={getPet(petType).name} interactive={interactive} onTap={onTap} />
   </div>
 );
 

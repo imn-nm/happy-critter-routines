@@ -64,11 +64,15 @@ const SpritePetPreview = () => {
       </div>
       <div className="mt-6 flex items-end gap-10">
         <div className="rounded-2xl bg-slate-800/60 p-6">
-          <SpritePet mood={mood} size={240} />
+          <SpritePet mood={mood} size={240} interactive />
         </div>
         <div className="text-sm text-slate-400">
           <div>base: <span className="text-slate-200">{MOOD_PLAN[mood].base}</span></div>
-          <div>flourish: <span className="text-slate-200">{MOOD_PLAN[mood].flourish ?? "none"}</span>{MOOD_PLAN[mood].everyMs ? ` every ${MOOD_PLAN[mood].everyMs / 1000}s` : ""}</div>
+          <div>
+            habits: <span className="text-slate-200">{MOOD_PLAN[mood].life?.map(l => `${l.clip}×${l.weight}`).join(", ") ?? "none"}</span>
+            {MOOD_PLAN[mood].pauseMs ? ` every ${MOOD_PLAN[mood].pauseMs[0] / 1000}–${MOOD_PLAN[mood].pauseMs[1] / 1000}s` : ""}
+          </div>
+          <div>on tap: <span className="text-slate-200">{MOOD_PLAN[mood].onTap ?? "nothing"}</span></div>
         </div>
       </div>
 

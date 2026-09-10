@@ -22,6 +22,7 @@ export const CLIPS = {
   Celebrate: { src: "/pets/rabbit/celebrate.png", frameCount: 108, durationMs: 3600 },
   Encourage: { src: "/pets/rabbit/encourage.png", frameCount: 120, durationMs: 4000 },
   Wave: { src: "/pets/rabbit/wave.png", frameCount: 120, durationMs: 4000 },
+  Curious: { src: "/pets/rabbit/curious.png", frameCount: 108, durationMs: 3600 },
   Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 240, durationMs: 8000 },
   Eating: { src: "/pets/rabbit/eating.png", frameCount: 180, durationMs: 6000 },
   Reading: { src: "/pets/rabbit/reading.png", frameCount: 180, durationMs: 6000 },
@@ -43,30 +44,76 @@ export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
 };
 
 /**
- * Moods kept from the pixel-critter era so call sites don't change. The pet is
- * never sad: "worried" plays the same encouraging plan as "happy".
+ * Moods kept from the pixel-critter era so call sites don't change, plus
+ * "drowsy" for the run-up to bedtime. The pet is never sad: "worried" plays
+ * the same encouraging plan as "happy".
  */
-export type PetMood = "none" | "idle" | "happy" | "excited" | "celebrate" | "worried" | "sleep" | "eating";
+export type PetMood = "none" | "idle" | "happy" | "excited" | "drowsy" | "celebrate" | "worried" | "sleep" | "eating";
+
+/** A weighted one-shot the pet does on its own between loops of its base. */
+export interface LifeBehaviour {
+  clip: ClipName;
+  weight: number;
+}
 
 export interface MoodPlan {
   /** Looping clip that plays by default. */
   base: ClipName;
-  /** One-shot clip played every `everyMs` on top of the base. */
-  flourish?: ClipName;
-  everyMs?: number;
+  /** Self-initiated one-shots, picked at random after a random pause. */
+  life?: LifeBehaviour[];
+  /** Pause between self-initiated behaviours, in ms: [min, max]. */
+  pauseMs?: [number, number];
+  /** What the pet does when the child taps it. */
+  onTap?: ClipName;
   /** Hold the first frame — no motion at all. */
   still?: boolean;
 }
 
 export const MOOD_PLAN: Record<PetMood, MoodPlan> = {
   none: { base: "Idle", still: true },
-  idle: { base: "Idle" },
-  happy: { base: "Idle", flourish: "Encourage", everyMs: 12000 },
-  excited: { base: "Idle", flourish: "Wave", everyMs: 7000 },
-  celebrate: { base: "Celebrate" },
-  worried: { base: "Idle", flourish: "Encourage", everyMs: 8000 },
-  sleep: { base: "Sleepy" },
-  eating: { base: "Eating" },
+  idle: {
+    base: "Idle",
+    life: [{ clip: "Curious", weight: 3 }, { clip: "Wave", weight: 1 }],
+    pauseMs: [6000, 14000],
+    onTap: "Wave",
+  },
+  happy: {
+    base: "Idle",
+    life: [{ clip: "Curious", weight: 2 }, { clip: "Encourage", weight: 2 }, { clip: "Wave", weight: 1 }],
+    pauseMs: [5000, 12000],
+    onTap: "Wave",
+  },
+  excited: {
+    base: "Idle",
+    life: [{ clip: "Wave", weight: 2 }, { clip: "Celebrate", weight: 1 }, { clip: "Curious", weight: 1 }],
+    pauseMs: [4000, 9000],
+    onTap: "Celebrate",
+  },
+  drowsy: {
+    base: "Idle",
+    life: [{ clip: "Sleepy", weight: 2 }, { clip: "Curious", weight: 1 }],
+    pauseMs: [8000, 16000],
+    onTap: "Curious",
+  },
+  celebrate: { base: "Celebrate", onTap: "Celebrate" },
+  worried: {
+    base: "Idle",
+    life: [{ clip: "Curious", weight: 2 }, { clip: "Encourage", weight: 2 }, { clip: "Wave", weight: 1 }],
+    pauseMs: [5000, 12000],
+    onTap: "Wave",
+  },
+  sleep: { base: "Sleepy", onTap: "Curious" },
+  eating: { base: "Eating", onTap: "Curious" },
+};
+
+/**
+ * While the pet is busy with an activity it still looks up now and then, so
+ * a twenty-minute reading task isn't one perfectly repeating loop.
+ */
+export const ACTIVITY_LIFE: { life: LifeBehaviour[]; pauseMs: [number, number]; onTap: ClipName } = {
+  life: [{ clip: "Curious", weight: 1 }],
+  pauseMs: [14000, 26000],
+  onTap: "Wave",
 };
 
 /**
