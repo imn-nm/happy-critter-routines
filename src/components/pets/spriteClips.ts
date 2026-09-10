@@ -22,7 +22,7 @@ export const CLIPS = {
   Celebrate: { src: "/pets/rabbit/celebrate.png", frameCount: 108, durationMs: 3600 },
   Encourage: { src: "/pets/rabbit/encourage.png", frameCount: 120, durationMs: 4000 },
   Wave: { src: "/pets/rabbit/wave.png", frameCount: 120, durationMs: 4000 },
-  Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 120, durationMs: 4000 },
+  Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 240, durationMs: 8000 },
   Eating: { src: "/pets/rabbit/eating.png", frameCount: 180, durationMs: 6000 },
   Reading: { src: "/pets/rabbit/reading.png", frameCount: 180, durationMs: 6000 },
   Gaming: { src: "/pets/rabbit/gaming.png", frameCount: 180, durationMs: 6000 },
