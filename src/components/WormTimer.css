@@ -1,0 +1,14 @@
+.noodle-worm{position:relative;width:100%;height:76px;isolation:isolate}
+.noodle-track{position:absolute;left:18px;right:24px;top:44px;height:5px;border-radius:8px;background:#80C8BE}
+.noodle-body{position:absolute;left:0;top:34px;height:25px;min-width:24px;border-radius:18px 0 0 18px;background:repeating-linear-gradient(90deg,transparent 0 18px,#E96B7244 18px 21px),#F47778;box-shadow:inset 0 -5px #E5636B,inset 0 3px #FFA392;transition:width .5s ease-out}
+.noodle-head-position{position:absolute;top:0;width:76px;height:72px;margin-left:-35px;transition:left .5s ease-out;z-index:2}
+.noodle-face{width:76px;height:72px}
+.noodle-task{position:absolute;right:0;top:20px;width:52px;height:52px;border-radius:19px;background:#80C8BE;color:#FFF9E9;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -4px #57AAA5,inset 0 2px #AFE5D8;z-index:3}
+.noodle-eyes{animation:noodle-blink 6s infinite;transform-origin:40px 28px}
+@keyframes noodle-blink{0%,91%,96%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+.noodle-worm[data-reduced=true] *, .noodle-worm[data-full=true] .noodle-eyes{animation:none;transition:none}
+@media(prefers-reduced-motion:reduce){.noodle-worm *{animation:none!important;transition:none!important}}
+
+.noodle-worm[data-hungry=true] .noodle-face svg{animation:noodle-eager 1.4s ease-in-out infinite;transform-origin:30px 48px}
+@keyframes noodle-eager{0%,70%,100%{transform:rotate(0)}25%{transform:rotate(-3deg)}45%{transform:rotate(2deg)}}
+.noodle-worm[data-reduced=true] .noodle-face svg{animation:none}

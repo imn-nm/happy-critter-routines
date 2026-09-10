@@ -1,19 +1,27 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Settings, Save, X, Trash2 } from "lucide-react";
+import { Settings } from "lucide-react";
 import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
-import CritterPicker from "@/components/critters/CritterPicker";
 import { getPet } from "@/components/pets/petCatalog";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
+
+const DURATIONS = [
+  { value: "10", label: "10 min" },
+  { value: "15", label: "15 min" },
+  { value: "20", label: "20 min" },
+  { value: "30", label: "30 min" },
+  { value: "45", label: "45 min" },
+  { value: "60", label: "1 hour" },
+  { value: "90", label: "1.5 hours" },
+];
 
 interface ChildProfileEditProps {
   child: Child;
@@ -114,6 +122,16 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
     }
   };
 
+  // One row per routine anchor. School has its own manager because it
+  // varies by weekday.
+  const routine: { key: "wake" | "breakfast" | "lunch" | "dinner" | "bedtime"; label: string; time: keyof typeof formData; duration: keyof typeof formData }[] = [
+    { key: "wake", label: "Wake up", time: "wake_time", duration: "wake_duration" },
+    { key: "breakfast", label: "Breakfast", time: "breakfast_time", duration: "breakfast_duration" },
+    { key: "lunch", label: "Lunch", time: "lunch_time", duration: "lunch_duration" },
+    { key: "dinner", label: "Dinner", time: "dinner_time", duration: "dinner_duration" },
+    { key: "bedtime", label: "Bedtime", time: "bedtime", duration: "bedtime_duration" },
+  ];
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -121,113 +139,82 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           <Settings className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col p-0">
-        <DialogHeader className="px-sp-4 pt-sp-4 pb-sp-2 sm:px-sp-6 sm:pt-sp-6 flex-shrink-0">
-          <DialogTitle>Edit {child.name}'s Profile</DialogTitle>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-20">{child.name}'s profile</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-sp-4 pb-sp-4 sm:px-sp-6 sm:pb-sp-6 space-y-sp-4">
-          {/* Pet — preview + picker so parents can change the child's pet */}
-          <div className="space-y-3">
-            <div className="text-center">
-              <PetAvatar
-                petType={formData.petType}
-                happiness={child.petHappiness}
-                size="lg"
-                className="mx-auto mb-1"
-              />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-sp-5 w-full min-w-0">
+          {/* Pet — one companion today, so this is a row, not a picker. */}
+          <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.35)]">
+            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-ink-700 flex items-center justify-center">
+              <PetAvatar petType={formData.petType} happiness={child.petHappiness} size="sm" />
             </div>
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm">Pet</h4>
-              <span className="text-xs text-muted-foreground">
-                {getPet(formData.petType).name}
-              </span>
+            <div className="min-w-0">
+              <p className="text-14 text-fog-50">{getPet(formData.petType).name}</p>
+              <p className="text-12 text-fog-300">{child.name}'s buddy. More pets are coming.</p>
             </div>
-            <CritterPicker
-              value={formData.petType}
-              onChange={(id) => setFormData({ ...formData, petType: id })}
-            />
           </div>
 
-          {/* Name & Age row */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <Label htmlFor="name" className="text-xs">Name *</Label>
+          {/* Name + age */}
+          <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-sp-3">
+            <div>
+              <Label htmlFor="name" className="text-12 text-fog-200 mb-1.5 block">Name</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Child's name"
                 required
-                className="h-10"
               />
             </div>
             <div>
-              <Label htmlFor="age" className="text-xs">Age</Label>
+              <Label htmlFor="age" className="text-12 text-fog-200 mb-1.5 block">Age</Label>
               <Input
                 id="age"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="18"
                 value={formData.age}
                 onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                 placeholder="—"
-                className="h-10"
               />
             </div>
           </div>
 
-          {/* Schedule Times */}
-          <div className="space-y-2 border-t pt-4">
-            <h4 className="font-medium text-sm mb-3">Daily Schedule</h4>
-
-            {/* Schedule rows: label | time input | duration select */}
-            {/* Wake Up */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="wake_time" className="text-xs w-20 shrink-0 text-muted-foreground">Wake Up</Label>
-              <Input
-                id="wake_time"
-                type="time"
-                value={formData.wake_time}
-                onChange={(e) => setFormData({ ...formData, wake_time: e.target.value })}
-                className="flex-1 h-10 text-sm min-w-0"
-              />
-              <Select value={formData.wake_duration} onValueChange={(v) => setFormData({ ...formData, wake_duration: v })}>
-                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 min</SelectItem>
-                  <SelectItem value="15">15 min</SelectItem>
-                  <SelectItem value="20">20 min</SelectItem>
-                  <SelectItem value="30">30 min</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Daily routine */}
+          <div className="flex flex-col gap-sp-2">
+            <div className="flex items-baseline justify-between">
+              <h4 className="text-14 font-medium text-fog-50">Daily routine</h4>
+              <span className="text-12 text-fog-300">start · how long</span>
             </div>
+            {routine.map(row => (
+              <div key={row.key} className="grid grid-cols-[72px_minmax(0,1fr)_96px] items-center gap-sp-2">
+                <Label htmlFor={`${row.key}_time`} className="text-13 text-fog-200">{row.label}</Label>
+                <Input
+                  id={`${row.key}_time`}
+                  type="time"
+                  value={formData[row.time]}
+                  onChange={(e) => setFormData({ ...formData, [row.time]: e.target.value })}
+                  className="min-w-0 w-full px-3"
+                />
+                <Select value={formData[row.duration]} onValueChange={(v) => setFormData({ ...formData, [row.duration]: v })}>
+                  <SelectTrigger className="h-11 rounded-pill text-13 min-w-0" aria-label={`${row.label} length`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DURATIONS.map(d => (
+                      <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
 
-            {/* Breakfast */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="breakfast_time" className="text-xs w-20 shrink-0 text-muted-foreground">Breakfast</Label>
-              <Input
-                id="breakfast_time"
-                type="time"
-                value={formData.breakfast_time}
-                onChange={(e) => setFormData({ ...formData, breakfast_time: e.target.value })}
-                className="flex-1 h-10 text-sm min-w-0"
-              />
-              <Select value={formData.breakfast_duration} onValueChange={(v) => setFormData({ ...formData, breakfast_duration: v })}>
-                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 min</SelectItem>
-                  <SelectItem value="20">20 min</SelectItem>
-                  <SelectItem value="30">30 min</SelectItem>
-                  <SelectItem value="45">45 min</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* School Schedule Manager */}
-            <div className="py-1">
-              <Label className="text-xs mb-1 block text-muted-foreground">School Schedule</Label>
+            {/* School varies by weekday, so it has its own editor. */}
+            <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-sp-2 pt-sp-1">
+              <Label className="text-13 text-fog-200">School</Label>
               <SchoolScheduleManager
                 childId={child.id}
                 currentSchedule={{
@@ -248,116 +235,47 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                 }}
               />
             </div>
-
-            {/* Lunch */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="lunch_time" className="text-xs w-20 shrink-0 text-muted-foreground">Lunch</Label>
-              <Input
-                id="lunch_time"
-                type="time"
-                value={formData.lunch_time}
-                onChange={(e) => setFormData({ ...formData, lunch_time: e.target.value })}
-                className="flex-1 h-10 text-sm min-w-0"
-              />
-              <Select value={formData.lunch_duration} onValueChange={(v) => setFormData({ ...formData, lunch_duration: v })}>
-                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 min</SelectItem>
-                  <SelectItem value="45">45 min</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Dinner */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="dinner_time" className="text-xs w-20 shrink-0 text-muted-foreground">Dinner</Label>
-              <Input
-                id="dinner_time"
-                type="time"
-                value={formData.dinner_time}
-                onChange={(e) => setFormData({ ...formData, dinner_time: e.target.value })}
-                className="flex-1 h-10 text-sm min-w-0"
-              />
-              <Select value={formData.dinner_duration} onValueChange={(v) => setFormData({ ...formData, dinner_duration: v })}>
-                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 min</SelectItem>
-                  <SelectItem value="45">45 min</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                  <SelectItem value="90">1.5 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Bedtime */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="bedtime" className="text-xs w-20 shrink-0 text-muted-foreground">Bedtime</Label>
-              <Input
-                id="bedtime"
-                type="time"
-                value={formData.bedtime}
-                onChange={(e) => setFormData({ ...formData, bedtime: e.target.value })}
-                className="flex-1 h-10 text-sm min-w-0"
-              />
-              <Select value={formData.bedtime_duration} onValueChange={(v) => setFormData({ ...formData, bedtime_duration: v })}>
-                <SelectTrigger className="text-xs h-10 w-24 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 min</SelectItem>
-                  <SelectItem value="45">45 min</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                  <SelectItem value="90">1.5 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          {/* Action Buttons — sticky at bottom */}
-          <div className="flex gap-sp-2 pt-sp-3 sticky bottom-0 bg-ink-800/95 backdrop-blur-sm -mx-sp-4 px-sp-4 pb-sp-1 sm:-mx-sp-6 sm:px-sp-6 border-t border-white/10">
-            <Button type="submit" variant="primary" size="md" className="flex-1 gap-2" disabled={saving}>
-              <Save className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save'}
+          {/* Actions */}
+          <div className="flex gap-sp-2 pt-sp-1">
+            <Button type="submit" variant="primary" size="md" className="flex-1" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={() => setIsOpen(false)}
-            >
+            <Button type="button" variant="secondary" size="md" onClick={() => setIsOpen(false)}>
               Cancel
             </Button>
           </div>
 
-          {/* Delete Section */}
-          <div className="border-t border-white/10 pt-sp-3">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="md" className="w-full gap-2 text-coral-400 hover:text-coral-300 hover:bg-coral-500/10">
-                  <Trash2 className="w-4 h-4" />
-                  Delete {child.name}'s Profile
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {child.name}'s Profile?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete {child.name}'s profile,
-                    including all tasks, progress, and rewards.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
-                  <AlertDialogCancel asChild>
-                    <Button type="button" variant="secondary" size="md">Cancel</Button>
-                  </AlertDialogCancel>
-                  <AlertDialogAction asChild>
-                    <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
-                      Yes, Delete
-                    </Button>
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          {/* Delete — rare and destructive, so it's a quiet link, not a button row. */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="tap-target self-center min-h-11 text-13 text-coral-300 hover:text-coral-400 transition-colors"
+              >
+                Remove {child.name}'s profile
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove {child.name}'s profile?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently deletes {child.name}'s profile, including all tasks, progress, and rewards.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
+                <AlertDialogCancel asChild>
+                  <Button type="button" variant="secondary" size="md">Keep it</Button>
+                </AlertDialogCancel>
+                <AlertDialogAction asChild>
+                  <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
+                    Yes, remove
+                  </Button>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </form>
       </DialogContent>
     </Dialog>

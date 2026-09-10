@@ -3,148 +3,55 @@ import { Gamepad2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs } from "@/lib/motion";
-
-/**
- * WormTimer — horizontal "eating the fun task" progress bar.
- *
- * Visual model (matches Figma wormTimer):
- * ┌──────────────────────────────────────────────────┐
- * │ [ coral worm body ══ 🐛 ]────── mint track ────( 🎮 )│
- * └──────────────────────────────────────────────────┘
- *
- * As `progress` grows 0 → 1, the coral worm stretches right, its head
- * approaching the circular task icon on the far right. When the worm
- * reaches the icon the "fun task" has been fully eaten.
- */
+import "./WormTimer.css";
 
 interface WormTimerProps {
-  /** 0..1 — fraction of the fun task that has been "eaten" */
+  /** Fraction of the optional task time consumed, from zero to one. */
   progress: number;
-  /** Icon to show inside the circle on the right */
   icon?: ReactNode;
-  /** Optional className to merge with root container */
   className?: string;
 }
 
-const TRACK_HEIGHT = 6;
-const ICON_SIZE = 46;
-const HEAD_SIZE = 24;
-const BODY_HEIGHT = 16;
-
-export default function WormTimer({
-  progress,
-  icon,
-  className,
-}: WormTimerProps) {
-  const { t } = useMotionPrefs();
-  const clamped = Math.max(0, Math.min(1, progress));
-
-  // Last 15% of progress is the "being eaten" window — icon shrinks toward
-  // the worm's mouth (transform-origin: left center) and fades. `eaten` runs
-  // 0 → 1 over that window; below the window it stays 0 (icon intact).
-  const BITE_START = 0.85;
-  const eaten = Math.max(0, Math.min(1, (clamped - BITE_START) / (1 - BITE_START)));
-
+export default function WormTimer({ progress, icon, className }: WormTimerProps) {
+  const { reduce, t } = useMotionPrefs();
+  const p = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
+  const bite = Math.max(0, (p - .85) / .15);
+  const full = p >= 1;
+  const head = `calc(24px + (100% - 76px) * ${p})`;
   return (
-    <div
-      className={cn(
-        "relative w-full",
-        className,
-      )}
-      style={{ height: ICON_SIZE }}
-      role="progressbar"
-      aria-valuenow={Math.round(clamped * 100)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      {/* Mint forward track — pill, horizontally centered vertically */}
-      <div
-        className="absolute left-0 rounded-pill bg-mint-400"
-        style={{
-          right: ICON_SIZE - TRACK_HEIGHT, // overlap icon by small amount so the pill ends into it
-          top: (ICON_SIZE - TRACK_HEIGHT) / 2,
-          height: TRACK_HEIGHT,
-        }}
-      />
-
-      {/* Coral worm body — grows with progress. Left end (the tail) stays
-          rounded; right end is squared off so it reads as continuous with
-          the head, not a capsule sitting behind it. */}
-      <div
-        className="absolute left-0 rounded-l-full bg-coral-500 transition-[width] duration-500 ease-out"
-        style={{
-          width: `calc((100% - ${ICON_SIZE}px) * ${clamped})`,
-          top: (ICON_SIZE - BODY_HEIGHT) / 2,
-          height: BODY_HEIGHT,
-        }}
-      />
-
-      {/* Worm head — sits at the leading edge of the body, shifted up 2px
-          so it rides slightly above the body's centerline (eager forward
-          posture). Chomps faster as progress climbs (700ms → 250ms). */}
-      <div
-        className="absolute transition-[left] duration-500 ease-out"
-        style={{
-          width: HEAD_SIZE,
-          height: HEAD_SIZE,
-          top: (ICON_SIZE - HEAD_SIZE) / 2 - 2,
-          left: `calc((100% - ${ICON_SIZE}px) * ${clamped} - ${HEAD_SIZE / 2}px)`,
-        }}
-        aria-hidden
-      >
-        <WormHead chompMs={Math.round(700 - clamped * 450)} />
+    <div className={cn("noodle-worm", className)} data-full={full} data-hungry={bite > 0 && !full} data-reduced={reduce}
+      role="progressbar" aria-label="Optional task time used" aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={Math.round(p * 100)} aria-valuetext={`${Math.round(p * 100)}% of optional task time used`}>
+      <div className="noodle-track" aria-hidden />
+      <div className="noodle-body" style={{ width: head }} aria-hidden />
+      <div className="noodle-head-position" style={{ left: head }} aria-hidden>
+        <motion.div className="noodle-face" animate={{ scaleX: full ? [1.15, .96, 1] : 1, scaleY: full ? [.88, 1.06, 1] : 1 }} transition={t({ duration: .65 })}>
+          <svg viewBox="0 0 76 72" width="76" height="72">
+            <path d="M9 43C7 29 17 20 33 23C44 18 58 22 62 33C70 45 60 61 45 61H20C11 61 7 53 9 43Z" fill="#F47778" />
+            <path d="M14 48Q31 60 49 52" fill="none" stroke="#FFAB98" strokeWidth="7" strokeLinecap="round" />
+            <ellipse cx="28" cy="27" rx="10" ry="12" fill="#FFF9E9" />
+            <ellipse cx="48" cy="24" rx="11" ry="13" fill="#FFF9E9" />
+            <g className="noodle-eyes">
+              <ellipse cx="32" cy="29" rx="4" ry="5" fill="#291538" />
+              <ellipse cx="52" cy="26" rx="4.5" ry="5.5" fill="#291538" />
+              <circle cx="33" cy="27" r="1.3" fill="white" /><circle cx="53" cy="24" r="1.5" fill="white" />
+            </g>
+            <ellipse cx="27" cy="43" rx="6" ry="3.5" fill="#E75970" />
+            {full ? <><path d="M45 42Q52 49 60 41" fill="none" stroke="#632D49" strokeWidth="2.5" strokeLinecap="round" /><ellipse cx="54" cy="50" rx="8" ry="5" fill="#FFAB98" /></> :
+              <g style={{ transformOrigin: "55px 44px", transform: `scaleY(${.35 + bite * .85})` }}>
+                <ellipse cx="56" cy="44" rx="12" ry="12" fill="#632D49" />
+                <path d="M48 51Q55 45 63 51" fill="#F697A0" />
+                <rect x="52" y="33" width="5" height="5" rx="1.5" fill="#FFF9E9" />
+              </g>}
+            <path d="M19 13l-3-4M42 8l1-5" stroke="#FFAB98" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </motion.div>
       </div>
-
-      {/* Task icon circle — fixed on the right. Shrinks toward its left
-          edge (where the worm's mouth approaches from) as `eaten` climbs,
-          so the worm visually consumes it once `progress` ≥ BITE_START. */}
-      <motion.div
-        className="absolute right-0 top-0 rounded-pill bg-mint-400 flex items-center justify-center text-white"
-        style={{ width: ICON_SIZE, height: ICON_SIZE, transformOrigin: "left center" }}
-        animate={{
-          scale: 1 - eaten,
-          opacity: 1 - eaten * eaten,
-          rotate: -eaten * 12,
-        }}
-        transition={t({ duration: 0.4, ease: "easeOut" })}
-      >
-        {icon ?? <Gamepad2 className="w-[22px] h-[22px]" strokeWidth={2.2} />}
+      <motion.div className="noodle-task" aria-hidden style={{ transformOrigin: "left center" }}
+        animate={{ scale: 1 - bite, x: -bite * 17, rotate: -bite * 24, opacity: 1 - bite * bite }}
+        transition={t({ duration: .45, ease: "easeOut" })}>
+        {icon ?? <Gamepad2 size={25} strokeWidth={2.3} />}
       </motion.div>
     </div>
-  );
-}
-
-function WormHead({ chompMs = 480 }: { chompMs?: number }) {
-  // A pac-man-ish coral head with a single eye + triangular "mouth"
-  // pointing right (direction of travel). The mouth chomps open/close on
-  // a loop via SMIL <animate> on the polygon's points attribute.
-  // Mouth points: apex at center (16.5, 16.5); the other two vertices ride
-  // the right edge — moving them apart opens the wedge, together closes it.
-  const closed = "16.5,16.5 34,15.5 34,17.5";
-  const open   = "16.5,16.5 34,4 34,29";
-  return (
-    <svg viewBox="0 0 33 33" width="100%" height="100%">
-      <defs>
-        <mask id="worm-mouth">
-          <rect width="33" height="33" fill="white" />
-          <polygon points={closed} fill="black">
-            <animate
-              attributeName="points"
-              values={`${closed}; ${open}; ${closed}`}
-              keyTimes="0; 0.5; 1"
-              dur={`${chompMs}ms`}
-              repeatCount="indefinite"
-            />
-          </polygon>
-        </mask>
-      </defs>
-      {/* Head */}
-      <circle cx="16.5" cy="16.5" r="16.5" fill="#FF5C5F" mask="url(#worm-mouth)" />
-      {/* Eye white — sized to render as 6px on screen at HEAD_SIZE=24
-          (viewBox 33 → 24px, so radius 4.125 ≈ 6px diameter visible). */}
-      <circle cx="12" cy="10" r="4.125" fill="#FFFFFF" />
-      {/* Pupil */}
-      <circle cx="13" cy="11" r="1.6" fill="#08011A" />
-    </svg>
   );
 }
