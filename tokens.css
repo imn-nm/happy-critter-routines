@@ -65,9 +65,9 @@
   /* ── Signature radial ground ───────────────────────────── */
   --ground-cosmic:
     radial-gradient(218.43% 145.04% at -22.27% -13.24%,
-      #515AAD 13.46%,
-      #452774 41%,
-      #271447 65.02%,
+      #3A2166 13.46%,
+      #271447 41%,
+      #170B33 65.02%,
       #08011A 100%);
   --ground-dusk:
     radial-gradient(ellipse at 50% 100%,
