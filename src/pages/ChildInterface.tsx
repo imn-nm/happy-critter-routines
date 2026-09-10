@@ -14,6 +14,7 @@ import CritterPet from "@/components/critters/CritterPet";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
+import ScheduleSoundCues from "@/components/ScheduleSoundCues";
 import { sounds, unlockSounds } from "@/lib/sounds";
 import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
@@ -594,35 +595,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   };
 
   const { current: activeTask, upcoming: upcomingTasks, freeTimeUntil, stillToDo } = categorizeTasks();
-
-  // A new activity took the stage: soft start chime. Skips the first render so
-  // opening the page mid-task is silent.
-  const prevActiveIdRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    const id = activeTask?.id ?? null;
-    const prev = prevActiveIdRef.current;
-    prevActiveIdRef.current = id;
-    if (prev === undefined || !id || id === prev) return;
-    if (activeTask?.name.toLowerCase().includes('bedtime')) sounds.bedtime();
-    else sounds.start();
-  }, [activeTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // An important task just ran out of time while something else is running.
-  const stillIdsRef = useRef<Set<string> | null>(null);
-  useEffect(() => {
-    const ids = new Set(stillToDo.map(t => t.id));
-    const prev = stillIdsRef.current;
-    stillIdsRef.current = ids;
-    if (!prev) return;
-    for (const id of ids) if (!prev.has(id)) { sounds.stillToDo(); break; }
-  }, [stillToDo]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const prevDayOverRef = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    if (prevDayOverRef.current === false && dayOver) sounds.bedtime();
-    prevDayOverRef.current = dayOver;
-  }, [dayOver]);
-
   // The "focus" task — the in-progress task if any, otherwise the next upcoming task.
   // Used to highlight the "current" row in Today's Schedule so both children see
   // a consistent view regardless of whether a task is actively running.
@@ -848,6 +820,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   return (
     <div className={`${!propChildId ? 'min-h-screen' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] mx-auto">
+        <ScheduleSoundCues
+          activeTaskId={activeTask?.id ?? null}
+          activeTaskName={activeTask?.name ?? null}
+          stillToDoIds={stillToDo.map(t => t.id)}
+          dayOver={dayOver}
+        />
         {/* Parent pill removed — parent portal is at /parent */}
 
         {/* Greeting + coin chip row — matches Figma "Child Dashboard - overtime-new":
