@@ -1289,7 +1289,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         sizePx={293}
                         isRunning={true}
                       >
-                        <CritterPet petType={child.petType} mood="happy" size={210} className="w-full h-full" />
+                        <CritterPet petType={child.petType} mood="happy" size={168} className="w-full h-full" />
                       </CircularTimer>
                       {wheelReady && (
                         <button

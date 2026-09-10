@@ -40,7 +40,7 @@ const ChildrenSideBySide = () => {
           <div className="w-20 h-20 rounded-3xl glass-strong flex items-center justify-center mx-auto mb-6 glow-purple">
             <Sparkles className="w-9 h-9 text-primary-light" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-3 text-glow">Welcome to Taskie!</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-3 text-glow">Welcome to PetPals!</h1>
           <p className="text-muted-foreground text-sm max-w-xs mx-auto">
             No children profiles yet. Tap Parent to set up your first profile.
           </p>

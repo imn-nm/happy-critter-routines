@@ -87,34 +87,35 @@ const SpritePet = ({ mood = "idle", activity, clip, size = 160, label = "Pet", c
       className={cn("relative overflow-hidden shrink-0", className)}
       style={{ width: w, height: h }}
     >
+      {/* The strip is a background image stepped with background-position.
+          Translating an <img> instead made a composited layer up to 50,000px
+          wide, which the GPU re-rasterised in tiles on every frame — that was
+          the shimmer. Background-position repaints a 77x56-cell box only. */}
       <div
-        className="absolute left-0 top-0 overflow-hidden"
-        style={{ width: boxW, height: boxH, transform: `scale(${fit})`, transformOrigin: "top left" }}
-      >
-        {/* Offsets the strip so the content window sits at the box origin. */}
-        <div className="absolute" style={{ left: -CONTENT.x * intScale, top: -CONTENT.y * intScale, width: fw * frameCount, height: fh }}>
-          <img
-            key={`${playing.name}-${playing.n}`}
-            src={src}
-            alt=""
-            draggable={false}
-            onAnimationEnd={() => {
-              if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
-            }}
-            className="absolute left-0 top-0 max-w-none select-none"
-            style={{
-              width: fw * frameCount,
-              height: fh,
-              imageRendering: "pixelated",
-              // One keyframe rule in index.css; the end offset is the last frame.
-              ["--strip-end" as string]: `${-(frameCount - 1) * fw}px`,
-              animation: still
-                ? "none"
-                : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
-            }}
-          />
-        </div>
-      </div>
+        key={`${playing.name}-${playing.n}`}
+        className="absolute left-0 top-0"
+        onAnimationEnd={() => {
+          if (playing.once) setPlaying(p => ({ name: base, once: false, n: p.n + 1 }));
+        }}
+        style={{
+          width: boxW,
+          height: boxH,
+          transform: `scale(${fit})`,
+          transformOrigin: "top left",
+          backgroundImage: `url(${src})`,
+          backgroundRepeat: "no-repeat",
+          backgroundSize: `${fw * frameCount}px ${fh}px`,
+          imageRendering: "pixelated",
+          // Frame 0 with the content window at the box origin; the keyframe
+          // in index.css walks --strip-end to the last frame.
+          ["--strip-start" as string]: `${-CONTENT.x * intScale}px`,
+          ["--strip-end" as string]: `${-CONTENT.x * intScale - (frameCount - 1) * fw}px`,
+          backgroundPosition: `var(--strip-start) ${-CONTENT.y * intScale}px`,
+          animation: still
+            ? "none"
+            : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
+        }}
+      />
     </div>
   );
 };
