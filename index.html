@@ -52,7 +52,18 @@
     </script>
     <script type="module" src="/src/main.tsx" onerror="window.onerror('Module script failed to load','main.tsx',0)"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // The worker caches every GET, which on a dev server means stale
+      // modules survive rebuilds. Never register it on localhost, and tear
+      // down any worker left over from an earlier session.
+      var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+      if ('serviceWorker' in navigator && isLocal) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        }).catch(function(){});
+        if (window.caches) {
+          caches.keys().then(function(keys) { keys.forEach(function(k) { caches.delete(k); }); }).catch(function(){});
+        }
+      } else if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then(function(reg) {
           // Force the new SW to activate immediately on update
           reg.addEventListener('updatefound', function() {

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
 import { supabase } from "@/integrations/supabase/client";
 import { approveRewardPurchase, denyRewardPurchase } from "@/hooks/useRewards";
+import { fetchMissedImportantToday } from "@/utils/missedImportant";
+import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -18,8 +20,17 @@ interface PendingRewardAlert {
   coins: number;
 }
 
-type Alert = PendingRewardAlert;
-// Future alert types can be added to this union
+interface MissedImportantAlert {
+  type: "missed_important";
+  id: string;
+  childId: string;
+  childName: string;
+  taskName: string;
+  /** "HH:MM" the window closed. */
+  dueBy: string;
+}
+
+type Alert = PendingRewardAlert | MissedImportantAlert;
 
 interface AlertsPanelProps {
   open: boolean;
@@ -44,6 +55,17 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
     try {
       const ids = targetChildren.map(c => c.id);
 
+      // Important tasks whose window closed today with no completion.
+      const missed = await fetchMissedImportantToday(ids);
+      const missedAlerts: Alert[] = missed.map(m => ({
+        type: "missed_important" as const,
+        id: `missed-${m.taskId}`,
+        childId: m.childId,
+        childName: targetChildren.find(c => c.id === m.childId)?.name || "Child",
+        taskName: m.name,
+        dueBy: m.dueBy,
+      }));
+
       // Fetch pending reward purchases
       const { data: purchases } = await supabase
         .from("reward_purchases")
@@ -53,7 +75,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
         .order("purchased_at", { ascending: false });
 
       if (!purchases || purchases.length === 0) {
-        setAlerts([]);
+        setAlerts(missedAlerts);
         setLoading(false);
         return;
       }
@@ -76,7 +98,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
         coins: p.coins_spent,
       }));
 
-      setAlerts(rewardAlerts);
+      setAlerts([...rewardAlerts, ...missedAlerts]);
     } catch (error) {
       console.error("Error fetching alerts:", error);
     } finally {
@@ -228,6 +250,27 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                     );
                   }
 
+                  if (alert.type === "missed_important") {
+                    return (
+                      <div
+                        key={alert.id}
+                        className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-amber-400/20 flex items-center justify-center shrink-0">
+                          <Clock className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-14 font-medium text-fog-50 truncate">
+                            {alert.childName} hasn't finished {alert.taskName}
+                          </p>
+                          <p className="text-12 text-fog-300 mt-0.5">
+                            Due by {formatTime12(alert.dueBy)}. Still doable today.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return null;
                 })
               )}
@@ -256,27 +299,32 @@ export const useAlertCount = (childId?: string) => {
     if (targetIds.length === 0) return;
 
     const fetchCount = async () => {
-      const { count: total } = await supabase
-        .from("reward_purchases")
-        .select("id", { count: "exact", head: true })
-        .in("child_id", targetIds)
-        .eq("status", "pending");
-      setCount(total || 0);
+      const [{ count: pending }, missed] = await Promise.all([
+        supabase
+          .from("reward_purchases")
+          .select("id", { count: "exact", head: true })
+          .in("child_id", targetIds)
+          .eq("status", "pending"),
+        fetchMissedImportantToday(targetIds),
+      ]);
+      setCount((pending || 0) + missed.length);
     };
 
     fetchCount();
 
-    // Listen for changes in real-time
+    // Reward changes arrive in realtime; missed tasks are a function of the
+    // clock, so re-check once a minute.
     const channel = supabase
       .channel(`alert-count-${childId || "all"}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reward_purchases" },
-        () => fetchCount()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "reward_purchases" }, () => fetchCount())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions" }, () => fetchCount())
       .subscribe();
+    const timer = window.setInterval(fetchCount, 60_000);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      window.clearInterval(timer);
+    };
   }, [children, childId]);
 
   return count;

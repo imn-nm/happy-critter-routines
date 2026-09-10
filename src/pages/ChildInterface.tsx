@@ -563,26 +563,23 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       }
     }
 
-    // Overdue important tasks take precedence over any in-window task. The
-    // child can't move on until they mark the oldest overdue important as Done.
-    // This is what drives the "shrinking free time" visual — as time passes,
-    // the overdue task's negative timer grows while upcoming tasks wait.
-    if (overdueImportant.length > 0) {
-      const sorted = [...overdueImportant].sort((a, b) =>
-        (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
-      );
-      // Any previously-current (within-window) task gets pushed to upcoming —
-      // it's scheduled but waiting on the overdue important to be resolved.
-      if (current) upcoming.unshift(current);
+    // Important tasks that ran out of time don't block the schedule and never
+    // roll over. If nothing else is running right now, the oldest one takes
+    // the stage (with its overtime timer); otherwise the next task's timer
+    // runs as normal and the unfinished ones sit in a "still to do" card.
+    const sorted = [...overdueImportant].sort((a, b) =>
+      (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
+    );
+    let stillToDo = sorted;
+    if (!current && sorted.length > 0) {
       current = sorted[0];
-      // Other overdue importants show up at the top of the upcoming list.
-      for (const task of sorted.slice(1).reverse()) upcoming.unshift(task);
+      stillToDo = sorted.slice(1);
     }
 
-    return { current, upcoming: upcoming.slice(0, 3), freeTimeUntil };
+    return { current, upcoming: upcoming.slice(0, 3), freeTimeUntil, stillToDo };
   };
 
-  const { current: activeTask, upcoming: upcomingTasks, freeTimeUntil } = categorizeTasks();
+  const { current: activeTask, upcoming: upcomingTasks, freeTimeUntil, stillToDo } = categorizeTasks();
 
   // The "focus" task — the in-progress task if any, otherwise the next upcoming task.
   // Used to highlight the "current" row in Today's Schedule so both children see
@@ -737,16 +734,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       setFrozenTask(null);
     }, CELEBRATE_MS);
 
-    const remaining = getActiveTaskRemainingTime();
+    await completeImportant(activeTask, getActiveTaskRemainingTime());
+  };
 
+  /**
+   * Record an important task as done and pay its stars. `remaining` > 0
+   * means it was finished inside its window and earns a small bonus; a task
+   * done late still earns its full value — lateness is never punished.
+   */
+  const completeImportant = async (task: typeof activeTask, remaining: number) => {
+    if (!task) return;
     try {
-      // Only important tasks reach this handler (regular tasks have no Done).
-      // Stars: the task's value, plus a small on-time bonus so promptness is
-      // rewarded without lateness being punished.
-      const base = activeTask.coins || 0;
+      const base = task.coins || 0;
       const onTimeBonus = base > 0 && remaining > 0 ? 1 : 0;
       const earned = base + onTimeBonus;
-      await completeTask(activeTask.id, earned, activeTask.duration);
+      await completeTask(task.id, earned, task.duration);
       if (earned > 0) await adjustChildCoins(child.id, earned);
       const newHappiness = calculateHappiness();
       await updateChildHappiness(child.id, newHappiness);
@@ -850,6 +852,46 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             </button>
           </div>
         )}
+
+        {/* Still to do — important tasks whose time ran out while something
+            else is on the clock. Never nagging: one warm card per task with
+            its own Done, and the rest of the day keeps moving underneath. */}
+        <AnimatePresence initial={false}>
+          {!frozenTask && stillToDo.map(task => (
+            <motion.div
+              key={`still-${task.id}`}
+              className="mb-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30 flex flex-col gap-sp-2"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={tMotion({ duration: durations.quick })}
+            >
+              <div className="flex items-center gap-sp-2">
+                {getTaskIcon(task.name, "w-5 h-5 text-amber-400", task.icon)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-16 font-medium text-fog-50 truncate">{task.name}</p>
+                  <p className="text-12 text-fog-300">
+                    Still to do. {petNick(child.petType)} knows you can!
+                  </p>
+                </div>
+                {task.coins > 0 && (
+                  <span className="flex items-center gap-0.5 text-12 text-[#FFD66B] font-semibold shrink-0">
+                    <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    {task.coins}
+                  </span>
+                )}
+              </div>
+              <SlideToConfirm
+                label="I did it!"
+                onConfirm={async () => {
+                  setPetCelebrating(true);
+                  window.setTimeout(() => setPetCelebrating(false), 3000);
+                  await completeImportant(task, 0);
+                }}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {/* Current Task — front and center.
             When `frozenTask` is set we hold the just-completed task in place
