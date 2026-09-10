@@ -1225,7 +1225,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             transition={tMotion(springs.gentle)}
           >
             {/* Ambient face: the clock and what's next, glanceable across a room. */}
-            <AmbientClock next={freeTimeCountdown.nextTask} />
+            <AmbientClock next={{ name: freeTimeCountdown.nextTask.name, time: freeTimeCountdown.nextTask.scheduled_time }} />
             <div className="flex flex-col items-center gap-1 py-2">
               <h2
                 className="text-fog-50"
