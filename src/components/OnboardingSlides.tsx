@@ -30,8 +30,8 @@ const WormDemo = () => {
 
   useEffect(() => {
     if (reduce) return;
-    // Step coarsely and let WormTimer's own CSS width transition (500ms) do
-    // the smoothing — animating per frame would re-render for no visible gain.
+    // Step coarsely and let WormTimer's own eased motion do the smoothing —
+    // animating per frame would re-render for no visible gain.
     const STEPS = [0, 0.2, 0.4, 0.6, 0.8, 1, 1];
     let i = 0;
     const id = window.setInterval(() => {
@@ -43,7 +43,7 @@ const WormDemo = () => {
 
   return (
     <div className="w-full px-sp-2">
-      <WormTimer progress={progress} icon={<Gamepad2 className="w-5 h-5 text-ink-900" />} />
+      <WormTimer progress={progress} />
     </div>
   );
 };

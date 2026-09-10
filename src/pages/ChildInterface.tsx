@@ -710,13 +710,15 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   };
 
   // How many seconds the active task is currently overdue (0 if not overdue).
-  const getOverdueSeconds = () => {
-    if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
+  // Seconds since a task's window closed (0 while it is still open).
+  const overdueSecondsFor = (task: typeof activeTask) => {
+    if (!task || !task.scheduled_time || !task.duration) return 0;
     const now = getCurrentTime();
-    const [h, m] = activeTask.scheduled_time.split(':').map(Number);
-    const endMs = new Date(now).setHours(h, m + activeTask.duration, 0, 0);
+    const [h, m] = task.scheduled_time.split(':').map(Number);
+    const endMs = new Date(now).setHours(h, m + task.duration, 0, 0);
     return Math.max(0, Math.floor((now.getTime() - endMs) / 1000));
   };
+  const getOverdueSeconds = () => overdueSecondsFor(activeTask);
 
   // Handle "Next" tap — complete task, give bonus time to next flex task
   const handleNextTap = async () => {
@@ -887,6 +889,24 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   </span>
                 )}
               </div>
+              {/* Same worm as on the stage: the one honest consequence of an
+                  unfinished must-finish is fun time shrinking. */}
+              {(() => {
+                const fun = findNextFunTimeTask(task);
+                if (!fun?.duration) return null;
+                const funTotalS = fun.duration * 60;
+                const overdueS = overdueSecondsFor(task);
+                const progress = Math.min(1, overdueS / funTotalS);
+                const leftMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
+                return (
+                  <div className="flex flex-col items-center gap-1">
+                    <WormTimer progress={progress} />
+                    <p className="text-12 text-fog-200">
+                      <span className="font-medium text-fog-50">{fun.name}</span> — {leftMin}m left
+                    </p>
+                  </div>
+                );
+              })()}
               <SlideToConfirm
                 label="I did it!"
                 onConfirm={async () => {
