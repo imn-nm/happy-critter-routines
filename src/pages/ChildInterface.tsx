@@ -14,6 +14,7 @@ import CritterPet from "@/components/critters/CritterPet";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
+import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
 import { sounds, unlockSounds } from "@/lib/sounds";
 import SpinningWheel from "@/components/SpinningWheel";
@@ -216,18 +217,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   }, []);
 
   if (childrenLoading) {
-    return (
-      <div className={`${!propChildId ? 'min-h-screen' : ''} bg-background p-4`}>
-        <div className="max-w-2xl mx-auto text-center py-16">
-          <p className="text-muted-foreground text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen label="Getting ready…" fullScreen={!propChildId} />;
   }
 
   if (!child) {
     return (
-      <div className={`${!propChildId ? 'min-h-screen' : ''} bg-background p-4`}>
+      <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-background p-4`}>
         <div className="max-w-2xl mx-auto text-center py-16">
           <p className="text-muted-foreground text-sm">Child not found</p>
           {!propChildId && (
@@ -241,13 +236,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   }
 
   if (!systemTasksReady) {
-    return (
-      <div className={`${!propChildId ? 'min-h-screen' : ''} bg-background p-4`}>
-        <div className="max-w-2xl mx-auto text-center py-16">
-          <p className="text-muted-foreground text-sm">Setting up schedule...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen label="Getting your day ready…" fullScreen={!propChildId} />;
   }
 
   const isRestDay = child.rest_day_date === today;
@@ -794,7 +783,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Rest day
   if (isRestDay) {
     return (
-      <div className={`${!propChildId ? 'min-h-screen' : ''} p-5`}>
+      <div className={`${!propChildId ? 'min-h-dvh' : ''} p-5`}>
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <PetAvatar petType={child.petType} happiness={80} emotion="resting" size="md" />
@@ -818,7 +807,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   }
 
   return (
-    <div className={`${!propChildId ? 'min-h-screen' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
+    <div className={`${!propChildId ? 'min-h-dvh' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] mx-auto">
         <ScheduleSoundCues
           activeTaskId={activeTask?.id ?? null}
@@ -838,7 +827,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <button
               type="button"
               onClick={() => setShowRewardsShop(true)}
-              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32] hover:border-iris-400/50 transition-colors"
+              className="relative flex items-center gap-1.5 h-11 px-4 rounded-pill border-2 border-iris-400/[0.32] hover:border-iris-400/50 transition-colors"
               aria-label="Open rewards shop"
             >
               <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
@@ -1491,15 +1480,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           role="dialog"
           aria-label="Today's schedule"
           aria-hidden={!showSchedule}
+          // @ts-expect-error inert is valid HTML; React 18 types lack it
+          inert={showSchedule ? undefined : ""}
         >
           {/* Drag handle */}
-          <div
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             onClick={() => setShowSchedule(false)}
             aria-label="Close schedule"
-            className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-pill bg-white/40 hover:bg-white/60 cursor-pointer"
-          />
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-11 flex items-center justify-center cursor-pointer"
+          >
+            <span className="w-10 h-1 rounded-pill bg-white/40" />
+          </button>
 
           <div className="h-full overflow-y-auto flex flex-col gap-sp-2 px-sp-2">
             <p className="text-14 text-white uppercase tracking-wider px-sp-2">

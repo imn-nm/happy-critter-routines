@@ -14,7 +14,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
       <input
         type={type}
         className={cn(
-          "flex h-11 w-full rounded-pill border border-iris-400/30 bg-white/[0.04] px-4 text-14 text-fog-50",
+          "flex h-11 w-full rounded-pill border border-iris-400/30 bg-white/[0.04] px-4 text-[16px] sm:text-14 text-fog-50",
           "ring-offset-background placeholder:text-fog-300",
           "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",

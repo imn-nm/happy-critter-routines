@@ -37,7 +37,7 @@ const ChildOverdueSubtasksPreview = () => {
     setChores(prev => prev.map(c => (c.id === id ? { ...c, done: !c.done } : c)));
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-cosmic">
+    <div className="min-h-dvh flex flex-col items-center bg-cosmic">
       <div className="w-full max-w-[420px] px-sp-2 py-sp-5 flex flex-col gap-sp-2">
         {/* Top: Parent pill */}
         <div className="flex justify-end mb-sp-3">

@@ -364,7 +364,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                   {shown.map(ev => (
                     <span
                       key={ev.key}
-                      className={`block w-full truncate rounded px-1 py-[1px] text-[9px] leading-[1.25] ${
+                      className={`block w-full truncate rounded px-1 py-[1px] text-[10px] leading-[1.25] ${
                         ev.kind === 'holiday'
                           ? 'font-semibold'
                           : ev.kind === 'note'
@@ -380,7 +380,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                     </span>
                   ))}
                   {overflow > 0 && (
-                    <span className="px-1 text-[9px] leading-[1.25] text-muted-foreground">+{overflow} more</span>
+                    <span className="px-1 text-[10px] leading-[1.25] text-muted-foreground">+{overflow} more</span>
                   )}
                 </div>
               </button>
@@ -412,7 +412,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
       {/* Day Detail Dialog */}
       {selectedDate && (
         <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-          <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-md max-h-[85dvh] overflow-y-auto">
             <div className="mb-3">
               <h3 className="text-lg font-semibold">
                 {format(selectedDate, 'EEEE, MMMM d')}
@@ -586,7 +586,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                       <span className="text-[11px] font-medium leading-none">Rest day</span>
                       {/* Only one rest day is stored per child, so setting one moves it. */}
                       {child.rest_day_date && (
-                        <span className="text-[9px] text-muted-foreground leading-none">
+                        <span className="text-[10px] text-muted-foreground leading-none">
                           moves from {format(new Date(`${child.rest_day_date}T00:00:00`), 'MMM d')}
                         </span>
                       )}
@@ -639,7 +639,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
                         {onEditTask && (
                           <Button variant="ghost" size="sm" onClick={() => onEditTask(task)} className="h-7 w-7 p-0 rounded-lg">
                             <Edit className="w-3.5 h-3.5" />

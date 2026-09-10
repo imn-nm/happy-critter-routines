@@ -42,7 +42,7 @@ const ChildOverdueSubtasksCompactPreview = () => {
   const RING_PX = 140;
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-cosmic">
+    <div className="min-h-dvh flex flex-col items-center bg-cosmic">
       <div className="w-full max-w-[420px] px-sp-2 py-sp-5 flex flex-col gap-sp-2">
         {/* Top: Parent pill + demo toggle for the fun-task scenario */}
         <div className="flex justify-between items-center mb-sp-3">

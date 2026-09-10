@@ -339,7 +339,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               >
                 <SelectedIcon className="w-4 h-4" />
                 {!formData.icon && (
-                  <span className="absolute -top-1 -right-1 text-[8px] font-bold leading-none px-1 py-0.5 rounded-full bg-primary text-primary-foreground">
+                  <span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none px-1 py-0.5 rounded-full bg-primary text-primary-foreground">
                     A
                   </span>
                 )}
@@ -361,7 +361,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   )}
                 >
                   <AutoIcon className="w-4 h-4" />
-                  <span className="absolute -top-1 -right-1 text-[8px] font-bold leading-none px-1 py-0.5 rounded-full bg-primary text-primary-foreground">
+                  <span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none px-1 py-0.5 rounded-full bg-primary text-primary-foreground">
                     A
                   </span>
                 </button>

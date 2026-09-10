@@ -20,7 +20,7 @@ const ChecklistPreview = () => {
     );
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-cosmic">
+    <div className="min-h-dvh flex flex-col items-center bg-cosmic">
       <div className="w-full max-w-[420px] px-sp-4 pt-sp-6 pb-sp-5 flex flex-col items-center gap-sp-4">
         <div className="flex flex-col items-center gap-1 py-2">
           <h2

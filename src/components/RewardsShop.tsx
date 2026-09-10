@@ -91,8 +91,8 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             role="dialog"
             aria-modal="true"
             aria-label="Rewards Shop"
-            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] px-sp-4 pt-sp-5 pb-sp-8"
-            style={{ background: "#3D2B6B", maxHeight: "75vh" }}
+            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] px-sp-4 pt-sp-5 pb-sp-8 sheet-safe-bottom"
+            style={{ background: "#3D2B6B", maxHeight: "75dvh" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -128,7 +128,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             </div>
 
             {/* Rewards list */}
-            <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75vh - 120px)" }}>
+            <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75dvh - 120px)" }}>
               {loading ? (
                 <div className="text-center py-sp-6 text-fog-300 text-14">Just a sec...</div>
               ) : rewards.length === 0 ? (

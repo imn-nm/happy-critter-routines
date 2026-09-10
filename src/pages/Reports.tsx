@@ -9,6 +9,7 @@ import { occursOnDate, windowEnd } from "@/utils/missedImportant";
 import { getPSTDateString, getPSTTimeString } from "@/utils/pstDate";
 import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
+import LoadingScreen from "@/components/LoadingScreen";
 
 const DAYS = 14;
 
@@ -133,11 +134,11 @@ const Reports = () => {
   }, [completions, approved, taskById, rewardNames]);
 
   if (childrenLoading || loading) {
-    return <div className="min-h-screen flex items-center justify-center text-fog-300 text-14">Loading report…</div>;
+    return <LoadingScreen />;
   }
   if (!child) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-sp-3 text-fog-200">
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-sp-3 text-fog-200">
         <p>Child not found</p>
         <button type="button" onClick={() => navigate("/parent")} className="text-iris-400 underline">Back</button>
       </div>
@@ -152,7 +153,7 @@ const Reports = () => {
   );
 
   return (
-    <div className="min-h-screen px-sp-2 py-sp-5">
+    <div className="min-h-dvh px-sp-2 py-sp-5">
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-4">
         <div className="flex items-center gap-sp-2">
           <button

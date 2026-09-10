@@ -19,6 +19,7 @@ import { normalizeWheelOptions } from "@/lib/spinningWheel";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
+import LoadingScreen from "@/components/LoadingScreen";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -304,11 +305,11 @@ const ChildDashboard = () => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground text-sm">Loading...</p></div>;
+  if (loading) return <LoadingScreen />;
 
   if (!child) {
     return (
-      <div className="min-h-screen p-4">
+      <div className="min-h-dvh p-4">
         <div className="max-w-md mx-auto text-center py-16">
           <h1 className="text-xl font-bold text-foreground mb-3">Child not found</h1>
           <Button onClick={() => navigate("/parent")} variant="outline" className="rounded-full">Back</Button>
@@ -318,7 +319,7 @@ const ChildDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <Tabs value={scheduleTab} onValueChange={setScheduleTab} className="flex flex-col">
         {/* Iris-tinted "cabinet" panel — header through schedule controls.
             Full-width, rounds off at the bottom so the cosmic gradient

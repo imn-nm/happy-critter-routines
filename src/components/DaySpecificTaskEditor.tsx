@@ -144,7 +144,7 @@ const DaySpecificTaskEditor = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 flex-shrink-0">
           <DialogTitle className="text-lg">{taskName} Schedule</DialogTitle>
           <DialogDescription className="text-xs">
@@ -176,9 +176,9 @@ const DaySpecificTaskEditor = ({
                 >
                   <span className="text-base font-bold">{day.short}</span>
                   {isEnabled ? (
-                    <span className="text-[9px] mt-0.5 opacity-75">{formatTime(schedules[day.id].time).replace(' ', '')}</span>
+                    <span className="text-[10px] mt-0.5 opacity-75">{formatTime(schedules[day.id].time).replace(' ', '')}</span>
                   ) : (
-                    <span className="text-[9px] mt-0.5 opacity-50">Off</span>
+                    <span className="text-[10px] mt-0.5 opacity-50">Off</span>
                   )}
                 </button>
               );

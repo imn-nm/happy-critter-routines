@@ -1508,15 +1508,15 @@ const TimelineScheduleView = ({
                           {task.name}
                         </span>
                         {task.coins > 0 && (
-                          <span className="text-[9px] text-warning/80 font-semibold">{task.coins}★</span>
+                          <span className="text-[10px] text-warning/80 font-semibold">{task.coins}★</span>
                         )}
                         {task.window_start && task.window_end && (
-                          <span className="text-[8px] text-purple-400/60 font-medium mt-auto">
+                          <span className="text-[10px] text-purple-400/60 font-medium mt-auto">
                             {formatTimeShort(task.window_start)}–{formatTimeShort(task.window_end)}
                           </span>
                         )}
                         {!task.window_start && (
-                          <span className="text-[8px] text-purple-400/40 mt-auto">Anytime</span>
+                          <span className="text-[10px] text-purple-400/40 mt-auto">Anytime</span>
                         )}
                       </div>
                     </div>

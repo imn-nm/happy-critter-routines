@@ -121,7 +121,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           <Settings className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col p-0">
         <DialogHeader className="px-sp-4 pt-sp-4 pb-sp-2 sm:px-sp-6 sm:pt-sp-6 flex-shrink-0">
           <DialogTitle>Edit {child.name}'s Profile</DialogTitle>
         </DialogHeader>

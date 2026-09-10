@@ -31,7 +31,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
   // applied), let the app render anyway so the user can still navigate.
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-dvh flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <div className="text-foreground text-lg font-medium text-glow">Setting up your account...</div>
           <div className="space-y-2.5 max-w-xs mx-auto">

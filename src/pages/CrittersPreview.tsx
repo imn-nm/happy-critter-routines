@@ -15,7 +15,7 @@ const CrittersPreview = () => {
   const [mood, setMood] = useState<CritterMood>("idle");
 
   return (
-    <div className="min-h-screen p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
+    <div className="min-h-dvh p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
       <div className="mx-auto max-w-4xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white">Pixel Critters</h1>

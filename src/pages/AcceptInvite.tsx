@@ -39,7 +39,7 @@ const AcceptInvite = () => {
   }, [token, user, loading, status, redeemInvite, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-dvh flex items-center justify-center p-6">
       <div className="glass-card rounded-3xl p-8 max-w-sm text-center space-y-4">
         {status === 'working' && (
           <p className="text-foreground">Joining household…</p>

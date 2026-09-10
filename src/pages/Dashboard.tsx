@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, CalendarClock, LogOut, Plus, Settings, Sparkles, Star } from "lucide-react";
+import { Bell, CalendarClock, Plus, Settings, Sparkles, Star, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,7 +54,13 @@ const Dashboard = () => {
     return emailLocal.charAt(0).toUpperCase() + emailLocal.slice(1);
   }, [user]);
 
-  const dateLabel = useMemo(() => format(new Date(), "EEEE, MMMM d"), []);
+  // Re-render once a minute so a tab left open overnight shows today.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const dateLabel = useMemo(() => format(now, "EEEE, MMMM d"), [now]);
 
   useEffect(() => {
     if (children.length === 0) return;
@@ -229,16 +236,12 @@ const Dashboard = () => {
   }, [allTasks, children, parentEvents]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-muted-foreground text-sm">Loading dashboard…</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (children.length === 0) {
     return (
-      <div className="min-h-screen p-4">
+      <div className="min-h-dvh p-4">
         {/* No children yet — the intro ends by sending them into setup. */}
         <OnboardingSlides
           open={showOnboarding}
@@ -267,7 +270,7 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="min-h-screen pb-sp-5">
+    <div className="min-h-dvh pb-sp-5">
       <OnboardingSlides open={showOnboarding} onDone={dismissOnboarding} />
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
         {/* Hero panel — iris-tinted, rounded-bottom; wraps the header row +
@@ -282,12 +285,12 @@ const Dashboard = () => {
             <div className="shrink-0 flex items-center gap-sp-2">
               <button
                 type="button"
-                aria-label="Exit parent dashboard"
+                aria-label="Switch to the kids' screen"
                 onClick={() => navigate("/")}
                 className="h-9 px-sp-3 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center gap-1.5 text-fog-50 text-14 hover:bg-iris-400/10 transition-colors duration-sm"
               >
-                <LogOut className="w-4 h-4" />
-                Exit
+                <Users className="w-4 h-4" />
+                Kids
               </button>
               <button
                 type="button"

@@ -26,7 +26,7 @@ const ChildrenSideBySide = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-dvh flex items-center justify-center p-4">
         <div className="text-muted-foreground text-sm">Loading...</div>
       </div>
     );
@@ -34,7 +34,7 @@ const ChildrenSideBySide = () => {
 
   if (children.length === 0) {
     return (
-      <div className="min-h-screen p-4">
+      <div className="min-h-dvh p-4">
         <ParentButton />
         <div className="max-w-md mx-auto text-center pt-24">
           <div className="w-20 h-20 rounded-3xl glass-strong flex items-center justify-center mx-auto mb-6 glow-purple">
@@ -56,7 +56,7 @@ const ChildrenSideBySide = () => {
 
   if (children.length === 1) {
     return (
-      <div className="min-h-screen relative">
+      <div className="min-h-dvh relative">
         <ParentButton />
         <ChildInterface childId={children[0].id} />
         <PincodeDialog
@@ -68,7 +68,7 @@ const ChildrenSideBySide = () => {
   }
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-dvh relative">
       <ParentButton />
 
       <div className="h-screen flex flex-col lg:flex-row">

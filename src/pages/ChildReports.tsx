@@ -21,11 +21,11 @@ const ChildReports = () => {
   const loading = childrenLoading || tasksLoading;
   const getTasksWithCompletionStatus = () => tasks;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground text-sm">Loading...</p></div>;
+  if (loading) return <div className="min-h-dvh flex items-center justify-center"><p className="text-muted-foreground text-sm">Loading...</p></div>;
 
   if (!childId || !selectedChild) {
     return (
-      <div className="min-h-screen p-4">
+      <div className="min-h-dvh p-4">
         <div className="max-w-md mx-auto text-center py-16">
           <h2 className="text-xl font-bold text-foreground mb-3">{!childId ? 'No child selected' : 'Child not found'}</h2>
           <Button variant="outline" onClick={() => navigate("/parent")} className="rounded-full">Back to Dashboard</Button>
@@ -37,7 +37,7 @@ const ChildReports = () => {
   const child = selectedChild;
 
   return (
-    <div className="min-h-screen p-4 pb-8">
+    <div className="min-h-dvh p-4 pb-8">
       <div className="max-w-4xl mx-auto space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">

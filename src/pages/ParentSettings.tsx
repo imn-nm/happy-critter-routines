@@ -44,7 +44,7 @@ const ParentSettings = () => {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
 
   return (
-    <div className="min-h-screen pb-sp-8">
+    <div className="min-h-dvh pb-sp-8">
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-4">
         {/* Header */}
         <header className="flex items-center justify-between gap-sp-3 px-sp-4 pt-sp-5">

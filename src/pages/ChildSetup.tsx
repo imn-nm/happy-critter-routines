@@ -89,7 +89,7 @@ const ChildSetup = () => {
   };
 
   return (
-    <div className="min-h-screen p-4 flex items-center justify-center">
+    <div className="min-h-dvh p-4 flex items-center justify-center">
       <div className="w-full max-w-md">
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-6">

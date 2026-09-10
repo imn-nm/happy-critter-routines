@@ -379,7 +379,7 @@ const CritterEditor = () => {
   const editingPose = frame >= 0;
 
   return (
-    <div className="min-h-screen p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
+    <div className="min-h-dvh p-6" style={{ background: "var(--ground-cosmic, #271447)" }}>
       <div className="mx-auto max-w-6xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold text-white">Critter Editor</h1>

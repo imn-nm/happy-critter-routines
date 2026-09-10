@@ -122,6 +122,12 @@
     @apply bg-background text-foreground font-body antialiased;
     background: var(--ground-cosmic);
     background-attachment: fixed;
+    /* Notched phones in standalone mode: keep content out of the status bar
+       and off the home indicator. */
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    overflow-x: hidden;
     min-height: 100vh;
   }
 
@@ -278,4 +284,9 @@
    offset, set inline per clip. */
 @keyframes retro-strip {
   to { transform: translateX(var(--strip-end)); }
+}
+
+/* Bottom sheets sit on the home indicator on notched phones; pad past it. */
+.sheet-safe-bottom {
+  padding-bottom: max(var(--sp-8), calc(env(safe-area-inset-bottom) + var(--sp-4)));
 }

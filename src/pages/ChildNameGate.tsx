@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import LoadingScreen from "@/components/LoadingScreen";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
@@ -11,17 +12,13 @@ const ChildNameGate = () => {
   const { signOut, user } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-muted-foreground text-sm">Loading...</div>
-      </div>
-    );
+    return <LoadingScreen label="Getting ready…" />;
   }
 
   // No children set up yet — redirect to parent to create profiles
   if (children.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-dvh flex items-center justify-center p-6">
         <div className="w-full max-w-sm text-center space-y-6">
           <div className="w-20 h-20 rounded-3xl glass-strong flex items-center justify-center mx-auto glow-purple">
             <Sparkles className="w-9 h-9 text-primary-light" />
@@ -53,7 +50,7 @@ const ChildNameGate = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-dvh flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-3xl glass-strong flex items-center justify-center mx-auto glow-purple">
@@ -79,6 +76,17 @@ const ChildNameGate = () => {
               </span>
             </button>
           ))}
+        </div>
+
+        {/* Low-emphasis way back for the parent; kids' tiles stay the focus. */}
+        <div className="flex justify-center pt-sp-2">
+          <button
+            type="button"
+            onClick={() => navigate("/parent")}
+            className="tap-target text-12 text-fog-300 hover:text-fog-100 transition-colors"
+          >
+            Grown-ups
+          </button>
         </div>
       </div>
     </div>

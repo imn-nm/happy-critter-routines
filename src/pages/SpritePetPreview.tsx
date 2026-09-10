@@ -17,7 +17,7 @@ const SpritePetPreview = () => {
   const [mood, setMood] = useState<PetMood>("happy");
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-8">
+    <div className="min-h-dvh bg-slate-900 text-slate-100 p-8">
       <h1 className="text-2xl font-semibold">Retro rabbit</h1>
       <p className="mt-1 text-sm text-slate-400">
         Strips live in <code className="text-slate-300">public/pets/rabbit/</code>; clip metadata in{" "}
