@@ -3,7 +3,6 @@ import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   ACTIVITY_CLIP,
-  ACTIVITY_LIFE,
   CLIPS,
   FRAME_H,
   FRAME_W,
@@ -12,6 +11,7 @@ import {
   type LifeBehaviour,
   type PetActivity,
   type PetMood,
+  type SpriteClip,
 } from "./spriteClips";
 
 /**
@@ -64,6 +64,12 @@ interface Playing {
   once: boolean;
   /** Bumps to restart the CSS animation when the same clip plays again. */
   n: number;
+  /**
+   * "full" plays the whole strip. Looping activities play "intro" (pick the
+   * props up) once, then "loop" until the activity ends, then "outro" (put
+   * them down) before anything else happens.
+   */
+  phase: "full" | "intro" | "loop" | "outro";
 }
 
 const pick = (options: LifeBehaviour[]): ClipName => {
@@ -116,17 +122,19 @@ const SpritePet = ({
   const reduced = useReducedMotion();
   const plan = MOOD_PLAN[mood];
   const base: ClipName = clip ?? (activity ? ACTIVITY_CLIP[activity] : plan.base);
-  const habits = clip
+  // While the rabbit is busy with a looping activity (eating, reading, gaming,
+  // brushing, sleeping) it stays with it: no random habits, and taps or
+  // reactions don't make it drop its props. The speech bubble still answers.
+  const busy = !!(CLIPS[base] as SpriteClip).loop;
+  const habits = clip || activity || busy
     ? null
-    : activity
-      ? ACTIVITY_LIFE
-      : plan.life
-        ? { life: plan.life, pauseMs: plan.pauseMs ?? ([6000, 14000] as [number, number]) }
-        : null;
-  const tapClips: ClipName | ClipName[] | null = clip ? null : activity ? ACTIVITY_LIFE.onTap : plan.onTap ?? null;
+    : plan.life
+      ? { life: plan.life, pauseMs: plan.pauseMs ?? ([6000, 14000] as [number, number]) }
+      : null;
+  const tapClips: ClipName | ClipName[] | null = clip || busy ? null : plan.onTap ?? null;
   const still = reduced || (!!plan.still && !activity && !clip);
 
-  const [playing, setPlaying] = useState<Playing>({ name: base, once: false, n: 0 });
+  const [playing, setPlaying] = useState<Playing>({ name: base, once: false, n: 0, phase: (CLIPS[base] as SpriteClip).loop ? "intro" : "full" });
   const playingRef = useRef(playing);
   playingRef.current = playing;
   const baseRef = useRef(base);
@@ -135,7 +143,11 @@ const SpritePet = ({
   const queueRef = useRef<ClipName[]>([]);
 
   const play = useCallback((name: ClipName, once: boolean) => {
-    setPlaying(p => ({ name, once, n: p.n + 1 }));
+    setPlaying(p => ({ name, once, n: p.n + 1, phase: !once && (CLIPS[name] as SpriteClip).loop ? "intro" : "full" }));
+  }, []);
+
+  const setPhase = useCallback((phase: Playing["phase"]) => {
+    setPlaying(p => ({ ...p, n: p.n + 1, phase }));
   }, []);
 
   /** Start something now if the rabbit is only idling, otherwise queue it. */
@@ -150,14 +162,24 @@ const SpritePet = ({
 
   // A loop boundary or the end of a one-shot: the only moments a clip changes.
   const atBoundary = useCallback(() => {
+    const cur = playingRef.current;
+    const leaving = cur.name !== baseRef.current || queueRef.current.length > 0;
+    if (cur.phase === "intro") {
+      setPhase(leaving ? "outro" : "loop");
+      return;
+    }
+    if (cur.phase === "loop") {
+      // Still doing the activity: keep holding the props.
+      if (leaving) setPhase("outro");
+      return;
+    }
     const next = queueRef.current.shift();
     if (next) {
       play(next, true);
       return;
     }
-    const cur = playingRef.current;
-    if (cur.once || cur.name !== baseRef.current) play(baseRef.current, false);
-  }, [play]);
+    if (cur.once || cur.phase === "outro" || cur.name !== baseRef.current) play(baseRef.current, false);
+  }, [play, setPhase]);
 
   // Mood or activity changed: switch at once from Idle, otherwise at the
   // next boundary (atBoundary reads baseRef).
@@ -165,13 +187,16 @@ const SpritePet = ({
     const cur = playingRef.current;
     if (cur.name === base) return;
     if (reduced) { queueRef.current = []; play(base, false); return; }
+    // The activity is over (a celebration, a new task, free time ending):
+    // put the props down now rather than finishing a five-second loop.
+    if (cur.phase === "loop") { setPhase("outro"); return; }
     if (cur.name === "Idle" && !cur.once) play(base, false);
-  }, [base, play, reduced]);
+  }, [base, play, setPhase, reduced]);
 
   useEffect(() => {
-    if (!reaction || reduced) return;
+    if (!reaction || reduced || busy) return;
     request(reaction);
-  }, [reaction, reactionKey, reduced, request]);
+  }, [reaction, reactionKey, reduced, busy, request]);
 
   // Self-initiated behaviour on a random schedule, re-armed after each one.
   useEffect(() => {
@@ -194,7 +219,22 @@ const SpritePet = ({
     onTap?.();
   };
 
-  const { src, frameCount, durationMs } = CLIPS[playing.name];
+  const current: SpriteClip = CLIPS[playing.name];
+  const { src, frameCount, durationMs } = current;
+  const range = current.loop;
+  // Which frames this phase covers. Intro, outro and one-shot clips stop on
+  // their last frame; the loop and an infinite full clip repeat. The end of a
+  // loop range is identical to its start, so steps() never needs to show it.
+  const [from, to] =
+    range && playing.phase === "intro" ? [0, range[0]]
+    : range && playing.phase === "loop" ? [range[0], range[1]]
+    : range && playing.phase === "outro" ? [range[1], frameCount - 1]
+    : [0, frameCount - 1];
+  const repeats = playing.phase === "loop" || (playing.phase === "full" && !playing.once);
+  const msPerFrame = durationMs / (frameCount - 1);
+  // Reduced motion holds one representative frame: props in hand for
+  // activities, the neutral pose otherwise.
+  const stillFrame = range ? range[0] : 0;
 
   // Whole-number magnification so every frame step lands on whole pixels;
   // the box is then fitted to `size` with a single transform.
@@ -212,6 +252,7 @@ const SpritePet = ({
       role={interactive ? "button" : "img"}
       aria-label={interactive ? `${label}. Tap to say hi.` : label}
       data-clip={playing.name}
+      data-phase={playing.phase}
       className={cn(
         "relative overflow-hidden shrink-0",
         interactive && "cursor-pointer select-none transition-transform duration-100 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-iris-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900",
@@ -245,12 +286,12 @@ const SpritePet = ({
           backgroundRepeat: "no-repeat",
           backgroundSize: `${fw * frameCount}px ${fh}px`,
           imageRendering: "pixelated",
-          ["--strip-start" as string]: `${-CROP.x * intScale}px`,
-          ["--strip-end" as string]: `${-CROP.x * intScale - (frameCount - 1) * fw}px`,
+          ["--strip-start" as string]: `${-CROP.x * intScale - (still ? stillFrame : from) * fw}px`,
+          ["--strip-end" as string]: `${-CROP.x * intScale - to * fw}px`,
           backgroundPosition: `var(--strip-start) ${-CROP.y * intScale}px`,
-          animation: still
+          animation: still || to <= from
             ? "none"
-            : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,
+            : `retro-strip ${Math.round((to - from) * msPerFrame)}ms steps(${to - from}) ${repeats ? "infinite" : "1"} forwards`,
         }}
       />
     </div>

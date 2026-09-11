@@ -15,6 +15,13 @@ export interface SpriteClip {
   src: string;
   frameCount: number;
   durationMs: number;
+  /**
+   * For activities: frames [start, end) that loop seamlessly (frame `end` is
+   * pixel-identical to `start`). Frames before `start` pick the props up and
+   * frames from `end` put them down, so a long activity holds its props
+   * instead of resetting to the neutral pose every cycle.
+   */
+  loop?: [number, number];
 }
 
 export const CLIPS = {
@@ -23,11 +30,11 @@ export const CLIPS = {
   Encourage: { src: "/pets/rabbit/encourage.png", frameCount: 120, durationMs: 4000 },
   Wave: { src: "/pets/rabbit/wave.png", frameCount: 120, durationMs: 4000 },
   Curious: { src: "/pets/rabbit/curious.png", frameCount: 108, durationMs: 3600 },
-  Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 240, durationMs: 8000 },
-  Eating: { src: "/pets/rabbit/eating.png", frameCount: 180, durationMs: 6000 },
-  Reading: { src: "/pets/rabbit/reading.png", frameCount: 180, durationMs: 6000 },
-  Gaming: { src: "/pets/rabbit/gaming.png", frameCount: 180, durationMs: 6000 },
-  BrushingTeeth: { src: "/pets/rabbit/brushingteeth.png", frameCount: 180, durationMs: 6000 },
+  Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 240, durationMs: 8000, loop: [99, 206] },
+  Eating: { src: "/pets/rabbit/eating.png", frameCount: 180, durationMs: 6000, loop: [11, 168] },
+  Reading: { src: "/pets/rabbit/reading.png", frameCount: 180, durationMs: 6000, loop: [11, 168] },
+  Gaming: { src: "/pets/rabbit/gaming.png", frameCount: 180, durationMs: 6000, loop: [11, 144] },
+  BrushingTeeth: { src: "/pets/rabbit/brushingteeth.png", frameCount: 180, durationMs: 6000, loop: [11, 171] },
 } satisfies Record<string, SpriteClip>;
 
 export type ClipName = keyof typeof CLIPS;
@@ -104,16 +111,6 @@ export const MOOD_PLAN: Record<PetMood, MoodPlan> = {
   },
   sleep: { base: "Sleepy", onTap: ["Curious", "Wave"] },
   eating: { base: "Eating", onTap: ["Curious", "Wave"] },
-};
-
-/**
- * While the pet is busy with an activity it still looks up now and then, so
- * a twenty-minute reading task isn't one perfectly repeating loop.
- */
-export const ACTIVITY_LIFE: { life: LifeBehaviour[]; pauseMs: [number, number]; onTap: ClipName[] } = {
-  life: [{ clip: "Curious", weight: 1 }],
-  pauseMs: [14000, 26000],
-  onTap: ["Wave", "Curious", "Encourage"],
 };
 
 /**
