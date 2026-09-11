@@ -541,7 +541,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // A task is "current" only when current time is within its time window
   // Otherwise it's upcoming and we show free time
   const categorizeTasks = () => {
-    if (dayOver) return { current: null as any, upcoming: [] as any[], freeTimeUntil: '' };
+    if (dayOver) return { current: null as any, upcoming: [] as any[], freeTimeUntil: '', stillToDo: [] as any[] };
 
     const currentTimeString = getPSTTimeString();
     const [nowH, nowM] = currentTimeString.split(':').map(Number);
