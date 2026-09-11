@@ -1530,12 +1530,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <motion.div
-              animate={{ rotate: [-2, 2, -2] }}
-              transition={tMotion({ duration: 4, repeat: Infinity, ease: "easeInOut" })}
-            >
-              <CritterPet petType={child.petType} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
-            </motion.div>
+            {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
+            <CritterPet petType={child.petType} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
             <h2 className="text-24 text-fog-50 text-center leading-tight">
               Goodnight, {child.name}! 🌙
             </h2>
