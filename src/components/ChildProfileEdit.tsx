@@ -147,7 +147,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
         <form onSubmit={handleSubmit} className="flex flex-col gap-sp-5 w-full min-w-0">
           {/* Pet — one companion today, so this is a row, not a picker. */}
           <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.35)]">
-            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-ink-700 flex items-center justify-center">
+            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-[#3A2D6C] flex items-center justify-center">
               <PetAvatar petType={formData.petType} happiness={child.petHappiness} size="sm" />
             </div>
             <div className="min-w-0">

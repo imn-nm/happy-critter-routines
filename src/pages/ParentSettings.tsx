@@ -153,7 +153,7 @@ const ParentSettings = () => {
                   key={child.id}
                   className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]"
                 >
-                  <div className="shrink-0 w-12 h-12 rounded-[20px] bg-ink-700 flex items-center justify-center overflow-hidden">
+                  <div className="shrink-0 w-12 h-12 rounded-[20px] bg-[#3A2D6C] flex items-center justify-center overflow-hidden">
                     <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
                   </div>
                   <div className="flex-1 min-w-0">

@@ -24,6 +24,16 @@ import {
  */
 const CONTENT = { x: 12, y: 15, w: 77, h: 56 };
 
+/**
+ * Tighter window for small avatars (list rows, settings, profile). Centred on
+ * column 48, where the rabbit's head and ears sit in both the three-quarter
+ * and front poses, so the face reads as centred in a round pill instead of
+ * being pulled left by the tail. Rows 28..71 frame the standing body (30..69)
+ * so the rabbit fills the avatar. Accents beyond it (the encourage heart) are
+ * simply clipped by the pill.
+ */
+const AVATAR = { x: 21, y: 28, w: 54, h: 44 };
+
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and the pet's own habits. */
   mood?: PetMood;
@@ -43,6 +53,8 @@ interface SpritePetProps {
   reaction?: ClipName;
   /** Change this value to replay the same parent-triggered reaction. */
   reactionKey?: string | number;
+  /** "stage" shows the whole animation window; "avatar" frames the body tightly. */
+  framing?: "stage" | "avatar";
   className?: string;
 }
 
@@ -97,8 +109,10 @@ const SpritePet = ({
   onTap,
   reaction,
   reactionKey,
+  framing = "stage",
   className,
 }: SpritePetProps) => {
+  const CROP = framing === "avatar" ? AVATAR : CONTENT;
   const reduced = useReducedMotion();
   const plan = MOOD_PLAN[mood];
   const base: ClipName = clip ?? (activity ? ACTIVITY_CLIP[activity] : plan.base);
@@ -184,12 +198,12 @@ const SpritePet = ({
 
   // Whole-number magnification so every frame step lands on whole pixels;
   // the box is then fitted to `size` with a single transform.
-  const intScale = Math.max(1, Math.floor(size / CONTENT.h));
-  const fit = size / (CONTENT.h * intScale);
+  const intScale = Math.max(1, Math.floor(size / CROP.h));
+  const fit = size / (CROP.h * intScale);
   const fw = FRAME_W * intScale;
   const fh = FRAME_H * intScale;
-  const boxW = CONTENT.w * intScale;
-  const boxH = CONTENT.h * intScale;
+  const boxW = CROP.w * intScale;
+  const boxH = CROP.h * intScale;
   const w = Math.round(boxW * fit);
   const h = Math.round(boxH * fit);
 
@@ -231,9 +245,9 @@ const SpritePet = ({
           backgroundRepeat: "no-repeat",
           backgroundSize: `${fw * frameCount}px ${fh}px`,
           imageRendering: "pixelated",
-          ["--strip-start" as string]: `${-CONTENT.x * intScale}px`,
-          ["--strip-end" as string]: `${-CONTENT.x * intScale - (frameCount - 1) * fw}px`,
-          backgroundPosition: `var(--strip-start) ${-CONTENT.y * intScale}px`,
+          ["--strip-start" as string]: `${-CROP.x * intScale}px`,
+          ["--strip-end" as string]: `${-CROP.x * intScale - (frameCount - 1) * fw}px`,
+          backgroundPosition: `var(--strip-start) ${-CROP.y * intScale}px`,
           animation: still
             ? "none"
             : `retro-strip ${durationMs}ms steps(${frameCount - 1}) ${playing.once ? "1" : "infinite"} forwards`,

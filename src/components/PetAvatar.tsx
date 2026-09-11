@@ -33,7 +33,13 @@ const moodFromEmotion = (emotion?: PetEmotion, happiness = 70): PetMood => {
 /** Small avatar of the child's pet for lists, headers and the setup flow. */
 const PetAvatar = ({ petType, happiness, emotion, size = "md", className }: PetAvatarProps) => (
   <div className={cn("relative flex items-center justify-center", className)}>
-    <SpritePet size={sizePx[size]} mood={moodFromEmotion(emotion, happiness)} label={getPet(petType).name} />
+    <SpritePet
+      size={sizePx[size]}
+      mood={moodFromEmotion(emotion, happiness)}
+      label={getPet(petType).name}
+      // Small avatars frame the body tightly; large ones keep room for props and Zs.
+      framing={size === "sm" || size === "md" ? "avatar" : "stage"}
+    />
   </div>
 );
 

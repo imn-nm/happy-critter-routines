@@ -333,18 +333,6 @@ const Dashboard = () => {
                 />
               </div>
             ))}
-            {/* Adding a child used to live only in Settings; parents look for it here. */}
-            <div className="h-px bg-iris-400/25 mb-sp-1" />
-            <button
-              type="button"
-              onClick={() => navigate("/setup")}
-              className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left text-fog-200 hover:bg-white/[0.03] transition-colors duration-sm"
-            >
-              <span className="shrink-0 w-14 h-[62px] rounded-[28px] border border-dashed border-iris-400/40 flex items-center justify-center">
-                <Plus className="w-5 h-5 text-iris-300" />
-              </span>
-              <span className="text-16">Add a child</span>
-            </button>
           </section>
         </div>
 
@@ -402,7 +390,7 @@ function ChildRow({
       className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left hover:bg-white/[0.03] transition-colors duration-sm"
     >
       {/* Pet avatar */}
-      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-ink-700 flex items-center justify-center overflow-hidden">
+      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-[#3A2D6C] flex items-center justify-center overflow-hidden">
         <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
       </div>
 
