@@ -27,6 +27,7 @@ import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 
 // Design/preview tool pages only exist in local dev builds. They are never
 // linked from the app and must not ship to the deployed site.
@@ -65,6 +66,7 @@ const App = () => (
       {/* The one toast system. hooks/use-toast.ts is a thin shim over it. */}
       <Sonner />
       <BrowserRouter>
+        <AppErrorBoundary>
         <Routes>
           {/* Public routes — outside AuthProvider so unauth'd users can reach them. */}
           <Route path="/login" element={<Login />} />
@@ -88,6 +90,7 @@ const App = () => (
             }
           />
         </Routes>
+        </AppErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
