@@ -12,12 +12,16 @@ import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import PlayScene from "@/components/pets/PlayScene";
+import BondMeter from "@/components/pets/BondMeter";
+import DayDoneCheer from "@/components/pets/DayDoneCheer";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
 import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
 import { sounds, unlockSounds } from "@/lib/sounds";
+import { haptics } from "@/lib/haptics";
+import { petLine } from "@/lib/petVoice";
 import SpinningWheel from "@/components/SpinningWheel";
 import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
@@ -75,6 +79,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const [, setTick] = useState(0);
   const hiddenAtRef = useRef<number | null>(null);
   const greetingIdRef = useRef(0);
+  const dayDoneLineRef = useRef<string | null>(null);
+  const petVoiceRef = useRef<{ nick: string; childName?: string; completed: number; total: number }>({
+    nick: "Biscuit",
+    completed: 0,
+    total: 0,
+  });
   const freeTimeActivityRef = useRef<{ key: string; activity: PetActivity }>({ key: "", activity: "gaming" });
 
   // Floating "+N" coin deltas. Each entry self-removes after its animation.
@@ -220,7 +230,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       } else {
         refetchTasks();
         if (hiddenAtRef.current && Date.now() - hiddenAtRef.current >= 15_000) {
-          setReturnGreeting({ id: ++greetingIdRef.current, text: `You’re back!` });
+          setReturnGreeting({ id: ++greetingIdRef.current, text: petLine("welcome", petVoiceRef.current) });
           window.setTimeout(() => setReturnGreeting(null), 2800);
         }
         hiddenAtRef.current = null;
@@ -460,8 +470,34 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const totalTasks = todaysSchedule.length;
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
+  // Everything the pet can speak from. Kept in a ref as well so the effects
+  // that fire outside render (coming back to the tab, finishing the day) can
+  // reach the current figures without re-subscribing every second.
+  const petVoice = {
+    nick: petNick(child.petType),
+    childName: child.name,
+    completed: completedTasks,
+    total: totalTasks,
+  };
+  petVoiceRef.current = petVoice;
+  // Picked once and kept: the speech bubble restarts whenever its text
+  // changes, so drawing a fresh random line every render would leave the
+  // all-done bubble stuttering between sentences forever.
+  if (!dayDoneLineRef.current) dayDoneLineRef.current = petLine("dayDone", petVoice);
+
+  /**
+   * How full the pet's hearts are, for today only.
+   *
+   * Deliberately not `calculateHappiness()`: that value is a running maximum
+   * that is persisted and never allowed to fall, so from the second good day
+   * onwards it sits at 95 forever — the meter would read full before the child
+   * had done anything. This one starts the day at one heart (the pet is glad to
+   * see them, not neglected) and fills with today's schedule.
+   */
+  const heartsPercent = totalTasks > 0 ? 20 + progressPercent * 0.8 : 100;
+
   // Pet "energy": only ever climbs during the day. The child never sees a
-  // number, and the pet never gets sadder — decision: always encouraging.
+  // number — it sees hearts — and the pet never gets sadder: always encouraging.
   const calculateHappiness = () => {
     const fromToday = progressPercent >= 60 ? 95 : completedTasks > 0 ? 70 : 50;
     return Math.max(child?.petHappiness ?? 0, fromToday);
@@ -820,6 +856,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       const onTimeBonus = base > 0 && remaining > 0 ? 1 : 0;
       const earned = base + onTimeBonus;
       sounds.done();
+      haptics.done();
       await completeTask(task.id, earned, task.duration);
       if (earned > 0) await adjustChildCoins(child.id, earned);
       const newHappiness = calculateHappiness();
@@ -889,8 +926,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             greeting 20px Inter Regular, coin chip 13px Bold with star icon */}
         {!dayOver && (
           <div className="flex items-center justify-between mb-sp-3">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
+              {/* How happy the pet is, in something a five-year-old can read
+                  across the room. A heart lands as the day gets done. */}
+              <BondMeter happiness={heartsPercent} nick={petNick(child.petType)} />
             </div>
             <button
               type="button"
@@ -1092,6 +1132,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
                     reaction={returnGreeting ? "Wave" : undefined}
                     reactionKey={returnGreeting?.id}
+                    voice={{ ...petVoice, taskName: displayTask.name }}
                     className="w-[96px] h-[96px]"
                   />
                   <TaskChecklistView
@@ -1118,6 +1159,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
                     reaction={returnGreeting ? "Wave" : undefined}
                     reactionKey={returnGreeting?.id}
+                    voice={{ ...petVoice, taskName: displayTask.name }}
                     className="w-full h-full"
                   />
                 </CircularTimer>
@@ -1237,6 +1279,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                                 if (done) return;
                                 const earned = chore.coins || 0;
                                 sounds.done();
+                                haptics.done();
                                 setPetCelebrating(true);
                                 window.setTimeout(() => setPetCelebrating(false), 3000);
                                 await completeTask(chore.id, earned, 0);
@@ -1383,6 +1426,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
                           onTap={() => setPlayOpen(true)}
+                          voice={petVoice}
                           className="w-full h-full"
                         />
                       </CircularTimer>
@@ -1423,6 +1467,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                               if (done) return;
                               const earned = chore.coins || 0;
                               sounds.done();
+                              haptics.done();
                               setPetCelebrating(true);
                               window.setTimeout(() => setPetCelebrating(false), 3000);
                               await completeTask(chore.id, earned, 0);
@@ -1549,11 +1594,17 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {/* All done — during the day, no more tasks */}
         {!frozenTask && !dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            className="relative flex flex-col items-center gap-sp-4 mt-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
+            {/* The one big fuss of the day: fanfare, buzz and sparkles. Only for a
+                day that had tasks and finished them — an empty schedule is not
+                an achievement. */}
+            {totalTasks > 0 && completedTasks === totalTasks && (
+              <DayDoneCheer cheerKey={`${child.id}:${today}`} />
+            )}
             <AmbientClock next={null} />
             <CritterPet
               petType={child.petType}
@@ -1561,9 +1612,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               activity={freeTimeActivityRef.current.activity}
               size={168}
               interactive
-              prompt={returnGreeting?.text ?? "We did it!"}
+              prompt={returnGreeting?.text ?? dayDoneLineRef.current}
               reaction={returnGreeting ? "Wave" : undefined}
               reactionKey={returnGreeting?.id}
+              voice={petVoice}
             />
             <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
             <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
@@ -1674,6 +1726,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {playOpen && freeTimeCountdown && !activeTask && (
           <PlayScene
             petType={child.petType}
+            childName={child.name}
             secondsLeft={freeTimeCountdown.remaining}
             onClose={() => setPlayOpen(false)}
           />

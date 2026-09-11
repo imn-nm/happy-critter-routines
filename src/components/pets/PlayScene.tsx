@@ -6,11 +6,15 @@ import { petNick } from "./petCatalog";
 import type { ClipName, PetActivity } from "./spriteClips";
 import { useMotionPrefs } from "@/lib/motion";
 import { sounds } from "@/lib/sounds";
+import { haptics } from "@/lib/haptics";
+import { petLine } from "@/lib/petVoice";
 
 interface PlaySceneProps {
   petType: string;
   /** Seconds of free time left; the scene closes on its own at zero. */
   secondsLeft: number;
+  /** The child's name, so the pet can use it while they play. */
+  childName?: string;
   onClose: () => void;
 }
 
@@ -22,8 +26,6 @@ const TOYS: Toy[] = [
   { id: "gaming", label: "Game", Icon: Gamepad2, line: "Let's play!", holdMs: 6000 },
 ];
 
-const PET_LINES = ["That's nice!", "Hehe!", "More please!", "I love you too!"];
-
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /**
@@ -33,7 +35,7 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
  * same behaviour engine as the rest of the app, so it never pops between
  * moves.
  */
-const PlayScene = ({ petType, secondsLeft, onClose }: PlaySceneProps) => {
+const PlayScene = ({ petType, secondsLeft, childName, onClose }: PlaySceneProps) => {
   const { t } = useMotionPrefs();
   const nick = petNick(petType);
   const petRef = useRef<HTMLDivElement>(null);
@@ -95,9 +97,12 @@ const PlayScene = ({ petType, secondsLeft, onClose }: PlaySceneProps) => {
       s.lastHeart = s.travelled;
       const r = petRect();
       if (r) spawnHeart(e.clientX - r.left, e.clientY - r.top);
+      // The purr: the stroke answers under the child's finger, every time.
+      sounds.purr();
+      haptics.purr();
       if (s.travelled > 90 && s.travelled < 120) {
         react("Encourage");
-        say(PET_LINES[Math.floor(Math.random() * PET_LINES.length)]);
+        say(petLine("stroke", { nick, childName }));
       }
     }
   };
@@ -107,8 +112,9 @@ const PlayScene = ({ petType, secondsLeft, onClose }: PlaySceneProps) => {
     // A tap (no real movement) is a hello.
     if (s && s.travelled < 12) {
       react(Math.random() < 0.5 ? "Wave" : "Curious");
-      say(["Hi!", "Hello!", "You're here!"][Math.floor(Math.random() * 3)]);
-      sounds.start();
+      say(petLine("tap", { nick, childName }));
+      sounds.petTap();
+      haptics.tap();
     }
   };
 
@@ -116,7 +122,8 @@ const PlayScene = ({ petType, secondsLeft, onClose }: PlaySceneProps) => {
     setHint(false);
     setActivity(toy.id);
     say(toy.line, 2600);
-    sounds.done();
+    sounds.treat();
+    haptics.done();
     if (activityTimer.current) window.clearTimeout(activityTimer.current);
     activityTimer.current = window.setTimeout(() => setActivity(undefined), toy.holdMs);
   };

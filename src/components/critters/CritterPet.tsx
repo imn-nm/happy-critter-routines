@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
-import { getPet } from "@/components/pets/petCatalog";
+import SparkleBurst from "@/components/pets/SparkleBurst";
+import { getPet, petNick } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
+import { petLine, type PetVoiceContext } from "@/lib/petVoice";
+import { haptics } from "@/lib/haptics";
+import { sounds } from "@/lib/sounds";
 
 export type { PetMood as CritterMood };
 
@@ -21,6 +25,13 @@ interface CritterPetProps {
   /** Optional one-shot to play with a controlled prompt. */
   reaction?: ClipName;
   reactionKey?: string | number;
+  /**
+   * What the pet knows about right now — the child's name, how much of the
+   * day is done, the streak. Taps answer from this, so the reply fits the
+   * moment instead of cycling four fixed lines. `nick` is filled in from
+   * `petType` when it's omitted.
+   */
+  voice?: Omit<PetVoiceContext, "nick"> & { nick?: string };
   className?: string;
 }
 
@@ -30,9 +41,8 @@ interface CritterPetProps {
  * call sites; every value renders the rabbit for now.
  */
 const TAP_HINT_KEY = "petpals:pet-tap-discovered";
-const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className }: CritterPetProps) => {
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, voice, className }: CritterPetProps) => {
   const reduced = useReducedMotion();
   const [showHint, setShowHint] = useState(() => {
     if (!interactive || typeof window === "undefined") return false;
@@ -44,6 +54,15 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
   });
   const [message, setMessage] = useState<string | null>(null);
   const messageTimer = useRef<number | null>(null);
+  // Every celebrate gets its own particles. Counting the entries into the mood
+  // (rather than reading the mood directly) means a second celebration throws a
+  // fresh burst instead of reusing the first one's trajectories.
+  const [burst, setBurst] = useState(0);
+  const celebrating = mood === "celebrate";
+
+  useEffect(() => {
+    if (celebrating) setBurst(b => b + 1);
+  }, [celebrating]);
 
   useEffect(() => () => {
     if (messageTimer.current) window.clearTimeout(messageTimer.current);
@@ -61,7 +80,11 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
       setShowHint(false);
       try { window.localStorage.setItem(TAP_HINT_KEY, "yes"); } catch { /* storage can be unavailable */ }
     }
-    setMessage(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)]);
+    // Answer with sound and a buzz as well as a line: a pet that only ever
+    // replies in text isn't much of a pet.
+    sounds.petTap();
+    haptics.tap();
+    setMessage(petLine("tap", { ...voice, nick: voice?.nick ?? petNick(petType) }));
     if (messageTimer.current) window.clearTimeout(messageTimer.current);
     messageTimer.current = window.setTimeout(() => setMessage(null), 1700);
     onTap?.();
@@ -85,6 +108,9 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
           </div>
         )}
       </AnimatePresence>
+      {celebrating && (
+        <SparkleBurst burstKey={burst} className="z-0" />
+      )}
       <SpritePet
         mood={mood}
         activity={activity}

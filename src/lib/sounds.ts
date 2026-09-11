@@ -91,4 +91,15 @@ export const sounds = {
   ]),
   /** Bedtime. Two descending notes, quiet. */
   bedtime: () => play([{ f: E5, at: 0, len: 0.5, gain: 0.07 }, { f: C5, at: 0.5, len: 0.8, gain: 0.06 }]),
+  /** The child poked the pet. A single soft blip — it answers every tap, so it has to stay small. */
+  petTap: () => play([{ f: G5, at: 0, len: 0.09, gain: 0.07 }], "triangle"),
+  /** The child is stroking the pet. A low wobble under the fingers. */
+  purr: () => play([{ f: 196, at: 0, len: 0.22, gain: 0.05 }, { f: 208, at: 0.1, len: 0.22, gain: 0.04 }], "triangle"),
+  /** A toy landed on the pet. Bright and quick. */
+  treat: () => play([{ f: E5, at: 0, len: 0.1 }, { f: C6, at: 0.08, len: 0.22, gain: 0.1 }], "triangle"),
+  /** Every task of the day is finished. The big one. */
+  dayDone: () => play([
+    { f: C5, at: 0, len: 0.14 }, { f: E5, at: 0.1, len: 0.14 }, { f: G5, at: 0.2, len: 0.14 },
+    { f: C6, at: 0.3, len: 0.2 }, { f: G5, at: 0.46, len: 0.18 }, { f: C6, at: 0.58, len: 0.7, gain: 0.15 },
+  ]),
 };
