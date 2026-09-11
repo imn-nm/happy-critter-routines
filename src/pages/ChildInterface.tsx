@@ -11,7 +11,7 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
-import PetClub from "@/components/pets/PetClub";
+import PlayScene from "@/components/pets/PlayScene";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
@@ -61,6 +61,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Name of a reward a grown-up just approved — drives the full-screen
   // celebration. Cleared after a few seconds.
   const [approvedReward, setApprovedReward] = useState<string | null>(null);
+  // Full-screen play with the rabbit; only reachable during free time.
+  const [playOpen, setPlayOpen] = useState(false);
   // null = follow the default (show the wheel automatically when one is set
   // up); true/false = the child explicitly chose wheel or pet this session.
   const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
@@ -867,7 +869,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               {petNick(child.petType)} is resting too!
             </p>
           </motion.div>
-          <PetClub key={child.id} childId={child.id} petType={child.petType} day={today} completed={getTodaysTaskCompletion().completed} />
         </div>
       </div>
     );
@@ -1381,9 +1382,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           }
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
+                          onTap={() => setPlayOpen(true)}
                           className="w-full h-full"
                         />
                       </CircularTimer>
+                      <p className="mt-1 text-13 text-fog-300">Tap {petNick(child.petType)} to play</p>
                       {wheelReady && (
                         <button
                           type="button"
@@ -1520,7 +1523,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         )}
 
         {/* Goodnight — day is over */}
-        {!dayOver && <PetClub key={child.id} childId={child.id} petType={child.petType} day={today} completed={getTodaysTaskCompletion().completed} />}
         {dayOver && (
           <motion.div
             className="flex flex-col items-center gap-sp-4 mt-sp-4"
@@ -1666,6 +1668,17 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         open={showRewardsShop}
         onClose={() => setShowRewardsShop(false)}
       />
+
+      {/* Free-time play: full screen, closes itself when free time ends */}
+      <AnimatePresence>
+        {playOpen && freeTimeCountdown && !activeTask && (
+          <PlayScene
+            petType={child.petType}
+            secondsLeft={freeTimeCountdown.remaining}
+            onClose={() => setPlayOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* A grown-up said yes — full-screen celebration with the pet */}
       <AnimatePresence>

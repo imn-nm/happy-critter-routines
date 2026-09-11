@@ -31,6 +31,18 @@
         "assets/pets/rabbit/living-pet"
       ],
       "port": 5175
+    },
+    {
+      "name": "rabbit-gummy",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8099",
+        "--directory",
+        "assets/pets/rabbit/retro/gummy"
+      ],
+      "port": 8099
     }
   ]
 }
