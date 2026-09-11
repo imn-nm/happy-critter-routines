@@ -15,13 +15,14 @@ import {
 } from "./spriteClips";
 
 /**
- * Crop window measured from the sheets. The idle body occupies x 37..66,
- * y 30..70 of the 104x80 frame (centre x = 51.5, feet on y = 70). The window
- * is centred on that body so the rabbit sits in the middle of its slot, and
- * is wide and tall enough (x 13..90, y 15..71) for the gaming monitor, the
- * waving arm and the celebrate jump.
+ * Crop window measured from the sheets. Every clip is built on the hand-drawn
+ * front pose, which occupies x 37..61, y 31..70 of the 104x80 frame
+ * (centre x = 49, feet on y = 70). The window is centred on that body so the
+ * rabbit sits in the middle of its slot, and is wide and tall enough
+ * (x 11..88, y 15..71) for the gaming monitor, the waving arm, the sleeping
+ * Zs and the celebrate jump.
  */
-const CONTENT = { x: 13, y: 15, w: 77, h: 56 };
+const CONTENT = { x: 11, y: 15, w: 77, h: 56 };
 
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and the pet's own habits. */
