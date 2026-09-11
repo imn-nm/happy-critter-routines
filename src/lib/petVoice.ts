@@ -126,12 +126,20 @@ const fill = (c: PetVoiceContext): Ctx => {
   };
 };
 
-/** The last line said for each kind, so the pet never repeats itself back to back. */
-const lastSaid: Partial<Record<PetLineKind, string>> = {};
+/**
+ * What was said recently for each kind, most recent first. Avoiding only the
+ * single previous line isn't enough: several pools are four lines long, and
+ * over a handful of taps a child hears the same one three times and the pet
+ * stops seeming to have anything to say.
+ */
+const recent: Partial<Record<PetLineKind, string[]>> = {};
+
+/** How much of a pool to hold back — never so much that nothing is left. */
+const historyFor = (poolSize: number) => Math.min(3, Math.max(1, poolSize - 2));
 
 /**
  * A line for this kind of moment. Pools the two most specific matching rules,
- * then avoids whatever was said last time.
+ * then avoids the handful it has just used.
  */
 export const petLine = (kind: PetLineKind, context: PetVoiceContext): string => {
   const c = fill(context);
@@ -140,8 +148,10 @@ export const petLine = (kind: PetLineKind, context: PetVoiceContext): string => 
   const matched = RULES[kind].filter(r => !r.when || r.when(c)).slice(0, 2);
   const pool = matched.flatMap(r => r.lines.map(l => (typeof l === "function" ? l(c) : l)));
   if (pool.length === 0) return "Hi!";
-  const fresh = pool.length > 1 ? pool.filter(l => l !== lastSaid[kind]) : pool;
-  const choice = fresh[Math.floor(Math.random() * fresh.length)];
-  lastSaid[kind] = choice;
+  const history = recent[kind] ?? [];
+  const fresh = pool.filter(l => !history.includes(l));
+  const from = fresh.length > 0 ? fresh : pool;
+  const choice = from[Math.floor(Math.random() * from.length)];
+  recent[kind] = [choice, ...history].slice(0, historyFor(pool.length));
   return choice;
 };

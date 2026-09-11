@@ -20,6 +20,7 @@ import ChorePreview from "./pages/ChorePreview";
 import ChildOverduePreview from "./pages/ChildOverduePreview";
 import ChildOverdueSubtasksPreview from "./pages/ChildOverdueSubtasksPreview";
 import ChildOverdueSubtasksCompactPreview from "./pages/ChildOverdueSubtasksCompactPreview";
+import PetDelightPreview from "./pages/PetDelightPreview";
 import CrittersPreview from "./pages/CrittersPreview";
 import SpritePetPreview from "./pages/SpritePetPreview";
 import CritterEditor from "./pages/CritterEditor";
@@ -71,6 +72,7 @@ const App = () => (
           <Route path="/accept-invite" element={<AcceptInvite />} />
           {DEV_TOOLS && (
             <>
+              <Route path="/preview/pet-delight" element={<PetDelightPreview />} />
               <Route path="/preview/critters" element={<CrittersPreview />} />
               <Route path="/preview/sprite-pet" element={<SpritePetPreview />} />
               <Route path="/preview/critter-editor" element={<CritterEditor />} />
