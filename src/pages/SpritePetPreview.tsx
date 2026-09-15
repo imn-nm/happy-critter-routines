@@ -1,5 +1,7 @@
 import { useState } from "react";
 import SpritePet from "@/components/pets/SpritePet";
+import CircularTimer from "@/components/CircularTimer";
+import TimerRabbitScene, { type TimerRoutine } from "@/components/pets/TimerRabbitScene";
 import { CLIPS, MOOD_PLAN, type ClipName, type PetMood } from "@/components/pets/spriteClips";
 
 const CLIP_NAMES = Object.keys(CLIPS) as ClipName[];
@@ -15,10 +17,25 @@ const SIZES = [48, 72, 80, 96, 128, 168, 192];
 const SpritePetPreview = () => {
   const [selected, setSelected] = useState<ClipName>("Idle");
   const [mood, setMood] = useState<PetMood>("happy");
+  const [routine, setRoutine] = useState<TimerRoutine>("leaf-chase");
+  const [replay, setReplay] = useState(0);
 
   return (
     <div className="min-h-dvh bg-slate-900 text-slate-100 p-8">
       <h1 className="text-2xl font-semibold">Retro rabbit</h1>
+      <h2 className="mt-8 text-lg font-medium">Inside the timer frame</h2>
+      <p className="mt-2 text-sm text-slate-400">Chase a leaf, or recover from a little stumble. Each scene lasts ten seconds.</p>
+      <div className="my-4 flex flex-wrap gap-3">
+        {(["leaf-chase", "trip-recover"] as const).map(value => <button key={value}
+          aria-pressed={routine === value}
+          className="min-h-11 rounded-full bg-slate-700 px-4 hover:bg-slate-600"
+          onClick={() => { setRoutine(value); setReplay(n => n + 1); }}>
+          {value === "leaf-chase" ? "Replay leaf chase" : "Replay stumble"}
+        </button>)}
+      </div>
+      <CircularTimer totalSeconds={100} remainingSeconds={30} sizePx={293} frameContent>
+        <TimerRabbitScene key={`${routine}-${replay}`} routine={routine} />
+      </CircularTimer>
       <p className="mt-1 text-sm text-slate-400">
         Strips live in <code className="text-slate-300">public/pets/rabbit/</code>; clip metadata in{" "}
         <code className="text-slate-300">src/components/pets/spriteClips.ts</code>.

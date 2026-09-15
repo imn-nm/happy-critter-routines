@@ -33,7 +33,7 @@ import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
-import { findNextFreeSlot, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
+import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -87,8 +87,14 @@ const ChildDashboard = () => {
     setEditingTask(null);
     // Opened from the generic button rather than a specific gap: show the slot
     // the task would land in anyway, so the parent can see and change it
-    // instead of discovering it after saving.
-    setPrefillTime(safeTime ?? findNextFreeSlot(tasks));
+    // instead of discovering it after saving. When adding to today that slot
+    // starts at the current time — never a gap that has already passed.
+    const notBefore = (() => {
+      if (format(currentDate, 'yyyy-MM-dd') !== getPSTDateString()) return undefined;
+      const now = getPSTDate();
+      return roundUpToGrid(now.getHours() * 60 + now.getMinutes());
+    })();
+    setPrefillTime(safeTime ?? findNextFreeSlot(tasks, DEFAULT_SLOT_MINUTES, notBefore));
     setShowTaskForm(true);
   };
   const handleEditTask = (task) => {

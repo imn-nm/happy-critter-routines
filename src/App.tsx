@@ -28,6 +28,7 @@ import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import TimeReservePreview from "./pages/TimeReservePreview";
 
 // Design/preview tool pages only exist in local dev builds. They are never
 // linked from the app and must not ship to the deployed site.
@@ -74,6 +75,7 @@ const App = () => (
           {DEV_TOOLS && (
             <>
               <Route path="/preview/critters" element={<CrittersPreview />} />
+              <Route path="/preview/time-reserve" element={<TimeReservePreview />} />
               <Route path="/preview/sprite-pet" element={<SpritePetPreview />} />
               <Route path="/preview/critter-editor" element={<CritterEditor />} />
             </>

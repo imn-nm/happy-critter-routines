@@ -22,6 +22,8 @@ interface CircularTimerProps {
    * pet avatar, etc.). Clipped to a circle that fits within the stroke.
    */
   children?: React.ReactNode;
+  /** Let a frame-aware scene place paws over the rim. */
+  frameContent?: boolean;
 }
 
 // Figma reference: 293 diameter, 3 px stroke (thin aurora-style ring).
@@ -37,6 +39,7 @@ const CircularTimer = ({
   onComplete,
   status = "on-track",
   children,
+  frameContent = false,
 }: CircularTimerProps) => {
   const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
@@ -144,11 +147,11 @@ const CircularTimer = ({
           className="absolute inset-0 flex items-center justify-center"
         >
           <div
-            className="rounded-full overflow-hidden"
+            className={frameContent ? "relative w-full h-full" : "rounded-full overflow-hidden"}
             style={{
               // Sit comfortably inside the ring with a little breathing room.
-              width: `calc(100% - ${STROKE_PX * 6}px)`,
-              height: `calc(100% - ${STROKE_PX * 6}px)`,
+              width: frameContent ? "100%" : `calc(100% - ${STROKE_PX * 6}px)`,
+              height: frameContent ? "100%" : `calc(100% - ${STROKE_PX * 6}px)`,
             }}
           >
             {children}

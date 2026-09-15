@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
+import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
 const convertPetType = (dbPetType: string): PetId => resolvePetId(dbPetType);
@@ -321,6 +322,7 @@ export const useChildren = () => {
       setChildren(prev => prev.map(child =>
         child.id === id ? { ...child, currentCoins: newBalance } : child
       ));
+      broadcastCoins({ childId: id, balance: newBalance });
       return newBalance;
     } catch (error) {
       console.error('Error adjusting coins:', error);
@@ -362,9 +364,16 @@ export const useChildren = () => {
     }
   };
 
+  // Balance changes made by any other component or tab (see coinSync).
+  useEffect(() => onCoinsChanged(({ childId, balance }) => {
+    setChildren(prev => prev.map(child =>
+      child.id === childId && child.currentCoins !== balance ? { ...child, currentCoins: balance } : child
+    ));
+  }), []);
+
   useEffect(() => {
     fetchChildren();
-    
+
     
     // Set up real-time subscription for children changes
     const childrenChannel = supabase

@@ -79,7 +79,7 @@ const RULES: { keywords: string[]; Icon: LucideIcon }[] = [
   { keywords: ["teeth", "brush teeth", "dentist", "floss"], Icon: Smile },
   { keywords: ["bath", "shower", "wash"], Icon: Bath },
   { keywords: ["school", "class"], Icon: GraduationCap },
-  { keywords: ["homework", "study", "read", "reading"], Icon: BookOpen },
+  { keywords: ["homework", "study", "read", "reading", "story", "stories"], Icon: BookOpen },
   { keywords: ["write", "journal", "spelling"], Icon: Pencil },
   { keywords: ["music", "piano", "guitar", "practice", "violin"], Icon: Music },
   { keywords: ["draw", "paint", "art", "craft", "color"], Icon: Palette },

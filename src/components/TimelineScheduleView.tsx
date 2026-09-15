@@ -133,6 +133,17 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
   );
 };
 
+/** Horizontal marker for the current time, sitting between timeline rows. */
+const NowLine = ({ label }: { label: string }) => (
+  <div className="flex items-center gap-2 pointer-events-none" aria-label={`Now, ${label}`}>
+    <div className="text-xs font-semibold text-rose-400 w-16 text-right flex-shrink-0 tabular-nums">{label}</div>
+    <div className="flex-1 flex items-center">
+      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
+      <span className="flex-1 h-[2px] bg-rose-400/80" />
+    </div>
+  </div>
+);
+
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Draggable: user tasks without a set time. Tasks the parent has pinned
@@ -585,6 +596,20 @@ const TimelineScheduleView = ({
   }, [currentDate]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  // Current PST minute-of-day, ticking once a minute so the "now" line and
+  // clock-aware placement move without a reload.
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const d = getPSTDate();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+  useEffect(() => {
+    const tick = () => {
+      const d = getPSTDate();
+      setNowMinutes(d.getHours() * 60 + d.getMinutes());
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
   // Toggle completion for the selected day.
@@ -932,13 +957,18 @@ const TimelineScheduleView = ({
     } else {
       const hint = task.window_start || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
-      const placedStart = resolveDropStart(flexOccupied, hh * 60 + hm, taskDuration, dayBounds);
+      // A task with no placement hint at all shouldn't be auto-parked in a
+      // slot that has already passed when viewing today.
+      const hintMinutes = task.window_start
+        ? hh * 60 + hm
+        : (isPSTToday(selectedDay) ? Math.max(hh * 60 + hm, nowMinutes) : hh * 60 + hm);
+      const placedStart = resolveDropStart(flexOccupied, hintMinutes, taskDuration, dayBounds);
       // No free gap fits (day is full): still keep the task inside the waking
       // day — overlapping visibly (the conflict banner flags it) beats
       // silently parking it after bedtime.
       const clampedHint = Math.max(
         dayBounds.dayStart,
-        Math.min((dayBounds.dayEnd ?? 24 * 60) - taskDuration, hh * 60 + hm),
+        Math.min((dayBounds.dayEnd ?? 24 * 60) - taskDuration, hintMinutes),
       );
       const startMin = placedStart ?? clampedHint;
       // Whatever spot this task took is occupied for the next flex task.
@@ -1022,6 +1052,14 @@ const TimelineScheduleView = ({
   };
 
   const allEvents = createEmptyTimeBlocks(sortedEvents);
+
+  // Where the current-time line sits in the row list (today only): above the
+  // first row that starts after now; -1 means after the last row.
+  const showNowLine = isPSTToday(selectedDay) && allEvents.length > 0 && !activeId;
+  const nowLineIndex = allEvents.findIndex(e => {
+    const [h, m] = e.time.split(':').map(Number);
+    return h * 60 + m > nowMinutes;
+  });
 
   // Overlaps the parent should fix: a task whose duration runs past the next
   // event's start (e.g. a 15-min task with the next event 10 minutes later).
@@ -1312,8 +1350,13 @@ const TimelineScheduleView = ({
                   strategy={() => null}
                 >
                   <div className="space-y-2 sm:space-y-4">
-                    {allEvents.map((event) => {
+                    {allEvents.map((event, eventIdx) => {
                       const isActiveEvent = activeId === event.id;
+                      // "Now" line: drawn above the first row that starts after
+                      // the current time (today only), or below the last row
+                      // once the whole day has passed.
+                      const showNowAbove = showNowLine && nowLineIndex === eventIdx;
+                      const showNowBelow = showNowLine && nowLineIndex === -1 && eventIdx === allEvents.length - 1;
                       const isBeingDraggedOver = overId === event.id && activeId !== event.id;
 
                       const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
@@ -1370,6 +1413,7 @@ const TimelineScheduleView = ({
 
                       return (
                         <div key={event.id} className="relative touch-manipulation">
+                          {showNowAbove && <NowLine label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />}
                           {shouldShowSpacingAbove && (
                             <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
                               <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
@@ -1413,6 +1457,7 @@ const TimelineScheduleView = ({
                               <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
                             </div>
                           )}
+                          {showNowBelow && <NowLine label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />}
                         </div>
                       );
                     })}

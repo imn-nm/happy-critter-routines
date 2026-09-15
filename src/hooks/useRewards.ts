@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { broadcastCoins } from '@/utils/coinSync';
 
 export interface Reward {
   id: string;
@@ -50,11 +51,13 @@ export const approveRewardPurchase = async (purchaseId: string) => {
   if (error) throw error;
   if (!updated) throw new Error('This request was already handled.');
 
-  const { error: coinErr } = await supabase.rpc('adjust_child_coins', {
+  const { data: balance, error: coinErr } = await supabase.rpc('adjust_child_coins', {
     p_child_id: updated.child_id,
     p_delta: -updated.coins_spent,
   });
   if (coinErr) throw coinErr;
+  // Show the new balance everywhere now, not when realtime gets round to it.
+  broadcastCoins({ childId: updated.child_id, balance: balance as number });
   return updated as RewardPurchase;
 };
 
@@ -250,11 +253,12 @@ export const useRewards = (childId?: string) => {
    */
   const redeemForChild = async (rewardId: string, cost: number) => {
     const purchase = await purchaseReward(rewardId, cost, 'approved');
-    const { error } = await supabase.rpc('adjust_child_coins', {
+    const { data: balance, error } = await supabase.rpc('adjust_child_coins', {
       p_child_id: childId!,
       p_delta: -cost,
     });
     if (error) throw error;
+    broadcastCoins({ childId: childId!, balance: balance as number });
     return purchase;
   };
 

@@ -26,6 +26,7 @@ export interface SpriteClip {
 
 export const CLIPS = {
   Idle: { src: "/pets/rabbit/idle.png", frameCount: 120, durationMs: 4000 },
+  LeafChase: { src: "/pets/rabbit/leaf-chase.png", frameCount: 300, durationMs: 10000 },
   Celebrate: { src: "/pets/rabbit/celebrate.png", frameCount: 108, durationMs: 3600 },
   Encourage: { src: "/pets/rabbit/encourage.png", frameCount: 120, durationMs: 4000 },
   Wave: { src: "/pets/rabbit/wave.png", frameCount: 120, durationMs: 4000 },

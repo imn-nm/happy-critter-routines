@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import PetAvatar from "@/components/PetAvatar";
 import TimeSqueeze from "@/components/TimeSqueeze";
 import CircularTimer, { TimerStatus } from "@/components/CircularTimer";
-import WormTimer from "@/components/WormTimer";
+import ChildTaskFocus from "@/components/ChildTaskFocus";
+import { calculateTimeReserve } from "@/utils/timeReserve";
 import TaskChecklistView from "@/components/TaskChecklistView";
-import LinearTimer from "@/components/LinearTimer";
 import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
@@ -30,6 +30,8 @@ import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
 import { supabase } from "@/integrations/supabase/client";
+import { broadcastCoins } from "@/utils/coinSync";
+import { toast } from "sonner";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
@@ -49,7 +51,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
   const { children, loading: childrenLoading, adjustChildCoins, updateChildHappiness } = useChildren();
-  const { tasks, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
+  const { tasks, completions, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
 
@@ -135,35 +137,80 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return () => window.clearTimeout(timeout);
   }, [child?.currentCoins]);
 
-  // Close the reward loop: when a parent approves a request, celebrate here
-  // the moment it happens. Deny needs no fanfare — the shop shows a gentle
-  // "not this time" on the card.
+  // Close the reward loop: when a parent approves a request, take the stars
+  // off and celebrate here the moment it happens. Deny needs no fanfare — the
+  // shop shows a gentle "not this time" on the card.
   useEffect(() => {
     if (!childId) return;
+    let cancelled = false;
+    const celebrated = new Set<string>();
+    // Requests we've seen waiting; polled as a fallback in case the realtime
+    // update never arrives (device asleep, socket dropped).
+    const pending = new Set<string>();
+    const timers: number[] = [];
+
+    // Re-read the balance from the database and push it to every view. The
+    // parent's approve flips the status a moment before the stars come off,
+    // so read again shortly after to land on the final number.
+    const refreshCoins = async () => {
+      const { data } = await supabase.from('children').select('current_coins').eq('id', childId).maybeSingle();
+      if (!cancelled && data) broadcastCoins({ childId, balance: data.current_coins });
+    };
+
+    const onApproved = async (purchaseId: string, rewardId: string) => {
+      pending.delete(purchaseId);
+      if (celebrated.has(purchaseId)) return;
+      celebrated.add(purchaseId);
+      refreshCoins();
+      timers.push(window.setTimeout(refreshCoins, 1500));
+      const { data: reward } = await supabase.from('rewards').select('name').eq('id', rewardId).maybeSingle();
+      if (cancelled) return;
+      const name = reward?.name ?? 'Your reward';
+      toast.success('You got your reward!', { description: `${name} is yours. Enjoy!`, icon: '🎁', duration: 6000 });
+      setApprovedReward(name);
+      setPetCelebrating(true);
+      timers.push(window.setTimeout(() => {
+        setApprovedReward(null);
+        setPetCelebrating(false);
+      }, 5000));
+    };
+
+    const poll = async () => {
+      const { data } = await supabase
+        .from('reward_purchases')
+        .select('id, reward_id, status')
+        .eq('child_id', childId)
+        .in('status', ['pending', 'approved'])
+        .order('purchased_at', { ascending: false })
+        .limit(20);
+      if (cancelled || !data) return;
+      for (const row of data) {
+        if (row.status === 'pending') pending.add(row.id);
+        else if (pending.has(row.id)) onApproved(row.id, row.reward_id);
+      }
+    };
+    poll();
+    const interval = window.setInterval(() => { if (pending.size > 0) poll(); }, 4000);
+
     const channel = supabase
       .channel(`reward-outcomes-${childId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
-        async payload => {
-          const row = payload.new as { reward_id: string; status: string };
+        { event: '*', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
+        payload => {
+          if (payload.eventType === 'DELETE') return;
+          const row = payload.new as { id: string; reward_id: string; status: string };
           const was = (payload.old as { status?: string })?.status;
-          if (row.status !== 'approved' || was === 'approved') return;
-          const { data: reward } = await supabase
-            .from('rewards')
-            .select('name')
-            .eq('id', row.reward_id)
-            .maybeSingle();
-          setApprovedReward(reward?.name ?? 'Your reward');
-          setPetCelebrating(true);
-          window.setTimeout(() => {
-            setApprovedReward(null);
-            setPetCelebrating(false);
-          }, 4500);
+          if (row.status === 'pending') pending.add(row.id);
+          else if (row.status === 'approved' && was !== 'approved' && payload.eventType === 'UPDATE') onApproved(row.id, row.reward_id);
+          else pending.delete(row.id);
         },
       )
       .subscribe();
     return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      timers.forEach(window.clearTimeout);
       supabase.removeChannel(channel);
     };
   }, [childId]);
@@ -261,21 +308,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Context-aware pet message. Returns null when no special message is needed.
   const getPetMessage = (): string | null => {
     if (!activeTask || !isActiveTaskOverdue() || !activeTask.is_important) return null;
-    const nextFunTask = findNextFunTimeTask(activeTask);
-    if (!nextFunTask || !nextFunTask.duration) return null;
-
-    const overdueS = getOverdueSeconds();
-    const funTotalS = nextFunTask.duration * 60;
-    const pctLost = funTotalS > 0 ? overdueS / funTotalS : 1;
-    const activity = nextFunTask.name;
-
-    if (pctLost < 0.33) {
-      return `Come on, you've got this! Finish up and we can ${activity}!`;
-    } else if (pctLost < 0.66) {
-      return `We're losing ${activity} time! Let's go, almost there!`;
-    } else {
-      return `${activity} time is almost gone — hurry, we can still save a little!`;
-    }
+    return timeReserve.reserve ? `You've got this!` : null;
   };
 
   const formatTime = (timeString?: string) => {
@@ -452,7 +485,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return clampScheduleOverlaps(finalTasks);
   };
 
-  const todaysSchedule = getTodaysSchedule();
+  const plannedSchedule = getTodaysSchedule();
+  const timeReserve = calculateTimeReserve(plannedSchedule, completions, getCurrentTime());
+  // Keep the original end fixed: lost time delays the start of optional activities.
+  const todaysSchedule = plannedSchedule.map(task => {
+    const lost = timeReserve.losses[task.id] || 0;
+    if (!lost || !task.is_fun_time || !task.scheduled_time || !task.duration) return task;
+    const [h, m] = task.scheduled_time.split(':').map(Number);
+    const lostMinutes = Math.min(task.duration, Math.ceil(lost / 60));
+    const start = h * 60 + m + lostMinutes;
+    return { ...task, duration: task.duration - lostMinutes,
+      scheduled_time: `${Math.floor(start / 60).toString().padStart(2, '0')}:${Math.floor(start % 60).toString().padStart(2, '0')}` };
+  });
 
   // Progress — measured against today's schedule only (it used to count every
   // task the child ever had, which pinned the pet at one mood forever).
@@ -591,15 +635,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       }
     }
 
-    // Important tasks that ran out of time don't block the schedule and never
-    // roll over. If nothing else is running right now, the oldest one takes
-    // the stage (with its overtime timer); otherwise the next task's timer
-    // runs as normal and the unfinished ones sit in a "still to do" card.
+    // Keep the unfinished activity in focus while the wall-clock schedule
+    // continues underneath it. Bedtime remains a fixed end to the day.
     const sorted = [...overdueImportant].sort((a, b) =>
       (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
     );
     let stillToDo = sorted;
-    if (!current && sorted.length > 0) {
+    if (sorted.length > 0 && !current?.name.toLowerCase().includes('bedtime')) {
+      if (current) upcoming.unshift(current);
       current = sorted[0];
       stillToDo = sorted.slice(1);
     }
@@ -621,6 +664,18 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     if (!nextTask.scheduled_time) return null;
 
     const now = getCurrentTime();
+    const secondsNow = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const gap = timeReserve.freeWindows.find(window => secondsNow >= window.originalStart && secondsNow < window.end);
+    // Spent reserve is not offered again as a fresh free-time window.
+    if (gap && secondsNow < gap.start) return null;
+    if (gap) return { total: gap.end - gap.start, remaining: gap.end - secondsNow, nextTask };
+    const spentActivity = plannedSchedule.some(task => {
+      if (!task.is_fun_time || !task.scheduled_time || !task.duration || !timeReserve.losses[task.id]) return false;
+      const [h, m] = task.scheduled_time.split(':').map(Number);
+      const start = (h * 60 + m) * 60;
+      return secondsNow >= start && secondsNow < start + timeReserve.losses[task.id];
+    });
+    if (spentActivity) return null;
     const [nh, nm] = nextTask.scheduled_time.split(':').map(Number);
     const nextStart = new Date(now);
     nextStart.setHours(nh, nm, 0, 0);
@@ -758,34 +813,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return null;
   };
 
-  // Find the next fun-time task that appears after the given task on today's schedule.
-  // Used for the "Time Squeeze" visualization when an important task goes overdue.
-  const findNextFunTimeTask = (afterTask: typeof activeTask) => {
-    if (!afterTask) return null;
-    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted && t.is_active !== false);
-    const afterTime = afterTask.scheduled_time || '00:00';
-    // Find first fun-time task scheduled after the overdue task's start time
-    const candidates = incompleteTasks.filter(t =>
-      t.is_fun_time &&
-      (t.scheduled_time || '00:00') > afterTime
-    );
-    if (candidates.length === 0) return null;
-    return candidates.reduce((a, b) =>
-      (a.scheduled_time || '00:00') <= (b.scheduled_time || '00:00') ? a : b
-    );
-  };
-
-  // How many seconds the active task is currently overdue (0 if not overdue).
-  // Seconds since a task's window closed (0 while it is still open).
-  const overdueSecondsFor = (task: typeof activeTask) => {
-    if (!task || !task.scheduled_time || !task.duration) return 0;
-    const now = getCurrentTime();
-    const [h, m] = task.scheduled_time.split(':').map(Number);
-    const endMs = new Date(now).setHours(h, m + task.duration, 0, 0);
-    return Math.max(0, Math.floor((now.getTime() - endMs) / 1000));
-  };
-  const getOverdueSeconds = () => overdueSecondsFor(activeTask);
-
   // Handle "Next" tap — complete task, give bonus time to next flex task
   const handleNextTap = async () => {
     if (!activeTask) return;
@@ -876,7 +903,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   return (
     <div className={`${!propChildId ? 'min-h-dvh' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
-      <div className="max-w-[420px] mx-auto">
+      <div className="max-w-[420px] min-[600px]:max-w-[660px] mx-auto">
         <ScheduleSoundCues
           activeTaskId={activeTask?.id ?? null}
           activeTaskName={activeTask?.name ?? null}
@@ -927,64 +954,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
-        {/* Still to do — important tasks whose time ran out while something
-            else is on the clock. Never nagging: one warm card per task with
-            its own Done, and the rest of the day keeps moving underneath. */}
-        <AnimatePresence initial={false}>
-          {!frozenTask && stillToDo.map(task => (
-            <motion.div
-              key={`still-${task.id}`}
-              className="mb-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30 flex flex-col gap-sp-2"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={tMotion({ duration: durations.quick })}
-            >
-              <div className="flex items-center gap-sp-2">
-                {getTaskIcon(task.name, "w-5 h-5 text-amber-400", task.icon)}
-                <div className="flex-1 min-w-0">
-                  <p className="text-16 font-medium text-fog-50 truncate">{task.name}</p>
-                  <p className="text-12 text-fog-300">
-                    Still to do. {petNick(child.petType)} knows you can!
-                  </p>
-                </div>
-                {task.coins > 0 && (
-                  <span className="flex items-center gap-0.5 text-12 text-[#FFD66B] font-semibold shrink-0">
-                    <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                    {task.coins}
-                  </span>
-                )}
-              </div>
-              {/* Same worm as on the stage: the one honest consequence of an
-                  unfinished must-finish is fun time shrinking. */}
-              {(() => {
-                const fun = findNextFunTimeTask(task);
-                if (!fun?.duration) return null;
-                const funTotalS = fun.duration * 60;
-                const overdueS = overdueSecondsFor(task);
-                const progress = Math.min(1, overdueS / funTotalS);
-                const leftMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
-                return (
-                  <div className="flex flex-col items-center gap-1">
-                    <WormTimer progress={progress} />
-                    <p className="text-12 text-fog-200">
-                      <span className="font-medium text-fog-50">{fun.name}</span> — {leftMin}m left
-                    </p>
-                  </div>
-                );
-              })()}
-              <SlideToConfirm
-                label="I did it!"
-                onConfirm={async () => {
-                  setPetCelebrating(true);
-                  window.setTimeout(() => setPetCelebrating(false), 3000);
-                  await completeImportant(task, 0);
-                }}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
         {/* Current Task — front and center.
             When `frozenTask` is set we hold the just-completed task in place
             (timer paused, slide disabled, "Done" badge, never-worried pet) so
@@ -1021,24 +990,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           // While frozen, hold remaining at totalSecs so the ring stays full
           // and the timer doesn't visually tick during the celebrate + pause.
           const remaining = isFrozen ? totalSecs : getActiveTaskRemainingTime();
-          const isImportantAndDone = !isFrozen && displayTask.is_important && remaining <= 0;
-          // Suppress the overdue/worried branch during freeze — the just-completed
-          // task should never look anxious, even if it had been overdue.
-          const overdue = !isFrozen && isActiveTaskOverdue();
-          // The pet never looks worried — when a task runs long it keeps
-          // cheering. Overdue is expressed by the timer and worm, not the pet.
           const petMood = petCelebrating ? 'celebrate' : petMoodForTask(displayTask.name);
-
-          const remainingMMSS = formatRemaining(remaining);
-          // Badge variant for the time chip under the title
-          const badgeVariant: 'time' | 'overdue' | 'complete' = isFrozen
-            ? 'complete'
-            : overdue
-            ? 'overdue'
-            : isImportantAndDone
-            ? 'complete'
-            : 'time';
-          const badgeLabel = isFrozen ? 'Done' : overdue ? 'Still to do' : isImportantAndDone ? 'Done' : remainingMMSS;
 
           return (
             <motion.div
@@ -1049,173 +1001,70 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               exit={{ opacity: 0, y: -8 }}
               transition={tMotion(springs.gentle)}
             >
-              {/* Title + StatusBadge under it */}
-              <div className="flex flex-col items-center gap-1 py-2">
-                <div className="flex items-center gap-2">
-                  {getTaskIcon(displayTask.name, "w-6 h-6 text-fog-50 shrink-0", displayTask.icon)}
-                  <h2
-                    className="text-fog-50"
-                    style={{
-                      fontFamily: "Inter",
-                      fontWeight: 400,
-                      fontSize: 24,
-                      lineHeight: 1.15,
-                      letterSpacing: "-0.02em",
-                    }}
-                  >
-                    {displayTask.name}
-                  </h2>
+              <ChildTaskFocus
+                name={displayTask.name}
+                icon={displayTask.icon}
+                totalSeconds={totalSecs}
+                remainingSeconds={remaining}
+                done={isFrozen}
+                mustFinish={displayTask.is_important}
+                onDone={handleNextTap}
+                onTimeUp={handleTimerComplete}
+                reserve={timeReserve.reserve}
+                companion={<CritterPet timerFrame petType={child.petType} mood={petMood}
+                  activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
+                  size={112} interactive
+                  prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
+                  reaction={returnGreeting ? "Wave" : undefined} reactionKey={returnGreeting?.id}
+                  className="w-full h-full" />}
+                checklist={displayTask.subtasks?.length ? <TaskChecklistView
+                  subtasks={displayTask.subtasks}
+                  checkedIds={checkedSubtasks[displayTask.id] ?? []}
+                  onToggle={(subId) => toggleSubtask(displayTask.id, subId)} /> : undefined}
+              />
+
+              {stillToDo.length > 0 && <>
+        {/* Still to do — important tasks whose time ran out while something
+            else is on the clock. Never nagging: one warm card per task with
+            its own Done, and the rest of the day keeps moving underneath. */}
+        <details className="w-full text-fog-200"><summary className="min-h-11 cursor-pointer py-3 text-sm">Other things to finish</summary><AnimatePresence initial={false}>
+          {!frozenTask && stillToDo.map(task => (
+            <motion.div
+              key={`still-${task.id}`}
+              className="mb-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30 flex flex-col gap-sp-2"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={tMotion({ duration: durations.quick })}
+            >
+              <div className="flex items-center gap-sp-2">
+                {getTaskIcon(task.name, "w-5 h-5 text-amber-400", task.icon)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-16 font-medium text-fog-50 truncate">{task.name}</p>
+                  <p className="text-12 text-fog-300">
+                    Still to do. {petNick(child.petType)} knows you can!
+                  </p>
                 </div>
-                <StatusBadge variant={badgeVariant}>{badgeLabel}</StatusBadge>
+                {task.coins > 0 && (
+                  <span className="flex items-center gap-0.5 text-12 text-[#FFD66B] font-semibold shrink-0">
+                    <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    {task.coins}
+                  </span>
+                )}
               </div>
+              <SlideToConfirm
+                label="I did it!"
+                onConfirm={async () => {
+                  setPetCelebrating(true);
+                  window.setTimeout(() => setPetCelebrating(false), 3000);
+                  await completeImportant(task, 0);
+                }}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence></details>
 
-              {/* Multi-step tasks → time bar + pet + checklist. Single-step or
-                  no-step tasks keep the circular timer with the pet inside. */}
-              {displayTask.subtasks && displayTask.subtasks.length >= 2 ? (
-                <div className="w-full flex flex-col items-center gap-sp-3">
-                  {/* Same logic/colour states as the ring, just horizontal. */}
-                  <LinearTimer
-                    totalSeconds={totalSecs}
-                    remainingSeconds={remaining}
-                    status={isFrozen ? 'on-track' : overdue ? 'overtime' : getTimerStatus()}
-                    isRunning={!isFrozen}
-                    onComplete={handleTimerComplete}
-                  />
-                  {/* Pet — small companion above the steps so the screen keeps
-                      the warmth the timer ring used to provide. */}
-                  <CritterPet
-                    petType={child.petType}
-                    mood={petMood}
-                    activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
-                    size={96}
-                    interactive
-                    prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
-                    reaction={returnGreeting ? "Wave" : undefined}
-                    reactionKey={returnGreeting?.id}
-                    className="w-[96px] h-[96px]"
-                  />
-                  <TaskChecklistView
-                    subtasks={displayTask.subtasks}
-                    checkedIds={checkedSubtasks[displayTask.id] ?? []}
-                    onToggle={(subId) => toggleSubtask(displayTask.id, subId)}
-                  />
-                </div>
-              ) : (
-                <CircularTimer
-                  totalSeconds={totalSecs}
-                  remainingSeconds={remaining}
-                  status={isFrozen ? 'on-track' : overdue ? 'overtime' : getTimerStatus()}
-                  sizePx={293}
-                  isRunning={!isFrozen}
-                  onComplete={handleTimerComplete}
-                >
-                  <CritterPet
-                    petType={child.petType}
-                    mood={petMood}
-                    activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
-                    size={168}
-                    interactive
-                    prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
-                    reaction={returnGreeting ? "Wave" : undefined}
-                    reactionKey={returnGreeting?.id}
-                    className="w-full h-full"
-                  />
-                </CircularTimer>
-              )}
-
-              {/* Worm timer — shown for any overdue task. When there's a fun task
-                  behind it, the worm "eats" into that fun time; otherwise it
-                  uses a 30-minute default window so the visual still appears. */}
-              {overdue && (() => {
-                const nextFunTask = findNextFunTimeTask(displayTask);
-                // No fun time behind this task means there is nothing real
-                // being lost — don't show a made-up loss.
-                if (!nextFunTask?.duration) return null;
-                const overdueS = getOverdueSeconds();
-                const funTotalS = nextFunTask.duration * 60;
-                const progress = Math.min(1, overdueS / funTotalS);
-                const funRemainingMin = Math.max(0, Math.ceil((funTotalS - overdueS) / 60));
-                return (
-                  <motion.div
-                    className="w-full px-sp-2 flex flex-col items-center gap-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={tMotion({ duration: durations.quick })}
-                  >
-                    <WormTimer progress={progress} />
-                    <p className="text-12 text-fog-200">
-                      <span className="font-medium text-fog-50">{nextFunTask.name}</span> — {funRemainingMin}m left
-                    </p>
-                  </motion.div>
-                );
-              })()}
-
-              {/* Inline subtasks checklist — only for single-step tasks; the
-                  full checklist view above handles multi-step layouts. */}
-              {displayTask.subtasks && displayTask.subtasks.length === 1 && (() => {
-                const checkedIds = checkedSubtasks[displayTask.id] ?? [];
-                const doneCount = displayTask.subtasks.filter(s => checkedIds.includes(s.id)).length;
-                return (
-                  <div className="w-full glass rounded-[28px] p-sp-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <ListChecks className="w-4 h-4 text-iris-300" />
-                        <span className="text-12 font-medium text-fog-50 uppercase tracking-wider">Checklist</span>
-                      </div>
-                      <span className="text-12 text-fog-200 font-medium">
-                        {doneCount}/{displayTask.subtasks.length}
-                      </span>
-                    </div>
-                    <ul className="space-y-1.5">
-                      {displayTask.subtasks.map(sub => {
-                        const isChecked = checkedIds.includes(sub.id);
-                        return (
-                          <li key={sub.id}>
-                            <button
-                              type="button"
-                              onClick={() => toggleSubtask(displayTask.id, sub.id)}
-                              className={`w-full flex items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-all ${
-                                isChecked
-                                  ? 'bg-iris-400/10 text-fog-200'
-                                  : 'bg-white/5 hover:bg-white/10 text-fog-50'
-                              }`}
-                            >
-                              <span
-                                className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                                  isChecked
-                                    ? 'bg-iris-400 border-iris-400'
-                                    : 'border-fog-300/50'
-                                }`}
-                              >
-                                {isChecked && <Check className="w-3.5 h-3.5 text-ink-900" strokeWidth={3} />}
-                              </span>
-                              <span className={`text-14 flex-1 ${isChecked ? 'line-through' : ''}`}>
-                                {sub.text}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })()}
-
-              {/* Slide-to-confirm — full-width pill below the timer, matches Figma
-                  "Child Dashboard - overtime-new". Disabled (but still rendered)
-                  during freeze so the layout doesn't shift. */}
-              {/* Only important tasks ask for a Done. Regular tasks just run
-                  their timer and flow to the next one — no checking off. */}
-              {displayTask.is_important && (
-                <div className="w-full px-sp-4 mt-sp-2">
-                  <SlideToConfirm
-                    label="I did it!"
-                    onConfirm={handleNextTap}
-                    disabled={isFrozen}
-                  />
-                </div>
-              )}
-
+              </>}
               {/* Chore tiles — between slide and Next row, per Figma
                   "Child Dashboard - overtime-new". */}
               {!isFrozen && (() => {
@@ -1363,8 +1212,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         status="ahead"
                         sizePx={293}
                         isRunning={true}
+                        frameContent
                       >
                         <CritterPet
+                          timerFrame
                           petType={child.petType}
                           mood={petCelebrating ? "celebrate" : beforeWake ? "sleep" : petIsCheckingClock ? "excited" : drowsy ? "drowsy" : "happy"}
                           activity={petCelebrating || beforeWake || petIsCheckingClock || drowsy ? undefined : freeTimeActivityRef.current.activity}
@@ -1688,6 +1539,24 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             role="status"
             aria-live="polite"
           >
+            {/* Star burst */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              {Array.from({ length: 14 }, (_, i) => {
+                const angle = (i / 14) * Math.PI * 2;
+                const dist = 140 + (i % 3) * 40;
+                return (
+                  <motion.span
+                    key={i}
+                    className="absolute"
+                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist - 40, scale: [0, 1.2, 0.9], opacity: [0, 1, 0] }}
+                    transition={tMotion({ duration: 1.6, delay: 0.1 + (i % 4) * 0.08, ease: 'easeOut' })}
+                  >
+                    <Star className="w-6 h-6 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                  </motion.span>
+                );
+              })}
+            </div>
             <motion.div
               initial={{ scale: 0.6 }}
               animate={{ scale: 1 }}
@@ -1695,7 +1564,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             >
               <CritterPet petType={child.petType} mood="celebrate" size={192} />
             </motion.div>
-            <p className="text-2xl font-bold text-fog-50 text-center">Yes! {approvedReward} is yours!</p>
+            <p className="text-2xl font-bold text-fog-50 text-center">You got your reward!</p>
+            <p className="text-18 font-semibold text-[#FFD66B] text-center">🎁 {approvedReward}</p>
             <p className="text-16 text-fog-200 text-center">
               {petNick(child.petType)} is so happy for you, {child.name}!
             </p>

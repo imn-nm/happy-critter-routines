@@ -1,0 +1,30 @@
+.timer-rabbit { pointer-events: none; }
+.rabbit-travel { transform-origin: 146px 219px; }
+.rabbit-turn { transform-origin: 146px 180px; }
+.rabbit-grip, .rabbit-dust { opacity: 0; }
+.trip-recover .rabbit-travel { animation: rabbit-trip 10s linear both; }
+.trip-recover .rabbit-turn { animation: rabbit-look-around 10s steps(1) both; }
+.trip-recover .rabbit-grip { animation: rabbit-trip-grip 10s steps(1) both; }
+.trip-recover .rabbit-dust { animation: rabbit-trip-dust 10s ease-out both; }
+@keyframes rabbit-trip {
+  0%,8% { transform:translate(0,0); }
+  17% { transform:translate(21px,-9px) rotate(5deg); }
+  23% { transform:translate(34px,9px) rotate(22deg); }
+  28% { transform:translate(15px,44px) rotate(62deg) scaleY(.85); }
+  34% { transform:translate(0,104px) rotate(0deg) scaleY(.75); }
+  41%,48% { transform:translate(0,104px) scaleY(.94); }
+  54% { transform:translate(0,20px) scaleY(.9); }
+  59%,79% { transform:translate(0,0); }
+  84% { transform:translate(0,-3px) rotate(-4deg); }
+  90% { transform:translate(0,0) rotate(4deg); }
+  96%,100% { transform:translate(0,0); }
+}
+@keyframes rabbit-look-around { 0% { transform:scaleX(1); } 62% { transform:scaleX(-1); } 69% { transform:scaleX(1); } 76% { transform:scaleX(-1); } 81%,100% { transform:scaleX(1); } }
+@keyframes rabbit-trip-grip { 0% { opacity:0; } 34% { opacity:1; } 51%,100% { opacity:0; } }
+@keyframes rabbit-trip-dust { 0%,27% { opacity:0; transform:translate(0,0); } 29% { opacity:.8; } 39%,100% { opacity:0; transform:translate(12px,-9px); } }
+@media (prefers-reduced-motion: reduce) {
+  .timer-rabbit * { animation:none !important; }
+  .rabbit-leaf { display:none; }
+}
+
+

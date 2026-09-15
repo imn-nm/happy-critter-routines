@@ -7,6 +7,12 @@
     70
   ],
   "animations": {
+    "LeafChase": {
+      "sheet": "leaf-chase.png",
+      "count": 300,
+      "loop": false,
+      "durationMs": 10000
+    },
     "Idle": {
       "sheet": "idle-sheet.png",
       "count": 120,

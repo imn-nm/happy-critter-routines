@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
+import TimerRabbitScene, { type TimerRoutine } from "@/components/pets/TimerRabbitScene";
 import { getPet } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
 
@@ -22,6 +23,7 @@ interface CritterPetProps {
   reaction?: ClipName;
   reactionKey?: string | number;
   className?: string;
+  timerFrame?: boolean;
 }
 
 /**
@@ -32,8 +34,21 @@ interface CritterPetProps {
 const TAP_HINT_KEY = "petpals:pet-tap-discovered";
 const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className }: CritterPetProps) => {
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false }: CritterPetProps) => {
   const reduced = useReducedMotion();
+  const [routine, setRoutine] = useState<TimerRoutine | null>(null);
+  const nextRoutine = useRef<TimerRoutine>("leaf-chase");
+  const finishRoutine = useCallback(() => setRoutine(null), []);
+  const canPlay = timerFrame && !reduced && !activity && ["idle", "happy", "excited"].includes(mood);
+  useEffect(() => {
+    if (!canPlay) { setRoutine(null); return; }
+    if (routine) return;
+    const timer = window.setTimeout(() => {
+      setRoutine(nextRoutine.current);
+      nextRoutine.current = nextRoutine.current === "leaf-chase" ? "trip-recover" : "leaf-chase";
+    }, 16000 + Math.random() * 10000);
+    return () => window.clearTimeout(timer);
+  }, [canPlay, routine]);
   const [showHint, setShowHint] = useState(() => {
     if (!interactive || typeof window === "undefined") return false;
     try {
@@ -71,10 +86,13 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
     <div className={cn("relative flex items-center justify-center", className)}>
       <AnimatePresence>
         {interactive && (message || showHint) && (
-          <div className="pointer-events-none absolute inset-x-0 top-1 z-10 flex justify-center px-2">
+          // Centred on the pet but sized to the line, not the pet's box: the
+          // timer ring is only ~150px wide, which squeezed longer lines onto
+          // two rows that ran into the ring. Wraps only past the screen width.
+          <div className="pointer-events-none absolute left-1/2 top-0 z-10 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/3">
             <motion.div
               key={message ?? "hint"}
-              className="max-w-full text-center rounded-2xl border border-iris-300/30 bg-ink-800/95 px-3 py-1.5 text-12 font-medium text-fog-50 shadow-lg"
+              className="text-center text-balance rounded-2xl border border-iris-300/30 bg-ink-800/95 px-3 py-1.5 text-12 font-medium leading-snug text-fog-50 shadow-lg"
               initial={reduced ? { opacity: 0 } : { opacity: 0, y: 5, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reduced ? { opacity: 0 } : { opacity: 0, y: -3, scale: 0.95 }}
@@ -85,6 +103,7 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
           </div>
         )}
       </AnimatePresence>
+      <div style={{ visibility: routine && canPlay ? "hidden" : "visible" }}>
       <SpritePet
         mood={mood}
         activity={activity}
@@ -95,6 +114,13 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
         reaction={reaction}
         reactionKey={reactionKey}
       />
+      </div>
+      {routine && canPlay && <>
+        <TimerRabbitScene routine={routine} onComplete={finishRoutine} />
+        {interactive && <button type="button" aria-label={`${getPet(petType).name}. Tap to say hi.`}
+          className="absolute inset-8 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-iris-300"
+          onClick={handleTap} />}
+      </>}
     </div>
   );
 };
