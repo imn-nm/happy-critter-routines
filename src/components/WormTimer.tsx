@@ -19,7 +19,20 @@ export default function WormTimer({ progress, icon, className }: WormTimerProps)
   const [shown, setShown] = useState(target);
   const last = useRef(target);
   const [chompFrame, setChompFrame] = useState(0);
-  const chewing = shown > 0 && shown < .9999;
+  // The jaw only works while time is actually being eaten. A bar that sits
+  // still (a loss taken earlier in the day) must not look like it's still
+  // losing, so each rise in progress keeps the mouth going a moment longer.
+  const [advancing, setAdvancing] = useState(false);
+  const lastTarget = useRef(target);
+  useEffect(() => {
+    const rose = target > lastTarget.current;
+    lastTarget.current = target;
+    setAdvancing(rose);
+    if (!rose) return;
+    const timer = window.setTimeout(() => setAdvancing(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [target]);
+  const chewing = advancing && shown > 0 && shown < .9999;
   useEffect(() => {
     if (reduce || !chewing) { setChompFrame(0); return; }
     const timer = window.setInterval(() => setChompFrame(frame => (frame + 1) % 8), 100);

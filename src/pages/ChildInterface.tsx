@@ -1019,7 +1019,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 showDone={!displayTask.is_fun_time}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
-                reserve={timeReserve.reserve}
+                // The worm only appears while the child is running late on a
+                // must-do task; on time, or on any other task, nothing is eaten.
+                reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
                 companion={<CritterPet timerFrame petType={child.petType} mood={petMood}
                   activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive

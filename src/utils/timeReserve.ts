@@ -87,7 +87,9 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     losses: Object.fromEntries(reserves.map(r => [r.task.id, r.lost])),
     reserve: freeRemaining > 0 ? {
       id: 'free-time', name: 'Free time', icon: 'Leaf',
-      totalSeconds: reserves.filter(r => r.task.id.startsWith('gap-')).reduce((sum, r) => sum + r.total, 0),
+      // Only free time still ahead is at stake. A morning gap that simply went
+      // by was used, not eaten, so it must not move the worm during school.
+      totalSeconds: free.reduce((sum, r) => sum + r.total, 0),
       remainingSeconds: freeRemaining,
     } : selected ? {
       id: selected.task.id, name: selected.task.name, icon: selected.task.icon,
