@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getPSTDateString } from '@/utils/pstDate';
+import { realtimeChannel } from '@/lib/realtime';
 import { format } from 'date-fns';
 
 /**
@@ -156,7 +157,8 @@ export const useTasks = (childId?: string) => {
 
       if (error) throw error;
 
-      setTasks(prev => [...prev, data as Task]);
+      // The realtime echo of this insert may already have added it.
+      setTasks(prev => prev.some(task => task.id === data.id) ? prev : [...prev, data as Task]);
       toast({
         title: "Success",
         description: `Task "${taskData.name}" has been added!`,
@@ -281,7 +283,7 @@ export const useTasks = (childId?: string) => {
 
       if (error) throw error;
       
-      setCompletions(prev => [...prev, data]);
+      setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
       return data;
     } catch (error) {
       console.error('Error completing task:', error);
@@ -347,9 +349,45 @@ export const useTasks = (childId?: string) => {
       fetchTasks();
       fetchTodayCompletions();
 
-      // Set up real-time subscription for tasks
-      const tasksChannel = supabase
-        .channel(`tasks-changes-${childId}`)
+      // Live tasks and today's completions, so a parent's edit or "mark done"
+      // on their phone reaches an always-on child screen without a reload.
+      // Realtime can't filter DELETE events (they carry only the primary
+      // key), so deletes are heard table-wide and matched by id.
+      const tasksChannel = realtimeChannel(`tasks-changes-${childId}`)
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'tasks' },
+          (payload) => {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) setTasks(prev => prev.filter(task => task.id !== oldId));
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'task_completions' },
+          (payload) => {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) setCompletions(prev => prev.filter(c => c.id !== oldId));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'task_completions',
+            filter: `child_id=eq.${childId}`
+          },
+          (payload) => {
+            if (payload.eventType === 'DELETE') return;
+            const row = payload.new as TaskCompletion;
+            if (row.date !== getPSTDateString()) return;
+            // completeTask() already appended our own insert.
+            setCompletions(prev => prev.some(c => c.id === row.id)
+              ? prev.map(c => c.id === row.id ? row : c)
+              : [...prev, row]);
+          }
+        )
         .on(
           'postgres_changes',
           {
@@ -359,9 +397,7 @@ export const useTasks = (childId?: string) => {
             filter: `child_id=eq.${childId}`
           },
           (payload) => {
-            if (payload.eventType === 'DELETE' && payload.old) {
-              setTasks(prev => prev.filter(task => task.id !== payload.old.id));
-            } else if (payload.eventType === 'INSERT' && payload.new) {
+            if (payload.eventType === 'INSERT' && payload.new) {
               // addTask() already appended this row optimistically — the echo
               // from our own insert must not duplicate it.
               setTasks(prev => prev.some(task => task.id === payload.new.id)

@@ -18,6 +18,11 @@ const startOf = (task: ReserveTask) => {
   return (hours * 60 + minutes) * 60;
 };
 const secondsOf = (date: Date) => date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+/** When a task was first marked done, as Pacific seconds-of-day. */
+const doneAtSeconds = (task: ReserveTask, completions: ReserveCompletion[]) => {
+  const first = completions.filter(c => c.task_id === task.id).sort((a, b) => a.completed_at.localeCompare(b.completed_at))[0];
+  return first ? secondsOf(new Date(new Date(first.completed_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))) : null;
+};
 
 /** Unallocated gaps first, then activities marked "Free time". Never touch normal tasks.
  * Replay today's overdue intervals against the reserve, retaining losses after completion.
@@ -27,8 +32,16 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
   const nowSeconds = secondsOf(now);
   const eligible = tasks.filter(task => task.is_active !== false && task.type !== 'floating');
   const timed = eligible.filter(t => t.scheduled_time && (t.duration || 0) > 0).sort((a, b) => startOf(a) - startOf(b));
+  // A task finished early only occupies the day until it was done; the rest
+  // of its window becomes free time (merged with any gap that follows).
+  const busyUntil = (task: ReserveTask) => {
+    const end = startOf(task) + task.duration! * 60;
+    const doneAt = task.isCompleted ? doneAtSeconds(task, completions) : null;
+    // Whole minutes: a gap's start is stored as "H:M".
+    return doneAt == null ? end : Math.max(startOf(task), Math.min(end, Math.floor(doneAt / 60) * 60));
+  };
   const gaps: ReserveTask[] = [];
-  let occupiedUntil = timed.length ? startOf(timed[0]) + timed[0].duration! * 60 : 0;
+  let occupiedUntil = timed.length ? busyUntil(timed[0]) : 0;
   for (const task of timed.slice(1)) {
     const start = startOf(task);
     if (start > occupiedUntil) {
@@ -36,7 +49,7 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
         scheduled_time: `${Math.floor(occupiedUntil / 3600)}:${Math.floor(occupiedUntil / 60) % 60}`,
         duration: (start - occupiedUntil) / 60 });
     }
-    occupiedUntil = Math.max(occupiedUntil, start + task.duration! * 60);
+    occupiedUntil = Math.max(occupiedUntil, busyUntil(task));
   }
   const activities = eligible.filter(task => !task.is_important && task.is_fun_time && task.scheduled_time && (task.duration || 0) > 0)
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || startOf(a) - startOf(b));
@@ -44,9 +57,8 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     .map(task => ({ task, lost: 0, total: task.duration! * 60 }));
   const intervals = eligible.filter(task => task.is_important && task.scheduled_time && (task.duration || 0) > 0)
     .map(task => {
-      const completion = completions.filter(c => c.task_id === task.id).sort((a, b) => a.completed_at.localeCompare(b.completed_at))[0];
-      const completed = completion ? new Date(new Date(completion.completed_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })) : null;
-      const end = completed ? Math.min(nowSeconds, secondsOf(completed)) : task.isCompleted ? startOf(task) + task.duration! * 60 : nowSeconds;
+      const doneAt = doneAtSeconds(task, completions);
+      const end = doneAt != null ? Math.min(nowSeconds, doneAt) : task.isCompleted ? startOf(task) + task.duration! * 60 : nowSeconds;
       return { start: startOf(task) + task.duration! * 60, end };
     }).filter(interval => interval.end > interval.start).sort((a, b) => a.start - b.start);
   let accountedUntil = 0;

@@ -617,7 +617,7 @@ const ChildDashboard = () => {
 
       {/* Rewards dialog — opened via the prominent Rewards button */}
       <Dialog open={showRewards} onOpenChange={setShowRewards}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[90dvh] overflow-y-auto">
           <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
           <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
           <RewardsManagement child={child} onUpdateCoins={updateChildCoins} />

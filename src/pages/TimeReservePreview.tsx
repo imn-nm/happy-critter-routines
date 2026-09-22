@@ -18,7 +18,7 @@ export default function TimeReservePreview() {
     <div className="max-w-[660px] mx-auto">
       <p className="text-lg mb-2">Hi, Alex!</p>
       <ChildTaskFocus name="Finish lunch" totalSeconds={1200} remainingSeconds={(20 - minutes) * 60}
-        mustFinish done={done} onDone={async () => setDone(true)} onTimeUp={() => {}}
+        showDone done={done} onDone={async () => setDone(true)} onTimeUp={() => {}}
         reserve={reserve} companion={<CritterPet petType="rabbit" mood={done ? 'celebrate' : 'happy'}
           timerFrame size={112} className="w-full h-full" />} />
       <details className="mt-5 text-sm text-fog-200">

@@ -3,6 +3,7 @@ import { Bell, Check, X, Clock, Star, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
 import { supabase } from "@/integrations/supabase/client";
+import { realtimeChannel } from "@/lib/realtime";
 import { approveRewardPurchase, denyRewardPurchase } from "@/hooks/useRewards";
 import { fetchMissedImportantToday } from "@/utils/missedImportant";
 import { formatTime12 } from "@/utils/formatTime";
@@ -291,11 +292,12 @@ export default AlertsPanel;
 export const useAlertCount = (childId?: string) => {
   const { children } = useChildren();
   const [count, setCount] = useState(0);
+  // Resubscribe only when the set of children changes, not on every balance
+  // update (which hands back a new children array).
+  const idsKey = childId ?? children.map(c => c.id).join(",");
 
   useEffect(() => {
-    const targetIds = childId
-      ? [childId]
-      : children.map(c => c.id);
+    const targetIds = idsKey ? idsKey.split(",") : [];
     if (targetIds.length === 0) return;
 
     const fetchCount = async () => {
@@ -314,8 +316,7 @@ export const useAlertCount = (childId?: string) => {
 
     // Reward changes arrive in realtime; missed tasks are a function of the
     // clock, so re-check once a minute.
-    const channel = supabase
-      .channel(`alert-count-${childId || "all"}`)
+    const channel = realtimeChannel(`alert-count-${childId || "all"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "reward_purchases" }, () => fetchCount())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions" }, () => fetchCount())
       .subscribe();
@@ -325,7 +326,7 @@ export const useAlertCount = (childId?: string) => {
       supabase.removeChannel(channel);
       window.clearInterval(timer);
     };
-  }, [children, childId]);
+  }, [idsKey, childId]);
 
   return count;
 };

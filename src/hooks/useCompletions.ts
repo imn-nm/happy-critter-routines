@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { TaskCompletion } from '@/types/Task';
 import { getPSTDateString } from '@/utils/pstDate';
+import { realtimeChannel } from '@/lib/realtime';
 
 export const useCompletions = (childId?: string) => {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
@@ -42,8 +43,9 @@ export const useCompletions = (childId?: string) => {
     }
   };
 
-  const toggleCompletion = async (taskId: string, dateOrDay?: Date | string) => {
-    if (!childId) return;
+  /** Mark done / undo for a date. Resolves true when the change was saved. */
+  const toggleCompletion = async (taskId: string, dateOrDay?: Date | string): Promise<boolean> => {
+    if (!childId) return false;
 
     // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
     const formatDateLocal = (d: Date) =>
@@ -53,7 +55,7 @@ export const useCompletions = (childId?: string) => {
       : getPSTDateString();
 
     const toggleKey = `${taskId}:${targetDate}`;
-    if (pendingToggles.current.has(toggleKey)) return;
+    if (pendingToggles.current.has(toggleKey)) return false;
     pendingToggles.current.add(toggleKey);
 
     try {
@@ -93,9 +95,10 @@ export const useCompletions = (childId?: string) => {
           .single();
 
         if (error) throw error;
-        setCompletions(prev => [...prev, data]);
+        setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
         console.log('useCompletions: Completion inserted successfully', data);
       }
+      return true;
     } catch (error) {
       console.error('Error toggling completion:', error);
       toast({
@@ -103,9 +106,35 @@ export const useCompletions = (childId?: string) => {
         description: "Failed to update task completion",
         variant: "destructive",
       });
+      return false;
     } finally {
       pendingToggles.current.delete(toggleKey);
     }
+  };
+
+  /**
+   * Record that a parent gave `stars` for this completion. Only succeeds
+   * while none have been given yet, so two parents (or a double-tap) can't
+   * give twice. Resolves true when this call recorded them.
+   */
+  const giveStars = async (completionId: string, stars: number): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('task_completions')
+      .update({ coins_earned: stars })
+      .eq('id', completionId)
+      .eq('coins_earned', 0)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return false;
+    setCompletions(prev => prev.map(c => (c.id === completionId ? data : c)));
+    return true;
+  };
+
+  /** Clear a recorded gift (used when giving the stars themselves failed). */
+  const clearStarsGiven = async (completionId: string) => {
+    await supabase.from('task_completions').update({ coins_earned: 0 }).eq('id', completionId);
+    setCompletions(prev => prev.map(c => (c.id === completionId ? { ...c, coins_earned: 0 } : c)));
   };
 
   useEffect(() => {
@@ -115,8 +144,17 @@ export const useCompletions = (childId?: string) => {
     // Real-time subscription so multiple consumers of this hook (e.g.
     // ChildDashboard + TimelineScheduleView) all stay in sync when a
     // completion is inserted or deleted from anywhere.
-    const channel = supabase
-      .channel(`task-completions-${childId}`)
+    // Realtime can't filter DELETE events (they carry only the primary key),
+    // so deletes are heard table-wide and matched by id.
+    const channel = realtimeChannel(`task-completions-${childId}`)
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'task_completions' },
+        (payload) => {
+          const oldId = (payload.old as { id?: string })?.id;
+          if (oldId) setCompletions(prev => prev.filter(c => c.id !== oldId));
+        },
+      )
       .on(
         'postgres_changes',
         {
@@ -131,8 +169,6 @@ export const useCompletions = (childId?: string) => {
               if (prev.some(c => c.id === (payload.new as TaskCompletion).id)) return prev;
               return [...prev, payload.new as TaskCompletion];
             });
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            setCompletions(prev => prev.filter(c => c.id !== (payload.old as TaskCompletion).id));
           } else if (payload.eventType === 'UPDATE' && payload.new) {
             setCompletions(prev =>
               prev.map(c => (c.id === (payload.new as TaskCompletion).id ? (payload.new as TaskCompletion) : c)),
@@ -151,6 +187,8 @@ export const useCompletions = (childId?: string) => {
     completions,
     loading,
     toggleCompletion,
+    giveStars,
+    clearStarsGiven,
     refetch: fetchCompletions,
   };
 };

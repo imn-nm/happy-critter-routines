@@ -10,7 +10,8 @@ interface Props {
   totalSeconds: number;
   remainingSeconds: number;
   done?: boolean;
-  mustFinish?: boolean;
+  /** Offer "I'm done" — any task can be finished early to free up its time. */
+  showDone?: boolean;
   onDone: () => Promise<void>;
   onTimeUp: () => void;
   companion: ReactNode;
@@ -41,7 +42,7 @@ export default function ChildTaskFocus(props: Props) {
         {props.done && <p className="mt-2 text-mint-400" role="status">All done!</p>}
       </div>
       {props.checklist && <div className="w-full min-[600px]:col-start-2">{props.checklist}</div>}
-      {props.mustFinish && <button type="button" onClick={finish} disabled={props.done || saving}
+      {props.showDone && <button type="button" onClick={finish} disabled={props.done || saving}
         className="min-[600px]:col-start-2 w-full min-h-14 rounded-full bg-mint-500 text-ink-900 text-xl font-semibold flex items-center justify-center gap-2 hover:bg-mint-400 active:scale-[0.98] transition disabled:opacity-60 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-fog-50">
         <Check className="w-6 h-6" aria-hidden="true" />
         {props.done ? 'Done!' : saving ? 'Saving…' : 'I’m done'}

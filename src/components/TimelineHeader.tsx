@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, ChevronLeft, ChevronRight, PartyPopper, StickyNote } from "lucide-react";
-import { addDays, format, isSameDay, isToday, startOfWeek } from "date-fns";
+import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { getPSTDate } from "@/utils/pstDate";
 import { useHolidays } from "@/hooks/useHolidays";
 import { useDayNotes } from "@/hooks/useDayNotes";
@@ -66,6 +66,13 @@ export default function TimelineHeader({
   const goToPreviousWeek = () => setCurrentWeek(prev => addDays(prev, -7));
   const goToNextWeek = () => setCurrentWeek(prev => addDays(prev, 7));
 
+  // "Today" is only redundant when today is both selected *and* on screen —
+  // paging weeks with the arrows leaves today selected but out of view.
+  const pstToday = getPSTDate();
+  const showingToday =
+    isSameDay(selectedDay, pstToday) &&
+    isSameDay(weekStart, startOfWeek(pstToday, { weekStartsOn: 0 }));
+
   return (
     <div className="flex flex-col gap-sp-4">
       {/* Date navigation row */}
@@ -95,11 +102,10 @@ export default function TimelineHeader({
           variant="secondary"
           size="sm"
           onClick={() => {
-            const pstToday = getPSTDate();
             onSelectedDayChange(pstToday);
             setCurrentWeek(pstToday);
           }}
-          disabled={isToday(selectedDay)}
+          disabled={showingToday}
           className="shrink-0"
         >
           Today

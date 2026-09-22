@@ -9,6 +9,14 @@ const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.crea
 // Dev fallback so the existing test flow keeps working when explicitly enabled.
 const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
 
+// Hand the session token to realtime *before* the app renders any screen that
+// subscribes. Otherwise a channel joined during page load goes out with no
+// token, the server registers it as anon, and RLS hides every row from it —
+// supabase-js only re-sends the token to joined channels when it changes.
+const syncRealtimeAuth = (token?: string) => {
+  if (token) supabase.realtime.setAuth(token);
+};
+
 export const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +123,7 @@ export const useAuth = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      syncRealtimeAuth(session?.access_token);
       setUser(session?.user ?? null);
       if (!session?.user && DEV_AUTOLOGIN) {
         signInDevAuto().catch(() => {}).finally(() => setLoading(false));
@@ -124,6 +133,7 @@ export const useAuth = () => {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      syncRealtimeAuth(session?.access_token);
       setUser(session?.user ?? null);
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);

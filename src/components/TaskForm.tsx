@@ -100,8 +100,8 @@ type Behavior = 'normal' | 'important' | 'fun';
 // mutually exclusive — as two switches the exclusion was invisible, and
 // "Free time" went unnoticed despite the worm mechanic depending on it.
 const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = [
-  { value: 'normal', label: 'Normal', caption: 'Runs on the clock and flows into the next thing. Nothing to check off.' },
-  { value: 'important', label: 'Must finish', caption: "They mark it done and earn stars. If time runs out you get an alert and it stays on their screen until it's done." },
+  { value: 'normal', label: 'Normal', caption: 'Runs on the clock and flows into the next thing. They can tap done early to get free time.' },
+  { value: 'important', label: 'Must finish', caption: "They mark it done. If time runs out you get an alert and it stays on their screen until it's done." },
   { value: 'fun', label: 'Free time', caption: 'TV, Roblox, playtime. When a Must-finish task runs late, the worm eats into this.' },
 ];
 
@@ -598,14 +598,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </div>
           )}
 
-          {/* Stars — only tasks the child marks done can earn them: chores and
-              Must-finish tasks. Regular tasks just happen by the clock. */}
-          {(isChore || behavior === 'important') && (
+          {/* Stars — never earned automatically. This is what the parent gives
+              with one tap (Give ★) once the task or chore is done. */}
+          {(isChore || behavior !== 'fun') && (
           <FormRow
             label="Stars"
-            hint={isChore
-              ? "Earned when they tap the chore done. Spent in the Rewards shop."
-              : "Earned when they mark it done, plus 1 bonus star if it's on time."}
+            hint="You give these once it's done: tap Give ★ on their Schedule. Spent in the Rewards shop."
           >
             <div className="flex items-center gap-2">
               <Button

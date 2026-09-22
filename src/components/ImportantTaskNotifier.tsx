@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useChildren } from "@/hooks/useChildren";
 import { useToast } from "@/hooks/use-toast";
+import { realtimeChannel } from "@/lib/realtime";
 
 /**
  * ImportantTaskNotifier — listens (via Supabase realtime) for new
@@ -24,14 +25,18 @@ const ImportantTaskNotifier = () => {
   const { children } = useChildren();
   const { toast } = useToast();
   const seenRef = useRef<Set<string>>(new Set());
+  // Names are looked up at toast time; only the set of ids decides whether to
+  // resubscribe (the list itself changes on every balance update).
+  const childrenRef = useRef(children);
+  childrenRef.current = children;
+  const idsKey = children.map(c => c.id).join(",");
 
   useEffect(() => {
-    if (children.length === 0) return;
+    if (!idsKey) return;
 
-    const childIds = new Set(children.map(c => c.id));
+    const childIds = new Set(idsKey.split(","));
 
-    const channel = supabase
-      .channel("important-task-completions")
+    const channel = realtimeChannel("important-task-completions")
       .on(
         "postgres_changes",
         {
@@ -55,17 +60,20 @@ const ImportantTaskNotifier = () => {
           // Look up the underlying task to read is_important + name.
           const { data: task, error } = await supabase
             .from("tasks")
-            .select("name, is_important")
+            .select("name, is_important, coins")
             .eq("id", completion.task_id)
             .maybeSingle();
 
           if (error || !task) return;
           if (!task.is_important) return;
 
-          const child = children.find(c => c.id === completion.child_id);
+          const child = childrenRef.current.find(c => c.id === completion.child_id);
           toast({
             title: `🎉 ${child?.name ?? "Your child"} finished ${task.name}!`,
-            description: "Important task completed.",
+            // Stars are never automatic — nudge the parent to give them.
+            description: task.coins > 0
+              ? `Give ★${task.coins} from their Schedule.`
+              : "Important task completed.",
           });
         },
       )
@@ -74,9 +82,7 @@ const ImportantTaskNotifier = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-    // children identity changes when fetched/refreshed; re-run so the
-    // listener has the latest set of child ids to filter against.
-  }, [children, toast]);
+  }, [idsKey, toast]);
 
   return null;
 };

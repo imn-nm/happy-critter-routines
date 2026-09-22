@@ -7,7 +7,7 @@ interface TaskWithCompletion extends Task {
 
 interface TaskListProps {
   tasks: TaskWithCompletion[];
-  onToggleCompletion: (taskId: string) => Promise<void>;
+  onToggleCompletion: (taskId: string) => Promise<unknown>;
   onEditTask: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useChildren } from "@/hooks/useChildren";
 import { useToast } from "@/hooks/use-toast";
+import { realtimeChannel } from "@/lib/realtime";
 
 /**
  * RewardRequestNotifier — listens via Supabase realtime for new
@@ -15,14 +16,18 @@ const RewardRequestNotifier = () => {
   const { children } = useChildren();
   const { toast } = useToast();
   const seenRef = useRef<Set<string>>(new Set());
+  // Names are looked up at toast time; only the set of ids decides whether to
+  // resubscribe (the list itself changes on every balance update).
+  const childrenRef = useRef(children);
+  childrenRef.current = children;
+  const idsKey = children.map(c => c.id).join(",");
 
   useEffect(() => {
-    if (children.length === 0) return;
+    if (!idsKey) return;
 
-    const childIds = new Set(children.map(c => c.id));
+    const childIds = new Set(idsKey.split(","));
 
-    const channel = supabase
-      .channel("reward-purchase-requests")
+    const channel = realtimeChannel("reward-purchase-requests")
       .on(
         "postgres_changes",
         {
@@ -52,7 +57,7 @@ const RewardRequestNotifier = () => {
             .eq("id", purchase.reward_id)
             .maybeSingle();
 
-          const child = children.find(c => c.id === purchase.child_id);
+          const child = childrenRef.current.find(c => c.id === purchase.child_id);
 
           toast({
             title: `🎁 ${child?.name ?? "Your child"} wants a reward!`,
@@ -65,7 +70,7 @@ const RewardRequestNotifier = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [children, toast]);
+  }, [idsKey, toast]);
 
   return null;
 };

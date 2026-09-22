@@ -50,7 +50,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
-  const { children, loading: childrenLoading, adjustChildCoins, updateChildHappiness } = useChildren();
+  const { children, loading: childrenLoading, updateChildHappiness } = useChildren();
   const { tasks, completions, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
@@ -72,7 +72,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // stays frozen on this task so the celebration can play out
   // before the schedule advances.
   const [frozenTask, setFrozenTask] = useState<any>(null);
-  const [bonusTimeMap, setBonusTimeMap] = useState<Record<string, number>>({});
   const [returnGreeting, setReturnGreeting] = useState<{ id: number; text: string } | null>(null);
   const [, setTick] = useState(0);
   const hiddenAtRef = useRef<number | null>(null);
@@ -723,6 +722,40 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   })();
   const beforeWake = nowMinutes < wakeMinutes;
 
+  // Free-time windows for Today's Schedule: the gaps left between one timed
+  // task finishing and the next one starting. Only real breaks get a row, and
+  // only when the earlier task has a length — otherwise "Bedtime routine",
+  // which deliberately shows no duration, would invent free time before bed.
+  /** A schedule row is either a real task or a free-time gap between two of them. */
+  type ScheduleRowItem =
+    | { kind: 'task'; task: (typeof todaysSchedule)[number] }
+    | { kind: 'free'; id: string; startMin: number; durationMin: number };
+
+  const scheduleRows: ScheduleRowItem[] = (() => {
+    const FREE_TIME_MIN_MINUTES = 15;
+    const startOf = (t: { scheduled_time?: string | null }) => {
+      if (!t.scheduled_time) return null;
+      const [h, m] = t.scheduled_time.slice(0, 5).split(':').map(Number);
+      return h * 60 + m;
+    };
+    const rows: ScheduleRowItem[] = [];
+    todaysSchedule.forEach((task, i) => {
+      rows.push({ kind: 'task', task });
+      const next = todaysSchedule[i + 1];
+      if (!next) return;
+      const start = startOf(task);
+      const nextStart = startOf(next);
+      if (start === null || nextStart === null) return;
+      const duration = task.duration ?? 0;
+      if (duration <= 0) return;
+      const gapStart = start + duration;
+      const gapMinutes = nextStart - gapStart;
+      if (gapMinutes < FREE_TIME_MIN_MINUTES) return;
+      rows.push({ kind: 'free', id: `free-${task.id}`, startMin: gapStart, durationMin: gapMinutes });
+    });
+    return rows;
+  })();
+
   // Pick once per free-time block so the pet has a believable activity rather
   // than changing its mind on every one-second timer render.
   const freeTimeKey = freeTimeCountdown?.nextTask.id ?? "after-tasks";
@@ -779,11 +812,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     const taskStartDate = new Date(currentTime);
     taskStartDate.setHours(taskHours, taskMinutes, 0, 0);
 
-    // Add any bonus time for flex tasks
-    const bonus = bonusTimeMap[activeTask.id] || 0;
-    const totalDuration = activeTask.duration * 60 + bonus;
-
-    const taskEndDate = new Date(taskStartDate.getTime() + totalDuration * 1000);
+    const taskEndDate = new Date(taskStartDate.getTime() + activeTask.duration * 60 * 1000);
     const seconds = Math.floor((taskEndDate.getTime() - currentTime.getTime()) / 1000);
 
     // Important tasks run into negative (overtime) until the child taps Done.
@@ -795,25 +824,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   const getTimerStatus = (): TimerStatus => {
     if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return "on-track";
     const remaining = getActiveTaskRemainingTime();
-    const totalDuration = (activeTask.duration * 60) + (bonusTimeMap[activeTask.id] || 0);
-    const fraction = remaining / totalDuration;
+    const fraction = remaining / (activeTask.duration * 60);
     if (fraction < 0.1) return "critical";
     return "on-track";
   };
 
-  // Find the next flexible task after the current one
-  const findNextFlexTask = () => {
-    if (!activeTask) return null;
-    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted);
-    const currentIdx = incompleteTasks.findIndex(t => t.id === activeTask.id);
-    if (currentIdx === -1) return null;
-    for (let i = currentIdx + 1; i < incompleteTasks.length; i++) {
-      if (incompleteTasks[i].type === 'flexible') return incompleteTasks[i];
-    }
-    return null;
-  };
-
-  // Handle "Next" tap — complete task, give bonus time to next flex task
+  // Handle "I'm done" — any task can be finished early. Whatever is left of
+  // its window becomes free time (calculateTimeReserve frees it from the
+  // moment it was done), so the screen moves straight to Free Time.
   const handleNextTap = async () => {
     if (!activeTask) return;
 
@@ -832,39 +850,30 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       setFrozenTask(null);
     }, CELEBRATE_MS);
 
-    await completeImportant(activeTask, getActiveTaskRemainingTime());
+    await markDone(activeTask);
   };
 
   /**
-   * Record an important task as done and pay its stars. `remaining` > 0
-   * means it was finished inside its window and earns a small bonus; a task
-   * done late still earns its full value — lateness is never punished.
+   * Record a task or chore as done. Never pays stars — only a grown-up gives
+   * those, from the parent app. Routine tasks are still never required: one
+   * that isn't checked off simply flows by with the clock.
    */
-  const completeImportant = async (task: typeof activeTask, remaining: number) => {
-    if (!task) return;
+  const markDone = async (task: { id: string; duration?: number | null }) => {
     try {
-      const base = task.coins || 0;
-      const onTimeBonus = base > 0 && remaining > 0 ? 1 : 0;
-      const earned = base + onTimeBonus;
       sounds.done();
-      await completeTask(task.id, earned, task.duration);
-      if (earned > 0) await adjustChildCoins(child.id, earned);
-      const newHappiness = calculateHappiness();
-      await updateChildHappiness(child.id, newHappiness);
-
-      // If finished early, give bonus time to next flex task
-      if (remaining > 5) {
-        const nextFlex = findNextFlexTask();
-        if (nextFlex) {
-          setBonusTimeMap(prev => ({
-            ...prev,
-            [nextFlex.id]: (prev[nextFlex.id] || 0) + remaining,
-          }));
-        }
-      }
+      await completeTask(task.id, 0, task.duration ?? 0);
+      await updateChildHappiness(child.id, calculateHappiness());
     } catch (error) {
       console.error('Error completing task:', error);
     }
+  };
+
+  const markChoreDone = async (chore: { id: string; isCompleted?: boolean }) => {
+    // Done is done — no un-checking from the child side.
+    if (chore.isCompleted) return;
+    setPetCelebrating(true);
+    window.setTimeout(() => setPetCelebrating(false), 3000);
+    await markDone({ id: chore.id, duration: 0 });
   };
 
   // Timer hits zero. Regular tasks simply flow to the next one by the clock
@@ -986,7 +995,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             );
           }
 
-          const totalSecs = displayTask.duration ? displayTask.duration * 60 + (bonusTimeMap[displayTask.id] || 0) : 1800;
+          const totalSecs = displayTask.duration ? displayTask.duration * 60 : 1800;
           // While frozen, hold remaining at totalSecs so the ring stays full
           // and the timer doesn't visually tick during the celebrate + pause.
           const remaining = isFrozen ? totalSecs : getActiveTaskRemainingTime();
@@ -1007,7 +1016,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 totalSeconds={totalSecs}
                 remainingSeconds={remaining}
                 done={isFrozen}
-                mustFinish={displayTask.is_important}
+                showDone={!displayTask.is_fun_time}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
                 reserve={timeReserve.reserve}
@@ -1045,19 +1054,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                     Still to do. {petNick(child.petType)} knows you can!
                   </p>
                 </div>
-                {task.coins > 0 && (
-                  <span className="flex items-center gap-0.5 text-12 text-[#FFD66B] font-semibold shrink-0">
-                    <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                    {task.coins}
-                  </span>
-                )}
               </div>
               <SlideToConfirm
                 label="I did it!"
                 onConfirm={async () => {
                   setPetCelebrating(true);
                   window.setTimeout(() => setPetCelebrating(false), 3000);
-                  await completeImportant(task, 0);
+                  await markDone(task);
                 }}
               />
             </motion.div>
@@ -1080,22 +1083,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           <button
                             key={chore.id}
                             type="button"
-                            onClick={async () => {
-                              try {
-                                // Done is done — no un-checking from the child side.
-                                if (done) return;
-                                const earned = chore.coins || 0;
-                                sounds.done();
-                                setPetCelebrating(true);
-                                window.setTimeout(() => setPetCelebrating(false), 3000);
-                                await completeTask(chore.id, earned, 0);
-                                if (earned > 0) await adjustChildCoins(child.id, earned);
-                                const newHappiness = calculateHappiness();
-                                await updateChildHappiness(child.id, newHappiness);
-                              } catch (error) {
-                                console.error('Error toggling chore:', error);
-                              }
-                            }}
+                            onClick={() => markChoreDone(chore)}
                             className={cn(
                               "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                               done
@@ -1111,12 +1099,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                             <span className="w-full text-12 text-center leading-tight text-fog-50">
                               {chore.name}
                             </span>
-                            {chore.coins > 0 && !done && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-[#FFD66B] font-semibold">
-                                <Star className="w-3 h-3 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                                {chore.coins}
-                              </span>
-                            )}
                           </button>
                         );
                       })}
@@ -1268,22 +1250,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         <button
                           key={chore.id}
                           type="button"
-                          onClick={async () => {
-                            try {
-                              // Done is done — no un-checking from the child side.
-                              if (done) return;
-                              const earned = chore.coins || 0;
-                              sounds.done();
-                              setPetCelebrating(true);
-                              window.setTimeout(() => setPetCelebrating(false), 3000);
-                              await completeTask(chore.id, earned, 0);
-                              if (earned > 0) await adjustChildCoins(child.id, earned);
-                              const newHappiness = calculateHappiness();
-                              await updateChildHappiness(child.id, newHappiness);
-                            } catch (error) {
-                              console.error('Error toggling chore:', error);
-                            }
-                          }}
+                          onClick={() => markChoreDone(chore)}
                           className={cn(
                             "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
                             done
@@ -1330,8 +1297,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             {/* Tasks column */}
             <div className="flex-1 min-w-0 space-y-2.5">
               {upcomingTasks.map(task => {
-                const bonus = bonusTimeMap[task.id] || 0;
-                const bonusMinutes = Math.floor(bonus / 60);
                 return (
                   <div key={task.id} className="glass rounded-2xl p-3.5">
                     <div className="flex items-center gap-3">
@@ -1340,11 +1305,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-foreground text-sm">{task.name}</span>
-                        {bonusMinutes > 0 && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span className="text-[10px] text-green-400 font-medium">+{bonusMinutes}min saved</span>
-                          </div>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {task.is_important && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
@@ -1479,7 +1439,25 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 initial="hidden"
                 animate={showSchedule ? "visible" : "hidden"}
               >
-                {todaysSchedule.map(task => {
+                {scheduleRows.map(row => {
+                  if (row.kind === 'free') {
+                    const ended = nowMinutes >= row.startMin + row.durationMin;
+                    const running = !ended && nowMinutes >= row.startMin;
+                    return (
+                      <motion.li
+                        key={row.id}
+                        variants={staggerItemVariants}
+                        transition={tMotion(springs.gentle)}
+                      >
+                        <FreeTimeRow
+                          startMin={row.startMin}
+                          durationMin={row.durationMin}
+                          state={ended ? 'done' : running ? 'now' : 'upcoming'}
+                        />
+                      </motion.li>
+                    );
+                  }
+                  const task = row.task;
                   const isNow = focusTask?.id === task.id && !task.isCompleted;
                   const done = !!task.isCompleted;
                   return (
@@ -1663,6 +1641,54 @@ function ScheduleRow({
           {subtitle && (
             <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The breathing room between two tasks, shown to the child so the day reads as
+ * "busy, then yours" rather than a wall of obligations. Dashed and unfilled so
+ * it never looks like something to tick off.
+ */
+function FreeTimeRow({
+  startMin,
+  durationMin,
+  state,
+}: {
+  startMin: number;
+  durationMin: number;
+  state: 'done' | 'now' | 'upcoming';
+}) {
+  const hhmm = `${Math.floor(startMin / 60).toString().padStart(2, '0')}:${(startMin % 60).toString().padStart(2, '0')}`;
+  const [hourMin, ampm] = splitTime12(hhmm);
+
+  return (
+    <div
+      className={cn(
+        'flex items-stretch gap-sp-3 p-sp-4 rounded-[24px] border border-dashed',
+        state === 'now'
+          ? 'border-[#9EBEFF]/70 bg-[#9EBEFF]/10'
+          : 'border-white/25 bg-transparent',
+        state === 'done' && 'opacity-40',
+      )}
+    >
+      {/* Time column */}
+      <div className="shrink-0 w-11 text-right text-white/70 flex flex-col items-end justify-center">
+        <span className="text-16 leading-tight">{hourMin}</span>
+        <span className="text-12 leading-tight">{ampm}</span>
+      </div>
+
+      {/* Divider */}
+      <div className="shrink-0 w-px self-stretch bg-white/20" />
+
+      {/* Info */}
+      <div className="flex-1 min-w-0 flex items-center gap-sp-2">
+        <Gamepad2 className="w-5 h-5 text-[#9EBEFF] shrink-0" />
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+          <p className="text-16 text-white/80 truncate">Free time</p>
+          <p className="text-12 text-[#9EBEFF] truncate">{formatDuration(durationMin)} all yours</p>
         </div>
       </div>
     </div>

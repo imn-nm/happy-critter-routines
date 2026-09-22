@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, Star, Gift, ShoppingCart, Check, X, Clock } from "lucide-react";
-import { useRewards, type Reward } from "@/hooks/useRewards";
+import { Plus, Edit, Trash2, Star, Gift, ShoppingCart, Check, X, Clock, History, Undo2 } from "lucide-react";
+import { useRewards, isApprovedStatus, type Reward } from "@/hooks/useRewards";
 import { Child } from "@/hooks/useChildren";
 import { toast } from "sonner";
 
@@ -34,7 +37,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
     cost: "10",
   });
 
-  const { rewards, purchases, loading, addReward, updateReward, deleteReward, approvePurchase, denyPurchase, redeemForChild } = useRewards(child.id);
+  const { rewards, purchases, loading, addReward, updateReward, deleteReward, approvePurchase, denyPurchase, unredeemPurchase, redeemForChild } = useRewards(child.id);
 
   const resetForm = () => {
     setFormData({
@@ -106,6 +109,27 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
 
   const pendingRequests = purchases.filter(p => p.status === 'pending');
 
+  // What the child can still get vs. what they've already got.
+  const [view, setView] = useState<'available' | 'redeemed'>('available');
+  const redeemed = purchases.filter(p => isApprovedStatus(p.status));
+  const redeemedCount = (rewardId: string) => redeemed.filter(p => p.reward_id === rewardId).length;
+
+  // Rewards the parent has since removed aren't in `rewards` (active only),
+  // but they still belong in the history, so look their names up.
+  const [archivedNames, setArchivedNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const missing = [...new Set(redeemed.map(p => p.reward_id))]
+      .filter(id => !rewards.some(r => r.id === id) && !(id in archivedNames));
+    if (missing.length === 0) return;
+    supabase.from('rewards').select('id, name').in('id', missing).then(({ data }) => {
+      setArchivedNames(prev => ({
+        ...prev,
+        ...Object.fromEntries(missing.map(id => [id, data?.find(r => r.id === id)?.name ?? 'Removed reward'])),
+      }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchases, rewards]);
+
   const handleApprove = async (purchaseId: string, coinsSpent: number) => {
     setProcessingId(purchaseId);
     try {
@@ -138,6 +162,21 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
     } catch (error) {
       console.error('Error denying purchase:', error);
       toast.error("Failed to deny purchase.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUnredeem = async (purchaseId: string, rewardName: string) => {
+    setProcessingId(purchaseId);
+    try {
+      const undone = await unredeemPurchase(purchaseId);
+      toast.success(`Undid ${rewardName}`, {
+        description: `${undone.coins_spent} stars back to ${child.name}`,
+      });
+    } catch (error) {
+      console.error('Error undoing redemption:', error);
+      toast.error("Couldn't undo that. Please try again.");
     } finally {
       setProcessingId(null);
     }
@@ -298,7 +337,101 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
         </div>
       )}
 
-      {loading ? (
+      <div role="tablist" aria-label="Rewards" className="grid grid-cols-2 gap-1 p-1 rounded-pill bg-[rgba(8,1,26,0.4)]">
+        {([['available', `Available (${rewards.length})`], ['redeemed', `Redeemed (${redeemed.length})`]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={cn(
+              "h-9 rounded-pill text-13 font-medium transition-colors",
+              view === id ? "bg-iris-400/25 text-fog-50" : "text-fog-300 hover:text-fog-50"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'redeemed' ? (
+        redeemed.length === 0 ? (
+          <div className="text-center py-sp-6 flex flex-col items-center gap-sp-2">
+            <History className="w-10 h-10 text-iris-400/60" />
+            <p className="text-fog-200 text-14">Nothing redeemed yet</p>
+            <p className="text-fog-300 text-12">Rewards {child.name} gets will show up here.</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-sp-2">
+            {redeemed.map(purchase => {
+              const reward = rewards.find(r => r.id === purchase.reward_id);
+              const name = reward?.name ?? archivedNames[purchase.reward_id] ?? 'this reward';
+              return (
+                <li
+                  key={purchase.id}
+                  className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]"
+                >
+                  <div className="w-9 h-9 rounded-full bg-mint-500/20 flex items-center justify-center shrink-0">
+                    <Check className="w-4 h-4 text-mint-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-14 font-medium text-fog-50 truncate">
+                      {reward?.name ?? archivedNames[purchase.reward_id] ?? '…'}
+                    </p>
+                    <p className="text-12 text-fog-300">
+                      {format(new Date(purchase.purchased_at), 'EEE d MMM, h:mm a')}
+                      {!reward && ' · no longer offered'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    <span className="text-13 font-medium text-fog-50">{purchase.coins_spent}</span>
+                  </div>
+                  {reward && (
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(reward)} aria-label={`Edit ${reward.name}`}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={processingId === purchase.id}
+                        aria-label={`Undo redeeming ${name}`}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Undo {name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {child.name} gets {purchase.coins_spent} star{purchase.coins_spent === 1 ? '' : 's'} back
+                          {reward
+                            ? ` and ${name} comes off their "Mine" list, ready to earn again.`
+                            : `. ${name} is no longer offered, so it won't come back to the shop.`}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
+                        <AlertDialogCancel asChild>
+                          <Button type="button" variant="secondary" size="md">Cancel</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                          <Button type="button" variant="primary" size="md" onClick={() => handleUnredeem(purchase.id, name)}>
+                            Undo and give stars back
+                          </Button>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : loading ? (
         <div className="text-center py-sp-6 text-fog-300 text-14">Loading rewards…</div>
       ) : rewards.length === 0 ? (
         <div className="text-center py-sp-6 flex flex-col items-center gap-sp-2">
@@ -319,6 +452,9 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
                   {reward.description && (
                     <p className="text-12 text-fog-300 mt-0.5">{reward.description}</p>
                   )}
+                  <p className={cn("text-12 mt-0.5", redeemedCount(reward.id) > 0 ? "text-mint-400" : "text-fog-400")}>
+                    {redeemedCount(reward.id) > 0 ? `Redeemed ${redeemedCount(reward.id)}×` : 'Not redeemed yet'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(reward)} aria-label="Edit reward">

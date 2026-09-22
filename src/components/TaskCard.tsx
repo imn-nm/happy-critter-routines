@@ -17,7 +17,7 @@ interface TaskCardTask {
 
 interface TaskCardProps {
   task: TaskCardTask;
-  onToggleCompletion?: (taskId: string) => Promise<void>;
+  onToggleCompletion?: (taskId: string) => Promise<unknown>;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
   showCompleteButton?: boolean;

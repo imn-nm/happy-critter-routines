@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
 import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
+import { realtimeChannel } from "@/lib/realtime";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
 const convertPetType = (dbPetType: string): PetId => resolvePetId(dbPetType);
@@ -198,7 +199,7 @@ export const useChildren = () => {
         wake_schedule_overrides: data.wake_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
       };
       
-      setChildren(prev => [...prev, mappedChild]);
+      setChildren(prev => prev.some(child => child.id === mappedChild.id) ? prev : [...prev, mappedChild]);
       toast({
         title: "Success",
         description: `${childData.name} has been added!`,
@@ -376,8 +377,7 @@ export const useChildren = () => {
 
     
     // Set up real-time subscription for children changes
-    const childrenChannel = supabase
-      .channel('children-changes')
+    const childrenChannel = realtimeChannel('children-changes')
       .on(
         'postgres_changes',
         {
@@ -409,7 +409,11 @@ export const useChildren = () => {
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
             };
-            setChildren(prev => [...prev, mappedChild as Child]);
+            // addChild() already appended this row — the echo of our own
+            // insert must not duplicate it.
+            setChildren(prev => prev.some(child => child.id === payload.new?.id)
+              ? prev
+              : [...prev, mappedChild as Child]);
           } else if (payload.eventType === 'DELETE') {
             setChildren(prev => prev.filter(child => child.id !== payload.old?.id));
           }

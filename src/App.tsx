@@ -1,11 +1,12 @@
 import React from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AuthProvider from "@/components/AuthProvider";
 import ImportantTaskNotifier from "@/components/ImportantTaskNotifier";
 import RewardRequestNotifier from "@/components/RewardRequestNotifier";
 import MissedImportantNotifier from "@/components/MissedImportantNotifier";
+import RealtimeQuerySync from "@/components/RealtimeQuerySync";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
@@ -35,6 +36,20 @@ import TimeReservePreview from "./pages/TimeReservePreview";
 const DEV_TOOLS = import.meta.env.DEV;
 
 const queryClient = new QueryClient();
+
+// Grown-up alerts ("…hasn't finished Homework", "…wants a reward!"). The
+// child's screen runs inside the same signed-in app, so these stay off it.
+const ParentNotifiers = () => {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/child/")) return null;
+  return (
+    <>
+      <ImportantTaskNotifier />
+      <RewardRequestNotifier />
+      <MissedImportantNotifier />
+    </>
+  );
+};
 
 const ProtectedRoutes = () => (
   <Routes>
@@ -84,9 +99,8 @@ const App = () => (
             path="*"
             element={
               <AuthProvider>
-                <ImportantTaskNotifier />
-                <RewardRequestNotifier />
-                <MissedImportantNotifier />
+                <RealtimeQuerySync />
+                <ParentNotifiers />
                 <ProtectedRoutes />
               </AuthProvider>
             }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,6 @@ import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
 import { Child, useChildren } from '@/hooks/useChildren';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
@@ -67,6 +66,8 @@ interface TimelineEvent {
   recurring_days?: string[];
   status?: 'on-time' | 'late' | 'pending' | 'overdue';
   completedAt?: string;
+  /** Stars a parent has given for this day's completion (0 = none yet). */
+  starsGiven?: number;
 }
 
 // System events are now managed in the database via the systemTasks utility
@@ -77,6 +78,7 @@ interface SortableTimelineEventProps {
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
   onToggleCompletion?: (taskId: string) => void;
+  onGiveStars?: (taskId: string, stars: number) => void;
   onAddTask?: (prefillTime?: string) => void;
   isActive?: boolean;
   isToday?: boolean;
@@ -144,7 +146,7 @@ const NowLine = ({ label }: { label: string }) => (
   </div>
 );
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Draggable: user tasks without a set time. Tasks the parent has pinned
   // to a specific clock time (event.task.scheduled_time) shouldn't drag —
@@ -390,7 +392,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           const statusPill = (() => {
             if (event.isCompleted) {
               const stroke = isDoneLate ? "border-amber-500" : "border-mint-500";
-              const statusLabel = isDoneLate ? "Done late" : "On time";
+              const statusLabel = event.starsGiven ? `★ ${event.starsGiven} given` : "Done";
               return (
                 <span
                   className={cn(
@@ -419,7 +421,22 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           const actionButton = (() => {
             if (event.isCompleted) {
               if (!onToggleCompletion) return null;
+              // Children never earn stars on their own — the parent gives a
+              // task's stars here once it's done.
+              const stars = event.coins ?? 0;
+              const canGive = !!onGiveStars && stars > 0 && !event.starsGiven;
               return (
+                <>
+                {canGive && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onGiveStars!(event.task!.id, stars); }}
+                    className={cn("shrink-0", markDoneBtnClass)}
+                    aria-label={`Give ${stars} star${stars === 1 ? '' : 's'}`}
+                  >
+                    Give ★{stars}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
@@ -429,6 +446,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 >
                   <RotateCcw className="w-4 h-4" strokeWidth={2} />
                 </button>
+                </>
               );
             }
             // Show Mark done for any overdue-important or past/current-important
@@ -586,10 +604,9 @@ const TimelineScheduleView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDateKey]);
   const { holidays, isHoliday } = useHolidays(child.id);
-  const { completions, toggleCompletion } = useCompletions(child.id);
+  const { completions, toggleCompletion, giveStars, clearStarsGiven } = useCompletions(child.id);
   const { adjustChildCoins } = useChildren();
   const { toast } = useToast();
-  const [completionPrompt, setCompletionPrompt] = useState<{ taskId: string; taskName: string; coins: number } | null>(null);
 
   useEffect(() => {
     setSelectedDay(currentDate);
@@ -612,37 +629,38 @@ const TimelineScheduleView = ({
   }, []);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
 
-  // Toggle completion for the selected day.
-  // When marking complete, ask whether it was on-time or late; on-time awards the task's coins.
-  // Un-marking (already completed) just removes the completion.
-  const handleToggleCompletion = (taskId: string) => {
+  // Mark done / undo for the selected day. Marking done never pays stars —
+  // children only get stars a parent gives (handleGiveStars). Undoing takes
+  // back any stars that were given for it, so they can't be given twice.
+  const handleToggleCompletion = async (taskId: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
-    const alreadyCompleted = completions.some(c => c.task_id === taskId && c.date === dateStr);
-    if (alreadyCompleted) {
-      toggleCompletion(taskId, dateStr);
-      return;
+    const completion = completions.find(c => c.task_id === taskId && c.date === dateStr);
+    const given = completion?.coins_earned ?? 0;
+    const saved = await toggleCompletion(taskId, dateStr);
+    if (saved && completion && given > 0) {
+      await adjustChildCoins(child.id, -given);
+      toast({ title: `Took back ${given} star${given === 1 ? '' : 's'}`, description: `${child.name}'s task is no longer marked done.` });
     }
-    // Find task info for the prompt
-    const all = [...fixedEvents, ...draggableEvents];
-    const ev = all.find(e => e.id === taskId);
-    setCompletionPrompt({
-      taskId,
-      taskName: ev?.name || 'Task',
-      coins: ev?.coins || ev?.task?.coins || 0,
-    });
   };
 
-  const confirmCompletion = async (onTime: boolean) => {
-    if (!completionPrompt) return;
-    const { taskId, taskName, coins } = completionPrompt;
+  const handleGiveStars = async (taskId: string, stars: number) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
-    setCompletionPrompt(null);
-    await toggleCompletion(taskId, dateStr);
-    if (onTime && coins > 0) {
-      await adjustChildCoins(child.id, coins);
-      toast({ title: `+${coins} star${coins === 1 ? '' : 's'}!`, description: `${taskName} completed on time.` });
-    } else {
-      toast({ title: onTime ? 'Completed on time' : 'Completed late', description: taskName });
+    const completion = completions.find(c => c.task_id === taskId && c.date === dateStr);
+    if (!completion || stars <= 0) return;
+    try {
+      // Recorded first and only while none are given, so a second tap or the
+      // other parent can't give the same stars again.
+      if (!(await giveStars(completion.id, stars))) return;
+      try {
+        await adjustChildCoins(child.id, stars);
+      } catch (error) {
+        await clearStarsGiven(completion.id);
+        throw error;
+      }
+      toast({ title: `+${stars} star${stars === 1 ? '' : 's'} for ${child.name}!` });
+    } catch (error) {
+      console.error('Error giving stars:', error);
+      toast({ title: "Couldn't give stars", description: 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -866,6 +884,7 @@ const TimelineScheduleView = ({
   ).map(task => ({
     ...task,
     isCompleted: completions.some(c => c.task_id === task.id && c.date === selectedDayString),
+    starsGiven: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.coins_earned ?? 0,
   }));
 
   // Only system events are fixed. All user-created tasks (scheduled/regular/flexible)
@@ -993,6 +1012,7 @@ const TimelineScheduleView = ({
       // the system-event behavior above.
       status: isCompleted ? ('on-time' as const) : calculateTaskStatus(task, taskTime, taskDuration),
       completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
+      starsGiven: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.coins_earned ?? 0,
     };
   });
 
@@ -1052,6 +1072,64 @@ const TimelineScheduleView = ({
   };
 
   const allEvents = createEmptyTimeBlocks(sortedEvents);
+
+  // Chore windows are drawn in a sidebar beside the timeline, so they have to
+  // line up with the rows they overlap. The rows are *not* proportional to
+  // time — a 7-hour School block is the same height as a 15-minute one — so
+  // mapping a chore's clock window onto the column height put "5:30–7:00pm"
+  // somewhere near the 7pm row. Measure the rows instead and map real times
+  // onto real pixels.
+  const timelineColRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [rowGeom, setRowGeom] = useState<Record<string, { top: number; height: number }>>({});
+
+  useLayoutEffect(() => {
+    const container = timelineColRef.current;
+    if (!container) return;
+    const measure = () => {
+      const base = container.getBoundingClientRect().top;
+      const next: Record<string, { top: number; height: number }> = {};
+      for (const [id, el] of Object.entries(rowRefs.current)) {
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        next[id] = { top: rect.top - base, height: rect.height };
+      }
+      setRowGeom(prev => {
+        const prevKeys = Object.keys(prev);
+        const unchanged =
+          prevKeys.length === Object.keys(next).length &&
+          prevKeys.every(k =>
+            next[k] &&
+            Math.abs(next[k].top - prev[k].top) < 0.5 &&
+            Math.abs(next[k].height - prev[k].height) < 0.5);
+        return unchanged ? prev : next;
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [allEvents, activeId]);
+
+  /**
+   * Clock minute → pixels down the timeline column, walking the measured rows.
+   * A time inside a row interpolates across that row; a time that falls
+   * between two rows snaps to the top of the next one.
+   */
+  const timeToPixels = (minute: number): number | null => {
+    let lastBottom: number | null = null;
+    for (const event of allEvents) {
+      const geom = rowGeom[event.id];
+      if (!geom) continue;
+      const [h, m] = event.time.split(':').map(Number);
+      const start = h * 60 + m;
+      const end = start + event.duration;
+      if (minute <= start) return geom.top;
+      if (minute < end) return geom.top + ((minute - start) / (end - start)) * geom.height;
+      lastBottom = geom.top + geom.height;
+    }
+    return lastBottom;
+  };
 
   // Where the current-time line sits in the row list (today only): above the
   // first row that starts after now; -1 means after the last row.
@@ -1337,7 +1415,7 @@ const TimelineScheduleView = ({
         return (
           <div className="flex gap-2 relative w-full min-w-0 overflow-hidden">
             {/* Main timeline column */}
-            <div className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
+            <div ref={timelineColRef} className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -1412,7 +1490,11 @@ const TimelineScheduleView = ({
                       })();
 
                       return (
-                        <div key={event.id} className="relative touch-manipulation">
+                        <div
+                          key={event.id}
+                          ref={el => { rowRefs.current[event.id] = el; }}
+                          className="relative touch-manipulation"
+                        >
                           {showNowAbove && <NowLine label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />}
                           {shouldShowSpacingAbove && (
                             <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1436,6 +1518,7 @@ const TimelineScheduleView = ({
                               onEditTask={onEditTask}
                               onDeleteTask={onDeleteTask}
                               onToggleCompletion={handleToggleCompletion}
+                              onGiveStars={handleGiveStars}
                               onAddTask={onAddTask}
                               isActive={isActiveEvent}
                               isToday={isPSTToday(selectedDay)}
@@ -1482,7 +1565,6 @@ const TimelineScheduleView = ({
             {choreTasks.length > 0 && (
               <div className="relative w-[80px] sm:w-[96px] flex-shrink-0">
                 {choreTasks.map(task => {
-                  // Position chores by actual time within the timeline's time range
                   const timelineStartMin = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
                   const lastEvent = allEvents.length > 0 ? allEvents[allEvents.length - 1] : null;
                   const timelineEndMin = lastEvent ? getEventStartMinutes(lastEvent) + lastEvent.duration : 24 * 60;
@@ -1499,8 +1581,19 @@ const TimelineScheduleView = ({
                   const clampedStart = Math.max(choreStartMin, timelineStartMin);
                   const clampedEnd = Math.min(choreEndMin, timelineEndMin);
 
-                  const topPercent = ((clampedStart - timelineStartMin) / timelineSpan) * 100;
-                  const heightPercent = Math.max(10, ((clampedEnd - clampedStart) / timelineSpan) * 100);
+                  // Align to the measured rows; fall back to a proportional
+                  // guess only for the very first paint, before the rows have
+                  // been measured.
+                  const topPx = timeToPixels(clampedStart);
+                  const bottomPx = timeToPixels(clampedEnd);
+                  const measured = topPx != null && bottomPx != null;
+                  const position: React.CSSProperties = measured
+                    ? { top: `${topPx}px`, height: `${Math.max(60, bottomPx - topPx)}px` }
+                    : {
+                        top: `${((clampedStart - timelineStartMin) / timelineSpan) * 100}%`,
+                        height: `${Math.max(10, ((clampedEnd - clampedStart) / timelineSpan) * 100)}%`,
+                        minHeight: '60px',
+                      };
 
                   return (
                     <div
@@ -1511,11 +1604,7 @@ const TimelineScheduleView = ({
                           ? "border-green-500/40 bg-green-500/10"
                           : "border-purple-400/50 bg-purple-500/15 hover:border-purple-400/70 hover:bg-purple-500/20"
                       )}
-                      style={{
-                        top: `${topPercent}%`,
-                        height: `${heightPercent}%`,
-                        minHeight: '60px',
-                      }}
+                      style={position}
                       onClick={() => onEditTask?.(task)}
                     >
                       <div className="flex flex-col items-center justify-center h-full px-1.5 py-2.5 text-center gap-1.5">
@@ -1553,7 +1642,20 @@ const TimelineScheduleView = ({
                           {task.name}
                         </span>
                         {task.coins > 0 && (
-                          <span className="text-[10px] text-warning/80 font-semibold">{task.coins}★</span>
+                          task.isCompleted && !task.starsGiven ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleGiveStars(task.id, task.coins); }}
+                              className="shrink-0 px-2 py-1 rounded-full bg-iris-400/20 border border-iris-400 text-[11px] font-semibold text-fog-50 hover:bg-iris-400/30 transition-colors"
+                              aria-label={`Give ${task.coins} star${task.coins === 1 ? '' : 's'}`}
+                            >
+                              Give ★{task.coins}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-warning/80 font-semibold">
+                              {task.starsGiven ? `★${task.starsGiven} given` : `${task.coins}★`}
+                            </span>
+                          )
                         )}
                         {task.window_start && task.window_end && (
                           <span className="text-[10px] text-purple-400/60 font-medium mt-auto">
@@ -1572,41 +1674,6 @@ const TimelineScheduleView = ({
           </div>
         );
       })()}
-
-      <Dialog open={!!completionPrompt} onOpenChange={(open) => { if (!open) setCompletionPrompt(null); }}>
-        <DialogContent className="max-w-[380px] w-[90vw] glass-card border-border/50 rounded-2xl">
-          <DialogTitle className="text-lg font-bold text-center">Mark "{completionPrompt?.taskName}" as done</DialogTitle>
-          <DialogDescription className="sr-only">Choose whether the task was completed on time or late.</DialogDescription>
-          <p className="text-sm text-muted-foreground text-center -mt-1">
-            Was it completed on time?
-            {completionPrompt && completionPrompt.coins > 0 && (
-              <span className="block mt-1 text-xs text-yellow-400">On-time earns {completionPrompt.coins} star{completionPrompt.coins === 1 ? '' : 's'}.</span>
-            )}
-          </p>
-          <div className="flex flex-col gap-2 pt-2">
-            <Button
-              onClick={() => confirmCompletion(true)}
-              className="w-full h-11 rounded-xl bg-green-500 hover:bg-green-500/90 text-white font-semibold"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-2" /> On time
-            </Button>
-            <Button
-              onClick={() => confirmCompletion(false)}
-              variant="outline"
-              className="w-full h-11 rounded-xl font-semibold"
-            >
-              <AlertCircle className="w-4 h-4 mr-2" /> Late
-            </Button>
-            <Button
-              onClick={() => setCompletionPrompt(null)}
-              variant="ghost"
-              className="w-full h-9 rounded-xl text-muted-foreground"
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

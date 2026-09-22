@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { broadcastCoins } from '@/utils/coinSync';
+import { realtimeChannel } from '@/lib/realtime';
 
 export interface Reward {
   id: string;
@@ -20,8 +21,9 @@ export interface Reward {
  *   pending  -> child asked, parent hasn't answered
  *   approved -> parent said yes, stars deducted (legacy rows use 'completed')
  *   denied   -> parent said not now; row is kept so the child sees the outcome
+ *   refunded -> parent undid a redemption; stars went back to the child
  */
-export type PurchaseStatus = 'pending' | 'approved' | 'denied' | 'completed';
+export type PurchaseStatus = 'pending' | 'approved' | 'denied' | 'completed' | 'refunded';
 
 export interface RewardPurchase {
   id: string;
@@ -57,6 +59,35 @@ export const approveRewardPurchase = async (purchaseId: string) => {
   });
   if (coinErr) throw coinErr;
   // Show the new balance everywhere now, not when realtime gets round to it.
+  broadcastCoins({ childId: updated.child_id, balance: balance as number });
+  return updated as RewardPurchase;
+};
+
+/**
+ * Undo a redemption: the stars go back to the child and the reward leaves
+ * their "Mine" shelf. The row is kept as 'refunded' so star history still adds
+ * up. The status flip is conditional so a double-tap can't refund twice.
+ */
+export const refundRewardPurchase = async (purchaseId: string) => {
+  const { data: updated, error } = await supabase
+    .from('reward_purchases')
+    .update({ status: 'refunded' })
+    .eq('id', purchaseId)
+    .in('status', ['approved', 'completed'])
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  if (!updated) throw new Error('This redemption was already undone.');
+
+  const { data: balance, error: coinErr } = await supabase.rpc('adjust_child_coins', {
+    p_child_id: updated.child_id,
+    p_delta: updated.coins_spent,
+  });
+  if (coinErr) {
+    // Don't leave it undone without the refund.
+    await supabase.from('reward_purchases').update({ status: 'approved' }).eq('id', purchaseId);
+    throw coinErr;
+  }
   broadcastCoins({ childId: updated.child_id, balance: balance as number });
   return updated as RewardPurchase;
 };
@@ -133,8 +164,8 @@ export const useRewards = (childId?: string) => {
         .single();
 
       if (error) throw error;
-      
-      setRewards(prev => [...prev, data]);
+
+      setRewards(prev => prev.some(r => r.id === data.id) ? prev : [...prev, data]);
       toast({
         title: "Success",
         description: "Reward added successfully!",
@@ -222,7 +253,7 @@ export const useRewards = (childId?: string) => {
 
       if (error) throw error;
 
-      setPurchases(prev => [data, ...prev]);
+      setPurchases(prev => prev.some(p => p.id === data.id) ? prev : [data, ...prev]);
       return data;
     } catch (error) {
       console.error('Error purchasing reward:', error);
@@ -243,6 +274,12 @@ export const useRewards = (childId?: string) => {
 
   const denyPurchase = async (purchaseId: string) => {
     const updated = await denyRewardPurchase(purchaseId);
+    setPurchases(prev => prev.map(p => p.id === purchaseId ? updated : p));
+    return updated;
+  };
+
+  const unredeemPurchase = async (purchaseId: string) => {
+    const updated = await refundRewardPurchase(purchaseId);
     setPurchases(prev => prev.map(p => p.id === purchaseId ? updated : p));
     return updated;
   };
@@ -269,13 +306,26 @@ export const useRewards = (childId?: string) => {
     }
   }, [childId]);
 
-  // Keep purchases live so the child's shop reflects approve/deny the moment
-  // the parent acts, and the parent's pending list clears when the other
-  // parent handles a request.
+  // Keep rewards and purchases live so the child's shop reflects new rewards,
+  // price changes and approve/deny the moment the parent acts, and the
+  // parent's pending list clears when the other parent handles a request.
   useEffect(() => {
     if (!childId) return;
-    const channel = supabase
-      .channel(`reward-purchases-${childId}`)
+    const channel = realtimeChannel(`reward-purchases-${childId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rewards', filter: `child_id=eq.${childId}` },
+        payload => {
+          if (payload.eventType === 'DELETE') return; // removal is a soft delete (is_active=false)
+          const row = payload.new as Reward;
+          setRewards(prev => {
+            const others = prev.filter(r => r.id !== row.id);
+            return row.is_active
+              ? [...others, row].sort((a, b) => a.cost - b.cost)
+              : others;
+          });
+        },
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
@@ -309,6 +359,7 @@ export const useRewards = (childId?: string) => {
     purchaseReward,
     approvePurchase,
     denyPurchase,
+    unredeemPurchase,
     redeemForChild,
     refetch: () => {
       fetchRewards();
