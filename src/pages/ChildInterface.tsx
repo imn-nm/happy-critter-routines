@@ -13,7 +13,7 @@ import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import Playtime from "@/components/pets/playtime/Playtime";
 import { petNick } from "@/components/pets/petCatalog";
-import { activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import { SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
 import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
@@ -769,6 +769,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const promptForTask = (name: string): string | null => {
     const normalized = name.toLowerCase();
+    if (SPORTS_RE.test(normalized)) return "Let’s get moving!";
     if (/school|class|lesson|learn/.test(normalized)) return "Let’s learn together!";
     if (/wake|morning/.test(normalized)) return "Good morning!";
     if (/breakfast|lunch|dinner|snack|meal/.test(normalized)) return "Let’s eat together!";

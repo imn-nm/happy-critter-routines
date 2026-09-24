@@ -25,14 +25,15 @@ export type ClipName =
   | "Eating"
   | "Reading"
   | "Gaming"
-  | "BrushingTeeth";
+  | "BrushingTeeth"
+  | "Soccer";
 
 export type SpriteClip = PixelClip;
 
 export const CLIPS: Record<ClipName, SpriteClip> = PIXEL_CLIPS;
 
 /** What the pet is doing alongside the child. Overrides the mood's base clip. */
-export type PetActivity = "brushing" | "eating" | "reading" | "gaming" | "sleeping";
+export type PetActivity = "brushing" | "eating" | "reading" | "gaming" | "sleeping" | "sports";
 
 export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   brushing: "BrushingTeeth",
@@ -40,6 +41,7 @@ export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   reading: "Reading",
   gaming: "Gaming",
   sleeping: "Sleepy",
+  sports: "Soccer",
 };
 
 /**
@@ -109,11 +111,16 @@ export const MOOD_PLAN: Record<PetMood, MoodPlan> = {
  * Guess the companion activity from a task's name so the rabbit does the
  * thing alongside the child (brushes during Brush Teeth, eats at Breakfast).
  */
+/** Task names that count as sport or exercise (the rabbit plays soccer). */
+export const SPORTS_RE = /\b(soccer|football|sports?|gym|gymnastics|swim\w*|basketball|baseball|softball|tennis|hockey|run|running|jog\w*|exercise|workout|pe|p\.e\.|karate|judo|taekwondo|martial|cycling|bike|biking|skat\w*|cricket|rugby|volleyball|lacrosse|golf|athletics|track)\b/;
+
 export const activityForTask = (name?: string | null): PetActivity | undefined => {
   const n = (name ?? "").toLowerCase();
   if (!n) return undefined;
   if (/brush|teeth|tooth/.test(n)) return "brushing";
   if (/breakfast|lunch|dinner|snack|eat|meal|supper/.test(n)) return "eating";
+  // Before reading and gaming: "swim lesson", "PE class" and "play soccer" are sport.
+  if (SPORTS_RE.test(n)) return "sports";
   if (/school|class|lesson|learn|read|book|homework|study|story/.test(n)) return "reading";
   if (/game|gaming|play|screen|tv|video|tablet/.test(n)) return "gaming";
   if (/bed|sleep|nap|night/.test(n)) return "sleeping";

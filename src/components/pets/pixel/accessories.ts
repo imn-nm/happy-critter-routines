@@ -7,18 +7,24 @@ import type { Pix } from "./pix";
  */
 
 export type AccessorySlot = "head" | "face" | "neck";
-export type AccessoryId = "hat" | "crown" | "bow" | "specs" | "hearts" | "scarf" | "bowtie";
+export type AccessoryId = "hat" | "straw" | "cap" | "crown" | "bow" | "specs" | "hearts" | "scarf" | "bowtie";
 export type PetOutfit = Partial<Record<AccessorySlot, AccessoryId | null>>;
 export type PetView = "front" | "side" | "sleep";
 
-const PARTY_HAT = ["...FF...", "...FF...", "...PP...", "...PP...", "..YYYY..", "..YYYY..", ".PPPPPP.", ".PPPPPP.", "YYYYYYYY", "yyyyyyyy"];
-const BOW = ["PP.PP", "PPMPP", "PP.PP"];
+const PARTY_HAT = ["...NN...", "...NN...", "..GGGG..", "..GGGG..", ".NNNNNN.", ".NNNNNN.", "GGGGGGGG", "gggggggg"];
+// A big two-loop bow with a dark outline so it stands out on the ear.
+const BOW = ["MM...MM", "MRM.MRM", "MPPMPPM", "MPM.MPM", "MM...MM"];
 const HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
 const BOWTIE = ["XX..XX", "XXxxXX", "XX..XX"];
 
 // Where each slot's item rests while the rabbit sleeps (sleeping-pose cells;
 // the head is at column 0, the floor is row 20).
 const PILE = { head: -20, neck: -11, face: -5 } as const;
+
+/** Woven straw: a light run with a darker fleck every few pixels. */
+function straw(p: Pix, y: number, a: number, b: number, shade = false) {
+  for (let x = a; x <= b; x++) p.set(x, y, shade || (x * 2 + y) % 5 === 0 ? "a" : "A");
+}
 
 interface Accessory {
   slot: AccessorySlot;
@@ -31,8 +37,60 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     slot: "head",
     name: "Party hat",
     draw(p, v) {
-      if (v === "sleep") p.stamp(PARTY_HAT, PILE.head, 11);
-      else p.stamp(PARTY_HAT, v === "front" ? 7 : 8, 2);
+      if (v === "sleep") p.stamp(PARTY_HAT, PILE.head, 13);
+      else p.stamp(PARTY_HAT, v === "front" ? 7 : 8, 4);
+    },
+  },
+  // A low crown sits over the ear bases, so the ears poke up through the hat,
+  // with a wide woven brim and a red ribbon.
+  straw: {
+    slot: "head",
+    name: "Straw hat",
+    draw(p, v) {
+      if (v === "sleep") {
+        straw(p, 18, PILE.head + 2, PILE.head + 6);
+        for (let x = PILE.head + 2; x <= PILE.head + 6; x++) p.set(x, 19, "X");
+        straw(p, 20, PILE.head - 1, PILE.head + 9);
+        return;
+      }
+      const [c0, c1, b0, b1] = v === "front" ? [4, 17, -3, 24] : [5, 19, -3, 25];
+      straw(p, 8, c0 + 1, c1 - 1);
+      straw(p, 9, c0, c1);
+      for (let x = c0; x <= c1; x++) p.set(x, 10, "X");
+      straw(p, 11, b0 + 1, b1 - 1);
+      straw(p, 12, b0, b1, true);
+    },
+  },
+  cap: {
+    slot: "head",
+    name: "Baseball cap",
+    draw(p, v) {
+      const run = (y: number, a: number, b: number, c: string) => { for (let x = a; x <= b; x++) p.set(x, y, c); };
+      if (v === "sleep") {
+        run(18, PILE.head + 1, PILE.head + 4, "X");
+        run(19, PILE.head, PILE.head + 5, "X");
+        run(20, PILE.head, PILE.head + 8, "x");
+        return;
+      }
+      if (v === "front") {
+        run(7, 10, 11, "x");
+        run(8, 5, 16, "X");
+        run(9, 4, 17, "X");
+        run(10, 3, 18, "X");
+        run(11, 3, 18, "X");
+        p.set(10, 9, "F"); p.set(11, 9, "F"); p.set(10, 10, "F"); p.set(11, 10, "F");
+        run(12, 2, 19, "x");
+        run(13, 3, 18, "x");
+        return;
+      }
+      // 3/4: the peak sticks out past the face.
+      run(7, 11, 12, "x");
+      run(8, 6, 17, "X");
+      run(9, 5, 18, "X");
+      run(10, 4, 19, "X");
+      run(11, 4, 19, "X");
+      run(11, -2, 3, "x");
+      run(12, -4, 6, "x");
     },
   },
   crown: {
@@ -52,7 +110,7 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
   bow: {
     slot: "head",
     name: "Ear bow",
-    draw(p, v) { p.stamp(BOW, v === "sleep" ? PILE.head + 1 : 2, v === "sleep" ? 18 : 5); },
+    draw(p, v) { p.stamp(BOW, v === "sleep" ? PILE.head + 1 : v === "front" ? 1 : 2, v === "sleep" ? 16 : 8); },
   },
   specs: {
     slot: "face",

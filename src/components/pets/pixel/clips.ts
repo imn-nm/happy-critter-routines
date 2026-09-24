@@ -2,7 +2,7 @@ import { Pix, squash } from "./pix";
 import type { PetOutfit } from "./accessories";
 import {
   bigStar, butterfly, crumbs, dust, fallingLeaves, front, heart, leaf, risingBubbles, side, sleeper,
-  sparkles, starBurst, winStars, zzz, type FrontOpts, type SideOpts, type SleepOpts,
+  sparkles, starBurst, winStars, zzz, ball, goal, type FrontOpts, type SideOpts, type SleepOpts,
 } from "./sprites";
 import type { ClipName } from "../spriteClips";
 
@@ -334,6 +334,53 @@ const LeafChase = build([
   [1, neutral],
 ]);
 
+
+// ---------- Soccer: keepy-uppy with the foot, then a goal and a happy hop ----------
+// Plays for sports tasks. The rabbit stays in its 3/4 view facing the goal.
+const BALL_X = 19;            // ball touching the kicking foot
+const BALL_KICK_Y = 48;
+const BALL_GROUND_Y = FLOOR - 5;
+const GOAL_X = 3;
+const GOAL_TOP = 37;
+const JUGGLE = 12;
+const SOCCER_INTRO = 6;
+const withPitch = (frame: PixelFrame, drawBall: (fx: Pix) => void, ripple = false) =>
+  withFx(frame, fx => { goal(fx, GOAL_X, GOAL_TOP, FLOOR, ripple); drawBall(fx); });
+const juggle = (l: number, o: PetOutfit | null): PixelFrame => {
+  const t = l % JUGGLE;
+  const u = t / JUGGLE;
+  const y = BALL_KICK_Y - Math.round(22 * 4 * u * (1 - u));
+  const eyesNow = t <= 1 || t >= 11 ? "down" : t >= 4 && t <= 8 ? "up" : "open";
+  const r = side({ kick: t <= 1, eyes: eyesNow, outfit: o });
+  return withPitch({ r: t === 0 ? squash(r, 1.04, 0.96) : r, x: SX, y: SY }, fx => ball(fx, BALL_X, y, t >> 1));
+};
+const Soccer = build([
+  [1, neutral],
+  [5, (l, i, o) => withPitch(S({ perk: l >= 1, eyes: l >= 1 ? "down" : "open" }, o), fx => ball(fx, -6 + Math.round(25 * (i / 5)), BALL_GROUND_Y, i))],
+  [JUGGLE * 2, (l, _i, o) => juggle(l, o)],
+  [1, (_l, _i, o) => juggle(0, o)],
+  [2, (l, _i, o) => withPitch({ r: squash(side({ eyes: "down", outfit: o }), 1.06, 0.92), x: SX, y: SY }, fx => ball(fx, BALL_X, BALL_KICK_Y + 1 + l, 0))],
+  [1, (_l, _i, o) => withPitch(S({ kick: true, eyes: "open" }, o), fx => ball(fx, BALL_X - 2, BALL_KICK_Y - 1, 1))],
+  [8, (l, _i, o) => {
+    const t = l / 7;
+    const x = BALL_X - 2 - Math.round(12 * t);
+    const y = Math.round(47 - 3 * t - 12 * 4 * t * (1 - t));
+    return withPitch(S({ eyes: "open" }, o), fx => ball(fx, x, y, l >> 1));
+  }],
+  [2, (l, _i, o) => withPitch(S({ eyes: "happy" }, o), fx => { ball(fx, GOAL_X + 2, 47 + l * 2, 0); starBurst(fx, l + 1, GOAL_X + 4, GOAL_TOP + 1); }, l % 2 === 0)],
+  [12, (l, _i, o) => {
+    const ph = l % 6;
+    const r = side({ eyes: "happy", mouth: "yay", blush: true, outfit: o });
+    return withPitch(
+      { r: ph === 0 ? squash(r, 1.06, 0.92) : r, x: SX, y: SY + [0, -2, -4, -4, -2, 0][ph] },
+      fx => { ball(fx, GOAL_X + 2, BALL_GROUND_Y, 0); starBurst(fx, l + 3, GOAL_X + 4, GOAL_TOP + 1); sparkles(fx, l, SX + 22, SY + 2); },
+    );
+  }],
+  [6, (l, _i, o) => withPitch(S({ mouth: "smile", blush: true }, o), fx => ball(fx, GOAL_X + 2 - 2 * l, BALL_GROUND_Y, l))],
+  [3, neutral],
+  [1, neutral],
+], [SOCCER_INTRO, SOCCER_INTRO + JUGGLE * 2]);
+
 export const PIXEL_CLIPS: Record<ClipName, PixelClip> = {
-  Idle, LeafChase, Celebrate, Encourage, Wave, Curious, Sleepy, Eating, Reading, Gaming, BrushingTeeth,
+  Idle, LeafChase, Celebrate, Encourage, Wave, Curious, Sleepy, Eating, Reading, Gaming, BrushingTeeth, Soccer,
 };

@@ -10,6 +10,8 @@ import { SY, usePixelStage } from "./stage";
 import PixelIcon from "./PixelIcon";
 
 const DX = 37;
+/** Wide accessories (brims, glasses, scarves) draw at 2x so the buttons stay even. */
+const iconScale = (p: Pix) => { const b = p.bounds(); return b.x1 - b.x0 + 1 > 10 ? 2 : 3; };
 const SLOT_Y = { head: 6, face: 17, neck: 27 } as const;
 
 interface DressUpProps {
@@ -123,7 +125,7 @@ const DressUp = ({ outfit, onChange, nick }: DressUpProps) => {
                       on ? "border-[#FFD66B] bg-[#3a2366]" : "border-iris-400/30 bg-[#271447] hover:bg-[#31195a]",
                     )}
                   >
-                    <PixelIcon pix={icons[id]} scale={id === "specs" || id === "hearts" || id === "crown" || id === "scarf" ? 2 : 3} />
+                    <PixelIcon pix={icons[id]} scale={iconScale(icons[id])} />
                     {ACCESSORIES[id].name}
                   </button>
                 );

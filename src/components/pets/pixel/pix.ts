@@ -33,6 +33,8 @@ export const PAL: Record<string, string> = {
   e: "#306230", // screen detail
   X: "#e0584f", // red
   x: "#b33f38", // red shade
+  A: "#f1d27a", // straw
+  a: "#c99a3e", // straw shade
   u: "#8f6446", // mud
   U: "#b0805c", // mud light
   w: "#cfdfe3", // wet fur

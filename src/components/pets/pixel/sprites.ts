@@ -194,6 +194,9 @@ function game(p: Pix, dy: number, f: number, win: boolean, press: boolean) {
   paw(p, 0, dy + (press ? 1 : 0));
 }
 
+// The front foot kicked out, as chunky as the paw mitten.
+const KICK = [[34, 0, 3], [35, -1, 4], [36, -1, 4], [37, 0, 3]] as const;
+
 // ---------- pose builders ----------
 export interface SideOpts {
   eyes?: Eyes;
@@ -214,6 +217,8 @@ export interface SideOpts {
   carrot?: [number, number, number];
   book?: [number, 0 | 1, 0 | 1 | 2 | 3];
   game?: [number, number, boolean, boolean];
+  /** Front foot kicked out (soccer). */
+  kick?: boolean;
   outfit?: PetOutfit | null;
 }
 
@@ -243,6 +248,7 @@ export function side(o: SideOpts = {}) {
   if (o.carrot) carrot(p, ...o.carrot);
   if (o.book) book(p, ...o.book);
   if (o.game) game(p, ...o.game);
+  if (o.kick) for (const [y, a, b] of KICK) for (let x = a; x <= b; x++) p.set(x, y, "W");
   return o.mirror ? p.flipX(SIDE_W) : p;
 }
 
@@ -406,5 +412,22 @@ export const butterfly = (fx: Pix, x: number, y: number, open: boolean) =>
 
 export const leaf = (fx: Pix, x: number, y: number, frame: number) =>
   fx.stamp(LEAF[frame % 2], Math.round(x), Math.round(y));
+
+// A soccer ball in two spin frames, and a little goal with a net.
+const BALL = [
+  [".FFF.", "FkFkF", "FFkFF", "FkFkF", ".FFF."],
+  [".FkF.", "FFkFF", "kkFkk", "FFkFF", ".FkF."],
+];
+export const ball = (fx: Pix, x: number, y: number, spin: number) =>
+  fx.stamp(BALL[spin % 2], Math.round(x), Math.round(y));
+
+export function goal(fx: Pix, left: number, top: number, floor: number, ripple = false) {
+  const right = left + 8;
+  for (let y = top; y < floor; y++) { fx.set(left, y, "F"); fx.set(right, y, "F"); }
+  for (let x = left; x <= right; x++) fx.set(x, top, "F");
+  for (let y = top + 1; y < floor; y++) {
+    for (let x = left + 1; x < right; x++) if ((x + y + (ripple ? 1 : 0)) % 2 === 0) fx.set(x, y, "q");
+  }
+}
 
 export type { PetOutfit };
