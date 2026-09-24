@@ -39,6 +39,7 @@ export type Database = {
           name: string
           parent_id: string
           pet_happiness: number
+          pet_outfit: Json | null
           pet_type: string
           rest_day_date: string | null
           spinning_wheel_options: Json | null
@@ -78,6 +79,7 @@ export type Database = {
           name: string
           parent_id: string
           pet_happiness?: number
+          pet_outfit?: Json | null
           pet_type: string
           rest_day_date?: string | null
           spinning_wheel_options?: Json | null
@@ -117,6 +119,7 @@ export type Database = {
           name?: string
           parent_id?: string
           pet_happiness?: number
+          pet_outfit?: Json | null
           pet_type?: string
           rest_day_date?: string | null
           spinning_wheel_options?: Json | null

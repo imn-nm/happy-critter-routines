@@ -391,7 +391,7 @@ function ChildRow({
     >
       {/* Pet avatar */}
       <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-[#3A2D6C] flex items-center justify-center overflow-hidden">
-        <PetAvatar petType={child.petType} happiness={child.petHappiness} size="sm" />
+        <PetAvatar petType={child.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
       </div>
 
       {/* Info */}

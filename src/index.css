@@ -279,14 +279,6 @@
   }
 }
 
-/* Retro rabbit sprite strips (src/components/pets/SpritePet.tsx). The strip
-   image is stepped one frame at a time; --strip-end is the last frame's
-   offset, set inline per clip. */
-@keyframes retro-strip {
-  from { background-position-x: var(--strip-start); }
-  to { background-position-x: var(--strip-end); }
-}
-
 /* Bottom sheets sit on the home indicator on notched phones; pad past it. */
 .sheet-safe-bottom {
   padding-bottom: max(var(--sp-8), calc(env(safe-area-inset-bottom) + var(--sp-4)));

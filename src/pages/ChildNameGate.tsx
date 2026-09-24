@@ -70,7 +70,7 @@ const ChildNameGate = () => {
               onClick={() => navigate(`/child/${child.id}`)}
               className="glass-card rounded-3xl p-4 flex flex-col items-center gap-2 transition-transform hover:scale-[1.03] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <CritterPet petType={child.petType} mood="happy" size={96} />
+              <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" size={96} />
               <span className="text-lg font-semibold text-foreground truncate w-full text-center">
                 {child.name}
               </span>

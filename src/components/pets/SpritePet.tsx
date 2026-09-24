@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   ACTIVITY_CLIP,
   CLIPS,
-  FRAME_H,
-  FRAME_W,
   MOOD_PLAN,
   type ClipName,
   type LifeBehaviour,
@@ -13,26 +11,25 @@ import {
   type PetMood,
   type SpriteClip,
 } from "./spriteClips";
+import { outfitKey, type PetOutfit } from "./pixel/accessories";
+import { paint } from "./pixel/render";
+import { onTick } from "./pixel/ticker";
 
 /**
- * Crop window measured from the sheets. Idle, Sleepy, Reading, Gaming and
- * BrushingTeeth use the three-quarter body (x 37..66, centre 51.5); the
- * social clips use the hand-drawn front pose (x 37..61, centre 49). The
- * window is centred between the two so the rabbit barely shifts when it
- * turns, and is wide and tall enough (x 12..89, y 15..71) for the gaming
- * monitor, the waving arm, the sleeping Zs and the celebrate jump.
+ * The whole 77 x 56 stage the clips are drawn on: wide and tall enough for the
+ * held props, the waving arm, the sleeping Zs and the celebrate jump. The 3/4
+ * body stands at x 25..53 and the front pose at 27..48, so the rabbit barely
+ * shifts when it turns.
  */
-const CONTENT = { x: 12, y: 15, w: 77, h: 56 };
+const CONTENT = { x: 0, y: 0, w: 77, h: 56 };
 
 /**
- * Tighter window for small avatars (list rows, settings, profile). Centred on
- * column 48, where the rabbit's head and ears sit in both the three-quarter
- * and front poses, so the face reads as centred in a round pill instead of
- * being pulled left by the tail. Rows 28..71 frame the standing body (30..69)
- * so the rabbit fills the avatar. Accents beyond it (the encourage heart) are
- * simply clipped by the pill.
+ * Tighter window for small avatars (list rows, settings, profile), centred on
+ * the head and ears so the face reads as centred in a round pill. Rows 13..56
+ * frame the standing body so the rabbit fills the avatar; accents beyond it
+ * are simply clipped by the pill.
  */
-const AVATAR = { x: 21, y: 28, w: 54, h: 44 };
+const AVATAR = { x: 9, y: 13, w: 54, h: 44 };
 
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and the pet's own habits. */
@@ -55,6 +52,10 @@ interface SpritePetProps {
   reactionKey?: string | number;
   /** "stage" shows the whole animation window; "avatar" frames the body tightly. */
   framing?: "stage" | "avatar";
+  /** What the rabbit is wearing (dress-up). Drawn in every clip. */
+  outfit?: PetOutfit | null;
+  /** Hold the current frame, e.g. while a wrapper hides the pet. */
+  paused?: boolean;
   className?: string;
 }
 
@@ -62,7 +63,7 @@ interface Playing {
   name: ClipName;
   /** One-shot: hand back to the base when it ends. */
   once: boolean;
-  /** Bumps to restart the CSS animation when the same clip plays again. */
+  /** Bumps to restart playback when the same clip plays again. */
   n: number;
   /**
    * "full" plays the whole strip. Looping activities play "intro" (pick the
@@ -102,8 +103,9 @@ const pickClip = (clips: ClipName | ClipName[]): ClipName => {
  *     bedtime, after a pause that is never the same twice.
  *  3. It reacts when touched.
  *
- * Playback is a CSS background-position animation stepped by whole frames;
- * the strip is never a composited layer, so it stays sharp at any size.
+ * Playback is a shared 12 fps clock stepping whole frames of a procedural
+ * pixel clip onto a canvas, scaled with nearest-neighbour sampling so it stays
+ * sharp at any size. It pauses while off screen or hidden.
  */
 const SpritePet = ({
   mood = "idle",
@@ -116,6 +118,8 @@ const SpritePet = ({
   reaction,
   reactionKey,
   framing = "stage",
+  outfit = null,
+  paused = false,
   className,
 }: SpritePetProps) => {
   const CROP = framing === "avatar" ? AVATAR : CONTENT;
@@ -220,35 +224,105 @@ const SpritePet = ({
   };
 
   const current: SpriteClip = CLIPS[playing.name];
-  const { src, frameCount, durationMs } = current;
+  const { frameCount } = current;
   const range = current.loop;
   // Which frames this phase covers. Intro, outro and one-shot clips stop on
   // their last frame; the loop and an infinite full clip repeat. The end of a
-  // loop range is identical to its start, so steps() never needs to show it.
+  // loop range is identical to its start, so a repeat never shows it.
   const [from, to] =
     range && playing.phase === "intro" ? [0, range[0]]
     : range && playing.phase === "loop" ? [range[0], range[1]]
     : range && playing.phase === "outro" ? [range[1], frameCount - 1]
     : [0, frameCount - 1];
   const repeats = playing.phase === "loop" || (playing.phase === "full" && !playing.once);
-  const msPerFrame = durationMs / (frameCount - 1);
   // Reduced motion holds one representative frame: props in hand for
   // activities, the neutral pose otherwise.
   const stillFrame = range ? range[0] : 0;
 
-  // Whole-number magnification so every frame step lands on whole pixels;
-  // the box is then fitted to `size` with a single transform.
+  // Same box maths as before the canvas: a whole-number magnification fitted
+  // to `size`, so every call site keeps its layout.
   const intScale = Math.max(1, Math.floor(size / CROP.h));
   const fit = size / (CROP.h * intScale);
-  const fw = FRAME_W * intScale;
-  const fh = FRAME_H * intScale;
-  const boxW = CROP.w * intScale;
-  const boxH = CROP.h * intScale;
-  const w = Math.round(boxW * fit);
-  const h = Math.round(boxH * fit);
+  const w = Math.round(CROP.w * intScale * fit);
+  const h = Math.round(CROP.h * intScale * fit);
+  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  const k = Math.max(1, Math.round((h * dpr) / CROP.h));
+
+  const boxRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef(0);
+  const holdingRef = useRef(false);
+  const outfitRef = useRef(outfit);
+  outfitRef.current = outfit;
+  const cropRef = useRef(CROP);
+  cropRef.current = CROP;
+  const oKey = outfitKey(outfit);
+
+  const draw = useCallback((f: number) => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const fr = CLIPS[playingRef.current.name].frame(f, outfitRef.current ?? null);
+    const layers = [{ p: fr.r, x: fr.x, y: fr.y }];
+    if (fr.fx) layers.push({ p: fr.fx, x: 0, y: 0 });
+    paint(c, layers, cropRef.current);
+  }, []);
+
+  // A new clip or phase starts from its first frame.
+  useLayoutEffect(() => {
+    frameRef.current = still ? stillFrame : from;
+    holdingRef.current = false;
+    draw(frameRef.current);
+  }, [playing.n, still, stillFrame, from, draw]);
+
+  // New outfit, size or framing: repaint where we are.
+  useLayoutEffect(() => {
+    draw(frameRef.current);
+  }, [oKey, k, framing, draw]);
+
+  // Only animate while it can be seen.
+  const [inView, setInView] = useState(true);
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden",
+  );
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    const onVis = () => setPageVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  useEffect(() => {
+    if (still || paused || !inView || !pageVisible || to <= from) return;
+    return onTick(() => {
+      if (holdingRef.current) return;
+      const f = frameRef.current + 1;
+      if (f < to) {
+        frameRef.current = f;
+        draw(f);
+        return;
+      }
+      if (repeats) {
+        frameRef.current = from;
+        draw(from);
+      } else {
+        // One-shots, intros and outros stop on their last frame.
+        frameRef.current = to;
+        holdingRef.current = true;
+        draw(to);
+      }
+      atBoundary();
+    });
+  }, [still, paused, inView, pageVisible, from, to, repeats, draw, atBoundary, playing.n]);
 
   return (
     <div
+      ref={boxRef}
       role={interactive ? "button" : "img"}
       aria-label={interactive ? `${label}. Tap to say hi.` : label}
       data-clip={playing.name}
@@ -272,27 +346,13 @@ const SpritePet = ({
       }
       tabIndex={interactive ? 0 : undefined}
     >
-      <div
-        key={`${playing.name}-${playing.n}`}
-        className="absolute left-0 top-0"
-        onAnimationEnd={atBoundary}
-        onAnimationIteration={atBoundary}
-        style={{
-          width: boxW,
-          height: boxH,
-          transform: `scale(${fit})`,
-          transformOrigin: "top left",
-          backgroundImage: `url(${src})`,
-          backgroundRepeat: "no-repeat",
-          backgroundSize: `${fw * frameCount}px ${fh}px`,
-          imageRendering: "pixelated",
-          ["--strip-start" as string]: `${-CROP.x * intScale - (still ? stillFrame : from) * fw}px`,
-          ["--strip-end" as string]: `${-CROP.x * intScale - to * fw}px`,
-          backgroundPosition: `var(--strip-start) ${-CROP.y * intScale}px`,
-          animation: still || to <= from
-            ? "none"
-            : `retro-strip ${Math.round((to - from) * msPerFrame)}ms steps(${to - from}) ${repeats ? "infinite" : "1"} forwards`,
-        }}
+      <canvas
+        ref={canvasRef}
+        width={CROP.w * k}
+        height={CROP.h * k}
+        aria-hidden
+        className="absolute left-0 top-0 block"
+        style={{ width: w, height: h, imageRendering: "pixelated" }}
       />
     </div>
   );

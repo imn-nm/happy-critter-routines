@@ -148,7 +148,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           {/* Pet — one companion today, so this is a row, not a picker. */}
           <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.35)]">
             <div className="shrink-0 w-14 h-14 rounded-[18px] bg-[#3A2D6C] flex items-center justify-center">
-              <PetAvatar petType={formData.petType} happiness={child.petHappiness} size="sm" />
+              <PetAvatar petType={formData.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
             </div>
             <div className="min-w-0">
               <p className="text-14 text-fog-50">{getPet(formData.petType).name}</p>

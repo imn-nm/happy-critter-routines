@@ -37,7 +37,7 @@ const SpritePetPreview = () => {
         <TimerRabbitScene key={`${routine}-${replay}`} routine={routine} />
       </CircularTimer>
       <p className="mt-1 text-sm text-slate-400">
-        Strips live in <code className="text-slate-300">public/pets/rabbit/</code>; clip metadata in{" "}
+        Clips are drawn in <code className="text-slate-300">src/components/pets/pixel/clips.ts</code>; moods and habits live in{" "}
         <code className="text-slate-300">src/components/pets/spriteClips.ts</code>.
       </p>
 

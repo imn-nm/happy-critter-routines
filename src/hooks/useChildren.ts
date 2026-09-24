@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
 import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
 import { realtimeChannel } from "@/lib/realtime";
+import { normalizeOutfit, type PetOutfit } from "@/components/pets/pixel/accessories";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
 const convertPetType = (dbPetType: string): PetId => resolvePetId(dbPetType);
@@ -51,6 +52,8 @@ export interface Child {
   wake_schedule_overrides?: Record<string, { time: string; duration: number }>;
   // Free-time spinning wheel activity options (array of strings).
   spinning_wheel_options?: string[] | null;
+  // What the rabbit is wearing (Playtime dress-up); null for nothing.
+  pet_outfit?: PetOutfit | null;
 }
 
 export const useChildren = () => {
@@ -108,6 +111,7 @@ export const useChildren = () => {
           petType: convertedPetType,
           currentCoins: child.current_coins,
           petHappiness: child.pet_happiness,
+          pet_outfit: normalizeOutfit(child.pet_outfit),
           rest_day_date: child.rest_day_date ?? null,
           wake_time: child.wake_time,
           breakfast_time: child.breakfast_time,
@@ -184,6 +188,7 @@ export const useChildren = () => {
         petType: convertPetType(data.pet_type),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
+        pet_outfit: normalizeOutfit(data.pet_outfit),
         wake_time: data.wake_time,
         breakfast_time: data.breakfast_time,
         school_start_time: data.school_start_time,
@@ -273,6 +278,7 @@ export const useChildren = () => {
         petType: convertPetType(data.pet_type),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
+        pet_outfit: normalizeOutfit(data.pet_outfit),
         wake_time: data.wake_time,
         breakfast_time: data.breakfast_time,
         school_start_time: data.school_start_time,
@@ -393,6 +399,7 @@ export const useChildren = () => {
               petType: convertPetType(payload.new.pet_type),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
+              pet_outfit: normalizeOutfit(payload.new.pet_outfit),
             };
             setChildren(prev => prev.map(child => 
               child.id === payload.new?.id ? mappedChild as Child : child
@@ -408,6 +415,7 @@ export const useChildren = () => {
               petType: convertPetType(payload.new.pet_type),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
+              pet_outfit: normalizeOutfit(payload.new.pet_outfit),
             };
             // addChild() already appended this row — the echo of our own
             // insert must not duplicate it.

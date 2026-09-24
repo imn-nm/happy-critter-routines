@@ -1,15 +1,17 @@
 import { useEffect, useId } from "react";
 import { useReducedMotion } from "framer-motion";
 import SpritePet from "./SpritePet";
+import type { PetOutfit } from "./pixel/accessories";
 import "./timerRabbitScene.css";
 
 export type TimerRoutine = "leaf-chase" | "trip-recover";
 export const TIMER_ROUTINE_MS = 10000;
 
 /** A 293-unit stage shares the timer's coordinates, including its rim. */
-export default function TimerRabbitScene({ routine, onComplete }: {
+export default function TimerRabbitScene({ routine, onComplete, outfit }: {
   routine: TimerRoutine;
   onComplete?: () => void;
+  outfit?: PetOutfit | null;
 }) {
   const reduced = useReducedMotion();
   const id = useId();
@@ -23,11 +25,11 @@ export default function TimerRabbitScene({ routine, onComplete }: {
     <defs><clipPath id={id}><circle cx="146.5" cy="146.5" r="145" /></clipPath></defs>
     <g clipPath={`url(#${id})`}>
       {routine === "leaf-chase" ? <foreignObject x="31" y="62.5" width="231" height="168">
-        <SpritePet clip="LeafChase" size={168} label="Biscuit chasing a leaf" />
+        <SpritePet clip="LeafChase" size={168} label="Biscuit chasing a leaf" outfit={outfit} />
       </foreignObject> : <g className="rabbit-travel">
         <g className="rabbit-turn">
           <foreignObject x="31" y="62.5" width="231" height="168">
-            <SpritePet clip="Idle" size={168} label="Biscuit" />
+            <SpritePet clip="Idle" size={168} label="Biscuit" outfit={outfit} />
           </foreignObject>
         </g>
       </g>}

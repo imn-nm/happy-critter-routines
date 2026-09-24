@@ -5,6 +5,7 @@ import SpritePet from "@/components/pets/SpritePet";
 import TimerRabbitScene, { type TimerRoutine } from "@/components/pets/TimerRabbitScene";
 import { getPet } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
+import type { PetOutfit } from "@/components/pets/pixel/accessories";
 
 export type { PetMood as CritterMood };
 
@@ -24,6 +25,8 @@ interface CritterPetProps {
   reactionKey?: string | number;
   className?: string;
   timerFrame?: boolean;
+  /** What the rabbit is wearing (dress-up). */
+  outfit?: PetOutfit | null;
 }
 
 /**
@@ -34,7 +37,7 @@ interface CritterPetProps {
 const TAP_HINT_KEY = "petpals:pet-tap-discovered";
 const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false }: CritterPetProps) => {
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit }: CritterPetProps) => {
   const reduced = useReducedMotion();
   const [routine, setRoutine] = useState<TimerRoutine | null>(null);
   const nextRoutine = useRef<TimerRoutine>("leaf-chase");
@@ -113,10 +116,12 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
         onTap={handleTap}
         reaction={reaction}
         reactionKey={reactionKey}
+        outfit={outfit}
+        paused={!!(routine && canPlay)}
       />
       </div>
       {routine && canPlay && <>
-        <TimerRabbitScene routine={routine} onComplete={finishRoutine} />
+        <TimerRabbitScene routine={routine} onComplete={finishRoutine} outfit={outfit} />
         {interactive && <button type="button" aria-label={`${getPet(petType).name}. Tap to say hi.`}
           className="absolute inset-8 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-iris-300"
           onClick={handleTap} />}

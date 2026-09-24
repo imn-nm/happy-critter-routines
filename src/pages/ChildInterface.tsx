@@ -11,7 +11,7 @@ import SlideToConfirm from "@/components/SlideToConfirm";
 import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
-import PlayScene from "@/components/pets/PlayScene";
+import Playtime from "@/components/pets/playtime/Playtime";
 import { petNick } from "@/components/pets/petCatalog";
 import { activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import AmbientClock from "@/components/AmbientClock";
@@ -50,7 +50,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
-  const { children, loading: childrenLoading, updateChildHappiness } = useChildren();
+  const { children, loading: childrenLoading, updateChildHappiness, updateChild } = useChildren();
   const { tasks, completions, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
@@ -890,7 +890,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       <div className={`${!propChildId ? 'min-h-dvh' : ''} p-5`}>
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <CritterPet petType={child.petType} mood="happy" activity="reading" size={80} interactive prompt="Cozy day!" />
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={80} interactive prompt="Cozy day!" />
             <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
           </div>
           <motion.div
@@ -987,7 +987,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   Goodnight, {child.name}! 🌙
                 </h2>
                 <StatusBadge variant="info">Time to rest</StatusBadge>
-                <CritterPet petType={child.petType} mood="sleep" size={168} interactive prompt="Sweet dreams!" />
+                <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={168} interactive prompt="Sweet dreams!" />
                 <p className="text-14 text-fog-200 text-center max-w-xs">
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
@@ -1022,7 +1022,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 // The worm only appears while the child is running late on a
                 // must-do task; on time, or on any other task, nothing is eaten.
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
-                companion={<CritterPet timerFrame petType={child.petType} mood={petMood}
+                companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} mood={petMood}
                   activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive
                   prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
@@ -1201,6 +1201,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         <CritterPet
                           timerFrame
                           petType={child.petType}
+                          outfit={child.pet_outfit}
                           mood={petCelebrating ? "celebrate" : beforeWake ? "sleep" : petIsCheckingClock ? "excited" : drowsy ? "drowsy" : "happy"}
                           activity={petCelebrating || beforeWake || petIsCheckingClock || drowsy ? undefined : freeTimeActivityRef.current.activity}
                           size={168}
@@ -1344,7 +1345,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             transition={tMotion(springs.gentle)}
           >
             {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
-            <CritterPet petType={child.petType} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
             <h2 className="text-24 text-fog-50 text-center leading-tight">
               Goodnight, {child.name}! 🌙
             </h2>
@@ -1366,6 +1367,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             <AmbientClock next={null} />
             <CritterPet
               petType={child.petType}
+              outfit={child.pet_outfit}
               mood="excited"
               activity={freeTimeActivityRef.current.activity}
               size={168}
@@ -1499,10 +1501,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       {/* Free-time play: full screen, closes itself when free time ends */}
       <AnimatePresence>
         {playOpen && freeTimeCountdown && !activeTask && (
-          <PlayScene
+          <Playtime
+            childId={child.id}
             petType={child.petType}
             secondsLeft={freeTimeCountdown.remaining}
             onClose={() => setPlayOpen(false)}
+            outfit={child.pet_outfit ?? null}
+            onOutfitChange={(outfit) => { void updateChild(child.id, { pet_outfit: outfit }); }}
           />
         )}
       </AnimatePresence>
@@ -1542,7 +1547,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               animate={{ scale: 1 }}
               transition={tMotion(springs.bouncy)}
             >
-              <CritterPet petType={child.petType} mood="celebrate" size={192} />
+              <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="celebrate" size={192} />
             </motion.div>
             <p className="text-2xl font-bold text-fog-50 text-center">You got your reward!</p>
             <p className="text-18 font-semibold text-[#FFD66B] text-center">🎁 {approvedReward}</p>

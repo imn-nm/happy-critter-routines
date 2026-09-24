@@ -1,44 +1,35 @@
 /**
- * Clips for the retro rabbit ("gummy" motion set).
+ * Clips for the retro rabbit.
  *
- * Source: assets/pets/rabbit/retro/gummy. Each clip is a horizontal PNG strip
- * of 104x80 transparent frames rendered at 30 fps with a shared foot anchor at
- * (50, 70). Every clip starts and ends on the same neutral pose, so any clip
- * can follow any other without a visible pop. The strips are served from
- * public/pets/rabbit/; frame counts must match animations.json there.
+ * The rabbit is drawn procedurally at 12 fps from the user's pixel drawings
+ * (src/components/pets/pixel/), which is what lets it wear an outfit in every
+ * clip. Every clip starts and ends on the same neutral 3/4 pose, so any clip
+ * can follow any other without a visible pop.
+ *
+ * Activity clips carry a `loop` range [start, end): frame `end` is identical
+ * to `start`. Frames before `start` pick the props up and frames from `end`
+ * put them down, so a long activity holds its props instead of resetting to
+ * the neutral pose every cycle.
  */
 
-export const FRAME_W = 104;
-export const FRAME_H = 80;
+import { PIXEL_CLIPS, type PixelClip } from "./pixel/clips";
 
-export interface SpriteClip {
-  src: string;
-  frameCount: number;
-  durationMs: number;
-  /**
-   * For activities: frames [start, end) that loop seamlessly (frame `end` is
-   * pixel-identical to `start`). Frames before `start` pick the props up and
-   * frames from `end` put them down, so a long activity holds its props
-   * instead of resetting to the neutral pose every cycle.
-   */
-  loop?: [number, number];
-}
+export type ClipName =
+  | "Idle"
+  | "LeafChase"
+  | "Celebrate"
+  | "Encourage"
+  | "Wave"
+  | "Curious"
+  | "Sleepy"
+  | "Eating"
+  | "Reading"
+  | "Gaming"
+  | "BrushingTeeth";
 
-export const CLIPS = {
-  Idle: { src: "/pets/rabbit/idle.png", frameCount: 120, durationMs: 4000 },
-  LeafChase: { src: "/pets/rabbit/leaf-chase.png", frameCount: 300, durationMs: 10000 },
-  Celebrate: { src: "/pets/rabbit/celebrate.png", frameCount: 108, durationMs: 3600 },
-  Encourage: { src: "/pets/rabbit/encourage.png", frameCount: 120, durationMs: 4000 },
-  Wave: { src: "/pets/rabbit/wave.png", frameCount: 120, durationMs: 4000 },
-  Curious: { src: "/pets/rabbit/curious.png", frameCount: 108, durationMs: 3600 },
-  Sleepy: { src: "/pets/rabbit/sleepy.png", frameCount: 240, durationMs: 8000, loop: [99, 206] },
-  Eating: { src: "/pets/rabbit/eating.png", frameCount: 180, durationMs: 6000, loop: [11, 168] },
-  Reading: { src: "/pets/rabbit/reading.png", frameCount: 180, durationMs: 6000, loop: [11, 168] },
-  Gaming: { src: "/pets/rabbit/gaming.png", frameCount: 180, durationMs: 6000, loop: [11, 144] },
-  BrushingTeeth: { src: "/pets/rabbit/brushingteeth.png", frameCount: 180, durationMs: 6000, loop: [11, 171] },
-} satisfies Record<string, SpriteClip>;
+export type SpriteClip = PixelClip;
 
-export type ClipName = keyof typeof CLIPS;
+export const CLIPS: Record<ClipName, SpriteClip> = PIXEL_CLIPS;
 
 /** What the pet is doing alongside the child. Overrides the mood's base clip. */
 export type PetActivity = "brushing" | "eating" | "reading" | "gaming" | "sleeping";

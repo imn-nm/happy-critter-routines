@@ -23,6 +23,7 @@ import ChildOverdueSubtasksPreview from "./pages/ChildOverdueSubtasksPreview";
 import ChildOverdueSubtasksCompactPreview from "./pages/ChildOverdueSubtasksCompactPreview";
 import CrittersPreview from "./pages/CrittersPreview";
 import SpritePetPreview from "./pages/SpritePetPreview";
+import PlaytimePreview from "./pages/PlaytimePreview";
 import CritterEditor from "./pages/CritterEditor";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
@@ -92,6 +93,7 @@ const App = () => (
               <Route path="/preview/critters" element={<CrittersPreview />} />
               <Route path="/preview/time-reserve" element={<TimeReservePreview />} />
               <Route path="/preview/sprite-pet" element={<SpritePetPreview />} />
+              <Route path="/preview/playtime" element={<AuthProvider><PlaytimePreview /></AuthProvider>} />
               <Route path="/preview/critter-editor" element={<CritterEditor />} />
             </>
           )}
