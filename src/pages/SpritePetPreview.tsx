@@ -1,7 +1,7 @@
 import { useState } from "react";
 import SpritePet from "@/components/pets/SpritePet";
 import CircularTimer from "@/components/CircularTimer";
-import TimerRabbitScene, { type TimerRoutine } from "@/components/pets/TimerRabbitScene";
+import TimerRabbitScene, { RING_INSET } from "@/components/pets/TimerRabbitScene";
 import { CLIPS, MOOD_PLAN, type ClipName, type PetMood } from "@/components/pets/spriteClips";
 import { ACCESSORIES, ACCESSORY_IDS, SLOTS, normalizeOutfit, type AccessorySlot, type PetOutfit } from "@/components/pets/pixel/accessories";
 
@@ -18,7 +18,6 @@ const SIZES = [48, 72, 80, 96, 128, 168, 192];
 const SpritePetPreview = () => {
   const [selected, setSelected] = useState<ClipName>("Idle");
   const [mood, setMood] = useState<PetMood>("happy");
-  const [routine, setRoutine] = useState<TimerRoutine>("leaf-chase");
   const [replay, setReplay] = useState(0);
   const [outfit, setOutfit] = useState<PetOutfit | null>(null);
   const wear = (slot: AccessorySlot, id: string) => setOutfit(o => normalizeOutfit({ ...(o ?? {}), [slot]: id || null }));
@@ -46,17 +45,14 @@ const SpritePetPreview = () => {
         ))}
       </div>
       <h2 className="mt-8 text-lg font-medium">Inside the timer frame</h2>
-      <p className="mt-2 text-sm text-slate-400">Chase a leaf, or recover from a little stumble. Each scene lasts ten seconds.</p>
+      <p className="mt-2 text-sm text-slate-400">The rabbit chases a leaf now and then. The scene lasts ten seconds.</p>
       <div className="my-4 flex flex-wrap gap-3">
-        {(["leaf-chase", "trip-recover"] as const).map(value => <button key={value}
-          aria-pressed={routine === value}
-          className="min-h-11 rounded-full bg-slate-700 px-4 hover:bg-slate-600"
-          onClick={() => { setRoutine(value); setReplay(n => n + 1); }}>
-          {value === "leaf-chase" ? "Replay leaf chase" : "Replay stumble"}
-        </button>)}
+        <button className="min-h-11 rounded-full bg-slate-700 px-4 hover:bg-slate-600" onClick={() => setReplay(n => n + 1)}>
+          Replay leaf chase
+        </button>
       </div>
       <CircularTimer totalSeconds={100} remainingSeconds={30} sizePx={293} frameContent>
-        <TimerRabbitScene key={`${routine}-${replay}`} routine={routine} outfit={outfit} />
+        <TimerRabbitScene key={replay} outfit={outfit} />
       </CircularTimer>
       <p className="mt-1 text-sm text-slate-400">
         Clips are drawn in <code className="text-slate-300">src/components/pets/pixel/clips.ts</code>; moods and habits live in{" "}
@@ -85,6 +81,18 @@ const SpritePetPreview = () => {
           <div>frames: <span className="text-slate-200">{CLIPS[selected].frameCount}</span></div>
           <div>duration: <span className="text-slate-200">{CLIPS[selected].durationMs}ms</span></div>
         </div>
+      </div>
+
+      <h2 className="mt-12 text-lg font-medium">Inside the timers</h2>
+      <p className="mt-1 text-sm text-slate-400">The selected clip as the app frames it: round, in the task timer (152px) and the free-time timer (293px).</p>
+      <div className="mt-4 flex flex-wrap items-center gap-8 rounded-xl bg-[#271447] p-5">
+        {[152, 293].map((px) => (
+          <CircularTimer key={px} totalSeconds={100} remainingSeconds={60} sizePx={px} frameContent>
+            <div className={RING_INSET}>
+              <SpritePet clip={selected} framing="ring" outfit={outfit} />
+            </div>
+          </CircularTimer>
+        ))}
       </div>
 
       <h2 className="mt-12 text-lg font-medium">Moods (as the app uses them)</h2>

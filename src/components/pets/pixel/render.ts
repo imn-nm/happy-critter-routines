@@ -29,19 +29,33 @@ function scratchFor(w: number, h: number) {
   return s;
 }
 
-/** Paint layers (each a Pix placed at an offset) into `canvas`, cropped and scaled to fill it. */
-export function paint(canvas: HTMLCanvasElement, layers: { p: Pix; x: number; y: number }[], crop: Crop) {
+// Cells hold palette keys, or a "#rrggbb" for scenery such as shadows.
+const colour = (c: string) => {
+  let rgb = RGB[c];
+  if (!rgb && c[0] === "#") {
+    rgb = [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+    RGB[c] = rgb;
+  }
+  return rgb;
+};
+
+/**
+ * Paint layers (each a Pix placed at an offset) into `canvas`, cropped and
+ * scaled to fill it, over an optional backdrop (RGBA, the crop's size).
+ */
+export function paint(canvas: HTMLCanvasElement, layers: { p: Pix; x: number; y: number }[], crop: Crop, backdrop?: Uint8ClampedArray) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const s = scratchFor(crop.w, crop.h);
   const d = s.img.data;
-  d.fill(0);
+  if (backdrop && backdrop.length === d.length) d.set(backdrop);
+  else d.fill(0);
   for (const { p, x: ox, y: oy } of layers) {
     p.each((x, y, c) => {
       const cx = x + ox - crop.x;
       const cy = y + oy - crop.y;
       if (cx < 0 || cy < 0 || cx >= crop.w || cy >= crop.h) return;
-      const rgb = RGB[c];
+      const rgb = colour(c);
       if (!rgb) return;
       const o = (cy * crop.w + cx) * 4;
       d[o] = rgb[0];

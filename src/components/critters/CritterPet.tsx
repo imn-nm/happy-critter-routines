@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
-import TimerRabbitScene, { type TimerRoutine } from "@/components/pets/TimerRabbitScene";
+import TimerRabbitScene, { RING_INSET } from "@/components/pets/TimerRabbitScene";
 import { getPet } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
 import type { PetOutfit } from "@/components/pets/pixel/accessories";
@@ -39,17 +39,14 @@ const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s
 
 const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit }: CritterPetProps) => {
   const reduced = useReducedMotion();
-  const [routine, setRoutine] = useState<TimerRoutine | null>(null);
-  const nextRoutine = useRef<TimerRoutine>("leaf-chase");
-  const finishRoutine = useCallback(() => setRoutine(null), []);
+  // Now and then the rabbit chases a leaf around the timer ring.
+  const [routine, setRoutine] = useState(false);
+  const finishRoutine = useCallback(() => setRoutine(false), []);
   const canPlay = timerFrame && !reduced && !activity && ["idle", "happy", "excited"].includes(mood);
   useEffect(() => {
-    if (!canPlay) { setRoutine(null); return; }
+    if (!canPlay) { setRoutine(false); return; }
     if (routine) return;
-    const timer = window.setTimeout(() => {
-      setRoutine(nextRoutine.current);
-      nextRoutine.current = nextRoutine.current === "leaf-chase" ? "trip-recover" : "leaf-chase";
-    }, 16000 + Math.random() * 10000);
+    const timer = window.setTimeout(() => setRoutine(true), 16000 + Math.random() * 10000);
     return () => window.clearTimeout(timer);
   }, [canPlay, routine]);
   const [showHint, setShowHint] = useState(() => {
@@ -106,8 +103,10 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
           </div>
         )}
       </AnimatePresence>
-      <div style={{ visibility: routine && canPlay ? "hidden" : "visible" }}>
+      {/* In a timer the pet is round and fills the ring, scenery and all. */}
+      <div className={timerFrame ? RING_INSET : undefined} style={{ visibility: routine && canPlay ? "hidden" : "visible" }}>
       <SpritePet
+        framing={timerFrame ? "ring" : "stage"}
         mood={mood}
         activity={activity}
         size={size}
@@ -121,7 +120,7 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
       />
       </div>
       {routine && canPlay && <>
-        <TimerRabbitScene routine={routine} onComplete={finishRoutine} outfit={outfit} />
+        <TimerRabbitScene onComplete={finishRoutine} outfit={outfit} />
         {interactive && <button type="button" aria-label={`${getPet(petType).name}. Tap to say hi.`}
           className="absolute inset-8 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-iris-300"
           onClick={handleTap} />}

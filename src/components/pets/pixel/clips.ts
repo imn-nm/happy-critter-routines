@@ -2,7 +2,7 @@ import { Pix, squash } from "./pix";
 import type { PetOutfit } from "./accessories";
 import {
   bigStar, butterfly, crumbs, dust, fallingLeaves, front, heart, leaf, risingBubbles, side, sleeper,
-  sparkles, starBurst, winStars, zzz, ball, goal, type FrontOpts, type SideOpts, type SleepOpts,
+  sparkles, starBurst, winStars, zzz, ball, goal, tv, type FrontOpts, type SideOpts, type SleepOpts, type TvScreen,
 } from "./sprites";
 import type { ClipName } from "../spriteClips";
 
@@ -238,36 +238,47 @@ const Eating = build([
   [1, neutral],
 ], [EAT_INTRO, EAT_INTRO + MUNCH * 2]);
 
-// ---------- Reading: a picture book, two pages turned per loop ----------
+// ---------- Reading: an open book held up, two pages turned per loop ----------
 const READ = 16;
+const TURN = 6;      // two frames each: lift, stand at the spine, settle
 const READ_INTRO = 5;
 const Reading = build([
   [2, neutral],
-  [2, (_l, _i, o) => S({ book: [3, 0, 0] }, o)],
-  [1, (_l, _i, o) => S({ book: [1, 0, 0] }, o)],
-  [READ, (l, _i, o) => S({ book: [0, 0, 0], eyes: l === 8 || l === 9 ? "blink" : "down" }, o)],
-  [3, (l, _i, o) => S({ book: [0, 0, (l + 1) as 1 | 2 | 3], eyes: "down" }, o)],
-  [READ, (l, _i, o) => S({ book: [0, 1, 0], eyes: "down", perk: l === 6 || l === 7 }, o)],
-  [3, (l, _i, o) => S({ book: [0, 1, (l + 1) as 1 | 2 | 3], eyes: "down" }, o)],
-  [4, (_l, _i, o) => S({ book: [0, 0, 0], eyes: "down" }, o)],
-  [12, (l, _i, o) => withFx(S({ book: [0, 0, 0], eyes: "happy", blush: true }, o), fx => sparkles(fx, l, SX + 22, SY + 2))],
-  [2, (_l, _i, o) => S({ book: [3, 0, 0] }, o)],
+  [1, (_l, _i, o) => S({ book: [2, 0, 0] }, o)],
+  [1, (_l, _i, o) => S({ book: [0, 0, 0] }, o)],
+  [1, (_l, _i, o) => S({ book: [0, 0] }, o)],
+  [READ, (l, _i, o) => S({ book: [0, 0], eyes: l === 8 || l === 9 ? "blink" : "open" }, o)],
+  [TURN, (l, _i, o) => S({ book: [0, ((l >> 1) + 1) as 1 | 2 | 3], eyes: "up" }, o)],
+  [READ, (l, _i, o) => S({ book: [0, 0], perk: l === 6 || l === 7 }, o)],
+  [TURN, (l, _i, o) => S({ book: [0, ((l >> 1) + 1) as 1 | 2 | 3], eyes: "up" }, o)],
+  [4, (_l, _i, o) => S({ book: [0, 0] }, o)],
+  [12, (l, _i, o) => withFx(S({ book: [0, 0], eyes: "happy", blush: true }, o), fx => sparkles(fx, l, SX + 22, SY + 2))],
+  [1, (_l, _i, o) => S({ book: [0, 0, 0], eyes: "happy" }, o)],
+  [1, (_l, _i, o) => S({ book: [2, 0, 0] }, o)],
   [3, neutral],
   [1, neutral],
-], [READ_INTRO, READ_INTRO + READ * 2 + 6]);
+], [READ_INTRO, READ_INTRO + (READ + TURN) * 2]);
 
-// ---------- Gaming: a pocket console, and a win at the end ----------
+// ---------- Gaming: on the TV to the left, remote in paw, and a win at the end ----------
 const PLAY = 24;
-const GAME_INTRO = 5;
+const GAME_INTRO = 4;
+const TV_X = 1;
+const withTv = (frame: PixelFrame, screen: TvScreen, f = 0) => withFx(frame, fx => tv(fx, TV_X, FLOOR, screen, f));
 const Gaming = build([
-  [2, neutral],
-  [2, (_l, _i, o) => S({ game: [3, 0, false, false] }, o)],
-  [1, (_l, _i, o) => S({ game: [1, 0, false, false] }, o)],
-  [PLAY, (l, _i, o) => S({ game: [0, l, false, l % 4 === 0], eyes: l === 12 || l === 13 ? "blink" : "down" }, o)],
-  [1, (_l, _i, o) => S({ game: [0, 0, false, true], eyes: "down" }, o)],
-  [3, (l, _i, o) => S({ game: [0, l + 1, false, false], perk: true }, o)],
-  [12, (l, _i, o) => withFx(S({ game: [0, l, true, false], eyes: "happy", blush: true, mouth: "smile" }, o), fx => winStars(fx, l, SX - 5, SY + 22))],
-  [2, (_l, _i, o) => S({ game: [3, 0, false, false] }, o)],
+  [1, neutral],
+  [1, (_l, _i, o) => withTv(S({ remote: [3, false] }, o), "off")],
+  [1, (_l, _i, o) => withTv(S({ remote: [1, false] }, o), "off")],
+  [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "line")],
+  [PLAY, (l, _i, o) => withTv(S({ remote: [0, l % 6 === 0], eyes: l === 12 || l === 13 ? "blink" : "open" }, o), "play", l)],
+  [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "play", 0)],
+  [3, (l, _i, o) => withTv(S({ remote: [0, false], perk: true }, o), "play", l + 1)],
+  [12, (l, _i, o) => withFx(
+    withTv(S({ remote: [0, false], eyes: "happy", blush: true, mouth: "smile" }, o), "win", l),
+    fx => winStars(fx, l, TV_X + 11, FLOOR - 16),
+  )],
+  [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "line")],
+  [1, (_l, _i, o) => withTv(S({ remote: [0, false] }, o), "dot")],
+  [2, (_l, _i, o) => withTv(S({ remote: [2, false] }, o), "off")],
   [3, neutral],
   [1, neutral],
 ], [GAME_INTRO, GAME_INTRO + PLAY]);
@@ -335,15 +346,19 @@ const LeafChase = build([
 ]);
 
 
-// ---------- Soccer: keepy-uppy with the foot, then a goal and a happy hop ----------
+// ---------- Soccer: keepy-uppy with the foot, a goal every 7 seconds ----------
 // Plays for sports tasks. The rabbit stays in its 3/4 view facing the goal.
+// Each 84-frame loop: four keepy-uppies, a shot into the goal, a happy hop
+// while the net springs the ball back, then a breather with it at its foot.
 const BALL_X = 19;            // ball touching the kicking foot
 const BALL_KICK_Y = 48;
 const BALL_GROUND_Y = FLOOR - 5;
 const GOAL_X = 3;
 const GOAL_TOP = 37;
 const JUGGLE = 12;
+const JUGGLES = 4;
 const SOCCER_INTRO = 6;
+const SOCCER_LOOP = 7 * FPS;
 const withPitch = (frame: PixelFrame, drawBall: (fx: Pix) => void, ripple = false) =>
   withFx(frame, fx => { goal(fx, GOAL_X, GOAL_TOP, FLOOR, ripple); drawBall(fx); });
 const juggle = (l: number, o: PetOutfit | null): PixelFrame => {
@@ -357,7 +372,8 @@ const juggle = (l: number, o: PetOutfit | null): PixelFrame => {
 const Soccer = build([
   [1, neutral],
   [5, (l, i, o) => withPitch(S({ perk: l >= 1, eyes: l >= 1 ? "down" : "open" }, o), fx => ball(fx, -6 + Math.round(25 * (i / 5)), BALL_GROUND_Y, i))],
-  [JUGGLE * 2, (l, _i, o) => juggle(l, o)],
+  // The loop.
+  [JUGGLE * JUGGLES, (l, _i, o) => juggle(l, o)],
   [1, (_l, _i, o) => juggle(0, o)],
   [2, (l, _i, o) => withPitch({ r: squash(side({ eyes: "down", outfit: o }), 1.06, 0.92), x: SX, y: SY }, fx => ball(fx, BALL_X, BALL_KICK_Y + 1 + l, 0))],
   [1, (_l, _i, o) => withPitch(S({ kick: true, eyes: "open" }, o), fx => ball(fx, BALL_X - 2, BALL_KICK_Y - 1, 1))],
@@ -371,15 +387,23 @@ const Soccer = build([
   [12, (l, _i, o) => {
     const ph = l % 6;
     const r = side({ eyes: "happy", mouth: "yay", blush: true, outfit: o });
+    const x = GOAL_X + 2 + Math.round((BALL_X - GOAL_X - 2) * (l + 1) / 12);
     return withPitch(
       { r: ph === 0 ? squash(r, 1.06, 0.92) : r, x: SX, y: SY + [0, -2, -4, -4, -2, 0][ph] },
-      fx => { ball(fx, GOAL_X + 2, BALL_GROUND_Y, 0); starBurst(fx, l + 3, GOAL_X + 4, GOAL_TOP + 1); sparkles(fx, l, SX + 22, SY + 2); },
+      fx => { ball(fx, x, BALL_GROUND_Y, l); starBurst(fx, l + 3, GOAL_X + 4, GOAL_TOP + 1); sparkles(fx, l, SX + 22, SY + 2); },
     );
   }],
-  [6, (l, _i, o) => withPitch(S({ mouth: "smile", blush: true }, o), fx => ball(fx, GOAL_X + 2 - 2 * l, BALL_GROUND_Y, l))],
+  [10, (l, _i, o) => withPitch(
+    S(l < 6 ? { mouth: "smile", blush: true, eyes: l === 3 || l === 4 ? "blink" : "open" } : { eyes: "down" }, o),
+    fx => ball(fx, BALL_X, BALL_GROUND_Y, 0),
+  )],
+  // Identical to the loop's first frame. Outro: trap the ball, tap it into the goal.
+  [1, (_l, _i, o) => juggle(0, o)],
+  [2, (l, _i, o) => withPitch(S({ eyes: "down" }, o), fx => ball(fx, BALL_X, BALL_KICK_Y + 1 + l, 0))],
+  [7, (l, _i, o) => withPitch(S({ mouth: "smile", blush: true }, o), fx => ball(fx, BALL_X - 2 * (l + 1), BALL_GROUND_Y, l))],
   [3, neutral],
   [1, neutral],
-], [SOCCER_INTRO, SOCCER_INTRO + JUGGLE * 2]);
+], [SOCCER_INTRO, SOCCER_INTRO + SOCCER_LOOP]);
 
 export const PIXEL_CLIPS: Record<ClipName, PixelClip> = {
   Idle, LeafChase, Celebrate, Encourage, Wave, Curious, Sleepy, Eating, Reading, Gaming, BrushingTeeth, Soccer,

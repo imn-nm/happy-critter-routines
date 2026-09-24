@@ -161,36 +161,45 @@ function carrot(p: Pix, L: number, dx: number, dy: number) {
   for (const [x, y, c] of LEAVES) p.set(tx - n + x, ty + n + y, c);
 }
 
-const BOOKS = [
-  [".FFFFFnFFFFF.", "NFqqqFnFqqqFN", "NFFFFFnFFFFFN", "NFqqqFnFqqFFN", "NFFFFFnFFFFFN", "NNNNNNnNNNNNN"],
-  [".FFFFFnFFFFF.", "NFqqqFnFFGFFN", "NFFFFFnFFOFFN", "NFqqFFnFOFFFN", "NFqqqFnFFFFFN", "NNNNNNnNNNNNN"],
-];
+// A page turning on the rabbit's side, seen over the top of the book: it
+// lifts off one half, stands up at the spine, then settles on the other half
+// (the rabbit's right is the child's left).
 const FLIP = [
   null,
-  [[7, -1], [8, -1], [9, -1]],
-  [[6, -4], [6, -3], [6, -2], [6, -1], [7, -3], [7, -2], [7, -1]],
-  [[3, -1], [4, -1], [5, -1]],
+  ["..qqqq..", ".qFFFFq.", "qFFFFFFq"],
+  ["...q...", "..qFq..", "..qFq..", "..qFq..", "..qFq..", ".qqFqq."],
+  ["..qqqq..", ".qFFFFq.", "qFFFFFFq"],
 ] as const;
-function book(p: Pix, dy: number, page: 0 | 1, flip: 0 | 1 | 2 | 3) {
-  paw(p, 0, 1 + dy);
-  const ox = -10, oy = 24 + dy;
-  p.stamp(BOOKS[page], ox, oy);
-  const f = FLIP[flip];
-  if (f) for (const [x, y] of f) p.set(ox + x, oy + y, "F");
+const FLIP_AT = [null, [3, 27], [7, 25], [10, 27]] as const;
+/**
+ * An open book held up in both paws with its cover towards the child, drawn
+ * from the user's reference: the halves angle back from the spine, so the
+ * middle sits a row lower than the outer edges and the spine's foot pokes out
+ * underneath. `open` 0 is the shut book; `dy` lowers it out of the way.
+ */
+function book(p: Pix, dy: number, flip: 0 | 1 | 2 | 3, open: 0 | 1 = 1) {
+  const fill = (x0: number, x1: number, y0: number, y1: number, c: string) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) p.set(x, y + dy, c);
+  };
+  const f = FLIP[flip], at = FLIP_AT[flip];
+  if (open && f && at) p.stamp(f, at[0], at[1] + dy);
+  if (open) {
+    fill(3, 6, 30, 38, "V"); fill(14, 17, 30, 38, "V"); fill(7, 13, 31, 39, "V");
+    fill(10, 10, 31, 38, "v"); fill(10, 10, 40, 40, "V");
+    fill(3, 3, 28, 29, "W"); fill(2, 4, 34, 36, "W"); fill(16, 17, 34, 36, "W");
+  } else {
+    fill(7, 13, 30, 39, "V"); fill(7, 7, 30, 39, "v");
+    fill(5, 7, 34, 36, "W"); fill(13, 14, 34, 36, "W");
+  }
 }
 
-const CONSOLE = [".LLLLLLLLL.", "LLLEEEEELLL", "LkLEEEEELPL", "kkkEEEEELLL", "LkLEEEEELPL", ".LLLLLLLLL."];
-function game(p: Pix, dy: number, f: number, win: boolean, press: boolean) {
-  const ox = -9, oy = 24 + dy;
-  p.stamp(CONSOLE, ox, oy);
-  if (win) {
-    for (let y = 1; y <= 4; y++) for (let x = 3; x <= 7; x++) if ((x + y + f) % 2 === 0) p.set(ox + x, oy + y, "Y");
-  } else {
-    for (let x = 3; x <= 7; x++) p.set(ox + x, oy + 4, "e");
-    const hx = 3 + ((f >> 1) % 4);
-    p.set(ox + hx, oy + (hx === 5 ? 2 : 3), "e");
-    if ((f >> 2) % 2) p.set(ox + 6, oy + 1, "Y");
-  }
+// A TV remote pointed at the set on the left; the tip lights on a press.
+function remote(p: Pix, dy: number, press: boolean) {
+  const y = 28 + dy;
+  for (let x = -5; x <= 1; x++) { p.set(x, y, "L"); p.set(x, y + 1, "L"); p.set(x, y + 2, "q"); }
+  p.set(-5, y + 1, press ? "X" : "x");
+  p.set(-3, y, "k");
+  p.set(-2, y, "P");
   paw(p, 0, dy + (press ? 1 : 0));
 }
 
@@ -215,8 +224,10 @@ export interface SideOpts {
   foam?: number;
   brush?: [number, number];
   carrot?: [number, number, number];
-  book?: [number, 0 | 1, 0 | 1 | 2 | 3];
-  game?: [number, number, boolean, boolean];
+  /** [dy, page flip, open]. */
+  book?: [number, 0 | 1 | 2 | 3, (0 | 1)?];
+  /** [dy, pressing]. */
+  remote?: [number, boolean];
   /** Front foot kicked out (soccer). */
   kick?: boolean;
   outfit?: PetOutfit | null;
@@ -246,8 +257,8 @@ export function side(o: SideOpts = {}) {
   if (o.foam) for (let i = 0; i < o.foam; i++) for (const [x, y, c] of FOAM[i]) p.set(x, y, c);
   if (o.brush) brush(p, ...o.brush);
   if (o.carrot) carrot(p, ...o.carrot);
-  if (o.book) book(p, ...o.book);
-  if (o.game) game(p, ...o.game);
+  if (o.book) book(p, o.book[0], o.book[1], o.book[2] ?? 1);
+  if (o.remote) remote(p, ...o.remote);
   if (o.kick) for (const [y, a, b] of KICK) for (let x = a; x <= b; x++) p.set(x, y, "W");
   return o.mirror ? p.flipX(SIDE_W) : p;
 }
@@ -420,6 +431,48 @@ const BALL = [
 ];
 export const ball = (fx: Pix, x: number, y: number, spin: number) =>
   fx.stamp(BALL[spin % 2], Math.round(x), Math.round(y));
+
+// A little CRT television on legs, with rabbit-ear antennae. 18 x 22 cells,
+// `x` its left edge and `floor` the first row under its legs.
+export type TvScreen = "off" | "line" | "dot" | "play" | "win";
+export function tv(fx: Pix, x: number, floor: number, screen: TvScreen, f = 0) {
+  const top = floor - 22;
+  const at = (dx: number, dy: number, c: string) => fx.set(x + dx, top + dy, c);
+  for (let i = 0; i < 4; i++) { at(4 + i, i, "k"); at(13 - i, i, "k"); }
+  at(8, 4, "k"); at(9, 4, "k");
+  for (let dy = 5; dy <= 19; dy++) {
+    for (let dx = 0; dx <= 17; dx++) {
+      const edge = dy === 5 || dy === 19 || dx === 0 || dx === 17;
+      const corner = (dy === 5 || dy === 19) && (dx === 0 || dx === 17);
+      if (!corner) at(dx, dy, edge ? "k" : "L");
+    }
+  }
+  for (const dy of [8, 9, 12, 13]) { at(14, dy, "k"); at(15, dy, "k"); }
+  for (const dy of [15, 17]) { at(14, dy, "q"); at(15, dy, "q"); }
+  at(3, 20, "k"); at(3, 21, "k"); at(14, 20, "k"); at(14, 21, "k");
+  // Screen: 11 x 11 with rounded corners, at (2, 7).
+  const sx = 2, sy = 7;
+  const scr = (dx: number, dy: number, c: string) => at(sx + dx, sy + dy, c);
+  for (let dy = 0; dy < 11; dy++) {
+    for (let dx = 0; dx < 11; dx++) {
+      if ((dy === 0 || dy === 10) && (dx === 0 || dx === 10)) continue;
+      scr(dx, dy, "D");
+    }
+  }
+  if (screen === "line") for (let dx = 1; dx <= 9; dx++) scr(dx, 5, "F");
+  else if (screen === "dot") { scr(5, 5, "F"); scr(4, 5, "f"); scr(6, 5, "f"); }
+  else if (screen === "win") {
+    for (let dy = 1; dy <= 9; dy++) for (let dx = 1; dx <= 9; dx++) if ((dx + dy + f) % 2 === 0) scr(dx, dy, dy % 4 === 0 ? "y" : "Y");
+  } else if (screen === "play") {
+    // A little runner hops a block while a coin twinkles.
+    for (let dx = 0; dx < 11; dx++) { scr(dx, 8, "G"); scr(dx, 9, "g"); if (dx > 0 && dx < 10) scr(dx, 10, "g"); }
+    scr(6, 7, "O"); scr(7, 7, "O"); scr(6, 6, "O"); scr(7, 6, "O");
+    const hx = 1 + Math.floor(((f % 24) * 9) / 24);
+    const hop = hx >= 4 && hx <= 8 ? [0, 2, 3, 3, 2][hx - 4] : 0;
+    scr(hx, 5 - hop, "F"); scr(hx, 6 - hop, "X"); scr(hx, 7 - hop, "X");
+    scr(8, 2, (f >> 2) % 2 ? "Y" : "y");
+  }
+}
 
 export function goal(fx: Pix, left: number, top: number, floor: number, ripple = false) {
   const right = left + 8;

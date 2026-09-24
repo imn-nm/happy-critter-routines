@@ -13,6 +13,7 @@ import {
 } from "./spriteClips";
 import { outfitKey, type PetOutfit } from "./pixel/accessories";
 import { paint } from "./pixel/render";
+import { CLIP_SCENE, backdrop, shadowUnder, type SceneName } from "./pixel/scenes";
 import { onTick } from "./pixel/ticker";
 
 /**
@@ -30,6 +31,13 @@ const CONTENT = { x: 0, y: 0, w: 77, h: 56 };
  * are simply clipped by the pill.
  */
 const AVATAR = { x: 9, y: 13, w: 54, h: 44 };
+
+/**
+ * Square window for the round timer, centred on the standing rabbit and wide
+ * enough that the scenery (the TV, the goal) sits inside the circle. The pet
+ * box is round, so anything past the circle is clipped.
+ */
+const RING = { x: -2, y: -5, w: 80, h: 80 };
 
 interface SpritePetProps {
   /** Emotional state; picks a looping base clip and the pet's own habits. */
@@ -50,8 +58,11 @@ interface SpritePetProps {
   reaction?: ClipName;
   /** Change this value to replay the same parent-triggered reaction. */
   reactionKey?: string | number;
-  /** "stage" shows the whole animation window; "avatar" frames the body tightly. */
-  framing?: "stage" | "avatar";
+  /**
+   * "stage" shows the whole animation window; "avatar" frames the body
+   * tightly; "ring" is a circle that fills its parent, for the timer.
+   */
+  framing?: "stage" | "avatar" | "ring";
   /** What the rabbit is wearing (dress-up). Drawn in every clip. */
   outfit?: PetOutfit | null;
   /** Hold the current frame, e.g. while a wrapper hides the pet. */
@@ -122,7 +133,8 @@ const SpritePet = ({
   paused = false,
   className,
 }: SpritePetProps) => {
-  const CROP = framing === "avatar" ? AVATAR : CONTENT;
+  const CROP = framing === "avatar" ? AVATAR : framing === "ring" ? RING : CONTENT;
+  const ring = framing === "ring";
   const reduced = useReducedMotion();
   const plan = MOOD_PLAN[mood];
   const base: ClipName = clip ?? (activity ? ACTIVITY_CLIP[activity] : plan.base);
@@ -239,16 +251,27 @@ const SpritePet = ({
   // activities, the neutral pose otherwise.
   const stillFrame = range ? range[0] : 0;
 
+  // The ring fills its parent, so it measures itself for a sharp canvas.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [ringPx, setRingPx] = useState(0);
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!ring || !el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setRingPx(Math.round(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ring]);
+
   // Same box maths as before the canvas: a whole-number magnification fitted
   // to `size`, so every call site keeps its layout.
-  const intScale = Math.max(1, Math.floor(size / CROP.h));
-  const fit = size / (CROP.h * intScale);
+  const px = ring && ringPx ? ringPx : size;
+  const intScale = Math.max(1, Math.floor(px / CROP.h));
+  const fit = px / (CROP.h * intScale);
   const w = Math.round(CROP.w * intScale * fit);
   const h = Math.round(CROP.h * intScale * fit);
   const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
   const k = Math.max(1, Math.round((h * dpr) / CROP.h));
 
-  const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef(0);
   const holdingRef = useRef(false);
@@ -258,13 +281,27 @@ const SpritePet = ({
   cropRef.current = CROP;
   const oKey = outfitKey(outfit);
 
+  // In the timer the rabbit is in a room. An activity keeps its own room from
+  // picking up the props to putting them down; anything else (resting, a
+  // wave, a cheer) happens in the current base's room, so habits never flip
+  // the scenery.
+  const scene: SceneName | null = ring
+    ? CLIP_SCENE[playing.phase === "full" ? base : playing.name] ?? "den"
+    : null;
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
+
   const draw = useCallback((f: number) => {
     const c = canvasRef.current;
     if (!c) return;
-    const fr = CLIPS[playingRef.current.name].frame(f, outfitRef.current ?? null);
-    const layers = [{ p: fr.r, x: fr.x, y: fr.y }];
+    const name = playingRef.current.name;
+    const fr = CLIPS[name].frame(f, outfitRef.current ?? null);
+    const room = sceneRef.current;
+    const layers = [];
+    if (room) layers.push({ p: shadowUnder(room, fr.r, fr.x, fr.y), x: 0, y: 0 });
+    layers.push({ p: fr.r, x: fr.x, y: fr.y });
     if (fr.fx) layers.push({ p: fr.fx, x: 0, y: 0 });
-    paint(c, layers, cropRef.current);
+    paint(c, layers, cropRef.current, room ? backdrop(room, name, f, cropRef.current) : undefined);
   }, []);
 
   // A new clip or phase starts from its first frame.
@@ -274,10 +311,10 @@ const SpritePet = ({
     draw(frameRef.current);
   }, [playing.n, still, stillFrame, from, draw]);
 
-  // New outfit, size or framing: repaint where we are.
+  // New outfit, size, framing or room: repaint where we are.
   useLayoutEffect(() => {
     draw(frameRef.current);
-  }, [oKey, k, framing, draw]);
+  }, [oKey, k, framing, scene, draw]);
 
   // Only animate while it can be seen.
   const [inView, setInView] = useState(true);
@@ -329,10 +366,11 @@ const SpritePet = ({
       data-phase={playing.phase}
       className={cn(
         "relative overflow-hidden shrink-0",
+        ring && "rounded-full",
         interactive && "cursor-pointer select-none transition-transform duration-100 active:scale-[0.94] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-iris-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900",
         className,
       )}
-      style={{ width: w, height: h, touchAction: "manipulation" }}
+      style={{ width: ring ? "100%" : w, height: ring ? "100%" : h, touchAction: "manipulation" }}
       onPointerDown={interactive ? handleTap : undefined}
       onKeyDown={
         interactive
@@ -352,7 +390,7 @@ const SpritePet = ({
         height={CROP.h * k}
         aria-hidden
         className="absolute left-0 top-0 block"
-        style={{ width: w, height: h, imageRendering: "pixelated" }}
+        style={{ width: ring ? "100%" : w, height: ring ? "100%" : h, imageRendering: "pixelated" }}
       />
     </div>
   );
