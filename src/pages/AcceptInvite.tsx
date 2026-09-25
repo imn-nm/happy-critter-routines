@@ -12,7 +12,13 @@ interface InvitePeek {
   invited_by?: string | null;
   email?: string | null;
   already_member?: boolean;
+  /** Children this parent set up on their own, which can come along. */
+  my_children?: { id: string; name: string }[];
 }
+
+/** "Maya", "Maya and Sam", "Maya, Sam and Leo" */
+const listNames = (names: string[]) =>
+  names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
 /**
  * An invite link says what it's for before anything happens: "Join the
@@ -57,11 +63,11 @@ const AcceptInvite = () => {
     };
   }, [token, user, loading, navigate]);
 
-  const join = async () => {
+  const join = async (bringChildren = false) => {
     if (!token) return;
     setStatus('joining');
     try {
-      await redeemInvite(token);
+      await redeemInvite({ token, bringChildren });
       setStatus('done');
       // A new co-parent belongs on the grown-up side, not the kids' picker.
       setTimeout(() => navigate('/parent', { replace: true }), 1000);
@@ -133,6 +139,11 @@ const AcceptInvite = () => {
       </>
     );
   } else {
+    // Children this parent already set up on their own. Joining would
+    // otherwise leave them behind in a family the app no longer shows.
+    const mine = (peek.my_children ?? []).map(c => c.name);
+    const names = listNames(mine);
+    const them = mine.length === 1 ? mine[0] : 'them';
     body = (
       <>
         <span className="mx-auto w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center">
@@ -143,10 +154,27 @@ const AcceptInvite = () => {
           {peek.invited_by ? `${peek.invited_by} invited you` : 'You were invited'} to share the children's
           schedules and rewards. You're signed in as {user?.email}.
         </p>
-        <div className="flex flex-col gap-2">
-          <Button onClick={join}>Join {family}</Button>
-          <Button variant="secondary" onClick={() => navigate('/parent')}>Not now</Button>
-        </div>
+        {mine.length > 0 ? (
+          <>
+            <p className="text-sm text-foreground">
+              You already set up {names} here. Bring them into {family}, with their schedules, stars and
+              rewards?
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => join(true)}>Join and bring {names}</Button>
+              <Button variant="secondary" onClick={() => join(false)}>Join without {them}</Button>
+              <p className="text-xs text-muted-foreground">
+                Pick "without" if {names} {mine.length === 1 ? 'is' : 'are'} already in {family}, so nobody is added twice.
+              </p>
+              <Button variant="ghost" onClick={() => navigate('/parent')}>Not now</Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => join(false)}>Join {family}</Button>
+            <Button variant="secondary" onClick={() => navigate('/parent')}>Not now</Button>
+          </div>
+        )}
       </>
     );
   }

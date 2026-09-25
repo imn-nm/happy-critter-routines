@@ -122,9 +122,11 @@ export const useHousehold = () => {
   });
 
   const redeemInvite = useMutation({
-    mutationFn: async (token: string) => {
+    /** `bringChildren`: move the children this parent set up alone into the family. */
+    mutationFn: async ({ token, bringChildren = false }: { token: string; bringChildren?: boolean }) => {
       const { data, error } = await supabase.rpc('redeem_household_invite', {
         invite_token: token,
+        bring_children: bringChildren,
       });
       if (error) throw error;
       return data as string; // household_id

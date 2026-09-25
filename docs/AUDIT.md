@@ -117,9 +117,12 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 
 ## 4. Parent account, rewards, alerts
 
-- [ ] **Invitee who already has children** ends up in two households; the app
-  now picks the most recently joined one. Needs a decision: a switcher, or
-  moving their children in on accept. (follow-up from section 1)
+- [x] **Invitee who already has children** — decided: offer to bring them.
+  The join screen lists children the invitee set up on their own and offers
+  "Join and bring Maya" / "Join without Maya" (if Maya is already in that
+  family) / "Not now". Bringing moves the children (with their tasks, stars,
+  rewards) and removes the empty old family; without, nothing is deleted.
+  (follow-up from section 1)
 - [x] **Parent PIN is stored in plain text** — now a bcrypt hash in
   `household_pins`, which no client can read; set and checked by
   `set_parent_pin` / `verify_parent_pin`; `households.has_parent_pin` for the

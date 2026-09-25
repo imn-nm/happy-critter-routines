@@ -828,7 +828,7 @@ export type Database = {
       is_household_owner: { Args: { hid: string }; Returns: boolean }
       peek_household_invite: { Args: { invite_token: string }; Returns: Json }
       redeem_household_invite: {
-        Args: { invite_token: string }
+        Args: { invite_token: string; bring_children?: boolean }
         Returns: string
       }
       redeem_reward_for_child: { Args: { p_reward_id: string }; Returns: Json }
