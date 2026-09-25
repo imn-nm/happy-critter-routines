@@ -58,9 +58,9 @@ const FormRow = ({ label, htmlFor, hint, children }: { label: string; htmlFor?: 
 );
 
 /**
- * Segmented pill used for every either/or choice in the form (Task vs Chore,
- * When, How it works) so the three read as one family rather than a mix of
- * switches and selects.
+ * Segmented pill for the form's short either/or choices (the kind of task,
+ * a chore's time) so they read as one family rather than a mix of switches
+ * and selects.
  */
 const SegmentedField = <T extends string>({
   options,
@@ -116,17 +116,6 @@ const DURATION_OPTIONS = [
 /** Every task has a length; this is what a new one starts at. */
 const DEFAULT_DURATION_MINUTES = 30;
 
-type Behavior = 'normal' | 'important' | 'fun';
-
-// The three ways a task can behave. Modelled as one choice because they are
-// mutually exclusive — as two switches the exclusion was invisible, and
-// "Free time" went unnoticed despite the worm mechanic depending on it.
-const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = [
-  { value: 'normal', label: 'Normal', caption: 'Runs on the clock and flows into the next thing. They can tap done early to get free time.' },
-  { value: 'important', label: 'Must finish', caption: "They mark it done. If time runs out you get an alert and it stays on their screen until it's done." },
-  { value: 'fun', label: 'Fun time', caption: 'TV, gaming, playtime. There is no done button, and when the day runs late the worm shows this time being eaten.' },
-];
-
 // The three kinds of task, named for what they do to the day.
 type Kind = 'fixed' | 'flexible' | 'chore';
 const KIND_OPTIONS: { value: Kind; label: string; caption: string }[] = [
@@ -136,10 +125,16 @@ const KIND_OPTIONS: { value: Kind; label: string; caption: string }[] = [
 ];
 
 type LatePolicy = 'keep' | 'shorten' | 'skip';
-const LATE_OPTIONS: { value: LatePolicy; label: string; caption: (min: number) => string }[] = [
-  { value: 'keep', label: 'Keep this time', caption: () => 'Stays as planned, even when something before it runs over.' },
-  { value: 'shorten', label: 'Shorten if needed', caption: (min) => `Gives up time when the day runs late, but keeps at least ${min} min.` },
-  { value: 'skip', label: 'Skip if needed', caption: () => 'Can be dropped when the day runs late.' },
+
+// One question for what gives when time is tight. "Must finish" is the other
+// side of the same coin (the task that may run over), so it's an answer here
+// rather than a separate "how it works" setting that said much the same.
+type Priority = 'must' | LatePolicy;
+const PRIORITY_OPTIONS: { value: Priority; label: string; caption: (min: number) => string }[] = [
+  { value: 'must', label: 'Must finish', caption: () => "Stays on their screen until it's done, even if it runs over. You get an alert." },
+  { value: 'keep', label: 'Keep its time', caption: () => 'Never cut short.' },
+  { value: 'shorten', label: 'Can be shortened', caption: (min) => `Gives up time, but keeps at least ${min} min.` },
+  { value: 'skip', label: 'Can be skipped', caption: () => "Dropped first when there isn't time." },
 ];
 const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
@@ -285,15 +280,22 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     });
   };
 
-  const behavior: Behavior = formData.isImportant ? 'important' : formData.isFunTime ? 'fun' : 'normal';
-  const setBehavior = (next: Behavior) =>
+  const priority: Priority = formData.isImportant ? 'must' : formData.latePolicy;
+  const setPriority = (next: Priority) =>
     setFormData({
       ...formData,
-      isImportant: next === 'important',
-      isFunTime: next === 'fun',
-      // Fun time is the first thing to go on a late day, unless the parent
-      // already chose otherwise.
-      latePolicy: next === 'fun' && formData.latePolicy === 'keep' ? 'skip' : formData.latePolicy,
+      isImportant: next === 'must',
+      // A must-finish task never gives up its own time.
+      latePolicy: next === 'must' ? 'keep' : next,
+    });
+  // Fun time (TV, games) has no done button, so it can't be must-finish; it's
+  // the first thing to give way on a late day unless the parent says otherwise.
+  const setFunTime = (on: boolean) =>
+    setFormData({
+      ...formData,
+      isFunTime: on,
+      isImportant: on ? false : formData.isImportant,
+      latePolicy: on && (formData.isImportant || formData.latePolicy === 'keep') ? 'skip' : formData.latePolicy,
     });
 
   // "Keep at least" must be shorter than the task itself; a 5-minute task
@@ -445,11 +447,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       const n = formData.recurringDays.length;
       parts.push(n === 7 ? 'Repeats daily' : n > 0 ? `Repeats ${n} day${n === 1 ? '' : 's'}` : 'Repeats');
     }
-    if (!isChore && behavior !== 'normal') {
-      parts.push(BEHAVIOR_OPTIONS.find(o => o.value === behavior)!.label);
-    }
-    if (!isChore && behavior !== 'important' && formData.latePolicy !== 'keep') {
-      parts.push(formData.latePolicy === 'skip' ? 'Skip if late' : `Shorten to ${effectiveMin}m if late`);
+    if (!isChore && formData.isFunTime) parts.push('Fun time');
+    if (!isChore && priority !== 'keep') {
+      parts.push(priority === 'must' ? 'Must finish' : priority === 'skip' ? 'Can be skipped' : `Can shorten to ${effectiveMin}m`);
     }
     const coins = parseInt(formData.coins) || 0;
     if (coins > 0) parts.push(`${coins} star${coins === 1 ? '' : 's'}`);
@@ -839,41 +839,34 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </>
           )}
 
-          {/* How it works — Normal / Must finish / Free time. One choice, so
-              the exclusivity is visible instead of two switches fighting. */}
+          {/* Fun time changes what the child sees (no done button), so it's
+              its own switch rather than one of the answers below. */}
           {!isChore && !isSystemEvent && (
-            <div className="w-full min-w-0">
-              <Label className="text-sm text-muted-foreground">How it works</Label>
-              <SegmentedField
-                ariaLabel="How this task works"
-                className="mt-1.5"
-                options={BEHAVIOR_OPTIONS.map(({ value, label }) => ({ value, label }))}
-                value={behavior}
-                onChange={setBehavior}
+            <FormRow label="Fun time" htmlFor="isFunTime" hint="TV, games, playtime. No done button.">
+              <Switch
+                id="isFunTime"
+                checked={formData.isFunTime}
+                onCheckedChange={setFunTime}
+                className="data-[state=checked]:bg-green-500"
               />
-              <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1">
-                {BEHAVIOR_OPTIONS.find(o => o.value === behavior)!.caption}
-              </p>
-            </div>
+            </FormRow>
           )}
 
-          {/* When the day runs late — a must-finish task is what runs late,
-              so it never gives up time itself. */}
-          {!isChore && !isSystemEvent && behavior !== 'important' && (
+          {/* When time is tight: what this task does when the day runs late.
+              A list, not a segmented pill: each answer needs its few words. */}
+          {!isChore && !isSystemEvent && (
             <div className="w-full min-w-0">
-              <Label className="text-sm text-muted-foreground">If the day runs late</Label>
-              {/* A list, not a segmented pill: the three choices need their
-                  full wording to be understood. */}
-              <div role="radiogroup" aria-label="If the day runs late" className="mt-1.5 flex flex-col gap-1">
-                {LATE_OPTIONS.map(option => {
-                  const on = formData.latePolicy === option.value;
+              <Label className="text-sm text-muted-foreground">When time is tight</Label>
+              <div role="radiogroup" aria-label="When time is tight" className="mt-1.5 flex flex-col gap-1">
+                {PRIORITY_OPTIONS.filter(o => !(formData.isFunTime && o.value === 'must')).map(option => {
+                  const on = priority === option.value;
                   return (
                     <button
                       key={option.value}
                       type="button"
                       role="radio"
                       aria-checked={on}
-                      onClick={() => setFormData({ ...formData, latePolicy: option.value })}
+                      onClick={() => setPriority(option.value)}
                       className={cn(
                         "w-full flex items-start gap-2.5 rounded-[14px] px-3 py-2 text-left border transition-colors",
                         on ? "border-iris-400/60 bg-iris-400/10" : "border-transparent hover:bg-white/[0.04]",
@@ -888,17 +881,21 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                       />
                       <span className="min-w-0">
                         <span className={cn("block text-sm", on ? "text-fog-50" : "text-fog-200")}>{option.label}</span>
-                        <span className="block text-[11px] text-muted-foreground/70 leading-snug">
-                          {option.value === 'shorten' && effectiveMin === 0
-                            ? "This task is too short to keep part of it, so it gives up its time."
-                            : option.caption(effectiveMin)}
-                        </span>
+                        {/* Only the chosen answer explains itself: four
+                            captions at once read as a wall of text. */}
+                        {on && (
+                          <span className="block text-[11px] text-muted-foreground/70 leading-snug">
+                            {option.value === 'shorten' && effectiveMin === 0
+                              ? "Too short to keep part of it, so it gives up its time."
+                              : option.caption(effectiveMin)}
+                          </span>
+                        )}
                       </span>
                     </button>
                   );
                 })}
               </div>
-              {formData.latePolicy === 'shorten' && minOptions.length > 0 && (
+              {priority === 'shorten' && minOptions.length > 0 && (
                 <FormRow label="Keep at least">
                   <Select
                     value={String(effectiveMin)}
@@ -920,7 +917,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
           {/* Stars — never earned automatically. This is what the parent gives
               with one tap (Give ★) once the task or chore is done. */}
-          {!isSystemEvent && (isChore || behavior !== 'fun') && (
+          {!isSystemEvent && (isChore || !formData.isFunTime) && (
           <FormRow
             label="Stars"
             hint="You give these once it's done: tap Give ★ on their Schedule. Spent in the Rewards shop."

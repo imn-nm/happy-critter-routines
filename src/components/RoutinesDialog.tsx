@@ -312,7 +312,7 @@ function PackPreview({ pack, child, tasks, routines, onBack, onAdded }: {
                   <span className="block text-12 text-fog-300">
                     {formatDuration(details.duration)} · after {nameOf(t.after)}
                     {t.important ? " · Must finish" : ""}
-                    {t.late === "skip" ? " · Skip if late" : t.late === "shorten" ? ` · Shorten to ${t.min ?? 10} min if late` : ""}
+                    {t.late === "skip" ? " · Can be skipped" : t.late === "shorten" ? ` · Can shorten to ${t.min ?? 10} min` : ""}
                     {details.steps.length ? ` · ${details.steps.length}-step checklist` : ""}
                   </span>
                   {already && on && (
