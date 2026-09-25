@@ -24,7 +24,7 @@ import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2 } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -37,6 +37,8 @@ import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { lockParentMode } from "@/lib/parentLock";
+import { realtimeChannel } from "@/lib/realtime";
+import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
 import { AnimatePresence, motion } from "framer-motion";
 import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants } from "@/lib/motion";
@@ -51,8 +53,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const childId = propChildId || paramChildId;
   const { t: tMotion } = useMotionPrefs();
-  const { children, loading: childrenLoading, updateChildHappiness, updateChild } = useChildren();
-  const { tasks, completions, completeTask, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
+  const { children, loading: childrenLoading, loadError: childrenLoadError, refetch: refetchChildren, updateChildHappiness, updateChild } = useChildren();
+  const { tasks, completions, completeTask, uncompleteTask, pendingCount, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
 
@@ -64,8 +66,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Name of a reward a grown-up just approved — drives the full-screen
   // celebration. Cleared after a few seconds.
   const [approvedReward, setApprovedReward] = useState<string | null>(null);
-  // Full-screen play with the rabbit; only reachable during free time.
-  const [playOpen, setPlayOpen] = useState(false);
+  // Full-screen play with the rabbit; only reachable during free time. Holds
+  // the free-time window it was opened in: when the schedule moves on
+  // Playtime unmounts without closing itself, and a plain on/off flag then
+  // popped it back up, full screen, in the next free-time window.
+  const [playFor, setPlayFor] = useState<string | null>(null);
+  // A chore just ticked, offered back for a few seconds in case the tap was
+  // a mistake. Chores saving right now, so a second tap does nothing.
+  const [recentChore, setRecentChore] = useState<{ id: string; name: string } | null>(null);
+  const recentChoreTimer = useRef<number | null>(null);
+  const choreSaving = useRef(new Set<string>());
   // null = follow the default (show the wheel automatically when one is set
   // up); true/false = the child explicitly chose wheel or pet this session.
   const [wheelOverride, setWheelOverride] = useState<boolean | null>(null);
@@ -87,15 +97,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Per-day subtask completion state, keyed by taskId → set of subtask ids checked.
   // Persisted to localStorage so refresh/tab-switch doesn't lose state within the day.
   const subtaskStorageKey = `subtasks:${childId}:${getPSTDateString()}`;
-  const [checkedSubtasks, setCheckedSubtasks] = useState<Record<string, string[]>>(() => {
-    if (typeof window === 'undefined') return {};
+  const loadSubtasks = (key: string): Record<string, string[]> => {
     try {
-      const raw = window.localStorage.getItem(subtaskStorageKey);
+      const raw = window.localStorage.getItem(key);
       return raw ? JSON.parse(raw) : {};
     } catch {
       return {};
     }
-  });
+  };
+  // Ticks belong to one day. On a screen that never reloads, midnight used to
+  // save yesterday's ticks under today's key, so routines started pre-ticked.
+  const [subtaskState, setSubtaskState] = useState(() => ({ key: subtaskStorageKey, checked: loadSubtasks(subtaskStorageKey) }));
+  if (subtaskState.key !== subtaskStorageKey) {
+    setSubtaskState({ key: subtaskStorageKey, checked: loadSubtasks(subtaskStorageKey) });
+  }
+  const checkedSubtasks = subtaskState.key === subtaskStorageKey ? subtaskState.checked : {};
 
   // This device is showing a child's screen now: the grown-up side needs the
   // parent PIN again (if one is set).
@@ -103,19 +119,25 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(subtaskStorageKey, JSON.stringify(checkedSubtasks));
+      window.localStorage.setItem(subtaskState.key, JSON.stringify(subtaskState.checked));
+      // Earlier days' ticks for this child are never read again.
+      const prefix = `subtasks:${childId}:`;
+      for (let i = window.localStorage.length - 1; i >= 0; i--) {
+        const k = window.localStorage.key(i);
+        if (k && k.startsWith(prefix) && k !== subtaskState.key) window.localStorage.removeItem(k);
+      }
     } catch {
       /* ignore storage errors */
     }
-  }, [checkedSubtasks, subtaskStorageKey]);
+  }, [subtaskState, childId]);
 
   const toggleSubtask = (taskId: string, subtaskId: string) => {
-    setCheckedSubtasks(prev => {
-      const current = prev[taskId] ?? [];
+    setSubtaskState(prev => {
+      const current = prev.checked[taskId] ?? [];
       const next = current.includes(subtaskId)
         ? current.filter(id => id !== subtaskId)
         : [...current, subtaskId];
-      return { ...prev, [taskId]: next };
+      return { ...prev, checked: { ...prev.checked, [taskId]: next } };
     });
   };
 
@@ -196,8 +218,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     poll();
     const interval = window.setInterval(() => { if (pending.size > 0) poll(); }, 4000);
 
-    const channel = supabase
-      .channel(`reward-outcomes-${childId}`)
+    const channel = realtimeChannel(`reward-outcomes-${childId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'reward_purchases', filter: `child_id=eq.${childId}` },
@@ -206,16 +227,20 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           const row = payload.new as { id: string; reward_id: string; status: string };
           const was = (payload.old as { status?: string })?.status;
           if (row.status === 'pending') pending.add(row.id);
-          else if (row.status === 'approved' && was !== 'approved' && payload.eventType === 'UPDATE') onApproved(row.id, row.reward_id);
+          // A grown-up said yes to an ask (UPDATE), or redeemed one for them
+          // from the parent app (INSERT, already approved).
+          else if (row.status === 'approved' && (payload.eventType === 'INSERT' || was !== 'approved')) onApproved(row.id, row.reward_id);
           else pending.delete(row.id);
         },
       )
-      .subscribe();
+      .subscribe(resyncOnReconnect());
+    const stopResync = onResync(poll);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
       timers.forEach(window.clearTimeout);
       supabase.removeChannel(channel);
+      stopResync();
     };
   }, [childId]);
 
@@ -244,17 +269,6 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       }
     };
     setup();
-  }, [childId]);
-
-  // Real-time subscriptions
-  useEffect(() => {
-    if (!childId) return;
-    const channel = supabase
-      .channel('child-interface-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'children', filter: `id=eq.${childId}` }, () => {})
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `child_id=eq.${childId}` }, () => {})
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
   }, [childId]);
 
   // Tick every second for live timers
@@ -286,6 +300,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   }
 
   if (!child) {
+    // Couldn't load (offline, server down) is not "this child was removed":
+    // show a friendly face and keep trying instead of a dead end.
+    if (childrenLoadError) {
+      return <ConnectionTrouble fullScreen={!propChildId} onRetry={refetchChildren} />;
+    }
     return (
       <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-background p-4`}>
         <div className="max-w-2xl mx-auto text-center py-16">
@@ -361,11 +380,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     });
 
     if (todaysHoliday) {
-      todaysTasks = todaysTasks.filter(task => {
-        const taskName = task.name.toLowerCase();
-        if (todaysHoliday.is_no_school && taskName.includes('school')) return false;
-        return true;
-      });
+      // Only the built-in School row, as on the parent's timeline. Matching
+      // any name with "school" in it also dropped "After-school snack".
+      todaysTasks = todaysTasks.filter(task => !(todaysHoliday.is_no_school && task.name === 'School'));
     }
 
     const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
@@ -416,7 +433,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     // never after bedtime. Matches the parent timeline's rules — a task with
     // no set time used to fall past bedtime when the day was full.
     const dayBounds = (() => {
-      const [wh, wm] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+      // Today's wake-up (a per-day change wins over the profile's time).
+      const wakeTask = tasksWithDaySpecificTimes.find(t => t.name === 'Wake Up' && t.scheduled_time);
+      const [wh, wm] = (wakeTask?.scheduled_time || child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
       const dayStart = wh * 60 + wm;
       const bedtimeTask = tasksWithDaySpecificTimes.find(
         t => t.name === 'Bedtime' && t.scheduled_time,
@@ -501,6 +520,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return { ...task, duration: task.duration - lostMinutes,
       scheduled_time: `${Math.floor(start / 60).toString().padStart(2, '0')}:${Math.floor(start % 60).toString().padStart(2, '0')}` };
   });
+
+  // Today's wake-up time, per-day changes included. The profile's wake_time
+  // is only the default: a 9:00 Saturday must not wake the rabbit at 7.
+  const wakeTimeToday = (todaysSchedule.find(t => t.name === 'Wake Up')?.scheduled_time || child.wake_time || '07:00').slice(0, 5);
 
   // Progress — measured against today's schedule only (it used to count every
   // task the child ever had, which pinned the pet at one mood forever).
@@ -694,8 +717,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       windowStart = new Date(now);
       windowStart.setHours(ph, pm + (prev.duration || 0), 0, 0);
     } else {
-      // Use the child's wake time instead of a hardcoded 6 AM
-      const [wh, wm] = (child.wake_time || '07:00').split(':').map(Number);
+      // Use today's wake time instead of a hardcoded 6 AM
+      const [wh, wm] = wakeTimeToday.split(':').map(Number);
       windowStart = new Date(now);
       windowStart.setHours(wh, wm, 0, 0);
     }
@@ -722,10 +745,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return h * 60 + m;
   })();
   const wakeMinutes = (() => {
-    const [h, m] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+    const [h, m] = wakeTimeToday.split(':').map(Number);
     return h * 60 + m;
   })();
   const beforeWake = nowMinutes < wakeMinutes;
+  // Night: before wake-up with nothing scheduled yet. The screen is a quiet
+  // sleeping rabbit, not hours of "Free Time" with games and chores.
+  const sleepTime = beforeWake && !activeTask && !frozenTask && !dayOver && !isRestDay;
+  // Nothing timed today at all (only chores, or an empty day): "all done"
+  // would be wrong from the first minute, so it reads as a free day.
+  const hasTimedTasks = todaysSchedule.some(t => t.type !== 'floating');
 
   // Free-time windows for Today's Schedule: the gaps left between one timed
   // task finishing and the next one starting. Only real breaks get a row, and
@@ -764,6 +793,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
   // Pick once per free-time block so the pet has a believable activity rather
   // than changing its mind on every one-second timer render.
   const freeTimeKey = freeTimeCountdown?.nextTask.id ?? "after-tasks";
+  const playKey = `${today}:${freeTimeKey}`;
   if (freeTimeActivityRef.current.key !== freeTimeKey) {
     const choices: PetActivity[] = ["gaming", "reading"];
     freeTimeActivityRef.current = {
@@ -874,12 +904,87 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     }
   };
 
-  const markChoreDone = async (chore: { id: string; isCompleted?: boolean }) => {
-    // Done is done — no un-checking from the child side.
-    if (chore.isCompleted) return;
+  const markChoreDone = async (chore: { id: string; name: string; isCompleted?: boolean }) => {
+    // Done is done, apart from the few seconds after the tap (below). A second
+    // tap while the first is saving does nothing: no second row, no second
+    // sound.
+    if (chore.isCompleted || choreSaving.current.has(chore.id)) return;
+    choreSaving.current.add(chore.id);
     setPetCelebrating(true);
     window.setTimeout(() => setPetCelebrating(false), 3000);
-    await markDone({ id: chore.id, duration: 0 });
+    setRecentChore({ id: chore.id, name: chore.name });
+    if (recentChoreTimer.current) window.clearTimeout(recentChoreTimer.current);
+    recentChoreTimer.current = window.setTimeout(() => setRecentChore(null), 6000);
+    try {
+      await markDone({ id: chore.id, duration: 0 });
+    } finally {
+      choreSaving.current.delete(chore.id);
+    }
+  };
+
+  // A mistaken tap can be taken back right away. After that only a grown-up
+  // can change it (stars only ever come from them, so nothing is gamed).
+  const undoRecentChore = async () => {
+    if (!recentChore) return;
+    const { id } = recentChore;
+    setRecentChore(null);
+    setPetCelebrating(false);
+    await uncompleteTask(id);
+  };
+
+  /** Chore tiles for whatever state the screen is in (they used to vanish in some). */
+  const renderChores = (className?: string) => {
+    const activeChores = getActiveWindowChores();
+    if (activeChores.length === 0) return null;
+    return (
+      <div className={cn("w-full flex flex-col gap-sp-1", className)}>
+        <p className="text-14 text-iris-400 leading-none">Chores</p>
+        <div className="w-full flex flex-wrap items-stretch gap-sp-1">
+          {activeChores.map(chore => {
+            const done = !!chore.isCompleted;
+            return (
+              <button
+                key={chore.id}
+                type="button"
+                onClick={() => markChoreDone(chore)}
+                aria-pressed={done}
+                className={cn(
+                  "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                  done
+                    ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
+                    : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
+                )}
+              >
+                {done ? (
+                  <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
+                ) : (
+                  getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
+                )}
+                <span className="w-full text-12 text-center leading-tight text-fog-50">
+                  {chore.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <AnimatePresence>
+          {recentChore && activeChores.some(c => c.id === recentChore.id) && (
+            <motion.button
+              type="button"
+              onClick={undoRecentChore}
+              className="self-center mt-sp-1 flex items-center gap-1.5 min-h-11 px-4 rounded-pill bg-white/5 text-13 text-fog-200 hover:text-fog-50"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={tMotion({ duration: durations.quick })}
+            >
+              <Undo2 className="w-4 h-4" aria-hidden />
+              Oops, not done yet
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   };
 
   // Timer hits zero. Regular tasks simply flow to the next one by the clock
@@ -890,46 +995,24 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     // Intentionally a no-op; the one-second tick re-categorizes the schedule.
   };
 
-  // Rest day
-  if (isRestDay) {
-    return (
-      <div className={`${!propChildId ? 'min-h-dvh' : ''} p-5`}>
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={80} interactive prompt="Cozy day!" />
-            <h1 className="text-2xl font-bold text-foreground text-glow">Hi, {child.name}!</h1>
-          </div>
-          <motion.div
-            className="glass-card rounded-3xl p-6 text-center"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={tMotion(springs.gentle)}
-          >
-            <div className="text-4xl mb-3">😴</div>
-            <h2 className="text-xl font-bold mb-1 text-foreground">Cozy rest day</h2>
-            <p className="text-sm text-muted-foreground">
-              {petNick(child.petType)} is resting too!
-            </p>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`${!propChildId ? 'min-h-dvh' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] min-[600px]:max-w-[660px] mx-auto">
-        <ScheduleSoundCues
-          activeTaskId={activeTask?.id ?? null}
-          activeTaskName={activeTask?.name ?? null}
-          stillToDoIds={stillToDo.map(t => t.id)}
-          dayOver={dayOver}
-        />
+        {!isRestDay && (
+          <ScheduleSoundCues
+            activeTaskId={activeTask?.id ?? null}
+            activeTaskName={activeTask?.name ?? null}
+            // At bedtime the day is over for chimes too: no "still to do"
+            // ping on top of the goodnight one.
+            stillToDoIds={activeTask?.name.toLowerCase().includes('bedtime') ? [] : stillToDo.map(t => t.id)}
+            dayOver={dayOver}
+          />
+        )}
         {/* Parent pill removed — parent portal is at /parent */}
 
         {/* Greeting + coin chip row — matches Figma "Child Dashboard - overtime-new":
             greeting 20px Inter Regular, coin chip 13px Bold with star icon */}
-        {!dayOver && (
+        {!dayOver && !sleepTime && (
           <div className="flex items-center justify-between mb-sp-3">
             <div className="flex items-center gap-2 min-w-0">
               <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
@@ -969,12 +1052,38 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </div>
         )}
 
+        {/* A "done" that couldn't be sent yet is kept on this screen and
+            retried; say so quietly rather than showing an error. */}
+        {pendingCount > 0 && (
+          <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-12 text-fog-300" role="status">
+            <CloudOff className="w-3.5 h-3.5" aria-hidden />
+            Saved here. Sending when the internet is back.
+          </p>
+        )}
+
+        {/* Rest day: no schedule, but stars, the shop and chores still work. */}
+        {isRestDay && !dayOver && (
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={168} interactive prompt="Cozy day!" />
+            <h2 className="text-24 text-fog-50 text-center leading-tight">Cozy rest day</h2>
+            <p className="text-14 text-fog-200 text-center max-w-xs">
+              No plans today. {petNick(child.petType)} is resting too!
+            </p>
+            {renderChores()}
+          </motion.div>
+        )}
+
         {/* Current Task — front and center.
             When `frozenTask` is set we hold the just-completed task in place
             (timer paused, slide disabled, "Done" badge, never-worried pet) so
             the celebration plays out without any layout shift. */}
         <AnimatePresence mode="wait" initial={false}>
-        {(frozenTask || activeTask) && (() => {
+        {!isRestDay && (frozenTask || activeTask) && (() => {
           const displayTask = frozenTask ?? activeTask;
           const isFrozen = !!frozenTask;
           const isBedtime = displayTask.name.toLowerCase().includes('bedtime');
@@ -1078,42 +1187,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               </>}
               {/* Chore tiles — between slide and Next row, per Figma
                   "Child Dashboard - overtime-new". */}
-              {!isFrozen && (() => {
-                const activeChores = getActiveWindowChores();
-                if (activeChores.length === 0) return null;
-                return (
-                  <div className="w-full px-sp-4 flex flex-col gap-sp-1">
-                    <p className="text-14 text-iris-400 leading-none">Chores</p>
-                    <div className="w-full flex flex-wrap items-stretch gap-sp-1">
-                      {activeChores.map(chore => {
-                        const done = !!chore.isCompleted;
-                        return (
-                          <button
-                            key={chore.id}
-                            type="button"
-                            onClick={() => markChoreDone(chore)}
-                            className={cn(
-                              "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
-                              done
-                                ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
-                                : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
-                            )}
-                          >
-                            {done ? (
-                              <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
-                            ) : (
-                              getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
-                            )}
-                            <span className="w-full text-12 text-center leading-tight text-fog-50">
-                              {chore.name}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
+              {!isFrozen && renderChores("px-sp-4")}
 
               {/* Next Task row with StatusBadge time */}
               {upcomingTasks.length > 0 && (
@@ -1138,7 +1212,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {/* Free Time — no active task, upcoming ones exist. Mirrors the
             active-task layout exactly so the screen doesn't visually flip
             after a child marks a task done. */}
-        {!frozenTask && !activeTask && freeTimeCountdown && (
+        {!isRestDay && !sleepTime && !frozenTask && !activeTask && freeTimeCountdown && (
           <motion.div
             className="flex flex-col items-center gap-sp-4 mb-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
@@ -1182,9 +1256,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       <button
                         type="button"
                         onClick={() => setWheelOverride(false)}
-                        className="mt-2 flex items-center gap-1.5 text-12 text-fog-400 hover:text-fog-200 transition-colors"
+                        className="mt-2 flex items-center gap-1.5 min-h-11 px-4 rounded-full bg-white/5 text-13 text-fog-200 hover:text-fog-50 transition-colors"
                       >
-                        Show pet instead
+                        Play with {petNick(child.petType)} instead
                       </button>
                     </motion.div>
                   ) : (
@@ -1224,7 +1298,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           }
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
-                          onTap={() => setPlayOpen(true)}
+                          onTap={() => setPlayFor(playKey)}
                           className="w-full h-full"
                         />
                       </CircularTimer>
@@ -1246,42 +1320,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             })()}
             {/* Chore tiles — also visible during free time so kids can
                 knock out chores between scheduled tasks. */}
-            {(() => {
-              const activeChores = getActiveWindowChores();
-              if (activeChores.length === 0) return null;
-              return (
-                <div className="w-full flex flex-col gap-sp-1">
-                  <p className="text-14 text-iris-400 leading-none">Chores</p>
-                  <div className="w-full flex flex-wrap items-stretch gap-sp-1">
-                    {activeChores.map(chore => {
-                      const done = !!chore.isCompleted;
-                      return (
-                        <button
-                          key={chore.id}
-                          type="button"
-                          onClick={() => markChoreDone(chore)}
-                          className={cn(
-                            "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
-                            done
-                              ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
-                              : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
-                          )}
-                        >
-                          {done ? (
-                            <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
-                          ) : (
-                            getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
-                          )}
-                          <span className="w-full text-12 text-center leading-tight text-fog-50">
-                            {chore.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
+            {renderChores()}
             {/* Next task row — same shape as the active-task block. */}
             <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
               <div className="flex flex-col gap-1 min-w-0">
@@ -1298,40 +1337,33 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </motion.div>
         )}
 
-        {/* Next Up — chores no longer appear in this sidebar; they show as
-            inline secondary slide-to-confirm rows under the main task slide
-            during their time window. */}
-        {!frozenTask && !activeTask && !freeTimeCountdown && upcomingTasks.length > 0 && (
-          <div className="flex gap-2 mb-5 relative">
-            {/* Tasks column */}
-            <div className="flex-1 min-w-0 space-y-2.5">
-              {upcomingTasks.map(task => {
-                return (
-                  <div key={task.id} className="glass rounded-2xl p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl glass-strong flex-shrink-0 flex items-center justify-center">
-                        {getTaskIcon(task.name, undefined, task.icon)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground text-sm">{task.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {task.is_important && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
-                        {task.is_fun_time && <Gamepad2 className="w-3 h-3 text-purple-400" />}
-                        <span className="text-xs text-muted-foreground font-medium">{formatTime(task.scheduled_time)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-          </div>
+        {/* Waiting for the next thing, but it isn't free time (the worm already
+            ate this stretch, or the next task has no set time). Keep the pet
+            and the clock instead of dropping to a bare list. */}
+        {!isRestDay && !sleepTime && !frozenTask && !activeTask && !freeTimeCountdown && upcomingTasks.length > 0 && (
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
+            <AmbientClock next={{ name: upcomingTasks[0].name, time: upcomingTasks[0].scheduled_time }} />
+            <CritterPet
+              petType={child.petType}
+              outfit={child.pet_outfit}
+              mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"}
+              size={168}
+              interactive
+              prompt={returnGreeting?.text ?? null}
+              reaction={returnGreeting ? "Wave" : undefined}
+              reactionKey={returnGreeting?.id}
+            />
+            {renderChores()}
+          </motion.div>
         )}
 
-
         {/* Schedule Button — matches the Figma secondary pill */}
-        {!dayOver && (
+        {!dayOver && !sleepTime && !isRestDay && (
           <Button
             onClick={() => setShowSchedule(true)}
             variant="secondary"
@@ -1340,6 +1372,25 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           >
             Today's Schedule
           </Button>
+        )}
+
+        {/* Still night: before wake-up. No free time, games or chores. */}
+        {sleepTime && (
+          <motion.div
+            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tMotion(springs.gentle)}
+          >
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive prompt="Zzz…" />
+            <h2 className="text-24 text-fog-50 text-center leading-tight">
+              Still sleepy time, {child.name}
+            </h2>
+            <StatusBadge variant="info">Wake up at {formatTime(wakeTimeToday)}</StatusBadge>
+            <p className="text-14 text-fog-200 text-center max-w-xs">
+              {petNick(child.petType)} is still asleep. See you in the morning!
+            </p>
+          </motion.div>
         )}
 
         {/* Goodnight — day is over */}
@@ -1363,7 +1414,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         )}
 
         {/* All done — during the day, no more tasks */}
-        {!frozenTask && !dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
+        {!isRestDay && !sleepTime && !frozenTask && !dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
           <motion.div
             className="flex flex-col items-center gap-sp-4 mt-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
@@ -1378,17 +1429,29 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               activity={freeTimeActivityRef.current.activity}
               size={168}
               interactive
-              prompt={returnGreeting?.text ?? "We did it!"}
+              prompt={returnGreeting?.text ?? (hasTimedTasks ? "We did it!" : "Let's have fun!")}
               reaction={returnGreeting ? "Wave" : undefined}
               reactionKey={returnGreeting?.id}
             />
-            <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
-            <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
-              <span className="text-12 font-medium text-ink-900">Nice work</span>
-            </div>
-            <p className="text-14 text-fog-200 text-center max-w-xs">
-              Great job {child.name}. {petNick(child.petType)} is so proud of you.
-            </p>
+            {hasTimedTasks ? (
+              <>
+                <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
+                <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
+                  <span className="text-12 font-medium text-ink-900">Nice work</span>
+                </div>
+                <p className="text-14 text-fog-200 text-center max-w-xs">
+                  Great job {child.name}. {petNick(child.petType)} is so proud of you.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-24 text-fog-50 text-center leading-tight">A free day!</h2>
+                <p className="text-14 text-fog-200 text-center max-w-xs">
+                  Nothing planned today, {child.name}. {petNick(child.petType)} is happy to hang out.
+                </p>
+              </>
+            )}
+            {renderChores()}
           </motion.div>
         )}
 
@@ -1506,12 +1569,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
       {/* Free-time play: full screen, closes itself when free time ends */}
       <AnimatePresence>
-        {playOpen && freeTimeCountdown && !activeTask && (
+        {playFor === playKey && freeTimeCountdown && !activeTask && (
           <Playtime
             childId={child.id}
             petType={child.petType}
             secondsLeft={freeTimeCountdown.remaining}
-            onClose={() => setPlayOpen(false)}
+            onClose={() => setPlayFor(null)}
             outfit={child.pet_outfit ?? null}
             onOutfitChange={(outfit) => { void updateChild(child.id, { pet_outfit: outfit }); }}
           />
@@ -1566,6 +1629,28 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     </div>
   );
 };
+
+/**
+ * The child's screen couldn't load (offline, server down). Friendly, and it
+ * keeps trying on its own: the device may be on a shelf with nobody around
+ * to press anything.
+ */
+function ConnectionTrouble({ fullScreen, onRetry }: { fullScreen: boolean; onRetry: () => void }) {
+  useEffect(() => {
+    const id = window.setInterval(onRetry, 15_000);
+    return () => window.clearInterval(id);
+  }, [onRetry]);
+  return (
+    <div className={cn(fullScreen && 'min-h-dvh', 'flex items-center justify-center p-sp-6')}>
+      <div className="max-w-xs flex flex-col items-center gap-sp-4 text-center" role="status">
+        <CritterPet petType="rabbit" mood="happy" size={150} />
+        <h1 className="text-20 font-semibold text-fog-50">Can't reach the internet</h1>
+        <p className="text-14 text-fog-200">We'll keep trying. Your day will show up as soon as we're back.</p>
+        <Button variant="secondary" size="md" onClick={onRetry}>Try again</Button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * One row in Today's Schedule slide-up. Matches Figma node 78:123 — time

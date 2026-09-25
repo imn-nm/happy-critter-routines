@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { broadcastCoins } from '@/utils/coinSync';
 import { realtimeChannel } from '@/lib/realtime';
+import { onResync, resyncOnReconnect } from '@/lib/resync';
 
 export interface Reward {
   id: string;
@@ -68,7 +69,7 @@ type StarResult = { purchase: RewardPurchase; balance: number };
 export const approveRewardPurchase = async (purchaseId: string) => {
   const { data, error } = await supabase.rpc('approve_reward_purchase', { p_purchase_id: purchaseId });
   if (error) throw new Error(starErrorMessage(error));
-  const { purchase, balance } = data as StarResult;
+  const { purchase, balance } = data as unknown as StarResult;
   // Show the new balance everywhere now, not when realtime gets round to it.
   broadcastCoins({ childId: purchase.child_id, balance });
   return purchase;
@@ -82,7 +83,7 @@ export const approveRewardPurchase = async (purchaseId: string) => {
 export const refundRewardPurchase = async (purchaseId: string) => {
   const { data, error } = await supabase.rpc('refund_reward_purchase', { p_purchase_id: purchaseId });
   if (error) throw new Error(starErrorMessage(error));
-  const { purchase, balance } = data as StarResult;
+  const { purchase, balance } = data as unknown as StarResult;
   broadcastCoins({ childId: purchase.child_id, balance });
   return purchase;
 };
@@ -102,7 +103,13 @@ export const denyRewardPurchase = async (purchaseId: string) => {
 };
 
 export const useRewards = (childId?: string) => {
-  const [rewards, setRewards] = useState<Reward[]>([]);
+  // Every reward, including removed ones: a removed reward's name still
+  // labels what the child already got. `rewards` below is the live shop.
+  const [allRewards, setAllRewards] = useState<Reward[]>([]);
+  const rewards = useMemo(
+    () => allRewards.filter(r => r.is_active).sort((a, b) => a.cost - b.cost),
+    [allRewards],
+  );
   const [purchases, setPurchases] = useState<RewardPurchase[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -116,18 +123,13 @@ export const useRewards = (childId?: string) => {
         .from('rewards')
         .select('*')
         .eq('child_id', childId)
-        .eq('is_active', true)
         .order('cost', { ascending: true });
 
       if (error) throw error;
-      setRewards(data || []);
+      setAllRewards(data || []);
     } catch (error) {
+      // Keep what was loaded; this also runs quietly in the background.
       console.error('Error fetching rewards:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch rewards",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -160,7 +162,7 @@ export const useRewards = (childId?: string) => {
 
       if (error) throw error;
 
-      setRewards(prev => prev.some(r => r.id === data.id) ? prev : [...prev, data]);
+      setAllRewards(prev => prev.some(r => r.id === data.id) ? prev : [...prev, data]);
       toast({
         title: "Success",
         description: "Reward added successfully!",
@@ -188,7 +190,7 @@ export const useRewards = (childId?: string) => {
 
       if (error) throw error;
       
-      setRewards(prev => prev.map(reward => 
+      setAllRewards(prev => prev.map(reward => 
         reward.id === id ? { ...reward, ...data } : reward
       ));
       
@@ -217,7 +219,19 @@ export const useRewards = (childId?: string) => {
 
       if (error) throw error;
       
-      setRewards(prev => prev.filter(reward => reward.id !== id));
+      // Asks for it can't be approved any more: answer them, so they stop
+      // holding the child's stars and waiting in the parent's alerts.
+      const { data: declined } = await supabase
+        .from('reward_purchases')
+        .update({ status: 'denied' })
+        .eq('reward_id', id)
+        .eq('status', 'pending')
+        .select();
+      if (declined?.length) {
+        setPurchases(prev => prev.map(p => declined.find(d => d.id === p.id) ?? p));
+      }
+
+      setAllRewards(prev => prev.map(reward => reward.id === id ? { ...reward, is_active: false } : reward));
       toast({
         title: "Success",
         description: "Reward deleted successfully!",
@@ -286,7 +300,7 @@ export const useRewards = (childId?: string) => {
   const redeemForChild = async (rewardId: string) => {
     const { data, error } = await supabase.rpc('redeem_reward_for_child', { p_reward_id: rewardId });
     if (error) throw new Error(starErrorMessage(error));
-    const { purchase, balance } = data as StarResult;
+    const { purchase, balance } = data as unknown as StarResult;
     setPurchases(prev => prev.some(p => p.id === purchase.id) ? prev : [purchase, ...prev]);
     broadcastCoins({ childId: purchase.child_id, balance });
     return purchase;
@@ -311,12 +325,7 @@ export const useRewards = (childId?: string) => {
         payload => {
           if (payload.eventType === 'DELETE') return; // removal is a soft delete (is_active=false)
           const row = payload.new as Reward;
-          setRewards(prev => {
-            const others = prev.filter(r => r.id !== row.id);
-            return row.is_active
-              ? [...others, row].sort((a, b) => a.cost - b.cost)
-              : others;
-          });
+          setAllRewards(prev => [...prev.filter(r => r.id !== row.id), row]);
         },
       )
       .on(
@@ -336,14 +345,22 @@ export const useRewards = (childId?: string) => {
           });
         },
       )
-      .subscribe();
+      .subscribe(resyncOnReconnect());
+    // Answers and new rewards that arrived while the connection was down.
+    const stopResync = onResync(() => {
+      fetchRewards();
+      fetchPurchases();
+    });
     return () => {
       supabase.removeChannel(channel);
+      stopResync();
     };
   }, [childId]);
 
   return {
     rewards,
+    /** Every reward, including removed ones (for naming past purchases). */
+    allRewards,
     purchases,
     loading,
     addReward,

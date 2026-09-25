@@ -5,7 +5,7 @@ import { useRewards, isApprovedStatus } from "@/hooks/useRewards";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMotionPrefs } from "@/lib/motion";
-import { getPSTDateString } from "@/utils/pstDate";
+import { getPSTDateString, toPSTDateString } from "@/utils/pstDate";
 
 interface RewardsShopProps {
   childId: string;
@@ -22,7 +22,7 @@ interface RewardsShopProps {
  * the parent's phone shows up here without a reload.
  */
 const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: RewardsShopProps) => {
-  const { rewards, purchases, loading, purchaseReward } = useRewards(childId);
+  const { rewards, allRewards, purchases, loading, purchaseReward } = useRewards(childId);
   const { t: tMotion } = useMotionPrefs();
   const [requestingId, setRequestingId] = useState<string | null>(null);
   // Reward id whose request failed — renders a child-legible retry line.
@@ -65,12 +65,14 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
   const today = getPSTDateString();
   const deniedToday = (rewardId: string) =>
     purchases.some(
-      p => p.reward_id === rewardId && p.status === "denied" && p.purchased_at.slice(0, 10) === today,
+      p => p.reward_id === rewardId && p.status === "denied" && toPSTDateString(p.purchased_at) === today,
     );
 
+  // Looked up among every reward, so something the child got stays on the
+  // shelf after a grown-up takes it out of the shop.
   const mine = purchases
     .filter(p => isApprovedStatus(p.status))
-    .map(p => ({ purchase: p, reward: rewards.find(r => r.id === p.reward_id) }))
+    .map(p => ({ purchase: p, reward: allRewards.find(r => r.id === p.reward_id) }))
     .filter(x => x.reward);
 
   return (
@@ -126,6 +128,14 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                 </button>
               </div>
             </div>
+
+            {/* Stars already asked for aren't free to spend again; say so, so
+                "10 stars" and "5 more to go" don't look like they disagree. */}
+            {reserved > 0 && (
+              <p className="-mt-sp-2 mb-sp-3 text-12 text-fog-300 text-right">
+                {reserved} of them saved for what you asked for
+              </p>
+            )}
 
             {/* Rewards list */}
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75dvh - 120px)" }}>

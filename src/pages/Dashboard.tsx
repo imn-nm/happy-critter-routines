@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Task } from "@/hooks/useTasks";
 import { useParentEventsForChildren } from "@/hooks/useParentEvents";
 import PetAvatar from "@/components/PetAvatar";
+import LoadErrorCard from "@/components/LoadErrorCard";
 import OnboardingSlides from "@/components/OnboardingSlides";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format, parse, addDays, startOfDay } from "date-fns";
@@ -18,7 +19,7 @@ const BADGE_COLORS = ["bg-mint-500", "bg-iris-500", "bg-lilac-500", "bg-amber-50
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { children, loading } = useChildren();
+  const { children, loading, loadError, refetch: refetchChildren } = useChildren();
   const { user } = useAuth();
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [tasksPending, setTasksPending] = useState(true);
@@ -239,6 +240,10 @@ const Dashboard = () => {
 
   if (loading) {
     return <LoadingScreen />;
+  }
+
+  if (children.length === 0 && loadError) {
+    return <LoadErrorCard onRetry={refetchChildren} />;
   }
 
   if (children.length === 0) {

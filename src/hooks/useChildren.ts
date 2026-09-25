@@ -5,6 +5,7 @@ import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
 import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
 import { realtimeChannel } from "@/lib/realtime";
 import { getMyHouseholdId } from "@/utils/household";
+import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { normalizeOutfit, type PetOutfit } from "@/components/pets/pixel/accessories";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
@@ -61,6 +62,9 @@ export const useChildren = () => {
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
+  // The last load failed (offline, server down). Callers show "couldn't
+  // load, trying again" instead of mistaking it for "no children".
+  const [loadError, setLoadError] = useState(false);
   const { toast } = useToast();
   // The caller's household id, resolved on fetch. Used to scope reads and the
   // realtime feed below as defense-in-depth alongside the server-side RLS.
@@ -68,7 +72,10 @@ export const useChildren = () => {
 
   const fetchChildren = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // The stored session, not getUser(): that one goes to the network, so
+      // offline it came back empty and the screen said there were no children.
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
         householdIdRef.current = null;
         setChildren([]);
@@ -125,13 +132,11 @@ export const useChildren = () => {
       });
       
       setChildren(mappedData);
+      setLoadError(false);
     } catch (error) {
+      // Keep whatever was loaded before; screens show their own retry state.
       console.error('Error fetching children:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load children",
-        variant: "destructive",
-      });
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -417,11 +422,14 @@ export const useChildren = () => {
           }
         }
       )
-      .subscribe((status) => {
-      });
+      .subscribe(resyncOnReconnect());
+
+    // Stars, rest days and outfits changed while offline arrive here.
+    const stopResync = onResync(fetchChildren);
 
     return () => {
       supabase.removeChannel(childrenChannel);
+      stopResync();
     };
   }, []);
 
@@ -430,6 +438,7 @@ export const useChildren = () => {
     selectedChild,
     setSelectedChild,
     loading,
+    loadError,
     addChild,
     updateChild,
     updateChildCoins,

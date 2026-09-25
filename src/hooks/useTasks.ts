@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
 import { fetchCompletionFor } from '@/hooks/useCompletions';
+import { onResync, resyncOnReconnect } from '@/lib/resync';
 import { format } from 'date-fns';
 
 /**
@@ -80,10 +81,60 @@ export interface TaskCompletion {
   date: string;
 }
 
+/**
+ * "Done" taps the child made that haven't reached the server yet (offline,
+ * flaky Wi-Fi). The task shows as done straight away and the save is retried
+ * until it lands, so the child never sees a celebration undone or an error.
+ * Kept in localStorage so a reload doesn't lose them.
+ */
+interface PendingCompletion {
+  taskId: string;
+  date: string;
+  duration?: number;
+  at: string;
+}
+
+const queueKey = (childId: string) => `pending-completions:${childId}`;
+
+const readQueue = (childId: string): PendingCompletion[] => {
+  try {
+    return JSON.parse(window.localStorage.getItem(queueKey(childId)) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const writeQueue = (childId: string, queue: PendingCompletion[]) => {
+  try {
+    if (queue.length) window.localStorage.setItem(queueKey(childId), JSON.stringify(queue));
+    else window.localStorage.removeItem(queueKey(childId));
+  } catch {
+    /* storage unavailable: the in-memory row still shows it done */
+  }
+};
+
+const localId = (taskId: string, date: string) => `local:${taskId}:${date}`;
+export const isLocalCompletion = (c: { id: string }) => c.id.startsWith('local:');
+
+const localRow = (childId: string, p: PendingCompletion): TaskCompletion => ({
+  id: localId(p.taskId, p.date),
+  child_id: childId,
+  task_id: p.taskId,
+  date: p.date,
+  completed_at: p.at,
+  coins_earned: 0,
+  duration_spent: p.duration,
+});
+
+// Postgres errors carry a five-character code; a dropped connection doesn't.
+const isNetworkError = (error: { code?: string } | null | undefined) => !error?.code;
+
 export const useTasks = (childId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
   const [loading, setLoading] = useState(true);
+  // How many "done" taps are still waiting to be saved.
+  const [pendingCount, setPendingCount] = useState(() => (childId ? readQueue(childId).length : 0));
   const { toast } = useToast();
 
   const fetchTasks = async () => {
@@ -122,10 +173,45 @@ export const useTasks = (childId?: string) => {
         .eq('date', today);
 
       if (error) throw error;
-      setCompletions(data || []);
+      // Keep taps that are still waiting to be saved showing as done.
+      const queued = readQueue(childId)
+        .filter(p => p.date === today && !(data || []).some(c => c.task_id === p.taskId))
+        .map(p => localRow(childId, p));
+      setCompletions([...(data || []), ...queued]);
     } catch (error) {
       console.error('Error fetching completions:', error);
     }
+  };
+
+  /** Try to save every queued "done". Safe to call any time. */
+  const flushPendingCompletions = async () => {
+    if (!childId) return;
+    const queue = readQueue(childId);
+    if (!queue.length) return;
+    const left: PendingCompletion[] = [];
+    for (const p of queue) {
+      const { data, error } = await supabase
+        .from('task_completions')
+        .insert([{ child_id: childId, task_id: p.taskId, coins_earned: 0, duration_spent: p.duration, date: p.date, completed_at: p.at }])
+        .select()
+        .single();
+      let saved: TaskCompletion | null = data ?? null;
+      if (error) {
+        if (isNetworkError(error)) {
+          left.push(p);
+          continue;
+        }
+        // Already saved (another device, or an earlier retry that did land).
+        if (error.code === '23505') saved = await fetchCompletionFor(p.taskId, p.date);
+        // Anything else (the task was deleted, say) can never succeed: drop it.
+      }
+      setCompletions(prev => {
+        const without = prev.filter(c => c.id !== localId(p.taskId, p.date));
+        return saved && !without.some(c => c.id === saved!.id) ? [...without, saved] : without;
+      });
+    }
+    writeQueue(childId, left);
+    setPendingCount(left.length);
   };
 
   const addTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
@@ -268,45 +354,87 @@ export const useTasks = (childId?: string) => {
     }
   };
 
+  /**
+   * The child tapped "I'm done" (or a chore). Shows as done immediately; if
+   * the save can't reach the server it is queued and retried rather than
+   * failing, so this only rejects for a real problem (the task is gone).
+   */
   const completeTask = async (taskId: string, coinsEarned: number, durationSpent?: number) => {
-    try {
-      const date = getPSTDateString();
-      const { data, error } = await supabase
-        .from('task_completions')
-        .insert([{
-          child_id: childId!,
-          task_id: taskId,
-          coins_earned: coinsEarned,
-          duration_spent: durationSpent,
-          date,
-        }])
-        .select()
-        .single();
+    if (!childId) return null;
+    const date = getPSTDateString();
+    const existing = completions.find(c => c.task_id === taskId && c.date === date);
+    if (existing) return existing;
 
-      if (error) {
-        // Already done today (a double tap, or a parent marked it): that's
-        // the outcome the child wanted, so use the existing row.
-        if (error.code === '23505') {
-          const existing = await fetchCompletionFor(taskId, date);
-          if (existing) {
-            setCompletions(prev => prev.some(c => c.id === existing.id) ? prev : [...prev, existing]);
-            return existing;
-          }
-        }
-        throw error;
-      }
+    const pending: PendingCompletion = { taskId, date, duration: durationSpent, at: new Date().toISOString() };
+    const local = localRow(childId, pending);
+    setCompletions(prev => prev.some(c => c.task_id === taskId && c.date === date) ? prev : [...prev, local]);
 
-      setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
-      return data;
-    } catch (error) {
-      console.error('Error completing task:', error);
-      toast({
-        title: "Error",
-        description: "Failed to record task completion",
-        variant: "destructive",
+    const { data, error } = await supabase
+      .from('task_completions')
+      .insert([{
+        child_id: childId,
+        task_id: taskId,
+        coins_earned: coinsEarned,
+        duration_spent: durationSpent,
+        date,
+      }])
+      .select()
+      .single();
+
+    const replaceLocal = (row: TaskCompletion) =>
+      setCompletions(prev => {
+        const without = prev.filter(c => c.id !== local.id);
+        return without.some(c => c.id === row.id) ? without : [...without, row];
       });
-      throw error;
+
+    if (!error) {
+      replaceLocal(data);
+      return data;
     }
+    if (isNetworkError(error)) {
+      const queue = readQueue(childId).filter(p => !(p.taskId === taskId && p.date === date));
+      queue.push(pending);
+      writeQueue(childId, queue);
+      setPendingCount(queue.length);
+      return local;
+    }
+    // Already done today (a double tap, or a parent marked it): that's the
+    // outcome the child wanted, so use the existing row.
+    if (error.code === '23505') {
+      const row = await fetchCompletionFor(taskId, date);
+      if (row) {
+        replaceLocal(row);
+        return row;
+      }
+    }
+    setCompletions(prev => prev.filter(c => c.id !== local.id));
+    console.error('Error completing task:', error);
+    throw error;
+  };
+
+  /**
+   * Take back a "done" the child tapped by mistake. Also takes back any stars
+   * a grown-up gave for it (in the same database call).
+   */
+  const uncompleteTask = async (taskId: string) => {
+    if (!childId) return false;
+    const date = getPSTDateString();
+    const row = completions.find(c => c.task_id === taskId && c.date === date);
+    if (!row) return false;
+    if (isLocalCompletion(row)) {
+      const queue = readQueue(childId).filter(p => !(p.taskId === taskId && p.date === date));
+      writeQueue(childId, queue);
+      setPendingCount(queue.length);
+      setCompletions(prev => prev.filter(c => c.id !== row.id));
+      return true;
+    }
+    const { error } = await supabase.rpc('undo_task_completion', { p_completion_id: row.id });
+    if (error) {
+      console.error('Error undoing completion:', error);
+      return false;
+    }
+    setCompletions(prev => prev.filter(c => c.id !== row.id));
+    return true;
   };
 
   const reorderTasks = async (reorderedTasks: Task[]) => {
@@ -423,7 +551,18 @@ export const useTasks = (childId?: string) => {
             }
           }
         )
-        .subscribe();
+        .subscribe(resyncOnReconnect());
+
+      // Catch up on anything missed while the connection was down, and keep
+      // retrying "done" taps that haven't been saved yet.
+      const stopResync = onResync(() => {
+        fetchTasks();
+        flushPendingCompletions().finally(fetchTodayCompletions);
+      });
+      flushPendingCompletions();
+      const retryInterval = setInterval(() => {
+        if (readQueue(childId).length) flushPendingCompletions();
+      }, 20_000);
 
       // Check every 30s if the PST date rolled over; if so, refetch completions
       const dateCheckInterval = setInterval(() => {
@@ -448,6 +587,8 @@ export const useTasks = (childId?: string) => {
 
       return () => {
         supabase.removeChannel(tasksChannel);
+        stopResync();
+        clearInterval(retryInterval);
         clearInterval(dateCheckInterval);
         document.removeEventListener('visibilitychange', handleVisibility);
       };
@@ -462,6 +603,9 @@ export const useTasks = (childId?: string) => {
     updateTask,
     deleteTask,
     completeTask,
+    uncompleteTask,
+    /** "Done" taps still waiting to be saved (offline). */
+    pendingCount,
     reorderTasks,
     getTasksWithCompletionStatus,
     refetch: () => {

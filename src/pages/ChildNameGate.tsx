@@ -5,14 +5,19 @@ import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
 import { useAuth } from "@/hooks/useAuth";
 import CritterPet from "@/components/critters/CritterPet";
+import LoadErrorCard from "@/components/LoadErrorCard";
 
 const ChildNameGate = () => {
   const navigate = useNavigate();
-  const { children, loading } = useChildren();
+  const { children, loading, loadError, refetch } = useChildren();
   const { signOut, user } = useAuth();
 
   if (loading) {
     return <LoadingScreen label="Getting ready…" />;
+  }
+
+  if (children.length === 0 && loadError) {
+    return <LoadErrorCard onRetry={refetch} />;
   }
 
   // No children set up yet — redirect to parent to create profiles

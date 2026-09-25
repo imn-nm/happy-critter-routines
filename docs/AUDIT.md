@@ -40,40 +40,42 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 
 ## 2. The always-on child screen
 
-- [ ] **Night shows "Free Time".** Before wake-up the screen offers a multi-hour
+- [x] **Night shows "Free Time".** Before wake-up the screen offers a multi-hour
   free-time countdown, the wheel, Playtime and chores. Needs a sleeping state. (C)
-- [ ] **Playtime reopens by itself** at the next free-time window (`playOpen`
+- [x] **Playtime reopens by itself** at the next free-time window (`playOpen`
   never reset when the next task takes over). (C)
-- [ ] **Checklist ticks carry past midnight** on a screen that never reloads. (C)
-- [ ] **Never catches up after a network drop** — refetch only on tab
+- [x] **Checklist ticks carry past midnight** on a screen that never reloads. (C)
+- [x] **Never catches up after a network drop** — refetch only on tab
   visibility, which an always-on screen never triggers. (C)
-- [ ] **Offline at startup → permanent "Child not found"**; the name picker
+- [x] **Offline at startup → permanent "Child not found"**; the name picker
   shows "No children profiles yet" and suggests setup. Needs a
   "couldn't load — try again" state. (CX)
-- [ ] **Celebrates before the save lands.** Offline "I'm done" plays the
+- [x] **Celebrates before the save lands.** Offline "I'm done" plays the
   celebration, then a red adult error, then the task comes back. Show
   saving / done / tap to retry. (CX)
-- [ ] **Adult error toasts on the child screen** ("Failed to purchase reward",
+- [x] **Adult error toasts on the child screen** ("Failed to purchase reward",
   "Failed to update child"). (C)
-- [ ] **Double-tapping a chore** records it twice and replays the sound. (C)
-- [ ] **No undo for an accidental chore tap** on the child side (safe: stars only
+- [x] **Double-tapping a chore** records it twice and replays the sound. (C)
+- [x] **No undo for an accidental chore tap** on the child side (safe: stars only
   come from parents). (X)
-- [ ] **Per-day wake times ignored** for the sleepy / free-time logic. (C)
-- [ ] **Rest day hides the reward loop** — no star chip, shop, approval
+- [x] **Per-day wake times ignored** for the sleepy / free-time logic. (C)
+- [x] **Rest day hides the reward loop** — no star chip, shop, approval
   celebration or chores. (C)
-- [ ] **Chores disappear** in the "Next up" and "All done" states; a day with no
+- [x] **Chores disappear** in the "Next up" and "All done" states; a day with no
   timed tasks says "All done for today!" from the morning. (C)
-- [ ] **Free time eaten by the worm** drops to a bare list with no pet. (C)
-- [ ] **Bedtime after midnight / tasks past midnight** break the end of the day;
-  the still-to-do chime plays with the bedtime chime. (C)
-- [ ] **Shop numbers** — header shows all stars while cards subtract pending asks;
+- [x] **Free time eaten by the worm** drops to a bare list with no pet. (C)
+- [ ] **Bedtime after midnight / tasks past midnight** break the end of the day
+  (still open; rare for children). The still-to-do chime no longer plays with
+  the bedtime one. (C)
+- [x] **Shop numbers** — header shows all stars while cards subtract pending asks;
   a pending ask for a removed reward holds stars invisibly; evening denials
   show next day (UTC vs Pacific); parent Redeem never celebrates. (C)
-- [ ] **Removing a reward hides past purchases** from the "Mine" shelf. (CX)
+- [x] **Removing a reward hides past purchases** from the "Mine" shelf. (CX)
 - [ ] **Two kinds of free time** — planned fun activities and leftover free time
-  share wording and the wheel. (X)
-- [ ] Small: tiny "Show pet instead" link; same-start tasks show a past "Next";
-  no-school filter drops anything containing "school"; dead realtime channel. (C)
+  share wording and the wheel. Needs a product decision. (X)
+- [ ] Small: same-start tasks show a past "Next" (open). Fixed: the tiny "Show
+  pet instead" link, the no-school filter dropping anything containing
+  "school", the dead realtime channel. (C)
 
 ## 3. Parent scheduling
 
@@ -109,11 +111,11 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
   checked; no revoke/remove/leave; email sign-up loses the token; lands on
   the kids' picker. (C)
 - [ ] **Password-reset form never closes** (separate `useAuth` instances). (C)
-- [ ] **Deleting a reward leaves pending requests stuck** holding stars. (C)
+- [x] **Deleting a reward leaves pending requests stuck** holding stars. (C)
 - [ ] **Missed-important alerts** fire on rest days, can't be dismissed, can
   stop firing after a Give ★. (C)
 - [ ] **Empty dashboard dead end** — no Settings/Alerts/Sign out with zero
-  children; load errors look like "no children". (C)
+  children (open). Load errors now show "We couldn't load your family". (C)
 - [ ] **Connect Google Calendar may switch accounts** (`signInWithOAuth` instead
   of `linkIdentity`) — unverified. (C)
 - [ ] **Deleting a child from its page** leaves "Child not found". (C)

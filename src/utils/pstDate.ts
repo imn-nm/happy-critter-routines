@@ -25,3 +25,9 @@ export const getPSTDayName = (): string => {
   const d = getPSTDate();
   return d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 };
+
+/** "yyyy-MM-dd" in Pacific Time for a timestamp (e.g. a row's created_at). */
+export const toPSTDateString = (at: Date | string): string => {
+  const d = new Date(new Date(at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
