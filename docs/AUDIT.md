@@ -64,18 +64,22 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 - [x] **Chores disappear** in the "Next up" and "All done" states; a day with no
   timed tasks says "All done for today!" from the morning. (C)
 - [x] **Free time eaten by the worm** drops to a bare list with no pet. (C)
-- [ ] **Bedtime after midnight / tasks past midnight** break the end of the day
-  (still open; rare for children). The still-to-do chime no longer plays with
-  the bedtime one. (C)
+- [x] **Bedtime after midnight / tasks past midnight** — decided: the day
+  starts fresh at midnight. The child screen cuts anything off at midnight;
+  the task form refuses times that run past it and a Bedtime after midnight.
+  The still-to-do chime no longer plays with the bedtime one. (C)
 - [x] **Shop numbers** — header shows all stars while cards subtract pending asks;
   a pending ask for a removed reward holds stars invisibly; evening denials
   show next day (UTC vs Pacific); parent Redeem never celebrates. (C)
 - [x] **Removing a reward hides past purchases** from the "Mine" shelf. (CX)
-- [ ] **Two kinds of free time** — planned fun activities and leftover free time
-  share wording and the wheel. Needs a product decision. (X)
-- [ ] Small: same-start tasks show a past "Next" (open). Fixed: the tiny "Show
-  pet instead" link, the no-school filter dropping anything containing
-  "school", the dead realtime channel. (C)
+- [x] **Free time choices** — decided: free time opens on Biscuit; with more
+  than 10 minutes left the child can pick "Spin the wheel" instead. Five
+  minutes before the next task Biscuit says "Time to get ready", on top of
+  the wheel or Playtime. (X)
+- [x] Small: the tiny "Show pet instead" link, the no-school filter dropping
+  anything containing "school", the dead realtime channel. Two tasks can no
+  longer start at the same time (decided: never allowed; every save path
+  checks, see `src/utils/startClash.ts`). (C)
 
 ## 3. Parent scheduling
 
@@ -85,7 +89,7 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
   set under 60 minutes. (C)
 - [ ] **Planner delete** — one-offs delete without confirm; Cancel on "only
   Mon?" leads to "Delete ALL recurring?". (C)
-- [ ] **"Also add to" another child drops the date** (lands on today). (C)
+- [x] **"Also add to" another child drops the date** (lands on today). (C)
 - [ ] **Chore tiles stack** exactly on top of each other (default 3–6pm). (C)
 - [ ] **Can't give stars for Normal tasks** though the form offers stars. (C)
 - [ ] **Drag moves every day** of a recurring task; skipped dates can't be
@@ -94,9 +98,9 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 - [ ] **Only one rest day per child**; adding another silently moves it. Support
   ranges/multiple dates for illness and trips. (CX)
 - [ ] **Holiday form remembers the previous holiday.** (C)
-- [ ] **Missing checks** — chore window end before start, tasks after bedtime or
-  past midnight, meals outside the waking day or out of order at setup,
-  unlimited stars. (CX)
+- [ ] **Missing checks** — chore window end before start, meals outside the
+  waking day or out of order at setup, unlimited stars (open). Done: nothing
+  may run past midnight; two tasks can't start at the same time. (CX)
 - [ ] **Calendar looks connected when sync fails** — show last successful sync
   and a Reconnect state. (CX)
 

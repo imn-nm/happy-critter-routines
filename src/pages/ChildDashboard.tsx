@@ -21,8 +21,8 @@ import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import LoadingScreen from "@/components/LoadingScreen";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
-import { useChildren } from "@/hooks/useChildren";
-import { useTasks } from "@/hooks/useTasks";
+import { useChildren, type Child } from "@/hooks/useChildren";
+import { useTasks, type Task } from "@/hooks/useTasks";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
@@ -33,6 +33,7 @@ import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
+import { describeClash, findStartClash, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 
 const ChildDashboard = () => {
@@ -178,6 +179,56 @@ const ChildDashboard = () => {
     return updateData;
   };
 
+  // ── Two things can never start at the same minute ─────────────────────
+  // Each save path builds what the schedule would look like after the change
+  // and checks it before writing. Returns a message, or null when it's fine.
+  const clashForNew = (taskData: Partial<Task>) => {
+    const candidate = { ...taskData, id: 'new', is_active: true } as TaskLike;
+    const dates = candidate.is_recurring ? upcomingDates(tasks, child) : [candidate.task_date || format(currentDate, 'yyyy-MM-dd')];
+    const clash = findStartClash(candidate, dates, tasks, child);
+    return clash ? describeClash(clash) : null;
+  };
+
+  const clashForEdit = (taskData: Partial<Task>, et: Task, scope: 'this-date' | 'all') => {
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const sysKey = systemNameToKey[et.name];
+    if (sysKey && child) {
+      // Built-in rows take their times from the child's profile.
+      const existing: SystemDateOverrides = (child as Child & { system_date_overrides?: SystemDateOverrides }).system_date_overrides || {};
+      let nextChild: Child & { system_date_overrides?: SystemDateOverrides };
+      if (scope === 'this-date') {
+        const forDate = { ...(existing[dateStr] || {}) };
+        forDate[sysKey] = { time: taskData.scheduled_time ?? forDate[sysKey]?.time, duration: taskData.duration ?? forDate[sysKey]?.duration };
+        nextChild = { ...child, system_date_overrides: { ...existing, [dateStr]: forDate } };
+      } else {
+        const { [dateStr]: _drop, ...rest } = existing;
+        nextChild = { ...child, ...buildSystemUpdateData(sysKey, taskData), system_date_overrides: rest };
+      }
+      const dates = scope === 'this-date' ? [dateStr] : upcomingDates(tasks, nextChild);
+      const clash = findStartClash(et, dates, tasks, nextChild);
+      return clash ? describeClash(clash) : null;
+    }
+    if (scope === 'this-date') {
+      const candidate = {
+        ...et,
+        date_overrides: {
+          ...(et.date_overrides || {}),
+          [dateStr]: { scheduled_time: taskData.scheduled_time ?? et.scheduled_time, duration: taskData.duration ?? et.duration },
+        },
+      };
+      const clash = findStartClash(candidate, [dateStr], tasks, child);
+      return clash ? describeClash(clash) : null;
+    }
+    const { [dateStr]: _drop, ...restOverrides } = et.date_overrides || {};
+    const candidate = { ...et, ...taskData, id: et.id, date_overrides: restOverrides };
+    const dates = candidate.is_recurring ? upcomingDates(tasks, child) : [candidate.task_date || dateStr];
+    const clash = findStartClash(candidate, dates, tasks, child);
+    return clash ? describeClash(clash) : null;
+  };
+
+  const refuse = (message: string) =>
+    toast({ title: "That time is taken", description: message, variant: "destructive" });
+
   // Apply a system-task edit (school start, etc.) globally. Also clears the
   // current date's per-date override so the new base wins on that date.
   const applySystemEditAllDays = async (taskData: any, systemKey: string) => {
@@ -234,6 +285,16 @@ const ChildDashboard = () => {
     try {
       if (editingTask) {
         const systemKey = systemNameToKey[editingTask.name];
+        if (systemKey || editingTask.is_recurring) {
+          // Neither "only this date" nor "all days" would work: say why and
+          // keep the form open so nothing typed is lost.
+          const thisDate = clashForEdit(taskData, editingTask, 'this-date');
+          const allDays = clashForEdit(taskData, editingTask, 'all');
+          if (thisDate && allDays) {
+            refuse(thisDate);
+            return;
+          }
+        }
         if (systemKey) {
           // System task — defer to the same prompt so the parent can pick
           // "this date only" (writes children.system_date_overrides) vs
@@ -249,6 +310,11 @@ const ChildDashboard = () => {
           setShowTaskForm(false);
           return;
         } else {
+          const clash = clashForEdit(taskData, editingTask, 'all');
+          if (clash) {
+            refuse(clash);
+            return;
+          }
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
         }
       } else {
@@ -263,6 +329,11 @@ const ChildDashboard = () => {
           autoPlacedAt = findNextFreeSlot(tasks, finalTaskData.duration || DEFAULT_SLOT_MINUTES);
           if (autoPlacedAt) finalTaskData.scheduled_time = autoPlacedAt;
         }
+        const clash = clashForNew(finalTaskData);
+        if (clash) {
+          refuse(clash);
+          return;
+        }
         await addTask(finalTaskData);
         if (autoPlacedAt) {
           const [h, m] = autoPlacedAt.split(':').map(Number);
@@ -276,16 +347,36 @@ const ChildDashboard = () => {
         // Also create the same task for any other selected children
         if (_additionalChildIds && _additionalChildIds.length > 0) {
           const { child_id: _ignored, ...taskForOthers } = finalTaskData;
-          const rows = _additionalChildIds.map((otherId: string) => {
-            const { isCompleted, task_date, bonusTime, ...rest } = taskForOthers as any;
+          const { data: siblingTasks } = await supabase
+            .from('tasks')
+            .select('*')
+            .in('child_id', _additionalChildIds);
+          const skipped: string[] = [];
+          const rows = _additionalChildIds.flatMap((otherId: string) => {
+            // Keep the date: a one-off for next Tuesday is for next Tuesday
+            // for everyone, not "today" (the fallback when it's missing).
+            const { isCompleted, bonusTime, ...rest } = taskForOthers as any;
             const row: Record<string, any> = { child_id: otherId };
             for (const [k, v] of Object.entries(rest)) {
               if (v !== undefined) row[k] = v;
             }
-            return row;
+            const sibling = children.find(c => c.id === otherId) ?? null;
+            const theirs = (siblingTasks ?? []).filter(t => t.child_id === otherId) as unknown as Task[];
+            const dates = row.is_recurring ? upcomingDates(theirs, sibling) : [row.task_date || format(currentDate, 'yyyy-MM-dd')];
+            const clash = findStartClash({ ...row, id: 'new', is_active: true } as TaskLike, dates, theirs, sibling);
+            if (clash) {
+              skipped.push(`${sibling?.name ?? 'another child'}: ${describeClash(clash)}`);
+              return [];
+            }
+            return [row];
           });
-          const { error: insertError } = await supabase.from('tasks').insert(rows);
-          if (insertError) throw insertError;
+          if (rows.length) {
+            const { error: insertError } = await supabase.from('tasks').insert(rows);
+            if (insertError) throw insertError;
+          }
+          if (skipped.length) {
+            toast({ title: "Not added for everyone", description: skipped.join(' '), variant: "destructive" });
+          }
         }
       }
       setShowTaskForm(false); setEditingTask(null);
@@ -312,6 +403,14 @@ const ChildDashboard = () => {
   };
 
   if (loading) return <LoadingScreen />;
+
+  // Which "update which dates?" options would make two things start together.
+  const scopeClash = pendingRecurringEdit
+    ? {
+        thisDate: clashForEdit(pendingRecurringEdit.taskData, pendingRecurringEdit.editingTask, 'this-date'),
+        allDays: clashForEdit(pendingRecurringEdit.taskData, pendingRecurringEdit.editingTask, 'all'),
+      }
+    : null;
 
   if (!child) {
     return (
@@ -662,10 +761,17 @@ const ChildDashboard = () => {
                 </>
               )}
             </AlertDialogDescription>
+            {scopeClash && (scopeClash.thisDate || scopeClash.allDays) && (
+              <p className="text-sm text-coral-300">
+                {scopeClash.allDays ? 'Only this date works. ' : 'Only all days works. '}
+                {scopeClash.allDays ?? scopeClash.thisDate}
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!!scopeClash?.thisDate}
               onClick={async () => {
                 if (!pendingRecurringEdit) return;
                 const { taskData, editingTask: et } = pendingRecurringEdit;
@@ -687,6 +793,7 @@ const ChildDashboard = () => {
               Only on {format(currentDate, 'EEE, MMM d')}
             </AlertDialogAction>
             <AlertDialogAction
+              disabled={!!scopeClash?.allDays}
               onClick={async () => {
                 if (!pendingRecurringEdit) return;
                 const { taskData, editingTask: et } = pendingRecurringEdit;
@@ -716,6 +823,7 @@ const ChildDashboard = () => {
           <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
           <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
           <TaskForm
+            wakeTime={child?.wake_time}
             key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}`}
             task={editingTask} onSave={handleSaveTask}
             onCancel={() => { setShowTaskForm(false); setEditingTask(null); setPrefillTime(undefined); }}

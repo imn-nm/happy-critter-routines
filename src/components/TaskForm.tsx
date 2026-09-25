@@ -24,6 +24,8 @@ interface TaskFormProps {
   currentDate: Date;
   prefillTime?: string;
   otherChildren?: { id: string; name: string }[];
+  /** The child's wake-up time ("HH:MM"), so Bedtime can't land after midnight. */
+  wakeTime?: string | null;
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
@@ -106,7 +108,7 @@ const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = 
   { value: 'fun', label: 'Free time', caption: 'TV, Roblox, playtime. When a Must-finish task runs late, the worm eats into this.' },
 ];
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [] }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -270,10 +272,23 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const needsDays = formData.isRecurring && formData.recurringDays.length === 0;
+  // The child's day starts fresh at midnight, so nothing may run past it.
+  // Bedtime's length is the wind-down, not something on the clock, so only
+  // its start counts, and it can't be after midnight (earlier than wake-up).
+  const startMinutes = !isChore && formData.scheduledTime
+    ? Number(formData.scheduledTime.slice(0, 2)) * 60 + Number(formData.scheduledTime.slice(3, 5))
+    : null;
+  const isBedtimeRow = isSystemEvent && task?.name === 'Bedtime';
+  const wakeMinutes = wakeTime ? Number(wakeTime.slice(0, 2)) * 60 + Number(wakeTime.slice(3, 5)) : null;
+  const timeProblem = startMinutes == null
+    ? null
+    : isBedtimeRow
+      ? (wakeMinutes != null && startMinutes < wakeMinutes ? "Bedtime has to be before midnight: the day starts fresh at midnight." : null)
+      : (startMinutes + durationTotal > 24 * 60 ? "This would run past midnight. The day starts fresh at midnight, so make it end by 11:59pm." : null);
   // A parent's own task can't take a built-in row's name: the app would treat
   // it as that row.
   const nameClash = isSystemEvent ? undefined : reservedTaskName(formData.name);
-  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash;
+  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem;
 
   // Never hide the reason submit is disabled.
   const moreOpen = showMore || needsDays;
@@ -524,6 +539,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </SelectContent>
           </Select>
         </FormRow>
+      )}
+      {timeProblem && (
+        <p className="text-xs text-coral-300 -mt-1 px-1 leading-snug" role="alert">{timeProblem}</p>
       )}
 
       {choreWouldDrop && (

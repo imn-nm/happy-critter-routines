@@ -89,6 +89,8 @@ export const sounds = {
     { f: C5, at: 0, len: 0.14 }, { f: E5, at: 0.1, len: 0.14 }, { f: G5, at: 0.2, len: 0.14 },
     { f: C6, at: 0.32, len: 0.5, gain: 0.14 },
   ]),
+  /** Five minutes until the next thing. A gentle "heads up", two notes. */
+  soon: () => play([{ f: A4, at: 0, len: 0.22, gain: 0.08 }, { f: E5, at: 0.2, len: 0.36, gain: 0.08 }]),
   /** Bedtime. Two descending notes, quiet. */
   bedtime: () => play([{ f: E5, at: 0, len: 0.5, gain: 0.07 }, { f: C5, at: 0.5, len: 0.8, gain: 0.06 }]),
 };
