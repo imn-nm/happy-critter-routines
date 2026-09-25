@@ -41,6 +41,25 @@ const ChildSetup = () => {
     dinnerTime: "18:00",
   });
 
+  // The day runs wake-up → meals → bedtime, all before midnight. Out of order
+  // (dinner before lunch, breakfast before wake-up) the schedule would be
+  // nonsense, so say which one and hold Next.
+  const timesProblem = (() => {
+    const order = [
+      { label: 'Wake up', t: formData.wakeTime },
+      { label: 'Breakfast', t: formData.breakfastTime },
+      { label: 'Lunch', t: formData.lunchTime },
+      { label: 'Dinner', t: formData.dinnerTime },
+      { label: 'Bedtime', t: formData.sleepTime },
+    ];
+    for (let i = 1; i < order.length; i++) {
+      if (order[i].t && order[i - 1].t && order[i].t <= order[i - 1].t) {
+        return `${order[i].label} has to be after ${order[i - 1].label.toLowerCase()}.`;
+      }
+    }
+    return null;
+  })();
+
   const handleNext = () => { if (step < 3) setStep(step + 1); };
   const handleBack = () => { if (step > 1) setStep(step - 1); };
 
@@ -75,7 +94,7 @@ const ChildSetup = () => {
       const age = parseInt(formData.age, 10);
       return formData.name.trim().length > 0 && !isNaN(age) && age >= 3 && age <= 18;
     }
-    if (step === 2) return formData.wakeTime && formData.sleepTime;
+    if (step === 2) return !!formData.wakeTime && !!formData.sleepTime && !timesProblem;
     return true;
   };
 
@@ -199,6 +218,9 @@ const ChildSetup = () => {
                     ))}
                   </div>
                 </div>
+                {timesProblem && (
+                  <p className="text-xs text-coral-300 px-1" role="alert">{timesProblem}</p>
+                )}
               </div>
             </div>
           )}

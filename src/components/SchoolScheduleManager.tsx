@@ -47,15 +47,27 @@ const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolSched
     // Extract enabled days (days that are not null)
     const enabledDays = Object.keys(daySchedules).filter(day => daySchedules[day] !== null);
 
-    // Find a default time/duration for school_start_time and school_duration
-    // Use the first enabled day as the default
-    const firstEnabled = enabledDays.length > 0 ? daySchedules[enabledDays[0]] : null;
+    // The usual school day is the most common time + length. Only days that
+    // differ from it keep their own entry: storing every day made later
+    // "all days" changes to School do nothing, since each day had its own.
+    const keyOf = (s: { time: string; duration: number }) => `${s.time.slice(0, 5)}|${s.duration}`;
+    const counts = new Map<string, number>();
+    enabledDays.forEach(day => {
+      const k = keyOf(daySchedules[day]!);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    });
+    const usualKey = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const usual = enabledDays.map(day => daySchedules[day]!).find(s => keyOf(s) === usualKey) ?? null;
+    const differing: Record<string, { time: string; duration: number }> = {};
+    enabledDays.forEach(day => {
+      if (keyOf(daySchedules[day]!) !== usualKey) differing[day] = daySchedules[day]!;
+    });
 
     await onSave({
       school_days: enabledDays,
-      school_start_time: firstEnabled?.time,
-      school_duration: firstEnabled?.duration,
-      school_schedule_overrides: daySchedules,
+      school_start_time: usual?.time,
+      school_duration: usual?.duration,
+      school_schedule_overrides: differing,
     });
   };
 

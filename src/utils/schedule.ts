@@ -38,7 +38,13 @@ export function findNextFreeSlot(
   tasks: PlaceableTask[],
   durationMinutes: number = DEFAULT_SLOT_MINUTES,
   notBeforeMinutes?: number,
+  /** Latest minute the task may end (bedtime, or midnight). */
+  notAfterMinutes: number = 24 * 60,
 ): string | undefined {
+  // Nothing fits after the day's end: leave the time for the parent to pick
+  // rather than suggesting "24:15" or a slot after bedtime.
+  const place = (minute: number) =>
+    minute + durationMinutes <= notAfterMinutes ? toTimeString(minute) : undefined;
   const occupied = tasks
     .filter(t => t.is_active !== false && t.scheduled_time)
     .map(t => {
@@ -49,7 +55,7 @@ export function findNextFreeSlot(
     .sort((a, b) => a.start - b.start);
 
   if (occupied.length === 0) {
-    return notBeforeMinutes != null ? toTimeString(notBeforeMinutes) : undefined;
+    return notBeforeMinutes != null ? place(notBeforeMinutes) : undefined;
   }
 
   const fits = (candidate: number) => {
@@ -63,13 +69,13 @@ export function findNextFreeSlot(
   // another block.
   if (notBeforeMinutes != null) {
     const inside = occupied.some(b => notBeforeMinutes >= b.start && notBeforeMinutes < b.end);
-    if (!inside) return toTimeString(notBeforeMinutes);
+    if (!inside) return place(notBeforeMinutes);
   }
 
   for (const block of occupied) {
     const candidate = Math.max(block.end, notBeforeMinutes ?? 0);
-    if (fits(candidate)) return toTimeString(candidate);
+    if (fits(candidate)) return place(candidate);
   }
 
-  return toTimeString(Math.max(occupied[occupied.length - 1].end, notBeforeMinutes ?? 0));
+  return place(Math.max(occupied[occupied.length - 1].end, notBeforeMinutes ?? 0));
 }

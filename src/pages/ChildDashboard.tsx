@@ -33,7 +33,9 @@ import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
-import { describeClash, findStartClash, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
+import { isRestDate, restDayUpdate } from "@/utils/restDays";
+import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
+import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 
 const ChildDashboard = () => {
@@ -49,11 +51,10 @@ const ChildDashboard = () => {
   const [scheduleTab, setScheduleTab] = useState("timeline");
   const [showRewards, setShowRewards] = useState(false);
   const [showWheelEditor, setShowWheelEditor] = useState(false);
-  // Rest day applies to whichever day the parent is currently viewing — the
-  // schema only stores a single `rest_day_date` per child, so toggling it
-  // moves the rest day to that date.
+  // Rest day applies to whichever day the parent is currently viewing; a
+  // child can have any number of them.
   const selectedDayString = child ? format(currentDate, 'yyyy-MM-dd') : '';
-  const isRestDay = !!child && child.rest_day_date === selectedDayString;
+  const isRestDay = isRestDate(child, selectedDayString);
   // When the parent edits a recurring task, we stash the form payload here
   // and pop a "this day vs all days" prompt before committing the update.
   const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
@@ -82,6 +83,25 @@ const ChildDashboard = () => {
     }
   };
 
+  /**
+   * A free slot on `dateStr` for something `minutes` long: only that day's
+   * tasks count (Saturday isn't blocked by weekday School), never before its
+   * wake-up (or now, for today) and never ending after its bedtime.
+   */
+  const suggestSlot = (dateStr: string, minutes: number) => {
+    const dayTasks = tasksOnDate(tasks, dateStr, child);
+    const toMin = (t?: string) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : undefined);
+    const wake = toMin(dayTasks.find(t => t.name === 'Wake Up')?.scheduled_time);
+    const bed = toMin(dayTasks.find(t => t.name === 'Bedtime')?.scheduled_time);
+    let notBefore = wake;
+    if (dateStr === getPSTDateString()) {
+      const now = getPSTDate();
+      const nowMin = roundUpToGrid(now.getHours() * 60 + now.getMinutes());
+      notBefore = Math.max(nowMin, wake ?? 0);
+    }
+    return findNextFreeSlot(dayTasks.filter(t => t.name !== 'Bedtime'), minutes, notBefore, bed ?? 24 * 60);
+  };
+
   const handleAddTask = (time?: string) => {
     // Guard against accidental event/object args from `onClick={handleAddTask}`
     const safeTime = typeof time === 'string' ? time : undefined;
@@ -90,12 +110,7 @@ const ChildDashboard = () => {
     // the task would land in anyway, so the parent can see and change it
     // instead of discovering it after saving. When adding to today that slot
     // starts at the current time — never a gap that has already passed.
-    const notBefore = (() => {
-      if (format(currentDate, 'yyyy-MM-dd') !== getPSTDateString()) return undefined;
-      const now = getPSTDate();
-      return roundUpToGrid(now.getHours() * 60 + now.getMinutes());
-    })();
-    setPrefillTime(safeTime ?? findNextFreeSlot(tasks, DEFAULT_SLOT_MINUTES, notBefore));
+    setPrefillTime(safeTime ?? suggestSlot(format(currentDate, 'yyyy-MM-dd'), DEFAULT_SLOT_MINUTES));
     setShowTaskForm(true);
   };
   const handleEditTask = (task) => {
@@ -131,6 +146,27 @@ const ChildDashboard = () => {
   const applyRecurringEditAllDays = async (taskData: any, editingTaskRef: any) => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const existingDateOverrides = editingTaskRef.date_overrides || {};
+    // The form opened on this day's changed time. If the parent didn't touch
+    // the time, that one day's time must not become every day's time (a
+    // rename used to move the task everywhere); keep the base and the change.
+    const original = tasks.find(t => t.id === editingTaskRef.id) ?? editingTaskRef;
+    const dayOverride = original.date_overrides?.[dateStr] || original.schedule_overrides?.[format(currentDate, 'EEEE').toLowerCase()];
+    const sameMinute = (a?: string | null, b?: string | null) => (a ?? '').slice(0, 5) === (b ?? '').slice(0, 5);
+    if (dayOverride
+      && sameMinute(taskData.scheduled_time, dayOverride.scheduled_time ?? original.scheduled_time)
+      && (taskData.duration ?? null) === (dayOverride.duration ?? original.duration ?? null)) {
+      taskData = { ...taskData, scheduled_time: original.scheduled_time, duration: original.duration };
+      const kept: Partial<Task> = {
+        ...taskData,
+        id: editingTaskRef.id,
+        child_id: editingTaskRef.child_id,
+        created_at: editingTaskRef.created_at,
+        updated_at: new Date().toISOString(),
+        date_overrides: original.date_overrides,
+      };
+      await updateTask(editingTaskRef.id, kept);
+      return;
+    }
     const { [dateStr]: _removed, ...remainingDateOverrides } = existingDateOverrides;
     const nextDateOverrides =
       Object.keys(remainingDateOverrides).length > 0 ? remainingDateOverrides : null;
@@ -224,6 +260,18 @@ const ChildDashboard = () => {
     const dates = candidate.is_recurring ? upcomingDates(tasks, child) : [candidate.task_date || dateStr];
     const clash = findStartClash(candidate, dates, tasks, child);
     return clash ? describeClash(clash) : null;
+  };
+
+  /** What in an edit can't differ for a single day (only time and length can). */
+  const everyDayOnlyChanges = (taskData: Partial<Task>, et: Task) => {
+    const changed: string[] = [];
+    if ((taskData.name ?? '') !== (et.name ?? '')) changed.push('name');
+    if ((taskData.coins ?? 0) !== (et.coins ?? 0)) changed.push('stars');
+    if (!!taskData.is_important !== !!et.is_important || !!taskData.is_fun_time !== !!et.is_fun_time || (taskData.type === 'floating') !== (et.type === 'floating')) changed.push('how it works');
+    if ((taskData.icon ?? null) !== (et.icon ?? null)) changed.push('icon');
+    if (JSON.stringify(taskData.subtasks ?? []) !== JSON.stringify(et.subtasks ?? [])) changed.push('checklist');
+    if (JSON.stringify([...(taskData.recurring_days ?? [])].sort()) !== JSON.stringify([...(et.recurring_days ?? [])].sort())) changed.push('days');
+    return changed;
   };
 
   const refuse = (message: string) =>
@@ -326,7 +374,7 @@ const ChildDashboard = () => {
         // (e.g. the /tasks page, which doesn't prefill). Say where it landed.
         let autoPlacedAt: string | undefined;
         if (!finalTaskData.scheduled_time && !finalTaskData.window_start && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
-          autoPlacedAt = findNextFreeSlot(tasks, finalTaskData.duration || DEFAULT_SLOT_MINUTES);
+          autoPlacedAt = suggestSlot(finalTaskData.task_date || format(currentDate, 'yyyy-MM-dd'), finalTaskData.duration || DEFAULT_SLOT_MINUTES);
           if (autoPlacedAt) finalTaskData.scheduled_time = autoPlacedAt;
         }
         const clash = clashForNew(finalTaskData);
@@ -404,12 +452,20 @@ const ChildDashboard = () => {
 
   if (loading) return <LoadingScreen />;
 
-  // Which "update which dates?" options would make two things start together.
+  // Which "update which dates?" options can't be used, and why: one would
+  // make two things start together, or the edit changes something (a name,
+  // stars…) that can only change for every day.
   const scopeClash = pendingRecurringEdit
-    ? {
-        thisDate: clashForEdit(pendingRecurringEdit.taskData, pendingRecurringEdit.editingTask, 'this-date'),
-        allDays: clashForEdit(pendingRecurringEdit.taskData, pendingRecurringEdit.editingTask, 'all'),
-      }
+    ? (() => {
+        const { taskData, editingTask: et } = pendingRecurringEdit;
+        const everyDay = everyDayOnlyChanges(taskData, et);
+        return {
+          thisDate: everyDay.length
+            ? `Only the time and length can change for one day. Changing the ${everyDay.join(', ')} applies to every day.`
+            : clashForEdit(taskData, et, 'this-date'),
+          allDays: clashForEdit(taskData, et, 'all'),
+        };
+      })()
     : null;
 
   if (!child) {
@@ -553,9 +609,7 @@ const ChildDashboard = () => {
                     aria-checked={isRestDay}
                     aria-label="Rest day toggle"
                     onClick={async () => {
-                      await updateChild(child.id, {
-                        rest_day_date: !isRestDay ? selectedDayString : null,
-                      });
+                      await updateChild(child.id, restDayUpdate(child, selectedDayString, !isRestDay));
                     }}
                     className="tap-target relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
                   >
@@ -681,15 +735,32 @@ const ChildDashboard = () => {
                   // hint the timeline already respects) so the "Set Time"
                   // toggle in the edit form stays off.
                   const hadFixedTime = !!task.scheduled_time;
-                  if (task.is_recurring && dayName && hadFixedTime) {
-                    const overrides = {
-                      ...(task.schedule_overrides || {}),
-                      [dayName]: {
-                        scheduled_time: newTime,
-                        duration: task.schedule_overrides?.[dayName]?.duration ?? task.duration,
+                  if (task.is_recurring) {
+                    // A drag on one day's timeline moves it on that day only;
+                    // it used to move every day without asking. The toast
+                    // offers "Every day" for when that was the intent.
+                    const dateStr = format(currentDate, 'yyyy-MM-dd');
+                    const dayKey = dayName || format(currentDate, 'EEEE').toLowerCase();
+                    const duration = task.date_overrides?.[dateStr]?.duration
+                      ?? task.schedule_overrides?.[dayKey]?.duration ?? task.duration;
+                    await updateTask(taskId, {
+                      date_overrides: { ...(task.date_overrides || {}), [dateStr]: { scheduled_time: newTime, duration } },
+                    });
+                    await refetch();
+                    const everyDay = { ...(task.date_overrides || {}) };
+                    delete everyDay[dateStr];
+                    sonner(`Moved on ${format(currentDate, 'EEE, MMM d')} only`, {
+                      action: {
+                        label: 'Every day',
+                        onClick: async () => {
+                          await updateTask(taskId, hadFixedTime
+                            ? { scheduled_time: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }
+                            : { window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null });
+                          await refetch();
+                        },
                       },
-                    };
-                    await updateTask(taskId, { schedule_overrides: overrides });
+                    });
+                    return;
                   } else if (hadFixedTime) {
                     await updateTask(taskId, { scheduled_time: newTime });
                   } else {
@@ -706,9 +777,14 @@ const ChildDashboard = () => {
             <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
               onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
               onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+              onRestoreTask={async (taskId, dateStr) => {
+                const task = tasks.find(t => t.id === taskId);
+                if (!task) return;
+                await updateTask(taskId, { ...task, excluded_dates: (task.excluded_dates || []).filter(d => d !== dateStr) });
+              }}
               onSelectedDateChange={setCurrentDate}
               onToggleRestDay={async (dateStr, next) => {
-                await updateChild(child.id, { rest_day_date: next ? dateStr : null });
+                await updateChild(child.id, restDayUpdate(child, dateStr, next));
               }} />
           </TabsContent>
         </div>
@@ -761,11 +837,11 @@ const ChildDashboard = () => {
                 </>
               )}
             </AlertDialogDescription>
-            {scopeClash && (scopeClash.thisDate || scopeClash.allDays) && (
-              <p className="text-sm text-coral-300">
-                {scopeClash.allDays ? 'Only this date works. ' : 'Only all days works. '}
-                {scopeClash.allDays ?? scopeClash.thisDate}
-              </p>
+            {scopeClash?.thisDate && (
+              <p className="text-sm text-coral-300">{scopeClash.thisDate}</p>
+            )}
+            {scopeClash?.allDays && (
+              <p className="text-sm text-coral-300">{scopeClash.allDays}</p>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>

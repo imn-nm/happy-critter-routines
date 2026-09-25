@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useHousehold } from '@/hooks/useHousehold';
 import { toast } from 'sonner';
+import { calendarErrorMessage, recordCalendarSync } from '@/utils/calendarSyncStatus';
 
 const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 
@@ -101,19 +102,13 @@ export const useGoogleCalendar = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any) =>
-      toast.success(`Synced ${data?.synced ?? 0} events to Google Calendar`),
-    onError: async (e: any) => {
-      // FunctionsHttpError hides the function's JSON body behind `context`;
-      // without this the parent only ever sees "non-2xx status code".
-      let message = e?.message ?? 'Sync failed';
-      try {
-        const body = await e?.context?.json?.();
-        if (body?.error) message = body.error;
-      } catch { /* keep the generic message */ }
-      if (/invalid_grant|refresh failed/i.test(message)) {
-        message = 'Google disconnected this calendar — use Disconnect, then Connect again.';
-      }
+    onSuccess: (data: any) => {
+      if (household) recordCalendarSync(household.id, true);
+      toast.success(`Synced ${data?.synced ?? 0} events to Google Calendar`);
+    },
+    onError: async (e: unknown) => {
+      const message = await calendarErrorMessage(e);
+      if (household) recordCalendarSync(household.id, false, message);
       toast.error(message);
     },
   });

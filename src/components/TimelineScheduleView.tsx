@@ -449,11 +449,14 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 </>
               );
             }
-            // Show Mark done for any overdue-important or past/current-important
-            // task that hasn't been completed yet. Future tasks stay actionless.
+            // Mark done once a task's time has come, for must-finish tasks and
+            // for any task with stars on it (the form offers stars on Normal
+            // tasks too, and Give ★ needs it marked done first). Future
+            // tasks, and ones with nothing to give, stay actionless.
             const showMarkDone =
               onToggleCompletion &&
-              event.task?.is_important &&
+              !event.task?.is_fun_time &&
+              (event.task?.is_important || (event.coins ?? 0) > 0) &&
               (isOverdueImportant || isPastOrCurrent);
             if (showMarkDone) {
               return (
@@ -1554,7 +1557,45 @@ const TimelineScheduleView = ({
             </div>
 
             {/* Chores floating sidebar */}
-            {choreTasks.length > 0 && (
+            {choreTasks.length > 0 && (() => {
+              // Chores are placed by their time window. Ones whose windows
+              // overlap (new chores all default to 3–6pm) used to sit exactly
+              // on top of each other, so only one could be seen or tapped.
+              // Each overlapping group now splits its span between its chores.
+              const tStart = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
+              const tLast = allEvents.length > 0 ? allEvents[allEvents.length - 1] : null;
+              const tEnd = tLast ? getEventStartMinutes(tLast) + tLast.duration : 24 * 60;
+              const toMin = (t?: string | null, fallback = 0) => {
+                if (!t) return fallback;
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+              };
+              const spans = choreTasks.map(task => {
+                const top = timeToPixels(Math.max(toMin(task.window_start, tStart), tStart));
+                const bottom = timeToPixels(Math.min(toMin(task.window_end, tEnd), tEnd));
+                return { id: task.id, top, bottom: top != null && bottom != null ? Math.max(bottom, top + 60) : bottom };
+              });
+              const placed = new Map<string, React.CSSProperties>();
+              if (spans.every(sp => sp.top != null && sp.bottom != null)) {
+                const sorted = [...spans].sort((a, b) => a.top! - b.top!);
+                let group: typeof sorted = [];
+                let groupBottom = -Infinity;
+                const flush = () => {
+                  if (!group.length) return;
+                  const top = Math.min(...group.map(g => g.top!));
+                  const slice = Math.max(64, (groupBottom - top) / group.length);
+                  group.forEach((g, i) => placed.set(g.id, { top: `${top + i * slice}px`, height: `${slice - 4}px` }));
+                  group = [];
+                  groupBottom = -Infinity;
+                };
+                for (const sp of sorted) {
+                  if (sp.top! >= groupBottom) flush();
+                  group.push(sp);
+                  groupBottom = Math.max(groupBottom, sp.bottom!);
+                }
+                flush();
+              }
+              return (
               <div className="relative w-[80px] sm:w-[96px] flex-shrink-0">
                 {choreTasks.map(task => {
                   const timelineStartMin = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
@@ -1579,13 +1620,13 @@ const TimelineScheduleView = ({
                   const topPx = timeToPixels(clampedStart);
                   const bottomPx = timeToPixels(clampedEnd);
                   const measured = topPx != null && bottomPx != null;
-                  const position: React.CSSProperties = measured
+                  const position: React.CSSProperties = placed.get(task.id) ?? (measured
                     ? { top: `${topPx}px`, height: `${Math.max(60, bottomPx - topPx)}px` }
                     : {
                         top: `${((clampedStart - timelineStartMin) / timelineSpan) * 100}%`,
                         height: `${Math.max(10, ((clampedEnd - clampedStart) / timelineSpan) * 100)}%`,
                         minHeight: '60px',
-                      };
+                      });
 
                   return (
                     <div
@@ -1662,7 +1703,8 @@ const TimelineScheduleView = ({
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
           </div>
         );
       })()}

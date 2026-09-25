@@ -37,6 +37,7 @@ import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { lockParentMode } from "@/lib/parentLock";
+import { isRestDate } from "@/utils/restDays";
 import { realtimeChannel } from "@/lib/realtime";
 import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
@@ -326,7 +327,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     return <LoadingScreen label="Getting your day ready…" fullScreen={!propChildId} />;
   }
 
-  const isRestDay = child.rest_day_date === today;
+  const isRestDay = isRestDate(child, today);
 
   // Get current time in PST
   const getCurrentTime = getPSTDate;

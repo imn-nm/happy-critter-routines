@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getPSTDateString, getPSTDayName, getPSTTimeString } from "@/utils/pstDate";
+import { isRestDate } from "@/utils/restDays";
 
 /**
  * "Missed" important tasks: important, scheduled for today, window has ended,
@@ -87,7 +88,7 @@ export const findMissedImportant = (
 export const fetchMissedImportantToday = async (childIds: string[]): Promise<MissedImportant[]> => {
   if (childIds.length === 0) return [];
   const today = getPSTDateString();
-  const [{ data: tasks }, { data: completions }] = await Promise.all([
+  const [{ data: tasks }, { data: completions }, { data: kids }] = await Promise.all([
     supabase
       .from("tasks")
       .select("id, child_id, name, type, scheduled_time, duration, is_active, is_important, is_recurring, recurring_days, task_date, excluded_dates, created_at, date_overrides, schedule_overrides")
@@ -99,7 +100,11 @@ export const fetchMissedImportantToday = async (childIds: string[]): Promise<Mis
       .select("task_id")
       .in("child_id", childIds)
       .eq("date", today),
+    supabase.from("children").select("id, rest_dates, rest_day_date").in("id", childIds),
   ]);
   const done = new Set((completions ?? []).map(c => c.task_id));
-  return findMissedImportant((tasks ?? []) as unknown as TaskLike[], done);
+  // A rest day has nothing to finish: no "hasn't finished" for that child.
+  const resting = new Set((kids ?? []).filter(k => isRestDate(k, today)).map(k => k.id));
+  const due = ((tasks ?? []) as unknown as TaskLike[]).filter(t => !resting.has(t.child_id));
+  return findMissedImportant(due, done);
 };

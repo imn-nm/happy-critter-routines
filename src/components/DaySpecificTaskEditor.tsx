@@ -105,7 +105,8 @@ const DaySpecificTaskEditor = ({
   const handleDurationChange = (day: string, totalMinutes: number) => {
     setSchedules(prev => ({
       ...prev,
-      [day]: { ...prev[day], duration: Math.max(60, Math.min(720, totalMinutes)) },
+      // 15 minutes up: an early release or a half day is a real school day.
+      [day]: { ...prev[day], duration: Math.max(15, Math.min(720, totalMinutes)) },
     }));
   };
 

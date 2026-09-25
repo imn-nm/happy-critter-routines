@@ -12,6 +12,7 @@ import PetAvatar from "@/components/PetAvatar";
 import { getPet } from "@/components/pets/petCatalog";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
+import { supabase } from "@/integrations/supabase/client";
 
 const DURATIONS = [
   { value: "10", label: "10 min" },
@@ -232,6 +233,18 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                     school_duration: schedule.school_duration,
                     school_schedule_overrides: schedule.school_schedule_overrides,
                   });
+                  // Every schedule view decides which days have School from
+                  // the School row's own days: keep it in step, or unticking
+                  // Friday here changed nothing.
+                  await supabase
+                    .from('tasks')
+                    .update({
+                      recurring_days: schedule.school_days,
+                      ...(schedule.school_start_time ? { scheduled_time: schedule.school_start_time } : {}),
+                      ...(schedule.school_duration ? { duration: schedule.school_duration } : {}),
+                    })
+                    .eq('child_id', child.id)
+                    .eq('name', 'School');
                 }}
               />
             </div>

@@ -108,6 +108,9 @@ const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = 
   { value: 'fun', label: 'Free time', caption: 'TV, Roblox, playtime. When a Must-finish task runs late, the worm eats into this.' },
 ];
 
+/** A sensible ceiling for one task's stars; rewards are priced against these. */
+const MAX_STARS = 20;
+
 const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
@@ -288,7 +291,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // A parent's own task can't take a built-in row's name: the app would treat
   // it as that row.
   const nameClash = isSystemEvent ? undefined : reservedTaskName(formData.name);
-  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem;
+  // A chore window that ends before it starts would never be open.
+  const windowBackwards = isChore && !formData.choreAnytime && formData.windowEnd <= formData.windowStart;
+  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards;
 
   // Never hide the reason submit is disabled.
   const moreOpen = showMore || needsDays;
@@ -494,6 +499,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   className="shrink-0"
                 />
               </div>
+              {windowBackwards && (
+                <p className="text-xs text-coral-300 leading-snug" role="alert">
+                  The window has to end after it starts.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -668,8 +678,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 className="shrink-0"
                 onClick={() => {
                   const current = parseInt(formData.coins) || 0;
-                  setFormData({ ...formData, coins: String(current + 1) });
+                  if (current < MAX_STARS) setFormData({ ...formData, coins: String(current + 1) });
                 }}
+                disabled={(parseInt(formData.coins) || 0) >= MAX_STARS}
                 aria-label="Add star"
               >
                 <Plus className="w-4 h-4" />

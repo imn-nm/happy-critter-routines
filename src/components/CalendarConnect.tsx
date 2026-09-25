@@ -1,10 +1,24 @@
-import { Calendar, RefreshCw, Unplug } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { AlertTriangle, Calendar, RefreshCw, Unplug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { useHousehold } from '@/hooks/useHousehold';
+import { onCalendarSyncChange, readCalendarSync, type CalendarSyncStatus } from '@/utils/calendarSyncStatus';
 
 const CalendarConnect = () => {
   const { status, isConnected, connect, syncNow, disconnect, syncing } =
     useGoogleCalendar();
+  const { household } = useHousehold();
+  // The last sync from this device: "Connected" alone hid a calendar that had
+  // stopped updating.
+  const [lastSync, setLastSync] = useState<CalendarSyncStatus | null>(null);
+  useEffect(() => {
+    if (!household) return;
+    const load = () => setLastSync(readCalendarSync(household.id));
+    load();
+    return onCalendarSyncChange(load);
+  }, [household]);
 
   return (
     <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
@@ -21,6 +35,23 @@ const CalendarConnect = () => {
             Holidays and day notes are pushed to a calendar this app owns. Your other Google
             calendars are untouched.
           </p>
+          {lastSync && (lastSync.ok ? (
+            <p className="text-12 text-fog-300">
+              Last synced {formatDistanceToNow(new Date(lastSync.at), { addSuffix: true })}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-sp-3" role="alert">
+              <p className="text-13 text-fog-50 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  The last sync didn't work ({formatDistanceToNow(new Date(lastSync.at), { addSuffix: true })}): {lastSync.message}
+                </span>
+              </p>
+              <Button size="sm" onClick={() => connect()} className="self-start">
+                Reconnect
+              </Button>
+            </div>
+          ))}
           <div className="flex gap-2">
             <Button size="sm" onClick={() => syncNow()} disabled={syncing} className="gap-1.5">
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />

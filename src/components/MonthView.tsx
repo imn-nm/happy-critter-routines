@@ -2,7 +2,17 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Calendar, CalendarClock, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ChevronLeft, ChevronRight, Calendar, CalendarClock, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote, RotateCcw } from 'lucide-react';
 import { formatTime12 } from '@/utils/formatTime';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
@@ -11,6 +21,7 @@ import { useHolidays, Holiday } from '@/hooks/useHolidays';
 import { useDayNotes, DayNote } from '@/hooks/useDayNotes';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
+import { isRestDate } from '@/utils/restDays';
 import { useParentEvents, ParentEvent } from '@/hooks/useParentEvents';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
 import DayNoteDialog from './DayNoteDialog';
@@ -22,6 +33,8 @@ interface MonthViewProps {
   onAddTask?: (date: Date) => void;
   onEditTask?: (task: Task) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
+  /** Bring back a day that was skipped with "Only on this day". */
+  onRestoreTask?: (taskId: string, dateStr: string) => void;
   onSelectedDateChange?: (date: Date) => void;
   /** Set or clear the child's rest day for a given yyyy-MM-dd. */
   onToggleRestDay?: (dateStr: string, isRestDay: boolean) => void | Promise<void>;
@@ -38,8 +51,10 @@ interface DayData {
   isRestDay: boolean;
 }
 
-const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelectedDateChange, onToggleRestDay }: MonthViewProps) => {
+const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestoreTask, onSelectedDateChange, onToggleRestDay }: MonthViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(getPSTDate());
+  // The task a parent asked to delete, waiting for them to pick which days.
+  const [pendingDelete, setPendingDelete] = useState<{ task: Task; date: Date } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Whenever the parent opens the day sheet, push the selected date up so
@@ -161,7 +176,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
         holiday: dayHoliday,
         note: dayNote,
         parentEvents: getEventsForDate(dateKey),
-        isRestDay: child.rest_day_date === dateKey,
+        isRestDay: isRestDate(child, dateKey),
       };
     });
     setMonthData(data);
@@ -579,12 +594,6 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                     >
                       <Moon className="w-4 h-4" />
                       <span className="text-[11px] font-medium leading-none">Rest day</span>
-                      {/* Only one rest day is stored per child, so setting one moves it. */}
-                      {child.rest_day_date && (
-                        <span className="text-[10px] text-muted-foreground leading-none">
-                          moves from {format(new Date(`${child.rest_day_date}T00:00:00`), 'MMM d')}
-                        </span>
-                      )}
                     </button>
                   )}
                 </div>
@@ -644,17 +653,8 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              if (task.is_recurring && selectedDate) {
-                                if (window.confirm(`Delete "${task.name}" only on ${format(selectedDate, 'EEE, MMM d')}?`)) {
-                                  onDeleteTask(task.id, 'this-date', format(selectedDate, 'yyyy-MM-dd'));
-                                } else if (window.confirm(`Delete ALL recurring "${task.name}"?`)) {
-                                  onDeleteTask(task.id, 'all');
-                                }
-                              } else {
-                                onDeleteTask(task.id, 'all');
-                              }
-                            }}
+                            onClick={() => selectedDate && setPendingDelete({ task, date: selectedDate })}
+                            aria-label={`Delete ${task.name}`}
                             className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-red-400"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -666,9 +666,76 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onSelect
                 })
               )}
             </div>
+
+            {/* Repeating tasks skipped on this day ("Only on this day"), so a
+                skip can be undone instead of being gone for good. */}
+            {onRestoreTask && selectedDate && (() => {
+              const dateString = format(selectedDate, 'yyyy-MM-dd');
+              const dayName = format(selectedDate, 'EEEE').toLowerCase();
+              const skipped = (tasks || []).filter(t =>
+                t.is_active && t.is_recurring && t.recurring_days?.includes(dayName) && t.excluded_dates?.includes(dateString));
+              if (skipped.length === 0) return null;
+              return (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Skipped this day</p>
+                  {skipped.map(task => (
+                    <div key={task.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border/40">
+                      <span className="flex-1 min-w-0 text-sm text-muted-foreground line-through truncate">{task.name}</span>
+                      <Button variant="ghost" size="sm" onClick={() => onRestoreTask(task.id, dateString)} className="h-8 rounded-lg gap-1.5">
+                        <RotateCcw className="w-3.5 h-3.5" /> Restore
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete: pick the days. Repeating tasks offer this day or every day;
+          built-in rows (Lunch, School…) can only be skipped for a day, since
+          the app puts them back. */}
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          {pendingDelete && (() => {
+            const { task, date } = pendingDelete;
+            const day = format(date, 'EEE, MMM d');
+            const dateString = format(date, 'yyyy-MM-dd');
+            const builtIn = systemTaskNames.includes(task.name);
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{builtIn ? `Skip ${task.name} on ${day}?` : `Delete ${task.name}?`}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {task.is_recurring
+                      ? builtIn
+                        ? `It comes back on the other days. You can restore it from this day's list.`
+                        : `Remove it from ${day} only, or from every day it repeats?`
+                      : `It will be removed from ${day}.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  {task.is_recurring && (
+                    <AlertDialogAction onClick={() => onDeleteTask?.(task.id, 'this-date', dateString)}>
+                      {builtIn ? 'Skip this day' : `Only on ${day}`}
+                    </AlertDialogAction>
+                  )}
+                  {!builtIn && (
+                    <AlertDialogAction
+                      onClick={() => onDeleteTask?.(task.id, 'all')}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {task.is_recurring ? 'Every day' : 'Delete'}
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Holiday Form Dialog */}
       <HolidayFormDialog

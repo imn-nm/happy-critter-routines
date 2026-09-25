@@ -83,26 +83,37 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 
 ## 3. Parent scheduling
 
-- [ ] **"Only this date" edits** keep only time/length (rename, stars, type
-  dropped); "All recurring" after a one-day change spreads that day's time. (C)
-- [ ] **School schedule** unticking a day doesn't remove School that day; can't
-  set under 60 minutes. (C)
-- [ ] **Planner delete** — one-offs delete without confirm; Cancel on "only
-  Mon?" leads to "Delete ALL recurring?". (C)
+- [x] **"Only this date" edits** — the prompt disables "Only on…" when the edit
+  changes the name, stars, how it works, icon, checklist or days, and says
+  why; "All days" after a one-day change keeps the base time unless the time
+  was actually changed. (C)
+- [x] **School schedule** — unticking a day now removes School that day (the
+  School row's days follow the editor); only days that differ from the usual
+  time keep their own time; school days can be as short as 15 minutes. (C)
+- [x] **Planner delete** — a real dialog: "Only on <day>" / "Every day" /
+  Cancel for repeating tasks, a confirm for one-offs, and built-in rows can
+  only be skipped for a day. (C)
 - [x] **"Also add to" another child drops the date** (lands on today). (C)
-- [ ] **Chore tiles stack** exactly on top of each other (default 3–6pm). (C)
-- [ ] **Can't give stars for Normal tasks** though the form offers stars. (C)
-- [ ] **Drag moves every day** of a recurring task; skipped dates can't be
-  restored. (C)
-- [ ] **Suggested time ignores the chosen day.** (C)
-- [ ] **Only one rest day per child**; adding another silently moves it. Support
-  ranges/multiple dates for illness and trips. (CX)
-- [ ] **Holiday form remembers the previous holiday.** (C)
-- [ ] **Missing checks** — chore window end before start, meals outside the
-  waking day or out of order at setup, unlimited stars (open). Done: nothing
-  may run past midnight; two tasks can't start at the same time. (CX)
-- [ ] **Calendar looks connected when sync fails** — show last successful sync
-  and a Reconnect state. (CX)
+- [x] **Chore tiles stack** — chores whose windows overlap now share the space
+  instead of sitting on top of each other. (C)
+- [x] **Can't give stars for Normal tasks** — "Mark done" shows for any task
+  with stars once its time has come, so Give ★ is reachable. (C)
+- [x] **Drag moves every day** — a repeating task moves on that day only, with
+  an "Every day" button in the toast. Skipped days show under "Skipped this
+  day" in the Planner with Restore. (C)
+- [x] **Suggested time ignores the chosen day** — only that day's tasks count,
+  between its wake-up and bedtime; no more "24:xx". (C)
+- [x] **Only one rest day per child** — now any number of dates
+  (`children.rest_dates`); the "moves from…" behaviour is gone. (CX)
+- [x] **Holiday form remembers the previous holiday** — resets every time it
+  opens. (C)
+- [x] **Missing checks** — chore window must end after it starts; setup times
+  must run wake-up → meals → bedtime; stars capped at 20 per task; nothing
+  runs past midnight; no two tasks start at the same time. (CX)
+- [x] **Calendar looks connected when sync fails** — Settings shows when this
+  device last synced, or that the last sync failed with a Reconnect button.
+  Automatic syncs now record failures (they were swallowed). A server-side
+  record would cover every device. (CX)
 
 ## 4. Parent account, rewards, alerts
 
@@ -116,8 +127,8 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
   the kids' picker. (C)
 - [ ] **Password-reset form never closes** (separate `useAuth` instances). (C)
 - [x] **Deleting a reward leaves pending requests stuck** holding stars. (C)
-- [ ] **Missed-important alerts** fire on rest days, can't be dismissed, can
-  stop firing after a Give ★. (C)
+- [ ] **Missed-important alerts** can't be dismissed, can stop firing after a
+  Give ★ (open). No longer fire on rest days. (C)
 - [ ] **Empty dashboard dead end** — no Settings/Alerts/Sign out with zero
   children (open). Load errors now show "We couldn't load your family". (C)
 - [ ] **Connect Google Calendar may switch accounts** (`signInWithOAuth` instead

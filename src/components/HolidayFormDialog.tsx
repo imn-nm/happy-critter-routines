@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useLayoutEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +45,12 @@ const HolidayFormDialog = ({
     is_no_school: false,
   });
 
-  useEffect(() => {
+  // Start from scratch every time the form opens: closing it with the X, a
+  // tap outside or a save used to leave the last holiday's name, end date
+  // and "no school" in place for the next one. Before paint, so the old
+  // values never flash.
+  useLayoutEffect(() => {
+    if (!open) return;
     if (holiday) {
       setFormData({
         name: holiday.name,
@@ -55,13 +60,17 @@ const HolidayFormDialog = ({
         color: holiday.color || '#FFA500',
         is_no_school: holiday.is_no_school,
       });
-    } else if (initialDate) {
-      setFormData(prev => ({
-        ...prev,
-        date: format(initialDate, 'yyyy-MM-dd'),
-      }));
+    } else {
+      setFormData({
+        name: '',
+        date: format(initialDate ?? new Date(), 'yyyy-MM-dd'),
+        end_date: null,
+        description: '',
+        color: '#FFA500',
+        is_no_school: false,
+      });
     }
-  }, [holiday, initialDate]);
+  }, [open, holiday, initialDate]);
 
   const handleClose = () => {
     onOpenChange(false);

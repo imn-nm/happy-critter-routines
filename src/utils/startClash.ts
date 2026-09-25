@@ -86,3 +86,18 @@ export const describeClash = (clash: StartClash) => {
   const day = format(new Date(`${clash.date}T00:00:00`), 'EEE, MMM d');
   return `${clash.otherName} already starts at ${time} on ${day}. Two things can't start at the same time, so pick another time.`;
 };
+
+/**
+ * The timed tasks on one date with their real start there ("HH:MM"), for
+ * placing something new into that day's gaps.
+ */
+export const tasksOnDate = <T extends TaskLike>(tasks: T[], date: string, child: Child | null) =>
+  tasks
+    .filter(t => runsOn(t, date))
+    .map(t => {
+      const start = startOn(t, date, child);
+      if (start == null) return null;
+      const time = `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`;
+      return { ...t, scheduled_time: time };
+    })
+    .filter((t): t is T & { scheduled_time: string } => t !== null);

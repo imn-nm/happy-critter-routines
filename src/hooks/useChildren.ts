@@ -43,7 +43,8 @@ export interface Child {
   lunch_duration?: number;
   dinner_duration?: number;
   bedtime_duration?: number;
-  // Rest day
+  // Rest days (rest_day_date is the old single-date field, still read)
+  rest_dates?: string[];
   rest_day_date?: string | null;
   // Day-specific schedule overrides
   school_schedule_overrides?: Record<string, { time: string; duration: number }>;
@@ -115,6 +116,7 @@ export const useChildren = () => {
           petHappiness: child.pet_happiness,
           pet_outfit: normalizeOutfit(child.pet_outfit),
           rest_day_date: child.rest_day_date ?? null,
+          rest_dates: child.rest_dates ?? [],
           wake_time: child.wake_time,
           breakfast_time: child.breakfast_time,
           school_start_time: child.school_start_time,
