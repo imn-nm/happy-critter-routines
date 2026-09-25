@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { MoveHorizontal, Play, Pointer, RotateCcw, Trophy } from "lucide-react";
+import { useMotionPrefs } from "@/lib/motion";
 import { Pix, squash } from "../pixel/pix";
 import { front, side } from "../pixel/sprites";
 import type { PetOutfit } from "../pixel/accessories";
@@ -7,11 +10,29 @@ import { Particles } from "./particles";
 import { bubble, text, textWidth } from "./pixelText";
 import { gardenScene } from "./scenes";
 import { FLOOR, LW, SY, usePixelStage } from "./stage";
+import PixelIcon from "./PixelIcon";
 
 const ROUND_MS = 30000;
 const CARROT = ["G.g.G", ".GgG.", ".OOO.", ".OOo.", ".OOo.", "..Oo.", "..O.."];
 const GOLD = CARROT.map(r => r.replace(/O/g, "Y").replace(/o/g, "y"));
 const HUD_CARROT = [".G.", "GgG", ".O.", "OOo", "OO.", ".O."];
+const PLAY = ["h...", "hh..", "hhh.", "hh..", "h..."];
+
+/**
+ * Picture view: a speech bubble with a little picture (and maybe a number)
+ * instead of words. Drawn at 0,0 so the caller can place it by its width.
+ */
+function pictureBubble(rows: readonly string[], num?: string) {
+  const p = new Pix();
+  const inner = rows[0].length + (num ? 2 + textWidth(num) : 0);
+  // A bubble of blank "letters" just wide enough, then the picture inside it.
+  const n = Math.ceil((inner + 1) / 3);
+  const w = bubble(p, " ".repeat(n), 0, 0);
+  const x0 = 3 + Math.floor((3 * n - 1 - inner) / 2);
+  p.stamp(rows, x0, Math.floor((11 - rows.length) / 2));
+  if (num) text(p, num, x0 + rows[0].length + 2, 3, "h");
+  return { p, w };
+}
 
 type State = "ready" | "playing" | "end";
 interface Carrot { x: number; y: number; vy: number; gold: boolean; state: "fall" | "bounce" | "gone"; t: number }
@@ -40,6 +61,8 @@ class CatchGame {
   label = "";
   endFx0 = 0;
   onEnd?: (score: number) => void;
+  /** Picture view: speech bubbles show pictures and numbers instead of words. */
+  picture = false;
 
   start() {
     this.state = "playing";
@@ -66,7 +89,8 @@ class CatchGame {
     this.endFx0 = Math.round(frontXFor(this.x, mirror));
     const s = seq();
     turnToYou(s, this.x, mirror, outfit);
-    this.actor.play([...s.frames, ...cheerFrames(this.endFx0, outfit, (x, y, n) => this.parts.burst(x, y, n), this.label)]);
+    // Picture view draws its own carrot-and-number bubble in draw().
+    this.actor.play([...s.frames, ...cheerFrames(this.endFx0, outfit, (x, y, n) => this.parts.burst(x, y, n), this.picture ? undefined : this.label)]);
     this.onEnd?.(this.score);
   }
 
@@ -144,7 +168,7 @@ class CatchGame {
     if (acted) return acted;
     if (this.state === "end") {
       const fx = new Pix();
-      bubble(fx, this.label, Math.min(this.endFx0 + 24, LW - textWidth(this.label) - 8), 2);
+      if (!this.picture) bubble(fx, this.label, Math.min(this.endFx0 + 24, LW - textWidth(this.label) - 8), 2);
       return { r: front({ outfit, pose: "t", eyes: blinking(this.now, 2800) ? "blink" : "happy", mouth: "yay", blush: true }), x: this.endFx0, y: SY, fx };
     }
     const mirror = this.dir > 0;
@@ -180,14 +204,23 @@ class CatchGame {
       const clock = `0:${String(secs).padStart(2, "0")}`;
       text(top, clock, LW - textWidth(clock) - 3, 3, secs <= 5 && this.state === "playing" && Math.floor(this.now / 250) % 2 ? "Y" : "H");
     }
-    if (this.state === "ready") bubble(top, "TAP PLAY!", 52, 8);
+    if (this.picture) {
+      if (this.state === "ready") top.merge(pictureBubble(PLAY).p, 52, 8);
+      if (this.state === "end") {
+        const b = pictureBubble(HUD_CARROT, String(this.score));
+        top.merge(b.p, Math.min(this.endFx0 + 24, LW - b.w - 8), 2);
+      }
+    } else if (this.state === "ready") bubble(top, "TAP PLAY!", 52, 8);
     g.pix(top);
   }
 }
 
-const CarrotCatch = ({ childId, outfit, nick }: { childId: string; outfit: PetOutfit | null; nick: string }) => {
+const CarrotCatch = ({ childId, outfit, nick, picture }: { childId: string; outfit: PetOutfit | null; nick: string; picture?: boolean }) => {
   const game = useRef<CatchGame>();
   if (!game.current) game.current = new CatchGame();
+  game.current.picture = !!picture;
+  const { t } = useMotionPrefs();
+  const icons = useMemo(() => ({ carrot: new Pix().stamp(CARROT), gold: new Pix().stamp(GOLD) }), []);
   const outfitRef = useRef(outfit);
   outfitRef.current = outfit;
   const [state, setState] = useState<State>("ready");
@@ -255,26 +288,86 @@ const CarrotCatch = ({ childId, outfit, nick }: { childId: string; outfit: PetOu
         />
       </div>
 
-      <p className="min-h-[2.8em] text-center text-16 text-fog-50" role="status">
-        {state === "ready" && `Carrots are falling! Drag to move ${nick} under them. Golden ones count three.`}
-        {state === "playing" && "Catch as many as you can!"}
-        {state === "end" && (record ? `A new best: ${score} carrots!` : `Yum, ${score} carrots!`)}
-      </p>
+      {picture ? (
+        <>
+          {/* Before a round: slide a finger, catch carrots, gold ones are +3. At the end: the count, with a trophy for a new best. */}
+          <p className="flex min-h-[2.8em] items-center justify-center gap-3 text-fog-50" role="status">
+            <span className="sr-only">
+              {state === "ready" && `Carrots are falling! Drag to move ${nick} under them. Golden ones count three.`}
+              {state === "playing" && "Catch as many as you can!"}
+              {state === "end" && (record ? `A new best: ${score} carrots!` : `Yum, ${score} carrots!`)}
+            </span>
+            {state !== "end" ? (
+              <span aria-hidden className="flex items-center gap-3">
+                <motion.span className="flex" animate={{ x: [0, 10, -10, 0] }} transition={t({ duration: 1.4, repeat: Infinity, repeatDelay: 0.3 })}>
+                  <Pointer className="h-8 w-8" />
+                </motion.span>
+                <MoveHorizontal className="h-7 w-7 text-fog-300" />
+                <PixelIcon pix={icons.carrot} scale={5} />
+                {state === "ready" && (
+                  <span className="ml-sp-2 flex items-center gap-1 text-20 font-semibold tabular-nums text-[#FFD66B]">
+                    <PixelIcon pix={icons.gold} scale={5} />
+                    +3
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span aria-hidden className="flex items-center gap-2 text-24 font-semibold tabular-nums text-[#FFD66B]">
+                {record && <Trophy className="h-8 w-8" />}
+                <PixelIcon pix={icons.carrot} scale={5} />
+                {score}
+              </span>
+            )}
+          </p>
 
-      <div className="flex items-center justify-between gap-sp-3">
-        <div className="flex gap-sp-4 text-16 tabular-nums text-fog-200">
-          <span>Carrots <b className="text-[#FFD66B]">{score}</b></span>
-          <span>Best <b className="text-[#FFD66B]">{best}</b></span>
-        </div>
-        <button
-          type="button"
-          onClick={start}
-          disabled={state === "playing"}
-          className="min-h-11 rounded-full bg-[#FFD66B] px-5 text-14 font-semibold text-[#2a1a10] disabled:opacity-50"
-        >
-          {state === "playing" ? "Playing…" : state === "end" ? "Play again" : "Play"}
-        </button>
-      </div>
+          <div className="flex items-center justify-between gap-sp-3">
+            <div className="flex gap-sp-4 text-20 font-semibold tabular-nums text-[#FFD66B]">
+              <span className="flex items-center gap-1.5">
+                <PixelIcon pix={icons.carrot} scale={4} />
+                <span className="sr-only">Carrots</span>
+                {score}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Trophy className="h-6 w-6 text-fog-200" aria-hidden />
+                <span className="sr-only">Best</span>
+                {best}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={start}
+              disabled={state === "playing"}
+              aria-label={state === "playing" ? "Playing…" : state === "end" ? "Play again" : "Play"}
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FFD66B] text-[#2a1a10] disabled:opacity-50"
+            >
+              {state === "end" ? <RotateCcw className="h-7 w-7" aria-hidden /> : <Play className="h-7 w-7 fill-current" aria-hidden />}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="min-h-[2.8em] text-center text-16 text-fog-50" role="status">
+            {state === "ready" && `Carrots are falling! Drag to move ${nick} under them. Golden ones count three.`}
+            {state === "playing" && "Catch as many as you can!"}
+            {state === "end" && (record ? `A new best: ${score} carrots!` : `Yum, ${score} carrots!`)}
+          </p>
+
+          <div className="flex items-center justify-between gap-sp-3">
+            <div className="flex gap-sp-4 text-16 tabular-nums text-fog-200">
+              <span>Carrots <b className="text-[#FFD66B]">{score}</b></span>
+              <span>Best <b className="text-[#FFD66B]">{best}</b></span>
+            </div>
+            <button
+              type="button"
+              onClick={start}
+              disabled={state === "playing"}
+              className="min-h-11 rounded-full bg-[#FFD66B] px-5 text-14 font-semibold text-[#2a1a10] disabled:opacity-50"
+            >
+              {state === "playing" ? "Playing…" : state === "end" ? "Play again" : "Play"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

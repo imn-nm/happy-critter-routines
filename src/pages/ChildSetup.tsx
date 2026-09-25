@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,255 +13,414 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import PetAvatar from "@/components/PetAvatar";
-import CritterPicker from "@/components/critters/CritterPicker";
-import { getPet, type PetId } from "@/components/pets/petCatalog";
 import TimeSelect from "@/components/TimeSelect";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import DisplayModePicker from "@/components/DisplayModePicker";
+import ChildInterface from "@/pages/ChildInterface";
+import { ChevronDown, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useChildren } from "@/hooks/useChildren";
-import { useToast } from "@/hooks/use-toast";
-import { formatTime12 } from "@/utils/formatTime";
+import { supabase } from "@/integrations/supabase/client";
+import { ROUTINE_PACKS, packTaskDetails, type RoutinePack } from "@/data/routinePacks";
+import { ALL_DAYS, WEEKDAYS } from "@/hooks/useRoutines";
+import { suggestedDisplayMode, type DisplayMode } from "@/utils/displayMode";
+import { createChildWithRoutines, removeDraftChild } from "@/utils/setupChild";
+import { getPSTDate, setPreviewClock } from "@/utils/pstDate";
+import { formatDuration } from "@/utils/formatDuration";
+import { systemTaskTemplates } from "@/utils/systemTasks";
 
+const STEPS = ["About", "Routines", "Times", "Preview"] as const;
+const DAY_LETTERS: Record<string, string> = {
+  sunday: "S", monday: "M", tuesday: "T", wednesday: "W", thursday: "T", friday: "F", saturday: "S",
+};
+const SCHOOL_PACKS: RoutinePack["id"][] = ["school-morning", "after-school"];
+
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+/**
+ * New child, in four short steps: who they are, which starter routines, only
+ * the times those routines need, then their real screen to check before
+ * finishing. Everything else starts at common defaults and can be changed
+ * later in their profile.
+ */
 const ChildSetup = () => {
   const navigate = useNavigate();
-  const { addChild } = useChildren();
-  const { toast } = useToast();
-  const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    age: "",
-    petType: "rabbit" as PetId,
-    wakeTime: "07:00",
-    sleepTime: "20:00",
-    breakfastTime: "07:30",
-    lunchTime: "12:00",
-    dinnerTime: "18:00",
-  });
 
-  // The day runs wake-up → meals → bedtime, all before midnight. Out of order
-  // (dinner before lunch, breakfast before wake-up) the schedule would be
-  // nonsense, so say which one and hold Next.
+  // 1. About
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const ageNum = parseInt(age, 10);
+  const aboutValid = name.trim().length > 0 && !isNaN(ageNum) && ageNum >= 3 && ageNum <= 18;
+
+  // 2. Routines: every pack starts ticked for a school-age child; under 5,
+  // only Bedtime. Each pack's tasks can be unticked one by one.
+  const [packKeys, setPackKeys] = useState<Record<string, string[]> | null>(null);
+  const [openPack, setOpenPack] = useState<string | null>(null);
+  const chosen = packKeys ?? Object.fromEntries(
+    ROUTINE_PACKS.filter(p => !isNaN(ageNum) && (ageNum >= 5 || p.id === "bedtime")).map(p => [p.id, p.tasks.map(t => t.key)]),
+  );
+  const chosenPacks = ROUTINE_PACKS.filter(p => chosen[p.id]?.length);
+  const has = (id: RoutinePack["id"]) => !!chosen[id]?.length;
+  const needsSchool = SCHOOL_PACKS.some(has);
+
+  // 3. Times: only what the chosen routines hang off.
+  const [times, setTimes] = useState({
+    wake: "07:00", breakfast: "07:30", dinner: "18:00", bedtime: "20:00",
+    schoolStart: "08:30", schoolEnd: "15:00",
+  });
+  const [schoolDays, setSchoolDays] = useState<string[]>(WEEKDAYS);
+  const [goesToSchool, setGoesToSchool] = useState<boolean | null>(null);
+  const school = needsSchool || (goesToSchool ?? (!isNaN(ageNum) && ageNum >= 5));
+  const asks = { breakfast: has("school-morning"), dinner: has("bedtime") };
+  // Times not asked follow the ones that were, so the day stays in order.
+  const breakfast = asks.breakfast ? times.breakfast : toHHMM(toMin(times.wake) + 30);
+  const dinner = asks.dinner ? times.dinner : toHHMM(Math.min(18 * 60, toMin(times.bedtime) - 90));
   const timesProblem = (() => {
-    const order = [
-      { label: 'Wake up', t: formData.wakeTime },
-      { label: 'Breakfast', t: formData.breakfastTime },
-      { label: 'Lunch', t: formData.lunchTime },
-      { label: 'Dinner', t: formData.dinnerTime },
-      { label: 'Bedtime', t: formData.sleepTime },
-    ];
+    const order: [string, string][] = [["Wake up", times.wake]];
+    if (asks.breakfast) order.push(["Breakfast", times.breakfast]);
+    if (school) order.push(["School starts", times.schoolStart], ["School ends", times.schoolEnd]);
+    if (asks.dinner) order.push(["Dinner", times.dinner]);
+    order.push(["Bedtime", times.bedtime]);
     for (let i = 1; i < order.length; i++) {
-      if (order[i].t && order[i - 1].t && order[i].t <= order[i - 1].t) {
-        return `${order[i].label} has to be after ${order[i - 1].label.toLowerCase()}.`;
-      }
+      if (order[i][1] <= order[i - 1][1]) return `${order[i][0]} has to be after ${order[i - 1][0].toLowerCase()}.`;
     }
+    if (school && schoolDays.length === 0) return "Pick at least one school day.";
     return null;
   })();
 
-  const handleNext = () => { if (step < 3) setStep(step + 1); };
-  const handleBack = () => { if (step > 1) setStep(step - 1); };
+  // 4. Preview: the child is created for real so the preview is their actual
+  // screen; going back or cancelling removes it again.
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+  const finishedRef = useRef(false);
+  const [mode, setMode] = useState<DisplayMode | null>(null);
+  const displayMode = mode ?? suggestedDisplayMode(ageNum);
+  const [moment, setMoment] = useState<"morning" | "afternoon" | "evening" | "now">("morning");
+  const [showDay, setShowDay] = useState(false);
 
-  const handleFinish = async () => {
-    setIsLoading(true);
+  // A school morning shows best on a school day.
+  const previewDate = useMemo(() => {
+    const today = getPSTDate();
+    if (!school || !schoolDays.length) return today;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      if (schoolDays.includes(ALL_DAYS[d.getDay()])) return d;
+    }
+    return today;
+  }, [school, schoolDays]);
+  // Each time of day opens a minute into that routine's first task: its
+  // chain always leads back to a built-in row (Wake Up, Breakfast, School,
+  // Dinner), which ends at its time plus its usual length.
+  const builtInEnd = (rowName: string) => {
+    const length = systemTaskTemplates.find(t => t.name === rowName)?.defaultDuration ?? 0;
+    if (rowName === "Wake Up") return toMin(times.wake) + length;
+    if (rowName === "Breakfast") return toMin(breakfast) + length;
+    if (rowName === "School") return toMin(times.schoolEnd);
+    if (rowName === "Dinner") return toMin(dinner) + length;
+    return null;
+  };
+  const routineStart = (id: RoutinePack["id"]) => {
+    const pack = ROUTINE_PACKS.find(p => p.id === id)!;
+    const first = pack.tasks.find(t => chosen[id]?.includes(t.key));
+    if (!first) return null;
+    // Everything before the first ticked task is unticked, so follow its
+    // "after" links back to the built-in row.
+    let anchor = first.after;
+    for (let guard = 0; guard < pack.tasks.length; guard++) {
+      const earlier = pack.tasks.find(t => t.key === anchor);
+      if (!earlier) break;
+      anchor = earlier.after;
+    }
+    return builtInEnd(anchor);
+  };
+  const moments = [
+    { id: "morning" as const, label: "Morning", at: (routineStart("school-morning") ?? toMin(times.wake)) + 1 },
+    ...(school ? [{ id: "afternoon" as const, label: "After school", at: (routineStart("after-school") ?? toMin(times.schoolEnd)) + 1 }] : []),
+    { id: "evening" as const, label: "Evening", at: (routineStart("bedtime") ?? toMin(dinner) + 45) + 1 },
+    { id: "now" as const, label: "Right now", at: null },
+  ];
+  useEffect(() => {
+    if (step !== 3) return;
+    const m = moments.find(x => x.id === moment);
+    if (!m || m.at == null) setPreviewClock(null);
+    else setPreviewClock(new Date(previewDate.getFullYear(), previewDate.getMonth(), previewDate.getDate(), Math.floor(m.at / 60), m.at % 60));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, moment, previewDate, times.wake, times.schoolEnd, dinner]);
+
+  // Leaving the page: the real clock again, and an unfinished draft goes.
+  useEffect(() => () => {
+    setPreviewClock(null);
+    if (draftRef.current && !finishedRef.current) void removeDraftChild(draftRef.current);
+  }, []);
+
+  const discardDraft = async () => {
+    const id = draftRef.current;
+    draftRef.current = null;
+    setDraftId(null);
+    setPreviewClock(null);
+    if (id) await removeDraftChild(id);
+  };
+
+  const buildPreview = async () => {
+    setBusy(true);
     try {
-      await addChild({
-        name: formData.name.trim(),
-        age: parseInt(formData.age),
-        petType: formData.petType,
-        currentCoins: 0,
-        petHappiness: 50,
-        // Step 2 of the wizard. These were collected and echoed on step 3
-        // but never persisted.
-        wake_time: formData.wakeTime,
-        bedtime: formData.sleepTime,
-        breakfast_time: formData.breakfastTime,
-        lunch_time: formData.lunchTime,
-        dinner_time: formData.dinnerTime,
+      const id = await createChildWithRoutines({
+        name,
+        age: ageNum,
+        wake: times.wake,
+        breakfast,
+        lunch: "12:00",
+        dinner,
+        bedtime: times.bedtime,
+        school: school ? { days: schoolDays, start: times.schoolStart, end: times.schoolEnd } : null,
+        packs: chosenPacks.map(pack => ({ pack, keys: chosen[pack.id] })),
       });
-      toast({ title: "Success!", description: `${formData.name} has been added!` });
-      navigate("/parent");
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to create profile.", variant: "destructive" });
+      draftRef.current = id;
+      setDraftId(id);
+      setStep(3);
+    } catch {
+      toast.error("Couldn't set that up. Please try again.");
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
-  const isStepValid = () => {
-    if (step === 1) {
-      const age = parseInt(formData.age, 10);
-      return formData.name.trim().length > 0 && !isNaN(age) && age >= 3 && age <= 18;
+  const finish = async () => {
+    if (!draftId) return;
+    setBusy(true);
+    try {
+      await supabase.from("children").update({ display_mode: displayMode }).eq("id", draftId);
+      finishedRef.current = true;
+      setPreviewClock(null);
+      toast.success(`${name.trim()}'s routine is ready`);
+      navigate(`/child-dashboard/${draftId}`);
+    } finally {
+      setBusy(false);
     }
-    if (step === 2) return !!formData.wakeTime && !!formData.sleepTime && !timesProblem;
-    return true;
   };
 
-  const handleCancel = () => {
-    // Confirm before discarding if the user has started entering anything.
-    if (step > 1 || formData.name.trim() || formData.age) {
-      setShowDiscardConfirm(true);
-    } else {
-      navigate("/parent");
-    }
+  const next = () => {
+    if (step === 2) void buildPreview();
+    else setStep(step + 1);
   };
+  const back = async () => {
+    if (step === 3) await discardDraft();
+    setStep(step - 1);
+  };
+  const cancel = () => {
+    if (step > 0 || name.trim() || age) setShowDiscardConfirm(true);
+    else navigate("/parent");
+  };
+  const stepValid = step === 0 ? aboutValid : step === 2 ? !timesProblem : true;
+
+  const togglePack = (pack: RoutinePack) =>
+    setPackKeys({ ...chosen, [pack.id]: chosen[pack.id]?.length ? [] : pack.tasks.map(t => t.key) });
+  const toggleTask = (pack: RoutinePack, key: string) => {
+    const keys = chosen[pack.id] ?? [];
+    setPackKeys({ ...chosen, [pack.id]: keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key] });
+  };
+  const setTime = (key: keyof typeof times) => (value: string) => setTimes({ ...times, [key]: value });
+  const taskCount = chosenPacks.reduce((n, p) => n + chosen[p.id].length, 0);
 
   return (
     <div className="min-h-dvh p-4 flex items-center justify-center">
-      <div className="w-full max-w-md">
+      <div className={cn("w-full", step === 3 ? "max-w-[480px]" : "max-w-md")}>
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-6">
-          {[1, 2, 3].map((stepNum) => (
-            <div key={stepNum} className="flex items-center gap-2">
+          {STEPS.map((label, i) => (
+            <div key={label} className="flex items-center gap-2">
               <div
+                aria-label={`Step ${i + 1}: ${label}`}
                 className={cn(
                   "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
-                  stepNum < step
-                    ? "bg-mint-500 text-white"
-                    : stepNum === step
-                    ? "bg-iris-400 text-white"
-                    : "border border-iris-400/30 text-fog-400"
+                  i < step ? "bg-mint-500 text-white" : i === step ? "bg-iris-400 text-white" : "border border-iris-400/30 text-fog-400",
                 )}
               >
-                {stepNum < step ? <Check className="w-4 h-4" /> : stepNum}
+                {i < step ? <Check className="w-4 h-4" /> : i + 1}
               </div>
-              {stepNum < 3 && (
-                <div className={cn("w-10 h-0.5 rounded-full", stepNum < step ? "bg-mint-500" : "bg-white/10")} />
+              {i < STEPS.length - 1 && (
+                <div className={cn("w-8 h-0.5 rounded-full", i < step ? "bg-mint-500" : "bg-white/10")} />
               )}
             </div>
           ))}
         </div>
 
         <div className="rounded-[28px] border border-[rgba(102,153,255,0.25)] bg-iris-400/[0.06] p-6">
-          {/* Step 1 */}
-          {step === 1 && (
+          {step === 0 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">Create a profile</h2>
-                <p className="text-sm text-muted-foreground">Tell us about your child</p>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">Who's this for?</h2>
+                <p className="text-sm text-muted-foreground">Just a name and age to start.</p>
               </div>
-
-              <div className="space-y-4">
+              <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-sp-3">
                 <div>
-                  <Label className="text-fog-200 text-sm font-medium mb-1.5 block">Name</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter name"
-                    className="h-11"
-                  />
+                  <Label htmlFor="setup-name" className="text-fog-200 text-sm font-medium mb-1.5 block">Name</Label>
+                  <Input id="setup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter name" className="h-11" autoFocus />
                 </div>
                 <div>
-                  <Label className="text-fog-200 text-sm font-medium mb-1.5 block">Age</Label>
-                  <Input
-                    type="number" min="3" max="18"
-                    value={formData.age}
-                    onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                    placeholder="Enter age"
-                    className="h-11"
-                  />
+                  <Label htmlFor="setup-age" className="text-fog-200 text-sm font-medium mb-1.5 block">Age</Label>
+                  <Input id="setup-age" type="number" inputMode="numeric" min="3" max="18" value={age}
+                    onChange={(e) => { setAge(e.target.value); setPackKeys(null); }} placeholder="—" className="h-11" />
                 </div>
               </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-fog-200 mb-3">Choose a pet</h3>
-                <CritterPicker
-                  value={formData.petType}
-                  onChange={(id) => setFormData({ ...formData, petType: id })}
-                />
-              </div>
+              {age && !isNaN(ageNum) && (ageNum < 3 || ageNum > 18) && (
+                <p className="text-xs text-coral-300" role="alert">Ages 3 to 18.</p>
+              )}
             </div>
           )}
 
-          {/* Step 2 */}
-          {step === 2 && (
-            <div className="space-y-5">
+          {step === 1 && (
+            <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1 truncate">{formData.name}'s schedule</h2>
-                <p className="text-sm text-muted-foreground">Set daily routines</p>
+                <h2 className="text-xl font-bold text-fog-50 mb-1 truncate">{name.trim()}'s routines</h2>
+                <p className="text-sm text-muted-foreground">Pick the ones you want. Untick any task you don't need; you can add your own later.</p>
               </div>
-
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-iris-400/20 p-4">
-                  <h3 className="font-medium text-fog-200 text-sm mb-3">Sleep</h3>
-                  {/* One row per time — side by side, the three-part picker
-                      (hour / minutes / am-pm) doesn't fit a half-width column. */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-muted-foreground text-xs">Wake up</Label>
-                      <TimeSelect value={formData.wakeTime}
-                        onChange={(v) => setFormData({ ...formData, wakeTime: v })} />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-muted-foreground text-xs">Bedtime</Label>
-                      <TimeSelect value={formData.sleepTime}
-                        onChange={(v) => setFormData({ ...formData, sleepTime: v })} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-iris-400/20 p-4">
-                  <h3 className="font-medium text-fog-200 text-sm mb-3">Meals</h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: "Breakfast", key: "breakfastTime" },
-                      { label: "Lunch", key: "lunchTime" },
-                      { label: "Dinner", key: "dinnerTime" },
-                    ].map((meal) => (
-                      <div key={meal.key} className="flex items-center justify-between">
-                        <Label className="text-muted-foreground text-xs">{meal.label}</Label>
-                        <TimeSelect value={formData[meal.key as keyof typeof formData]}
-                          onChange={(v) => setFormData({ ...formData, [meal.key]: v })}
-                          className="shrink-0" />
+              <ul className="flex flex-col gap-sp-2">
+                {ROUTINE_PACKS.map(pack => {
+                  const keys = chosen[pack.id] ?? [];
+                  const on = keys.length > 0;
+                  const open = openPack === pack.id;
+                  return (
+                    <li key={pack.id} className={cn("rounded-[20px] border p-sp-3", on ? "border-iris-400/50 bg-iris-400/10" : "border-white/10")}>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => togglePack(pack)}
+                          aria-label={pack.name}
+                          className="mt-1 w-5 h-5 shrink-0 accent-[#879bff]"
+                        />
+                        <button type="button" onClick={() => setOpenPack(open ? null : pack.id)} className="flex-1 min-w-0 text-left" aria-expanded={open}>
+                          <span className="flex items-center gap-2">
+                            <span className="text-16 font-medium text-fog-50">{pack.name}</span>
+                            <span className="text-12 text-fog-300 ml-auto">{pack.daysMode === "school" ? "School days" : "Every day"}</span>
+                            <ChevronDown className={cn("w-4 h-4 text-fog-300 transition-transform", open && "rotate-180")} aria-hidden />
+                          </span>
+                          <span className="block text-12 text-fog-300 mt-0.5">
+                            {on ? pack.tasks.filter(t => keys.includes(t.key)).map(t => t.name).join(" · ") : pack.description}
+                          </span>
+                        </button>
                       </div>
-                    ))}
+                      {open && (
+                        <ul className="mt-2 pl-8 flex flex-col gap-1">
+                          {pack.tasks.map(task => (
+                            <li key={task.key}>
+                              <label className="flex items-center gap-2.5 min-h-9 cursor-pointer">
+                                <input type="checkbox" checked={keys.includes(task.key)} onChange={() => toggleTask(pack, task.key)}
+                                  className="w-4 h-4 shrink-0 accent-[#879bff]" />
+                                <span className="text-13 text-fog-100 flex-1">{task.name}</span>
+                                <span className="text-11 text-fog-300">{formatDuration(packTaskDetails(task, ageNum).duration)}</span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-12 text-fog-300">
+                {taskCount ? `${taskCount} task${taskCount === 1 ? "" : "s"}, each starting right after the one before.` : "No routines: you'll start with an empty day."}
+              </p>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">A few times</h2>
+                <p className="text-sm text-muted-foreground">Only what {name.trim()}'s routines hang off. Everything else can be changed later in their profile.</p>
+              </div>
+              <div className="rounded-2xl border border-iris-400/20 p-4 space-y-3">
+                <TimeRow label="Wake up" value={times.wake} onChange={setTime("wake")} />
+                {asks.breakfast && <TimeRow label="Breakfast" value={times.breakfast} onChange={setTime("breakfast")} />}
+                {asks.dinner && <TimeRow label="Dinner" value={times.dinner} onChange={setTime("dinner")} />}
+                <TimeRow label="Bedtime" value={times.bedtime} onChange={setTime("bedtime")} />
+              </div>
+              <div className="rounded-2xl border border-iris-400/20 p-4 space-y-3">
+                {needsSchool ? (
+                  <p className="text-14 font-medium text-fog-100">School</p>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="goes-to-school" className="text-14 font-medium text-fog-100">Goes to school</Label>
+                    <Switch id="goes-to-school" checked={school} onCheckedChange={setGoesToSchool} className="data-[state=checked]:bg-green-500" />
                   </div>
-                </div>
-                {timesProblem && (
-                  <p className="text-xs text-coral-300 px-1" role="alert">{timesProblem}</p>
+                )}
+                {school && (
+                  <>
+                    <div className="flex gap-1 justify-between" role="group" aria-label="School days">
+                      {ALL_DAYS.map(day => {
+                        const on = schoolDays.includes(day);
+                        return (
+                          <button key={day} type="button" aria-pressed={on} aria-label={day}
+                            onClick={() => setSchoolDays(on ? schoolDays.filter(d => d !== day) : [...schoolDays, day])}
+                            className={cn("h-9 w-9 rounded-full text-xs font-semibold", on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}>
+                            {DAY_LETTERS[day]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <TimeRow label="Starts" value={times.schoolStart} onChange={setTime("schoolStart")} />
+                    <TimeRow label="Ends" value={times.schoolEnd} onChange={setTime("schoolEnd")} />
+                  </>
                 )}
               </div>
+              {timesProblem && <p className="text-xs text-coral-300 px-1" role="alert">{timesProblem}</p>}
             </div>
           )}
 
-          {/* Step 3 */}
-          {step === 3 && (
-            <div className="text-center space-y-5">
+          {step === 3 && draftId && (
+            <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">All set!</h2>
-                <p className="text-sm text-muted-foreground">Ready to create {formData.name}'s profile</p>
+                <h2 className="text-xl font-bold text-fog-50 mb-1">What {name.trim()} will see</h2>
+                <p className="text-sm text-muted-foreground">This is their real screen. Pick a view, try a time of day, then finish.</p>
               </div>
-
-              {/* size="xl" is a 192px sprite — it burst out of this circle and
-                  overlapped the heading and summary card. "md" (80px) fits. */}
-              <div className="rounded-full w-28 h-28 mx-auto flex items-center justify-center bg-iris-400/10 shrink-0">
-                <PetAvatar petType={formData.petType} happiness={100} size="md" />
+              <DisplayModePicker value={displayMode} onChange={setMode} age={ageNum} childName={name.trim()} />
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Time of day">
+                {moments.map(m => (
+                  <button key={m.id} type="button" role="radio" aria-checked={moment === m.id} onClick={() => setMoment(m.id)}
+                    className={cn("h-9 px-3 rounded-full text-13 font-medium", moment === m.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground")}>
+                    {m.label}
+                  </button>
+                ))}
+                <button type="button" aria-pressed={showDay} onClick={() => setShowDay(!showDay)}
+                  className={cn("h-9 px-3 rounded-full text-13 font-medium ml-auto", showDay ? "bg-iris-400 text-white" : "bg-muted text-muted-foreground hover:text-foreground")}>
+                  Whole day
+                </button>
               </div>
-
-              <div className="rounded-2xl border border-iris-400/20 p-4 text-left">
-                <h3 className="font-bold text-fog-50 text-sm mb-2 truncate">
-                  {formData.name} & {getPet(formData.petType).name}
-                </h3>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>Age: {formData.age} years old</p>
-                  <p>Wake: {formatTime12(formData.wakeTime)} &middot; Bed: {formatTime12(formData.sleepTime)}</p>
-                </div>
+              {/* The child's screen, contained: `transform` makes this box the
+                  frame for its fixed sheet and pop-ups; taps are off so the
+                  preview can't mark anything done. */}
+              <div
+                className="relative h-[620px] rounded-[28px] overflow-hidden border border-iris-400/30 pointer-events-none select-none"
+                style={{ transform: "translateZ(0)", background: "radial-gradient(218% 145% at -22% -13%, #515AAD 13%, #452774 41%, #271447 65%, #08011A 100%)" }}
+                aria-label={`Preview of ${name.trim()}'s screen`}
+              >
+                <ChildInterface childId={draftId} preview={{ displayMode, scheduleOpen: showDay }} />
               </div>
             </div>
           )}
 
           {/* Nav */}
           <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
-            <Button variant="ghost" size="md" onClick={step === 1 ? handleCancel : handleBack} className="gap-1.5">
+            <Button variant="ghost" size="md" onClick={step === 0 ? cancel : back} className="gap-1.5" disabled={busy}>
               <ChevronLeft className="w-4 h-4" />
-              {step === 1 ? "Cancel" : "Back"}
+              {step === 0 ? "Cancel" : "Back"}
             </Button>
-            <Button variant="primary" size="md" onClick={step === 3 ? handleFinish : handleNext} disabled={!isStepValid() || isLoading} className="gap-1.5">
-              {isLoading ? "Creating..." : step === 3 ? "Create Profile" : "Next"}
-              {step < 3 && !isLoading && <ChevronRight className="w-4 h-4" />}
-            </Button>
+            {step < 3 ? (
+              <Button variant="primary" size="md" onClick={next} disabled={!stepValid || busy} className="gap-1.5">
+                {busy ? "Setting up…" : step === 2 ? "Preview" : "Next"}
+                {!busy && <ChevronRight className="w-4 h-4" />}
+              </Button>
+            ) : (
+              <Button variant="primary" size="md" onClick={finish} disabled={busy} className="gap-1.5">
+                Use this routine
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -269,18 +429,25 @@ const ChildSetup = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Discard setup?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Everything you've entered so far will be lost.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Everything you've entered so far will be lost.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate("/parent")}>Discard</AlertDialogAction>
+            <AlertDialogAction onClick={async () => { await discardDraft(); navigate("/parent"); }}>Discard</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
 };
+
+function TimeRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Label className="text-muted-foreground text-sm">{label}</Label>
+      <TimeSelect value={value} onChange={onChange} className="shrink-0" />
+    </div>
+  );
+}
 
 export default ChildSetup;

@@ -25,7 +25,7 @@ import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
 import { orderByAnchors } from "@/utils/afterAnchors";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -44,12 +44,16 @@ import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
 import { AnimatePresence, motion } from "framer-motion";
 import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants } from "@/lib/motion";
+import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
+import { speak } from "@/lib/speech";
 
 interface ChildInterfaceProps {
   childId?: string;
+  /** Setup's preview: no parent lock, and these win over the child's settings. */
+  preview?: { displayMode?: DisplayMode; scheduleOpen?: boolean };
 }
 
-const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
+const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps = {}) => {
   const { childId: paramChildId } = useParams();
   const navigate = useNavigate();
 
@@ -120,7 +124,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   // This device is showing a child's screen now: the grown-up side needs the
   // parent PIN again (if one is set).
-  useEffect(() => { lockParentMode(); }, []);
+  const isPreview = !!preview;
+  useEffect(() => { if (!isPreview) lockParentMode(); }, [isPreview]);
 
   useEffect(() => {
     try {
@@ -538,7 +543,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     });
   };
 
-  const plannedSchedule = getTodaysSchedule();
+  // Setup's preview jumps the clock to a time of day: whatever ended before
+  // then counts as done, as if the day had gone to plan.
+  const plannedSchedule = (() => {
+    const planned = getTodaysSchedule();
+    if (!preview) return planned;
+    const now = getPSTDate();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return planned.map(t => {
+      if (t.isCompleted || t.type === 'floating' || !t.scheduled_time || !t.duration) return t;
+      const [h, m] = t.scheduled_time.slice(0, 5).split(':').map(Number);
+      return h * 60 + m + t.duration <= nowMin ? { ...t, isCompleted: true } : t;
+    });
+  })();
   const timeReserve = calculateTimeReserve(plannedSchedule, completions, getCurrentTime());
   // Keep the original end fixed: time given up to a late day delays the start
   // of a task set to "shorten" or "skip if needed" (fun time included).
@@ -969,7 +986,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     if (activeChores.length === 0) return null;
     return (
       <div className={cn("w-full flex flex-col gap-sp-1", className)}>
-        <p className="text-14 text-iris-400 leading-none">Chores</p>
+        {picture
+          ? <ListChecks className="w-6 h-6 text-iris-400" aria-label="Chores" />
+          : <p className="text-14 text-iris-400 leading-none">Chores</p>}
         <div className="w-full flex flex-wrap items-stretch gap-sp-1">
           {activeChores.map(chore => {
             const done = !!chore.isCompleted;
@@ -987,9 +1006,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 )}
               >
                 {done ? (
-                  <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
+                  <Check className={picture ? "w-8 h-8 text-mint-500" : "w-4 h-4 text-mint-500"} strokeWidth={3} />
                 ) : (
-                  getTaskIcon(chore.name, "w-4 h-4 text-fog-50", chore.icon)
+                  getTaskIcon(chore.name, picture ? "w-8 h-8 text-fog-50" : "w-4 h-4 text-fog-50", chore.icon)
                 )}
                 <span className="w-full text-12 text-center leading-tight text-fog-50">
                   {chore.name}
@@ -1009,8 +1028,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               exit={{ opacity: 0 }}
               transition={tMotion({ duration: durations.quick })}
             >
-              <Undo2 className="w-4 h-4" aria-hidden />
-              Oops, not done yet
+              <Undo2 className={picture ? "w-6 h-6" : "w-4 h-4"} aria-hidden />
+              <span className={words}>Oops, not done yet</span>
             </motion.button>
           )}
         </AnimatePresence>
@@ -1026,11 +1045,53 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     // Intentionally a no-op; the one-second tick re-categorizes the schedule.
   };
 
+  // Picture view: big pictures, the day in blocks, spoken prompts. Detailed
+  // view: exact times and a line about each task.
+  const mode: DisplayMode = preview?.displayMode ?? displayModeFor(child);
+  const picture = mode === 'picture';
+  const scheduleOpen = preview?.scheduleOpen ?? showSchedule;
+  const placedStart = (task: { id: string; scheduled_time?: string | null }) =>
+    todaysSchedule.find(t => t.id === task.id)?.scheduled_time ?? task.scheduled_time ?? null;
+  const timeRange = (start: string | null | undefined, minutes?: number | null) => {
+    if (!start) return undefined;
+    const [h, m] = start.slice(0, 5).split(':').map(Number);
+    const end = h * 60 + m + (minutes ?? 0);
+    const endStr = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+    return minutes
+      ? `${formatTime(start.slice(0, 5))} – ${formatTime(endStr)} · ${formatDuration(minutes)}`
+      : formatTime(start.slice(0, 5));
+  };
+  const explainTask = (task: { is_important?: boolean; is_fun_time?: boolean; subtasks?: unknown[] | null }) => {
+    if (task.is_fun_time) return 'Fun time! Enjoy it until the timer runs out.';
+    if (task.is_important) return 'Must finish. Tap I’m done when it’s all finished.';
+    if (task.subtasks?.length) return 'Do each step, then tap I’m done. Finish early and the extra time is yours.';
+    return 'Finish early? Tap I’m done and the extra time is yours.';
+  };
+  const currentStep = (task: { id: string; subtasks?: { id: string; text: string }[] | null }) =>
+    task.subtasks?.find(s => !(checkedSubtasks[task.id] ?? []).includes(s.id))?.text;
+  // Picture view keeps words for screen readers only; Biscuit's bubbles
+  // become emoji.
+  const words = picture ? "sr-only" : undefined;
+  const say = (text: string | null, emoji: string | null) => (picture ? emoji : text);
+  const greeting = returnGreeting ? say(returnGreeting.text, "👋") : null;
+  const taskEmoji = (name: string) => {
+    const n = name.toLowerCase();
+    if (SPORTS_RE.test(n)) return "⚽";
+    if (/school|class|lesson|learn/.test(n)) return "📚";
+    if (/wake|morning/.test(n)) return "☀️";
+    if (/breakfast|lunch|dinner|snack|meal/.test(n)) return "🍽️";
+    if (/brush|teeth|tooth/.test(n)) return "🪥";
+    if (/bath|shower/.test(n)) return "🛁";
+    if (/read|book|homework|study/.test(n)) return "📖";
+    return null;
+  };
+
   return (
     <div className={`${!propChildId ? 'min-h-dvh' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] min-[600px]:max-w-[660px] mx-auto">
         {!isRestDay && (
           <ScheduleSoundCues
+            speakPrompts={picture}
             activeTaskId={activeTask?.id ?? null}
             activeTaskName={activeTask?.name ?? null}
             // At bedtime the day is over for chimes too: no "still to do"
@@ -1046,7 +1107,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {!dayOver && !sleepTime && (
           <div className="flex items-center justify-between mb-sp-3">
             <div className="flex items-center gap-2 min-w-0">
-              <p className="text-20 text-fog-50 leading-none truncate">Hi, {child.name}!</p>
+              <p className="text-20 text-fog-50 leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
             </div>
             <button
               type="button"
@@ -1087,8 +1148,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             retried; say so quietly rather than showing an error. */}
         {pendingCount > 0 && (
           <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-12 text-fog-300" role="status">
-            <CloudOff className="w-3.5 h-3.5" aria-hidden />
-            Saved here. Sending when the internet is back.
+            <CloudOff className={picture ? "w-5 h-5" : "w-3.5 h-3.5"} aria-hidden />
+            <span className={words}>Saved here. Sending when the internet is back.</span>
           </p>
         )}
 
@@ -1100,9 +1161,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={168} interactive prompt="Cozy day!" />
-            <h2 className="text-24 text-fog-50 text-center leading-tight">Cozy rest day</h2>
-            <p className="text-14 text-fog-200 text-center max-w-xs">
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
+            {picture && <Sofa className="w-12 h-12 text-fog-100" aria-hidden />}
+            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>Cozy rest day</h2>
+            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
               No plans today. {petNick(child.petType)} is resting too!
             </p>
             {renderChores()}
@@ -1129,12 +1191,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={tMotion(springs.gentle)}
               >
-                <h2 className="text-24 text-fog-50 text-center leading-tight">
+                {picture && <Moon className="w-12 h-12 text-fog-100" aria-hidden />}
+                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
                   Goodnight, {child.name}! 🌙
                 </h2>
-                <StatusBadge variant="info">Time to rest</StatusBadge>
-                <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={168} interactive prompt="Sweet dreams!" />
-                <p className="text-14 text-fog-200 text-center max-w-xs">
+                {!picture && <StatusBadge variant="info">Time to rest</StatusBadge>}
+                <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
               </motion.div>
@@ -1159,6 +1222,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               <ChildTaskFocus
                 name={displayTask.name}
                 icon={displayTask.icon}
+                variant={mode}
+                timeLabel={timeRange(placedStart(displayTask), displayTask.duration)}
+                explanation={explainTask(displayTask)}
+                onSpeak={() => {
+                  const step = currentStep(displayTask);
+                  speak(step ? `${displayTask.name}. Next step: ${step}` : `Time for ${displayTask.name}!`, { force: true });
+                }}
                 totalSeconds={totalSecs}
                 remainingSeconds={remaining}
                 done={isFrozen}
@@ -1170,11 +1240,12 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
                 companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} mood={petMood}
                   activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
-                  size={112} interactive
-                  prompt={returnGreeting?.text ?? promptForTask(displayTask.name)}
+                  size={112} interactive picture={picture}
+                  prompt={greeting ?? say(promptForTask(displayTask.name), taskEmoji(displayTask.name))}
                   reaction={returnGreeting ? "Wave" : undefined} reactionKey={returnGreeting?.id}
                   className="w-full h-full" />}
                 checklist={displayTask.subtasks?.length ? <TaskChecklistView
+                  picture={picture}
                   subtasks={displayTask.subtasks}
                   checkedIds={checkedSubtasks[displayTask.id] ?? []}
                   onToggle={(subId) => toggleSubtask(displayTask.id, subId)} /> : undefined}
@@ -1184,7 +1255,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         {/* Still to do — important tasks whose time ran out while something
             else is on the clock. Never nagging: one warm card per task with
             its own Done, and the rest of the day keeps moving underneath. */}
-        <details className="w-full text-fog-200"><summary className="min-h-11 cursor-pointer py-3 text-sm">Other things to finish</summary><AnimatePresence initial={false}>
+        <details className="w-full text-fog-200"><summary className="min-h-11 cursor-pointer py-3 text-sm">{picture ? (
+          <span className="inline-flex items-center gap-2 align-middle"><AlertCircle className="w-6 h-6 text-amber-400" aria-hidden /><span className="text-16 text-fog-50">{stillToDo.length}</span><span className="sr-only">Other things to finish</span></span>
+        ) : "Other things to finish"}</summary><AnimatePresence initial={false}>
           {!frozenTask && stillToDo.map(task => (
             <motion.div
               key={`still-${task.id}`}
@@ -1198,12 +1271,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                 {getTaskIcon(task.name, "w-5 h-5 text-amber-400", task.icon)}
                 <div className="flex-1 min-w-0">
                   <p className="text-16 font-medium text-fog-50 truncate">{task.name}</p>
-                  <p className="text-12 text-fog-300">
+                  <p className={cn("text-12 text-fog-300", words)}>
                     Still to do. {petNick(child.petType)} knows you can!
                   </p>
                 </div>
               </div>
               <SlideToConfirm
+                iconOnly={picture}
                 label="I did it!"
                 onConfirm={async () => {
                   setPetCelebrating(true);
@@ -1224,13 +1298,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
               {upcomingTasks.length > 0 && (
                 <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
                   <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-14 text-iris-400">Next</span>
+                    {picture
+                      ? <ArrowRight className="w-6 h-6 text-iris-400" aria-label="Next" />
+                      : <span className="text-14 text-iris-400">Next</span>}
                     <div className="flex items-center gap-2 min-w-0">
-                      {getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0", upcomingTasks[0].icon)}
-                      <span className="text-16 text-fog-50 truncate">{upcomingTasks[0].name}</span>
+                      {picture ? (
+                        <span className="shrink-0 w-10 h-10 rounded-[14px] bg-fog-50/10 flex items-center justify-center">
+                          {getTaskIcon(upcomingTasks[0].name, "w-6 h-6 text-fog-50", upcomingTasks[0].icon)}
+                        </span>
+                      ) : getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0", upcomingTasks[0].icon)}
+                      <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{upcomingTasks[0].name}</span>
                     </div>
                   </div>
-                  {upcomingTasks[0].scheduled_time && (
+                  {!picture && upcomingTasks[0].scheduled_time && (
                     <StatusBadge variant="time">{formatTime(upcomingTasks[0].scheduled_time)}</StatusBadge>
                   )}
                 </div>
@@ -1261,7 +1341,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Free Time
+                {picture ? <><Gamepad2 className="w-10 h-10 text-mint-300" aria-hidden /><span className="sr-only">Free Time</span></> : "Free Time"}
               </h2>
               <StatusBadge variant="info">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
@@ -1288,9 +1368,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                       <button
                         type="button"
                         onClick={() => { setWheelFor(null); setPlayFor(playKey); }}
+                        aria-label={picture ? `Play with ${petNick(child.petType)} instead` : undefined}
                         className="mt-2 flex items-center gap-1.5 min-h-11 px-4 rounded-full bg-white/5 text-13 text-fog-200 hover:text-fog-50 transition-colors"
                       >
-                        Play with {petNick(child.petType)} instead
+                        {picture ? <Gamepad2 className="w-7 h-7" aria-hidden /> : <>Play with {petNick(child.petType)} instead</>}
                       </button>
                     </motion.div>
                   ) : (
@@ -1318,15 +1399,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                           activity={petCelebrating || beforeWake || petIsCheckingClock || drowsy ? undefined : freeTimeActivityRef.current.activity}
                           size={168}
                           interactive
+                          picture={picture}
                           prompt={
-                            returnGreeting?.text
+                            greeting
                             ?? (beforeWake
-                              ? "Still sleepy…"
+                              ? say("Still sleepy…", "💤")
                               : petIsCheckingClock
-                                ? `Get ready for ${freeTimeCountdown.nextTask.name}!`
+                                ? say(`Get ready for ${freeTimeCountdown.nextTask.name}!`, "⏰")
                                 : freeTimeActivityRef.current.activity === "reading"
-                                  ? "A little quiet time!"
-                                  : "Let’s have some fun!")
+                                  ? say("A little quiet time!", "📖")
+                                  : say("Let’s have some fun!", "🎉"))
                           }
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
@@ -1340,19 +1422,21 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         <button
                           type="button"
                           onClick={() => setPlayFor(playKey)}
-                          className="flex items-center gap-1.5 min-h-11 px-4 rounded-full bg-mint-500 text-ink-900 text-14 font-semibold hover:bg-mint-400 transition-colors"
+                          aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
+                          className={cn("flex items-center gap-1.5 rounded-full bg-mint-500 text-ink-900 text-14 font-semibold hover:bg-mint-400 transition-colors", picture ? "min-h-14 px-7" : "min-h-11 px-4")}
                         >
-                          <Gamepad2 className="w-4 h-4" aria-hidden />
-                          Play with {petNick(child.petType)}
+                          <Gamepad2 className={picture ? "w-8 h-8" : "w-4 h-4"} aria-hidden />
+                          {!picture && <>Play with {petNick(child.petType)}</>}
                         </button>
                         {canSpin && (
                           <button
                             type="button"
                             onClick={() => setWheelFor(playKey)}
-                            className="flex items-center gap-1.5 min-h-11 px-4 rounded-full bg-iris-500/25 text-iris-200 text-14 font-semibold hover:bg-iris-500/35 transition-colors"
+                            aria-label={picture ? "Spin the wheel" : undefined}
+                            className={cn("flex items-center gap-1.5 rounded-full bg-iris-500/25 text-iris-200 text-14 font-semibold hover:bg-iris-500/35 transition-colors", picture ? "min-h-14 px-7" : "min-h-11 px-4")}
                           >
-                            <Shuffle className="w-4 h-4" aria-hidden />
-                            Spin the wheel
+                            <Shuffle className={picture ? "w-8 h-8" : "w-4 h-4"} aria-hidden />
+                            {!picture && "Spin the wheel"}
                           </button>
                         )}
                       </div>
@@ -1367,13 +1451,19 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             {/* Next task row — same shape as the active-task block. */}
             <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
               <div className="flex flex-col gap-1 min-w-0">
-                <span className="text-14 text-iris-400">Next</span>
+                {picture
+                  ? <ArrowRight className="w-6 h-6 text-iris-400" aria-label="Next" />
+                  : <span className="text-14 text-iris-400">Next</span>}
                 <div className="flex items-center gap-2 min-w-0">
-                  {getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0", freeTimeCountdown.nextTask.icon)}
-                  <span className="text-16 text-fog-50 truncate">{freeTimeCountdown.nextTask.name}</span>
+                  {picture ? (
+                    <span className="shrink-0 w-10 h-10 rounded-[14px] bg-fog-50/10 flex items-center justify-center">
+                      {getTaskIcon(freeTimeCountdown.nextTask.name, "w-6 h-6 text-fog-50", freeTimeCountdown.nextTask.icon)}
+                    </span>
+                  ) : getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0", freeTimeCountdown.nextTask.icon)}
+                  <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{freeTimeCountdown.nextTask.name}</span>
                 </div>
               </div>
-              {freeTimeCountdown.nextTask.scheduled_time && (
+              {!picture && freeTimeCountdown.nextTask.scheduled_time && (
                 <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
               )}
             </div>
@@ -1390,14 +1480,14 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <AmbientClock next={{ name: upcomingTasks[0].name, time: upcomingTasks[0].scheduled_time }} />
+            <AmbientClock picture={picture} next={{ name: upcomingTasks[0].name, time: upcomingTasks[0].scheduled_time, icon: upcomingTasks[0].icon }} />
             <CritterPet
               petType={child.petType}
               outfit={child.pet_outfit}
               mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"}
               size={168}
-              interactive
-              prompt={returnGreeting?.text ?? null}
+              interactive picture={picture}
+              prompt={greeting}
               reaction={returnGreeting ? "Wave" : undefined}
               reactionKey={returnGreeting?.id}
             />
@@ -1412,8 +1502,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             variant="secondary"
             size="md"
             className="w-full"
+            aria-label={picture ? "Today's schedule" : undefined}
           >
-            Today's Schedule
+            {picture ? <CalendarDays className="w-7 h-7" aria-hidden /> : "Today's Schedule"}
           </Button>
         )}
 
@@ -1425,12 +1516,16 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive prompt="Zzz…" />
-            <h2 className="text-24 text-fog-50 text-center leading-tight">
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
+            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
               Still sleepy time, {child.name}
             </h2>
-            <StatusBadge variant="info">Wake up at {formatTime(wakeTimeToday)}</StatusBadge>
-            <p className="text-14 text-fog-200 text-center max-w-xs">
+            <StatusBadge variant="info">
+              {picture
+                ? <span className="inline-flex items-center gap-1.5"><Sunrise className="w-4 h-4" aria-label="Wake up at" />{formatTime(wakeTimeToday)}</span>
+                : <>Wake up at {formatTime(wakeTimeToday)}</>}
+            </StatusBadge>
+            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
               {petNick(child.petType)} is still asleep. See you in the morning!
             </p>
           </motion.div>
@@ -1445,12 +1540,13 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             transition={tMotion(springs.gentle)}
           >
             {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive prompt="Sweet dreams!" />
-            <h2 className="text-24 text-fog-50 text-center leading-tight">
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+            {picture && <Moon className="w-12 h-12 text-fog-100" aria-hidden />}
+            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
               Goodnight, {child.name}! 🌙
             </h2>
-            <StatusBadge variant="info">Sleep tight</StatusBadge>
-            <p className="text-14 text-fog-200 text-center max-w-xs">
+            {!picture && <StatusBadge variant="info">Sleep tight</StatusBadge>}
+            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
               {petNick(child.petType)} is going to sleep too. See you tomorrow!
             </p>
           </motion.div>
@@ -1464,32 +1560,36 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <AmbientClock next={null} />
+            <AmbientClock next={null} picture={picture} />
             <CritterPet
               petType={child.petType}
               outfit={child.pet_outfit}
               mood="excited"
               activity={freeTimeActivityRef.current.activity}
               size={168}
-              interactive
-              prompt={returnGreeting?.text ?? (hasTimedTasks ? "We did it!" : "Let's have fun!")}
+              interactive picture={picture}
+              prompt={greeting ?? (hasTimedTasks ? say("We did it!", "🎉") : say("Let's have fun!", "😊"))}
               reaction={returnGreeting ? "Wave" : undefined}
               reactionKey={returnGreeting?.id}
             />
             {hasTimedTasks ? (
               <>
-                <h2 className="text-24 text-fog-50 text-center leading-tight">All done for today!</h2>
-                <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
-                  <span className="text-12 font-medium text-ink-900">Nice work</span>
-                </div>
-                <p className="text-14 text-fog-200 text-center max-w-xs">
+                {picture && <PartyPopper className="w-12 h-12 text-amber-300" aria-hidden />}
+                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>All done for today!</h2>
+                {!picture && (
+                  <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
+                    <span className="text-12 font-medium text-ink-900">Nice work</span>
+                  </div>
+                )}
+                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
                   Great job {child.name}. {petNick(child.petType)} is so proud of you.
                 </p>
               </>
             ) : (
               <>
-                <h2 className="text-24 text-fog-50 text-center leading-tight">A free day!</h2>
-                <p className="text-14 text-fog-200 text-center max-w-xs">
+                {picture && <Sun className="w-12 h-12 text-amber-300" aria-hidden />}
+                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>A free day!</h2>
+                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
                   Nothing planned today, {child.name}. {petNick(child.petType)} is happy to hang out.
                 </p>
               </>
@@ -1505,7 +1605,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
         <div
           className={cn(
             "fixed inset-0 z-40 bg-black/30 transition-opacity duration-300",
-            showSchedule ? "opacity-100" : "opacity-0 pointer-events-none",
+            scheduleOpen ? "opacity-100" : "opacity-0 pointer-events-none",
           )}
           onClick={() => setShowSchedule(false)}
           aria-hidden
@@ -1516,7 +1616,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             "fixed left-0 right-0 bottom-0 z-50 mx-auto max-w-[420px]",
             "rounded-t-[28px] px-sp-2 pt-sp-6 pb-sp-8",
             "transition-transform duration-300 ease-out",
-            showSchedule ? "translate-y-0" : "translate-y-full",
+            scheduleOpen ? "translate-y-0" : "translate-y-full",
           )}
           style={{
             background: "#6C6BBF",
@@ -1524,9 +1624,9 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           }}
           role="dialog"
           aria-label="Today's schedule"
-          aria-hidden={!showSchedule}
+          aria-hidden={!scheduleOpen}
           // @ts-expect-error inert is valid HTML; React 18 types lack it
-          inert={showSchedule ? undefined : ""}
+          inert={scheduleOpen ? undefined : ""}
         >
           {/* Drag handle */}
           <button
@@ -1539,21 +1639,27 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           </button>
 
           <div className="h-full overflow-y-auto flex flex-col gap-sp-2 px-sp-2">
-            <p className="text-14 text-white uppercase tracking-wider px-sp-2">
-              Today's schedule
-            </p>
+            {picture ? (
+              <CalendarDays className="w-7 h-7 text-white mx-sp-2" aria-label="Today's schedule" />
+            ) : (
+              <p className="text-14 text-white uppercase tracking-wider px-sp-2">
+                Today's schedule
+              </p>
+            )}
 
             {todaysSchedule.length === 0 ? (
               <div className="rounded-[24px] bg-[#333881]/20 p-sp-6 text-center">
                 <p className="text-16 text-white mb-1">No schedule</p>
                 <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
               </div>
+            ) : picture ? (
+              <PictureDay rows={scheduleRows} focusTaskId={focusTask?.id ?? null} nowMinutes={nowMinutes} />
             ) : (
               <motion.ul
                 className="flex flex-col gap-sp-1"
                 variants={staggerContainerVariants}
                 initial="hidden"
-                animate={showSchedule ? "visible" : "hidden"}
+                animate={scheduleOpen ? "visible" : "hidden"}
               >
                 {scheduleRows.map(row => {
                   if (row.kind === 'free') {
@@ -1590,6 +1696,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
                         name={task.name}
                         icon={task.icon}
                         durationMin={task.duration}
+                        important={task.is_important}
+                        fun={task.is_fun_time}
                         state={done ? 'done' : isNow ? 'now' : 'upcoming'}
                       />
                     </motion.li>
@@ -1603,6 +1711,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
       {/* Rewards Shop popup */}
       <RewardsShop
+        picture={picture}
         childId={child.id}
         childName={child.name}
         currentCoins={child.currentCoins}
@@ -1614,6 +1723,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       <AnimatePresence>
         {playFor === playKey && freeTimeCountdown && !activeTask && (
           <Playtime
+            picture={picture}
             childId={child.id}
             petType={child.petType}
             secondsLeft={freeTimeCountdown.remaining}
@@ -1628,6 +1738,8 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           wheel, Playtime), Biscuit says it's time to get ready. */}
       {!isRestDay && !sleepTime && !activeTask && freeTimeCountdown && (
         <GetReadyReminder
+          speakPrompt={picture}
+          nextIcon={freeTimeCountdown.nextTask.icon}
           windowKey={playKey}
           remaining={freeTimeCountdown.remaining}
           nextName={freeTimeCountdown.nextTask.name}
@@ -1674,9 +1786,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
             >
               <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="celebrate" size={192} />
             </motion.div>
-            <p className="text-2xl font-bold text-fog-50 text-center">You got your reward!</p>
+            {picture && <Gift className="w-12 h-12 text-[#FFD66B]" aria-hidden />}
+            <p className={cn("text-2xl font-bold text-fog-50 text-center", words)}>You got your reward!</p>
             <p className="text-18 font-semibold text-[#FFD66B] text-center">🎁 {approvedReward}</p>
-            <p className="text-16 text-fog-200 text-center">
+            <p className={cn("text-16 text-fog-200 text-center", words)}>
               {petNick(child.petType)} is so happy for you, {child.name}!
             </p>
           </motion.div>
@@ -1696,7 +1809,10 @@ const GET_READY_SECONDS = 5 * 60;
  * window, on top of everything (the wheel, Playtime), with a gentle chime.
  * Closes itself after a while, when the child taps OK, or when free time ends.
  */
-function GetReadyReminder({ windowKey, remaining, nextName, petType, outfit, reminded }: {
+function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, petType, outfit, reminded, speakPrompt }: {
+  /** Picture view: say it out loud, and show pictures instead of a sentence. */
+  speakPrompt?: boolean;
+  nextIcon?: string | null;
   windowKey: string;
   remaining: number;
   nextName: string;
@@ -1712,7 +1828,8 @@ function GetReadyReminder({ windowKey, remaining, nextName, petType, outfit, rem
     reminded.add(windowKey);
     setOpen(true);
     sounds.soon();
-  }, [remaining, windowKey, reminded]);
+    if (speakPrompt) window.setTimeout(() => speak(`Get ready! ${nextName} is next.`), 700);
+  }, [remaining, windowKey, reminded, speakPrompt, nextName]);
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => setOpen(false), 15_000);
@@ -1736,18 +1853,29 @@ function GetReadyReminder({ windowKey, remaining, nextName, petType, outfit, rem
             <div className="w-16 h-14 shrink-0 flex items-center justify-center">
               <CritterPet petType={petType} outfit={outfit} mood="excited" size={56} reaction="Wave" reactionKey={windowKey} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-16 font-semibold text-fog-50 leading-tight">
-                {minutes} minute{minutes === 1 ? '' : 's'} until {nextName}!
-              </p>
-              <p className="text-13 text-fog-200">Time to get ready.</p>
-            </div>
+            {speakPrompt ? (
+              <div className="flex-1 min-w-0 flex items-center gap-2" aria-label={`${minutes} minute${minutes === 1 ? '' : 's'} until ${nextName}. Time to get ready.`}>
+                <AlarmClock className="w-8 h-8 text-amber-300 shrink-0" aria-hidden />
+                <ArrowRight className="w-5 h-5 text-fog-300 shrink-0" aria-hidden />
+                <span className="w-12 h-12 shrink-0 rounded-[14px] bg-white/10 flex items-center justify-center" aria-hidden>
+                  {getTaskIcon(nextName, 'w-7 h-7 text-fog-50', nextIcon)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0">
+                <p className="text-16 font-semibold text-fog-50 leading-tight">
+                  {minutes} minute{minutes === 1 ? '' : 's'} until {nextName}!
+                </p>
+                <p className="text-13 text-fog-200">Time to get ready.</p>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setOpen(false)}
+              aria-label={speakPrompt ? 'OK' : undefined}
               className="shrink-0 min-h-11 px-4 rounded-full bg-iris-500 text-white text-14 font-semibold"
             >
-              OK!
+              {speakPrompt ? <Check className="w-6 h-6" strokeWidth={3} aria-hidden /> : 'OK!'}
             </button>
           </div>
         </motion.div>
@@ -1792,6 +1920,8 @@ function ScheduleRow({
   name,
   icon,
   durationMin,
+  important,
+  fun,
   state,
 }: {
   time?: string;
@@ -1801,6 +1931,8 @@ function ScheduleRow({
   name: string;
   icon?: string | null;
   durationMin?: number;
+  important?: boolean;
+  fun?: boolean;
   state: 'done' | 'now' | 'upcoming';
 }) {
   // Time column rules:
@@ -1819,7 +1951,14 @@ function ScheduleRow({
       const [e, eap] = splitTime12(windowEnd!);
       return `${s}${sap} – ${e}${eap}`;
     }
-    if (!isBedtime && displayTime && durationMin && durationMin > 0) return formatDuration(durationMin);
+    if (!isBedtime && displayTime && durationMin && durationMin > 0) {
+      // Exact end time too, and what kind of task it is.
+      const [h, m] = displayTime.split(':').map(Number);
+      const end = h * 60 + m + durationMin;
+      const [e, eap] = splitTime12(`${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`);
+      const kind = important ? ' · Must finish' : fun ? ' · Fun time' : '';
+      return `Until ${e}${eap} · ${formatDuration(durationMin)}${kind}`;
+    }
     return null;
   })();
 
@@ -1915,6 +2054,89 @@ function FreeTimeRow({
           <p className="text-12 text-[#9EBEFF] truncate">{formatDuration(durationMin)} all yours</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+type PictureRow =
+  | { kind: 'task'; task: { id: string; name: string; icon?: string | null; duration?: number; scheduled_time?: string | null; window_start?: string | null; type?: string; isCompleted?: boolean } }
+  | { kind: 'free'; id: string; startMin: number; durationMin: number };
+
+const PARTS = ['Morning', 'Afternoon', 'Evening', 'Anytime'] as const;
+const PART_ICONS: Record<(typeof PARTS)[number], typeof Sun> = { Morning: Sunrise, Afternoon: Sun, Evening: Moon, Anytime: ListChecks };
+
+/**
+ * Picture view's day for children who don't read clocks: no times, just
+ * morning / afternoon / evening, a big picture for each thing and its length
+ * as blocks (one per ten minutes).
+ */
+function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; focusTaskId: string | null; nowMinutes: number }) {
+  const startOf = (row: PictureRow) => {
+    if (row.kind === 'free') return row.startMin;
+    const t = row.task.scheduled_time || row.task.window_start;
+    if (!t || row.task.type === 'floating') return null;
+    const [h, m] = t.slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const partOf = (start: number | null) =>
+    start == null ? 'Anytime' : start < 12 * 60 ? 'Morning' : start < 17 * 60 ? 'Afternoon' : 'Evening';
+  const groups = PARTS.map(part => ({ part, rows: rows.filter(r => partOf(startOf(r)) === part) })).filter(g => g.rows.length);
+  return (
+    <div className="flex flex-col gap-sp-3">
+      {groups.map(({ part, rows: partRows }) => (
+        <section key={part} aria-label={part} className="flex flex-col gap-sp-1">
+          {(() => {
+            const PartIcon = PART_ICONS[part];
+            return <PartIcon className="w-7 h-7 text-white/90 mx-sp-2" aria-hidden />;
+          })()}
+          {partRows.map(row => {
+            const start = startOf(row);
+            const minutes = row.kind === 'free' ? row.durationMin : row.task.duration ?? 0;
+            const done = row.kind === 'task'
+              ? !!row.task.isCompleted
+              : start != null && nowMinutes >= start + minutes;
+            const now = row.kind === 'task'
+              ? focusTaskId === row.task.id && !done
+              : start != null && !done && nowMinutes >= start;
+            const name = row.kind === 'free' ? 'Free time' : row.task.name;
+            const blocks = Math.min(6, Math.max(1, Math.round(minutes / 10)));
+            const isBedtime = name.toLowerCase().includes('bedtime');
+            return (
+              <div
+                key={row.kind === 'free' ? row.id : row.task.id}
+                className={cn(
+                  'flex items-center gap-sp-3 p-sp-3 rounded-[24px]',
+                  row.kind === 'free' ? 'border border-dashed border-white/25' : 'bg-[#333881]/[0.2]',
+                  now && 'bg-iris-400/30 ring-1 ring-iris-400/60',
+                  done && 'opacity-50',
+                )}
+              >
+                <span className="shrink-0 w-14 h-14 rounded-[18px] bg-white/10 flex items-center justify-center">
+                  {row.kind === 'free'
+                    ? <Gamepad2 className="w-8 h-8 text-[#9EBEFF]" />
+                    : getTaskIcon(name, 'w-8 h-8 text-white', row.task.icon)}
+                </span>
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <p className={cn('text-18 text-white truncate', done && 'line-through')}>{name}</p>
+                  {minutes > 0 && !isBedtime && (
+                    <span className="flex gap-1" aria-label={`About ${formatDuration(minutes)}`}>
+                      {Array.from({ length: blocks }, (_, i) => (
+                        <span key={i} className={cn('w-3.5 h-3.5 rounded-[4px]', row.kind === 'free' ? 'bg-[#9EBEFF]/60' : 'bg-white/60')} />
+                      ))}
+                    </span>
+                  )}
+                </div>
+                {now && (
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-white text-ink-900 flex items-center justify-center" aria-label="Now">
+                    <Play className="w-4 h-4 fill-current ml-0.5" aria-hidden />
+                  </span>
+                )}
+                {done && <Check className="shrink-0 w-6 h-6 text-mint-300" aria-label="Done" />}
+              </div>
+            );
+          })}
+        </section>
+      ))}
     </div>
   );
 }

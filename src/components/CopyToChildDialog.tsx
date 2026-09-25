@@ -191,7 +191,8 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
       toast.success(`Copied ${planned.length} task${planned.length === 1 ? "" : "s"} to ${target.name}`);
       onCopied?.();
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      console.error("Copy to child failed", error);
       toast.error("Couldn't copy. Please try again.");
     } finally {
       setBusy(false);

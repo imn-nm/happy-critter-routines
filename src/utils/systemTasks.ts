@@ -326,12 +326,15 @@ export const getSystemTaskScheduleForDay = (
 
   // Fall back to default schedule
   const defaultTime = child[mapping.timeField] as string | undefined;
-  const defaultDuration = child[mapping.durationField] as number | undefined;
+  const defaultDuration = child[mapping.durationField] as number | null | undefined;
 
-  if (defaultTime && defaultDuration !== undefined) {
+  if (defaultTime) {
     return {
       time: defaultTime,
-      duration: defaultDuration,
+      // A child whose profile was never saved has no lengths stored (null):
+      // use the usual ones, or the row counted as zero minutes and anything
+      // set to start after it was pushed down the day.
+      duration: defaultDuration ?? systemTaskTemplates.find(t => t.name.toLowerCase() === taskNameLower)?.defaultDuration ?? 30,
     };
   }
 

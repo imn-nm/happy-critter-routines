@@ -15,6 +15,8 @@ import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
 import { syncSchoolRoutines } from "@/hooks/useRoutines";
+import DisplayModePicker from "@/components/DisplayModePicker";
+import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 
 const DURATIONS = [
   { value: "10", label: "10 min" },
@@ -37,6 +39,8 @@ const formFromChild = (child: Child) => ({
   name: child.name,
   age: child.age?.toString() || "",
   petType: child.petType,
+  // Unset means "suggested by age"; it's only saved once the parent picks.
+  display_mode: displayModeFor(child) as DisplayMode,
   wake_time: child.wake_time || "07:00",
   wake_duration: child.wake_duration?.toString() || "15",
   breakfast_time: child.breakfast_time || "07:30",
@@ -97,6 +101,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
         petType: formData.petType,
+        display_mode: formData.display_mode,
         wake_time: formData.wake_time,
         wake_duration: parseInt(formData.wake_duration) || 15,
         breakfast_time: formData.breakfast_time,
@@ -223,6 +228,17 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                 placeholder="—"
               />
             </div>
+          </div>
+
+          {/* What the child's screen looks like */}
+          <div className="flex flex-col gap-sp-2">
+            <h4 className="text-14 font-medium text-fog-50">What {formData.name.trim() || child.name} sees</h4>
+            <DisplayModePicker
+              value={formData.display_mode}
+              onChange={(display_mode) => setFormData({ ...formData, display_mode })}
+              age={formData.age ? parseInt(formData.age) : child.age}
+              childName={formData.name.trim() || child.name}
+            />
           </div>
 
           {/* Daily routine */}

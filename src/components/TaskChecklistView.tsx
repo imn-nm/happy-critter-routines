@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, List } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -18,6 +18,8 @@ interface TaskChecklistViewProps {
   /** Called when a subtask row is tapped. */
   onToggle: (subtaskId: string) => void;
   className?: string;
+  /** Picture view: fewer words — progress as dots, icons for the controls. */
+  picture?: boolean;
 }
 
 /**
@@ -31,6 +33,7 @@ const TaskChecklistView = ({
   checkedIds,
   onToggle,
   className,
+  picture,
 }: TaskChecklistViewProps) => {
   const { t, reduce } = useMotionPrefs();
   const [expanded, setExpanded] = useState(false);
@@ -42,16 +45,24 @@ const TaskChecklistView = ({
     <div className={cn("w-full flex flex-col gap-sp-2", className)}>
       {!expanded && (
         <>
-          <div className="flex items-center justify-between px-1">
-            <span className="text-13 text-iris-300">
-              {current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}
-            </span>
-            {/* Progress dots */}
-            <span className="flex gap-1" aria-hidden>
+          <div className={cn("flex items-center px-1", picture ? "justify-center" : "justify-between")}>
+            {picture ? (
+              <span className="sr-only">{current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}</span>
+            ) : (
+              <span className="text-13 text-iris-300">
+                {current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}
+              </span>
+            )}
+            {/* Progress dots — the whole story in picture view */}
+            <span className={cn("flex", picture ? "gap-2" : "gap-1")} aria-hidden>
               {subtasks.map(s => (
                 <span
                   key={s.id}
-                  className={cn("w-2 h-2 rounded-full", checkedIds.includes(s.id) ? "bg-mint-500" : "bg-white/20")}
+                  className={cn(
+                    "rounded-full",
+                    picture ? "w-3.5 h-3.5" : "w-2 h-2",
+                    checkedIds.includes(s.id) ? "bg-mint-500" : "bg-white/20",
+                  )}
                 />
               ))}
             </span>
@@ -85,7 +96,11 @@ const TaskChecklistView = ({
                 animate={{ opacity: 1, scale: 1 }}
                 transition={t(springs.bouncy)}
               >
-                <Check className="w-5 h-5" strokeWidth={3} /> All {subtasks.length} steps done!
+                {picture ? (
+                  <Check className="w-9 h-9" strokeWidth={3} aria-label="All steps done!" />
+                ) : (
+                  <><Check className="w-5 h-5" strokeWidth={3} /> All {subtasks.length} steps done!</>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -136,10 +151,20 @@ const TaskChecklistView = ({
         type="button"
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
-        className="self-center flex items-center gap-1.5 min-h-11 px-4 text-13 text-fog-300 hover:text-fog-50"
+        aria-label={picture ? (expanded ? "Show one step at a time" : "See all steps") : undefined}
+        className={cn(
+          "self-center flex items-center gap-1.5 min-h-11 px-4 text-13 text-fog-300 hover:text-fog-50",
+          picture && "w-12 h-12 justify-center rounded-full bg-white/[0.06] px-0",
+        )}
       >
-        <ChevronDown className={cn("w-4 h-4 transition-transform", expanded && "rotate-180")} aria-hidden />
-        {expanded ? "Show one step at a time" : `See all steps (${doneCount}/${subtasks.length})`}
+        {picture ? (
+          expanded ? <ChevronDown className="w-6 h-6 rotate-180" aria-hidden /> : <List className="w-6 h-6" aria-hidden />
+        ) : (
+          <>
+            <ChevronDown className={cn("w-4 h-4 transition-transform", expanded && "rotate-180")} aria-hidden />
+            {expanded ? "Show one step at a time" : `See all steps (${doneCount}/${subtasks.length})`}
+          </>
+        )}
       </button>
     </div>
   );

@@ -57,6 +57,8 @@ export interface Child {
   spinning_wheel_options?: string[] | null;
   // What the rabbit is wearing (Playtime dress-up); null for nothing.
   pet_outfit?: PetOutfit | null;
+  /** Picture or detailed child screen; null = suggested by age (see utils/displayMode). */
+  display_mode?: 'picture' | 'detailed' | null;
 }
 
 export const useChildren = () => {
@@ -115,6 +117,7 @@ export const useChildren = () => {
           currentCoins: child.current_coins,
           petHappiness: child.pet_happiness,
           pet_outfit: normalizeOutfit(child.pet_outfit),
+          display_mode: (child.display_mode ?? null) as Child['display_mode'],
           rest_day_date: child.rest_day_date ?? null,
           rest_dates: child.rest_dates ?? [],
           wake_time: child.wake_time,
@@ -169,6 +172,11 @@ export const useChildren = () => {
         ...(childData.breakfast_time && { breakfast_time: childData.breakfast_time }),
         ...(childData.lunch_time && { lunch_time: childData.lunch_time }),
         ...(childData.dinner_time && { dinner_time: childData.dinner_time }),
+        ...(childData.school_start_time && { school_start_time: childData.school_start_time }),
+        ...(childData.school_end_time && { school_end_time: childData.school_end_time }),
+        ...(childData.school_duration && { school_duration: childData.school_duration }),
+        ...(childData.school_days && { school_days: childData.school_days }),
+        ...(childData.display_mode && { display_mode: childData.display_mode }),
       };
 
       const { data, error } = await supabase

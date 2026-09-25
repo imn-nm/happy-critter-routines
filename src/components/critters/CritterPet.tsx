@@ -20,6 +20,8 @@ interface CritterPetProps {
   onTap?: () => void;
   /** A short, contextual line shown briefly when this context begins. */
   prompt?: string | null;
+  /** Picture view: the "tap me" nudge and tap replies are emoji, not words. */
+  picture?: boolean;
   /** Optional one-shot to play with a controlled prompt. */
   reaction?: ClipName;
   reactionKey?: string | number;
@@ -36,8 +38,9 @@ interface CritterPetProps {
  */
 const TAP_HINT_KEY = "petpals:pet-tap-discovered";
 const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
+const PICTURE_TAP_MESSAGES = ["👋", "💜", "😊", "⭐"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit }: CritterPetProps) => {
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit, picture = false }: CritterPetProps) => {
   const reduced = useReducedMotion();
   // Now and then the rabbit chases a leaf around the timer ring.
   const [routine, setRoutine] = useState(false);
@@ -76,7 +79,8 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
       setShowHint(false);
       try { window.localStorage.setItem(TAP_HINT_KEY, "yes"); } catch { /* storage can be unavailable */ }
     }
-    setMessage(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)]);
+    const replies = picture ? PICTURE_TAP_MESSAGES : TAP_MESSAGES;
+    setMessage(replies[Math.floor(Math.random() * replies.length)]);
     if (messageTimer.current) window.clearTimeout(messageTimer.current);
     messageTimer.current = window.setTimeout(() => setMessage(null), 1700);
     onTap?.();
@@ -98,7 +102,7 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
               exit={reduced ? { opacity: 0 } : { opacity: 0, y: -3, scale: 0.95 }}
               role="status"
             >
-              {message ?? "Tap me!"}
+              {message ?? (picture ? "👆" : "Tap me!")}
             </motion.div>
           </div>
         )}

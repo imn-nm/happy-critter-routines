@@ -1,4 +1,5 @@
 import { useMemo, useRef } from "react";
+import { RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Pix, squash } from "../pixel/pix";
 import { front, side } from "../pixel/sprites";
@@ -12,19 +13,23 @@ import PixelIcon from "./PixelIcon";
 const DX = 37;
 /** Wide accessories (brims, glasses, scarves) draw at 2x so the buttons stay even. */
 const iconScale = (p: Pix) => { const b = p.bounds(); return b.x1 - b.x0 + 1 > 10 ? 2 : 3; };
+/** Picture view draws them about twice as big, still keeping the widest (the straw brim) in check. */
+const pictureScale = (p: Pix) => { const b = p.bounds(), w = b.x1 - b.x0 + 1; return w > 20 ? 3 : w > 10 ? 4 : 6; };
 const SLOT_Y = { head: 6, face: 17, neck: 27 } as const;
 
 interface DressUpProps {
   outfit: PetOutfit | null;
   onChange: (outfit: PetOutfit | null) => void;
   nick: string;
+  /** Picture view: accessory pictures only, names kept for screen readers. */
+  picture?: boolean;
 }
 
 /**
  * The rabbit faces the child while they try accessories on. Tapping the
  * rabbit makes it twirl so the outfit shows from the side too.
  */
-const DressUp = ({ outfit, onChange, nick }: DressUpProps) => {
+const DressUp = ({ outfit, onChange, nick, picture }: DressUpProps) => {
   const outfitRef = useRef(outfit);
   outfitRef.current = outfit;
   const actor = useRef(new Actor()).current;
@@ -109,11 +114,29 @@ const DressUp = ({ outfit, onChange, nick }: DressUpProps) => {
 
       <div className="flex flex-col gap-sp-3">
         {SLOTS.map(({ slot, label }) => (
-          <div key={slot} className="flex flex-col gap-1.5">
-            <span className="text-12 font-semibold uppercase tracking-wider text-fog-300">{label}</span>
+          // Picture view: each row is its own group (head, face, neck) with no printed label.
+          <div key={slot} className="flex flex-col gap-1.5" role={picture ? "group" : undefined} aria-label={picture ? label : undefined}>
+            {!picture && <span className="text-12 font-semibold uppercase tracking-wider text-fog-300">{label}</span>}
             <div className="flex flex-wrap gap-2">
               {ACCESSORY_IDS.filter(id => ACCESSORIES[id].slot === slot).map(id => {
                 const on = outfit?.[slot] === id;
+                if (picture) {
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={ACCESSORIES[id].name}
+                      onClick={() => wear(id)}
+                      className={cn(
+                        "flex min-h-[72px] min-w-[72px] items-center justify-center rounded-[18px] border-2 p-3 transition-colors",
+                        on ? "border-[#FFD66B] bg-[#3a2366]" : "border-iris-400/30 bg-[#271447] hover:bg-[#31195a]",
+                      )}
+                    >
+                      <PixelIcon pix={icons[id]} scale={pictureScale(icons[id])} />
+                    </button>
+                  );
+                }
                 return (
                   <button
                     key={id}
@@ -133,11 +156,20 @@ const DressUp = ({ outfit, onChange, nick }: DressUpProps) => {
             </div>
           </div>
         ))}
-        {outfit && (
+        {outfit && (picture ? (
+          <button
+            type="button"
+            onClick={takeAllOff}
+            aria-label="Take it all off"
+            className="self-start flex h-14 w-14 items-center justify-center rounded-full border border-iris-400/30 bg-[#271447] text-fog-200 hover:bg-[#31195a] hover:text-fog-50"
+          >
+            <RotateCcw className="h-7 w-7" aria-hidden />
+          </button>
+        ) : (
           <button type="button" onClick={takeAllOff} className="self-start min-h-11 rounded-full px-3 text-14 text-fog-300 underline-offset-4 hover:text-fog-50 hover:underline">
             Take it all off
           </button>
-        )}
+        ))}
       </div>
     </div>
   );

@@ -31,6 +31,7 @@ export type Database = {
           dinner_duration: number | null
           dinner_schedule_overrides: Json | null
           dinner_time: string | null
+          display_mode: string | null
           household_id: string
           id: string
           lunch_days: string[] | null
@@ -73,6 +74,7 @@ export type Database = {
           dinner_duration?: number | null
           dinner_schedule_overrides?: Json | null
           dinner_time?: string | null
+          display_mode?: string | null
           household_id: string
           id?: string
           lunch_days?: string[] | null
@@ -115,6 +117,7 @@ export type Database = {
           dinner_duration?: number | null
           dinner_schedule_overrides?: Json | null
           dinner_time?: string | null
+          display_mode?: string | null
           household_id?: string
           id?: string
           lunch_days?: string[] | null

@@ -1,5 +1,8 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { Heart, Pointer, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMotionPrefs } from "@/lib/motion";
 import { Pix, keyOf, squash, xOf, yOf } from "../pixel/pix";
 import { FRONT_POSES, front, type FrontOpts } from "../pixel/sprites";
 import { Actor, blinking, seq, type Pose } from "./actions";
@@ -7,6 +10,7 @@ import { Particles } from "./particles";
 import { bubble, textWidth } from "./pixelText";
 import { bathScene, drawTub } from "./scenes";
 import { LW, usePixelStage, type Gfx } from "./stage";
+import PixelIcon from "./PixelIcon";
 
 // The rabbit sits in the tub facing the child; rows 31 and below are under water.
 const BX = 37;
@@ -22,6 +26,16 @@ const DUCK = [".YYY...", "YYkYOO.", ".YYY...", "YYYYYYY", "YYYYYYy", ".yyyyy."];
 const SPONGE = ["YYYYYYY", "YyYYYyY", "YYYyYYY", "yYYYYYy"];
 const SHOWER = ["..LL..", "..LL..", ".LLLL.", "LLLLLL", "fLfLfL"];
 const TOWEL = ["RRRRRRR", "RFRRRRR", "RRRRRRR", "PPPPPPP", "RRRRRRR"];
+const HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
+
+/** Picture view: the rabbit's speech bubble holds a little picture instead of words. */
+function pictureBubble(p: Pix, rows: readonly string[], x: number, y: number) {
+  // A bubble of blank "letters" just wide enough, then the picture inside it.
+  const n = Math.ceil((rows[0].length + 1) / 3);
+  bubble(p, " ".repeat(n), x, y);
+  p.stamp(rows, x + 3 + Math.floor((3 * n - 1 - rows[0].length) / 2), y + Math.floor((11 - rows.length) / 2));
+}
+const pictureBubbleWidth = (rows: readonly string[]) => 3 * Math.ceil((rows[0].length + 1) / 3) + 5;
 
 type Phase = "scrub" | "rinse" | "dry" | "done";
 const STEPS: { phase: Exclude<Phase, "done">; label: string }[] = [
@@ -46,6 +60,8 @@ class BathGame {
   now = 0;
   parts = new Particles();
   actor = new Actor();
+  /** Picture view: speech bubbles show a heart instead of words. */
+  picture = false;
 
   progress() {
     if (this.phase === "scrub") return Math.min(1, this.soap.size / VIS.length / 0.7) * (this.mud.size ? 0.95 : 1);
@@ -198,7 +214,10 @@ class BathGame {
       fx.set(Math.round(d.x), Math.round(d.y) - 1, "B");
     }
     this.parts.draw(fx);
-    if (this.phase === "done" && this.doneT < 2600) bubble(fx, "SO FLUFFY!", LW - textWidth("SO FLUFFY!") - 8, 4);
+    if (this.phase === "done" && this.doneT < 2600) {
+      if (this.picture) pictureBubble(fx, HEART, LW - pictureBubbleWidth(HEART) - 8, 4);
+      else bubble(fx, "SO FLUFFY!", LW - textWidth("SO FLUFFY!") - 8, 4);
+    }
     if (this.px != null && this.phase !== "done") {
       const tool = { scrub: SPONGE, rinse: SHOWER, dry: TOWEL }[this.phase];
       const tx = Math.round(this.px), ty = Math.round(this.py);
@@ -218,10 +237,18 @@ const HINTS: Record<Phase, (nick: string) => string> = {
   done: nick => `So fresh and fluffy! Tap ${nick} for a snuggle.`,
 };
 
-const BathTime = ({ nick }: { nick: string }) => {
+const BathTime = ({ nick, picture }: { nick: string; picture?: boolean }) => {
   const game = useRef<BathGame>();
   if (!game.current) game.current = new BathGame();
+  game.current.picture = !!picture;
   const [ui, setUi] = useState<{ phase: Phase; progress: number }>({ phase: "scrub", progress: 0 });
+  const { t } = useMotionPrefs();
+  // Picture view: each step drawn as the tool it uses.
+  const tools = useMemo(() => ({
+    scrub: new Pix().stamp(SPONGE),
+    rinse: new Pix().stamp(SHOWER),
+    dry: new Pix().stamp(TOWEL),
+  }), []);
 
   const { canvasRef, toStage } = usePixelStage((g, dt) => {
     const b = game.current!;
@@ -233,6 +260,7 @@ const BathTime = ({ nick }: { nick: string }) => {
 
   const again = () => {
     game.current = new BathGame();
+    game.current.picture = !!picture;
     setUi({ phase: "scrub", progress: 0 });
   };
   const order: Phase[] = ["scrub", "rinse", "dry", "done"];
@@ -261,7 +289,28 @@ const BathTime = ({ nick }: { nick: string }) => {
         />
       </div>
 
-      <p className="min-h-[2.8em] text-center text-16 text-fog-50" role="status">{HINTS[ui.phase](nick)}</p>
+      {picture ? (
+        // A finger and the tool to use (or a heart to tap) says it without words.
+        <p className="flex min-h-[2.8em] items-center justify-center gap-3 text-fog-50" role="status">
+          <span className="sr-only">{HINTS[ui.phase](nick)}</span>
+          <motion.span
+            key={ui.phase}
+            aria-hidden
+            className="flex"
+            animate={ui.phase === "done" ? { y: [0, 4, 0] } : ui.phase === "rinse" ? { y: [0, -3, 0] } : { x: [0, 8, -8, 0] }}
+            transition={t({ duration: ui.phase === "done" ? 0.8 : 1.2, repeat: Infinity, repeatDelay: 0.4 })}
+          >
+            <Pointer className="h-8 w-8" />
+          </motion.span>
+          {ui.phase === "done" ? (
+            <Heart className="h-8 w-8 fill-[#f17097] text-[#f17097]" aria-hidden />
+          ) : (
+            <PixelIcon pix={tools[ui.phase]} scale={6} />
+          )}
+        </p>
+      ) : (
+        <p className="min-h-[2.8em] text-center text-16 text-fog-50" role="status">{HINTS[ui.phase](nick)}</p>
+      )}
 
       <ol className="flex gap-2">
         {STEPS.map(({ phase, label }, i) => {
@@ -269,14 +318,24 @@ const BathTime = ({ nick }: { nick: string }) => {
           return (
             <li
               key={phase}
+              aria-current={picture && me === cur ? "step" : undefined}
               className={cn(
                 "flex-1 rounded-[14px] border px-2 py-1.5 text-center text-14",
+                picture && "flex min-h-12 items-center justify-center border-2",
                 me < cur ? "border-[#9ed3ad]/60 bg-[#1f4a33] text-[#c9f0d4]"
                   : me === cur ? "border-[#FFD66B] bg-[#3a2366] text-fog-50"
                   : "border-iris-400/30 text-fog-300",
+                picture && me > cur && "opacity-50",
               )}
             >
-              {i + 1} {label}
+              {picture ? (
+                <>
+                  <PixelIcon pix={tools[phase]} scale={4} />
+                  <span className="sr-only">{i + 1} {label}</span>
+                </>
+              ) : (
+                <>{i + 1} {label}</>
+              )}
             </li>
           );
         })}
@@ -284,13 +343,24 @@ const BathTime = ({ nick }: { nick: string }) => {
       <div className="h-3 overflow-hidden rounded-full bg-[#271447]" role="progressbar" aria-label="Bath step progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={ui.progress}>
         <div className="h-full rounded-full bg-[#35b8a8] transition-[width] duration-150 motion-reduce:transition-none" style={{ width: `${ui.progress}%` }} />
       </div>
-      <button
-        type="button"
-        onClick={again}
-        className="self-center min-h-11 rounded-full border border-iris-400/30 bg-[#271447] px-5 text-14 text-fog-50 hover:bg-[#31195a]"
-      >
-        {ui.phase === "done" ? "Bath again" : "Start over"}
-      </button>
+      {picture ? (
+        <button
+          type="button"
+          onClick={again}
+          aria-label={ui.phase === "done" ? "Bath again" : "Start over"}
+          className="self-center flex h-14 w-14 items-center justify-center rounded-full border border-iris-400/30 bg-[#271447] text-fog-50 hover:bg-[#31195a]"
+        >
+          <RotateCcw className="h-7 w-7" aria-hidden />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={again}
+          className="self-center min-h-11 rounded-full border border-iris-400/30 bg-[#271447] px-5 text-14 text-fog-50 hover:bg-[#31195a]"
+        >
+          {ui.phase === "done" ? "Bath again" : "Start over"}
+        </button>
+      )}
     </div>
   );
 };

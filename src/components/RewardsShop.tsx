@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Star, Gift, X, ShoppingCart, Clock, Check } from "lucide-react";
+import { Star, Gift, X, ShoppingCart, Clock, Check, Loader2, CircleSlash, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRewards, isApprovedStatus } from "@/hooks/useRewards";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,8 @@ interface RewardsShopProps {
   currentCoins: number;
   open: boolean;
   onClose: () => void;
+  /** Picture view (pre-readers): icons instead of words; the words stay for screen readers. */
+  picture?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ interface RewardsShopProps {
  * from the purchases feed (kept live by useRewards), so approve / deny from
  * the parent's phone shows up here without a reload.
  */
-const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: RewardsShopProps) => {
+const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture }: RewardsShopProps) => {
   const { rewards, allRewards, purchases, loading, purchaseReward } = useRewards(childId);
   const { t: tMotion } = useMotionPrefs();
   const [requestingId, setRequestingId] = useState<string | null>(null);
@@ -108,44 +110,64 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
             {/* Header */}
             <div className="flex items-center justify-between mb-sp-4">
               <div className="flex items-center gap-sp-2">
-                <Gift className="w-5 h-5 text-iris-400" />
-                <h2 className="text-18 font-bold text-fog-50">Rewards</h2>
+                <Gift className={picture ? "w-8 h-8 text-iris-400" : "w-5 h-5 text-iris-400"} />
+                <h2 className={picture ? "sr-only" : "text-18 font-bold text-fog-50"}>Rewards</h2>
               </div>
               <div className="flex items-center gap-sp-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
-                  <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                  <span className="text-13 font-bold text-fog-50 leading-none tabular-nums">
+                <div className={picture
+                  ? "flex items-center gap-2 px-4 py-2 rounded-pill border-2 border-iris-400/[0.32]"
+                  : "flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]"}>
+                  <Star className={picture ? "w-6 h-6 text-[#FFD66B] fill-[#FFD66B]" : "w-4 h-4 text-[#FFD66B] fill-[#FFD66B]"} strokeWidth={0} />
+                  <span className={picture ? "text-20 font-bold text-fog-50 leading-none tabular-nums" : "text-13 font-bold text-fog-50 leading-none tabular-nums"}>
                     {currentCoins}
                   </span>
+                  {picture && <span className="sr-only">stars</span>}
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full hover:bg-fog-50/10 transition-colors"
+                  className={picture
+                    ? "w-12 h-12 -mr-2 flex items-center justify-center rounded-full bg-fog-50/[0.06] hover:bg-fog-50/10 transition-colors"
+                    : "w-11 h-11 -mr-2 flex items-center justify-center rounded-full hover:bg-fog-50/10 transition-colors"}
                   aria-label="Close shop"
                 >
-                  <X className="w-5 h-5 text-fog-300" />
+                  <X className={picture ? "w-7 h-7 text-fog-200" : "w-5 h-5 text-fog-300"} />
                 </button>
               </div>
             </div>
 
             {/* Stars already asked for aren't free to spend again; say so, so
                 "10 stars" and "5 more to go" don't look like they disagree. */}
-            {reserved > 0 && (
+            {reserved > 0 && (picture ? (
+              // A clock on the stars: that many are waiting on an ask.
+              <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-16 font-semibold tabular-nums text-fog-300">
+                <span className="sr-only">{reserved} of them saved for what you asked for</span>
+                <Clock className="w-5 h-5 text-iris-400" aria-hidden />
+                <Star className="w-5 h-5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} aria-hidden />
+                <span aria-hidden>{reserved}</span>
+              </p>
+            ) : (
               <p className="-mt-sp-2 mb-sp-3 text-12 text-fog-300 text-right">
                 {reserved} of them saved for what you asked for
               </p>
-            )}
+            ))}
 
             {/* Rewards list */}
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75dvh - 120px)" }}>
               {loading ? (
-                <div className="text-center py-sp-6 text-fog-300 text-14">Just a sec...</div>
+                picture ? (
+                  <div className="flex justify-center py-sp-6 text-fog-300" role="status">
+                    <Loader2 className="w-8 h-8 animate-spin motion-reduce:animate-none" aria-hidden />
+                    <span className="sr-only">Just a sec...</span>
+                  </div>
+                ) : (
+                  <div className="text-center py-sp-6 text-fog-300 text-14">Just a sec...</div>
+                )
               ) : rewards.length === 0 ? (
                 <div className="text-center py-sp-8 flex flex-col items-center gap-sp-2">
-                  <Gift className="w-10 h-10 text-iris-400/40" />
-                  <p className="text-fog-200 text-14">No rewards yet</p>
-                  <p className="text-fog-400 text-12">Ask a grown-up to add some!</p>
+                  <Gift className={picture ? "w-14 h-14 text-iris-400/40" : "w-10 h-10 text-iris-400/40"} />
+                  <p className={picture ? "sr-only" : "text-fog-200 text-14"}>No rewards yet</p>
+                  <p className={picture ? "sr-only" : "text-fog-400 text-12"}>Ask a grown-up to add some!</p>
                 </div>
               ) : (
                 rewards.map(reward => {
@@ -165,49 +187,92 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
                           : "bg-[rgba(8,1,26,0.4)]"
                       )}
                     >
-                      <div className="flex items-start justify-between gap-sp-2">
+                      <div className={picture ? "flex items-center justify-between gap-sp-2" : "flex items-start justify-between gap-sp-2"}>
                         <div className="flex-1 min-w-0">
-                          <p className="text-16 font-medium text-fog-50 truncate">{reward.name}</p>
+                          {/* A grown-up typed the name, so it stays; Picture view just makes it bigger. */}
+                          <p className={picture ? "text-20 font-semibold text-fog-50 truncate" : "text-16 font-medium text-fog-50 truncate"}>{reward.name}</p>
                           {reward.description && (
-                            <p className="text-12 text-fog-300 mt-0.5">{reward.description}</p>
+                            <p className={picture ? "sr-only" : "text-12 text-fog-300 mt-0.5"}>{reward.description}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                          <span className="text-14 font-bold text-fog-50">{reward.cost}</span>
+                        <div className={picture ? "flex items-center gap-1.5 shrink-0" : "flex items-center gap-1 shrink-0"}>
+                          <Star className={picture ? "w-7 h-7 text-[#FFD66B] fill-[#FFD66B]" : "w-4 h-4 text-[#FFD66B] fill-[#FFD66B]"} strokeWidth={0} />
+                          <span className={picture ? "text-24 font-bold text-fog-50 tabular-nums" : "text-14 font-bold text-fog-50"}>{reward.cost}</span>
+                          {picture && <span className="sr-only">stars</span>}
                         </div>
                       </div>
 
                       {pending ? (
-                        <div className="flex items-center gap-sp-2 py-1">
-                          <Clock className="w-4 h-4 text-iris-400" />
-                          <span className="text-13 text-iris-400 font-medium">
-                            Asked! Waiting for a grown-up
-                          </span>
-                        </div>
+                        picture ? (
+                          // A clock: asked, and waiting on a grown-up.
+                          <div className="flex items-center justify-center py-1">
+                            <Clock className="w-8 h-8 text-iris-400" aria-hidden />
+                            <span className="sr-only">Asked! Waiting for a grown-up</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-sp-2 py-1">
+                            <Clock className="w-4 h-4 text-iris-400" />
+                            <span className="text-13 text-iris-400 font-medium">
+                              Asked! Waiting for a grown-up
+                            </span>
+                          </div>
+                        )
                       ) : canAfford ? (
                         <>
-                          <Button
-                            variant="primary"
-                            size="md"
-                            className="w-full"
-                            disabled={isRequesting}
-                            onClick={() => handleRequest(reward.id, reward.cost)}
-                          >
-                            <ShoppingCart className="w-4 h-4" />
-                            {isRequesting ? "Asking..." : "Ask for it"}
-                          </Button>
-                          {denied && (
+                          {picture ? (
+                            <Button
+                              variant="primary"
+                              size="lg"
+                              className="w-full"
+                              disabled={isRequesting}
+                              aria-label={isRequesting ? "Asking..." : "Ask for it"}
+                              onClick={() => handleRequest(reward.id, reward.cost)}
+                            >
+                              {isRequesting ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : <ShoppingCart aria-hidden />}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="primary"
+                              size="md"
+                              className="w-full"
+                              disabled={isRequesting}
+                              onClick={() => handleRequest(reward.id, reward.cost)}
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                              {isRequesting ? "Asking..." : "Ask for it"}
+                            </Button>
+                          )}
+                          {denied && (picture ? (
+                            <p className="flex justify-center text-fog-300">
+                              <CircleSlash className="w-6 h-6" aria-hidden />
+                              <span className="sr-only">Not this time. Keep earning and try again!</span>
+                            </p>
+                          ) : (
                             <p className="text-12 text-fog-300 text-center">
                               Not this time. Keep earning and try again!
                             </p>
-                          )}
-                          {failedId === reward.id && (
+                          ))}
+                          {failedId === reward.id && (picture ? (
+                            <p className="flex justify-center text-coral-400">
+                              <AlertCircle className="w-6 h-6" aria-hidden />
+                              <span className="sr-only">Couldn't send that. Try again!</span>
+                            </p>
+                          ) : (
                             <p className="text-12 text-coral-400 text-center">
                               Couldn't send that. Try again!
                             </p>
-                          )}
+                          ))}
                         </>
+                      ) : picture ? (
+                        // How close: a bar filling toward the price, and the stars still to earn.
+                        <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
+                          <span className="sr-only">{deficit} more star{deficit !== 1 ? "s" : ""} to go</span>
+                          <div className="flex-1 h-3 rounded-full bg-fog-50/10 overflow-hidden" aria-hidden>
+                            <div className="h-full rounded-full bg-[#FFD66B]" style={{ width: `${Math.round((available / reward.cost) * 100)}%` }} />
+                          </div>
+                          <Star className="w-6 h-6 text-fog-400" strokeWidth={1.5} aria-hidden />
+                          <span className="text-18 font-semibold tabular-nums text-fog-200" aria-hidden>{deficit}</span>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
                           <Star className="w-3.5 h-3.5 text-fog-400" strokeWidth={1.5} />
@@ -225,16 +290,23 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose }: Reward
               {mine.length > 0 && (
                 <div className="flex flex-col gap-sp-2 mt-sp-3">
                   <div className="flex items-center gap-sp-2">
-                    <Check className="w-4 h-4 text-mint-500" strokeWidth={3} />
-                    <span className="text-14 font-medium text-mint-500">Mine</span>
+                    <Check className={picture ? "w-7 h-7 text-mint-500" : "w-4 h-4 text-mint-500"} strokeWidth={3} />
+                    <span className={picture ? "sr-only" : "text-14 font-medium text-mint-500"}>Mine</span>
                   </div>
                   {mine.slice(0, 5).map(({ purchase, reward }) => (
                     <div
                       key={purchase.id}
                       className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-2 rounded-[16px] bg-mint-500/10 border border-mint-500/30"
                     >
-                      <p className="text-14 text-fog-50 truncate">{reward!.name}</p>
-                      <span className="text-12 text-fog-300 shrink-0">Yes!</span>
+                      <p className={picture ? "text-18 text-fog-50 truncate" : "text-14 text-fog-50 truncate"}>{reward!.name}</p>
+                      {picture ? (
+                        <span className="shrink-0">
+                          <Check className="w-6 h-6 text-mint-500" strokeWidth={3} aria-hidden />
+                          <span className="sr-only">Yes!</span>
+                        </span>
+                      ) : (
+                        <span className="text-12 text-fog-300 shrink-0">Yes!</span>
+                      )}
                     </div>
                   ))}
                 </div>

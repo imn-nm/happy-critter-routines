@@ -18,6 +18,8 @@ interface SlideToConfirmProps {
    * slide-to-confirm) so the primary action stays dominant.
    */
   compact?: boolean;
+  /** Picture view: arrows instead of words (the label stays for screen readers). */
+  iconOnly?: boolean;
 }
 
 // Figma spec (Child Dashboard - overtime-new, node 201:7755 → 201:7812):
@@ -34,6 +36,7 @@ export default function SlideToConfirm({
   disabled = false,
   className,
   compact = false,
+  iconOnly = false,
 }: SlideToConfirmProps) {
   const { t } = useMotionPrefs();
   const TRACK_H = compact ? 36 : 48;
@@ -139,7 +142,14 @@ export default function SlideToConfirm({
             className="shrink-0"
             strokeWidth={2}
           />
-          {completed ? "Done!" : label}
+          {iconOnly ? (
+            completed ? <Check className="shrink-0" style={{ width: ARROW_PX, height: ARROW_PX }} strokeWidth={3} /> : (
+              <>
+                <ArrowRight style={{ width: ARROW_PX, height: ARROW_PX }} className="shrink-0 opacity-70" strokeWidth={2} />
+                <ArrowRight style={{ width: ARROW_PX, height: ARROW_PX }} className="shrink-0 opacity-40" strokeWidth={2} />
+              </>
+            )
+          ) : completed ? "Done!" : label}
         </motion.span>
       </div>
 

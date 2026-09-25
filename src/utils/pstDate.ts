@@ -4,9 +4,18 @@
  * aligned to Pacific Time regardless of the browser's timezone.
  */
 
+// Setup's preview shows the child's screen at a chosen time of day ("what
+// the morning looks like"). Only that page sets this, and clears it on leave.
+let previewOffsetMs = 0;
+
+/** Pretend it's `at` (a Pacific-time wall clock) until called with null. */
+export const setPreviewClock = (at: Date | null) => {
+  previewOffsetMs = at ? at.getTime() - new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })).getTime() : 0;
+};
+
 /** Returns a Date whose local-field values (getHours, getDay, etc.) reflect PST/PDT. */
 export const getPSTDate = (): Date =>
-  new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  new Date(new Date(Date.now() + previewOffsetMs).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
 
 /** "yyyy-MM-dd" in Pacific Time */
 export const getPSTDateString = (): string => {

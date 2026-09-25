@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 import { sounds } from "@/lib/sounds";
+import { speak } from "@/lib/speech";
 
 interface ScheduleSoundCuesProps {
   activeTaskId: string | null;
   activeTaskName: string | null;
   stillToDoIds: string[];
   dayOver: boolean;
+  /** Picture view: after the chime, say what's starting. */
+  speakPrompts?: boolean;
 }
 
 /**
@@ -13,7 +16,7 @@ interface ScheduleSoundCuesProps {
  * hooks run unconditionally — the child page has early loading returns above
  * the point where the schedule is known.
  */
-const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver }: ScheduleSoundCuesProps) => {
+const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver, speakPrompts }: ScheduleSoundCuesProps) => {
   // A new activity took the stage. Skips the first render so opening the
   // page mid-task is silent.
   const prevActiveIdRef = useRef<string | null | undefined>(undefined);
@@ -21,8 +24,13 @@ const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver
     const prev = prevActiveIdRef.current;
     prevActiveIdRef.current = activeTaskId;
     if (prev === undefined || !activeTaskId || activeTaskId === prev) return;
-    if ((activeTaskName ?? "").toLowerCase().includes("bedtime")) sounds.bedtime();
+    const bedtime = (activeTaskName ?? "").toLowerCase().includes("bedtime");
+    if (bedtime) sounds.bedtime();
     else sounds.start();
+    if (!speakPrompts || !activeTaskName) return;
+    const id = window.setTimeout(() => speak(bedtime ? "Time for bed. Goodnight!" : `Time for ${activeTaskName}!`), 700);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTaskId, activeTaskName]);
 
   // An important task ran out of time while something else is running.

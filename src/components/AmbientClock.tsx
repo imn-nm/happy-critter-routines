@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { getPSTDate } from "@/utils/pstDate";
 import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
+import { ArrowRight, Moon } from "lucide-react";
+import { getTaskIcon } from "@/utils/taskIcon";
 
 interface AmbientClockProps {
   /** Next scheduled thing, if any. */
-  next?: { name: string; time?: string | null } | null;
+  next?: { name: string; time?: string | null; icon?: string | null } | null;
   className?: string;
+  /** Picture view: the next thing as a picture, no sentence. */
+  picture?: boolean;
 }
 
 const pad = (n: number) => n.toString().padStart(2, "0");
@@ -15,7 +19,7 @@ const pad = (n: number) => n.toString().padStart(2, "0");
  * The shelf-device idle face: a big clock and what's coming next. Rendered
  * whenever nothing is on the timer so the screen is worth glancing at all day.
  */
-const AmbientClock = ({ next, className }: AmbientClockProps) => {
+const AmbientClock = ({ next, className, picture }: AmbientClockProps) => {
   const [now, setNow] = useState(() => getPSTDate());
   useEffect(() => {
     const id = window.setInterval(() => setNow(getPSTDate()), 1000);
@@ -32,7 +36,19 @@ const AmbientClock = ({ next, className }: AmbientClockProps) => {
         <span className="text-[56px] font-semibold tracking-tight">{h12}:{pad(now.getMinutes())}</span>
         <span className="text-16 text-fog-300">{ampm}</span>
       </div>
-      {next?.time ? (
+      {picture ? (
+        next ? (
+          <p className="mt-1 flex items-center gap-2 text-fog-50" aria-label={`Next: ${next.name}`}>
+            <ArrowRight className="w-6 h-6 text-iris-400" aria-hidden />
+            <span className="w-12 h-12 rounded-[14px] bg-fog-50/10 flex items-center justify-center" aria-hidden>
+              {getTaskIcon(next.name, "w-7 h-7 text-fog-50", next.icon)}
+            </span>
+            <span className="text-18">{next.name}</span>
+          </p>
+        ) : (
+          <Moon className="mt-1 w-8 h-8 text-fog-200" aria-label="Nothing else today" />
+        )
+      ) : next?.time ? (
         <p className="text-14 text-fog-200">
           Next: <span className="text-fog-50 font-medium">{next.name}</span> at {formatTime12(next.time)}
         </p>
