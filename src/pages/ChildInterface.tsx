@@ -519,10 +519,11 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
 
   const plannedSchedule = getTodaysSchedule();
   const timeReserve = calculateTimeReserve(plannedSchedule, completions, getCurrentTime());
-  // Keep the original end fixed: lost time delays the start of optional activities.
+  // Keep the original end fixed: time given up to a late day delays the start
+  // of a task set to "shorten" or "skip if needed" (fun time included).
   const todaysSchedule = plannedSchedule.map(task => {
     const lost = timeReserve.losses[task.id] || 0;
-    if (!lost || !task.is_fun_time || !task.scheduled_time || !task.duration) return task;
+    if (!lost || !task.scheduled_time || !task.duration) return task;
     const [h, m] = task.scheduled_time.split(':').map(Number);
     const lostMinutes = Math.min(task.duration, Math.ceil(lost / 60));
     const start = h * 60 + m + lostMinutes;
@@ -706,7 +707,7 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
     if (gap && secondsNow < gap.start) return null;
     if (gap) return { total: gap.end - gap.start, remaining: gap.end - secondsNow, nextTask };
     const spentActivity = plannedSchedule.some(task => {
-      if (!task.is_fun_time || !task.scheduled_time || !task.duration || !timeReserve.losses[task.id]) return false;
+      if (!task.scheduled_time || !task.duration || !timeReserve.losses[task.id]) return false;
       const [h, m] = task.scheduled_time.split(':').map(Number);
       const start = (h * 60 + m) * 60;
       return secondsNow >= start && secondsNow < start + timeReserve.losses[task.id];

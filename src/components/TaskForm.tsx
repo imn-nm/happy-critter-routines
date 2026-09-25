@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { ChevronDown, Minus, Plus, Star, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, Minus, Plus, Sparkles, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,9 @@ import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { formatDuration as formatDurationLabel } from "@/utils/formatDuration";
 import { type Task, type Subtask } from "@/types/Task";
 import { isSystemTaskName, reservedTaskName } from "@/utils/systemTasks";
+import { templateForName, suggestedSteps } from "@/data/taskTemplates";
+import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
+import { toast } from "sonner";
 
 interface TaskFormProps {
   task?: Task;
@@ -26,6 +29,8 @@ interface TaskFormProps {
   otherChildren?: { id: string; name: string }[];
   /** The child's wake-up time ("HH:MM"), so Bedtime can't land after midnight. */
   wakeTime?: string | null;
+  /** The child's age, for age-appropriate checklist suggestions. */
+  childAge?: number | null;
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
@@ -105,13 +110,29 @@ type Behavior = 'normal' | 'important' | 'fun';
 const BEHAVIOR_OPTIONS: { value: Behavior; label: string; caption: string }[] = [
   { value: 'normal', label: 'Normal', caption: 'Runs on the clock and flows into the next thing. They can tap done early to get free time.' },
   { value: 'important', label: 'Must finish', caption: "They mark it done. If time runs out you get an alert and it stays on their screen until it's done." },
-  { value: 'fun', label: 'Free time', caption: 'TV, Roblox, playtime. When a Must-finish task runs late, the worm eats into this.' },
+  { value: 'fun', label: 'Fun time', caption: 'TV, gaming, playtime. There is no done button, and when the day runs late the worm shows this time being eaten.' },
 ];
+
+// The three kinds of task, named for what they do to the day.
+type Kind = 'fixed' | 'flexible' | 'chore';
+const KIND_OPTIONS: { value: Kind; label: string; caption: string }[] = [
+  { value: 'fixed', label: 'Fixed time', caption: 'Starts at a specific time.' },
+  { value: 'flexible', label: 'Flexible', caption: 'Fits between the fixed activities.' },
+  { value: 'chore', label: 'Anytime chore', caption: "A separate to-do that doesn't take up schedule time." },
+];
+
+type LatePolicy = 'keep' | 'shorten' | 'skip';
+const LATE_OPTIONS: { value: LatePolicy; label: string; caption: (min: number) => string }[] = [
+  { value: 'keep', label: 'Keep this time', caption: () => 'Stays as planned, even when something before it runs over.' },
+  { value: 'shorten', label: 'Shorten if needed', caption: (min) => `Gives up time when the day runs late, but keeps at least ${min} min.` },
+  { value: 'skip', label: 'Skip if needed', caption: () => 'Can be dropped when the day runs late.' },
+];
+const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
 /** A sensible ceiling for one task's stars; rewards are priced against these. */
 const MAX_STARS = 20;
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -147,8 +168,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     windowStart: toHHMM(task?.window_start) || "15:00",
     windowEnd: toHHMM(task?.window_end) || "18:00",
     subtasks: (task?.subtasks ?? []) as Subtask[],
+    latePolicy: (task?.late_policy ?? (task?.is_fun_time ? 'skip' : 'keep')) as LatePolicy,
+    minDuration: task?.min_duration ?? 10,
   });
   const [newSubtaskText, setNewSubtaskText] = useState("");
+  // Suggestions from the name fill in what the parent hasn't set themselves;
+  // once they pick a length or icon, the name stops changing it.
+  const [durationTouched, setDurationTouched] = useState(isEdit);
+  const [iconTouched, setIconTouched] = useState(isEdit || !!task?.icon);
+  const { saved: savedChecklists, saveChecklist, saving: savingChecklist } = useChecklistTemplates();
 
   // Time to restore when the task is switched back to a fixed time. A flexible
   // task still has a slot in the day — it's kept in window_start — so pinning
@@ -166,7 +194,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       (task?.coins ?? 0) > 0 ||
       (task?.subtasks?.length ?? 0) > 0 ||
       task?.is_important ||
-      task?.is_fun_time
+      task?.is_fun_time ||
+      (task?.late_policy && task.late_policy !== 'keep')
     )),
   );
 
@@ -206,6 +235,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const durationTotal = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
   const setDuration = (minutes: number) => {
+    setDurationTouched(true);
     // "As long as it takes" is gone, so never let the pair land on zero.
     const safe = minutes > 0 ? minutes : 5;
     setFormData({
@@ -217,7 +247,69 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const behavior: Behavior = formData.isImportant ? 'important' : formData.isFunTime ? 'fun' : 'normal';
   const setBehavior = (next: Behavior) =>
-    setFormData({ ...formData, isImportant: next === 'important', isFunTime: next === 'fun' });
+    setFormData({
+      ...formData,
+      isImportant: next === 'important',
+      isFunTime: next === 'fun',
+      // Fun time is the first thing to go on a late day, unless the parent
+      // already chose otherwise.
+      latePolicy: next === 'fun' && formData.latePolicy === 'keep' ? 'skip' : formData.latePolicy,
+    });
+
+  // "Keep at least" must be shorter than the task itself; a 5-minute task
+  // has nothing to shorten to, so it simply gives up its time.
+  const minOptions = MIN_DURATION_OPTIONS.filter(m => m < durationTotal);
+  const effectiveMin = minOptions.includes(formData.minDuration)
+    ? formData.minDuration
+    : minOptions.filter(m => m <= formData.minDuration).pop() ?? minOptions[0] ?? 0;
+
+  const kind: Kind = isChore ? 'chore' : atTime ? 'fixed' : 'flexible';
+  const setKind = (next: Kind) => {
+    if (next === 'chore') return setFormData({ ...formData, mode: 'chore' });
+    if (next === 'fixed') return setFormData({ ...formData, mode: 'task', scheduledTime: formData.scheduledTime || lastTime });
+    // Only changes whether the task is pinned, never where it sits.
+    if (formData.scheduledTime) setLastTime(formData.scheduledTime);
+    setFormData({ ...formData, mode: 'task', scheduledTime: '' });
+  };
+
+  // What the name suggests: a length and an icon (applied while untouched)
+  // and checklist steps (offered, never applied on their own).
+  const template = isSystemEvent ? null : templateForName(formData.name);
+  const onNameChange = (name: string) => {
+    const t = isSystemEvent ? null : templateForName(name);
+    const next = { ...formData, name };
+    if (t && !durationTouched) {
+      next.durationHours = Math.floor(t.duration / 60).toString();
+      next.durationMinutes = (t.duration % 60).toString();
+    }
+    if (t && !iconTouched) next.icon = t.icon;
+    if (!t && !iconTouched) next.icon = '';
+    setFormData(next);
+  };
+  const existingSteps = new Set(formData.subtasks.map(s => s.text.trim().toLowerCase()));
+  const matchingSaved = savedChecklists.find(c => c.name.trim().toLowerCase() === formData.name.trim().toLowerCase());
+  const stepIdeas = Array.from(new Set([
+    ...(matchingSaved?.steps ?? []),
+    ...suggestedSteps(formData.name, childAge),
+  ])).filter(step => !existingSteps.has(step.trim().toLowerCase())).slice(0, 5);
+  const [pickedIdeas, setPickedIdeas] = useState<string[] | null>(null);
+  const picked = pickedIdeas ?? stepIdeas;
+  // Suggestions are only ever added after what's there: never replaced.
+  const addSteps = (steps: string[]) => {
+    const fresh = steps.filter(step => !existingSteps.has(step.trim().toLowerCase()));
+    if (!fresh.length) return;
+    setFormData(prev => ({ ...prev, subtasks: [...prev.subtasks, ...fresh.map(text => ({ id: crypto.randomUUID(), text }))] }));
+    setPickedIdeas(null);
+  };
+  const moveSubtask = (index: number, delta: -1 | 1) => {
+    setFormData(prev => {
+      const list = [...prev.subtasks];
+      const to = index + delta;
+      if (to < 0 || to >= list.length) return prev;
+      [list[index], list[to]] = [list[to], list[index]];
+      return { ...prev, subtasks: list };
+    });
+  };
 
   const deriveType = (): Task['type'] => {
     if (isChore) return 'floating';
@@ -270,6 +362,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
       subtasks: !isChore && formData.subtasks.length > 0 ? formData.subtasks : undefined,
+      // Must-finish tasks are what runs late; they never give up time.
+      late_policy: isChore || formData.isImportant ? 'keep' : formData.latePolicy,
+      min_duration: !isChore && !formData.isImportant && formData.latePolicy === 'shorten' ? effectiveMin : null,
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
@@ -308,6 +403,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     if (!isChore && behavior !== 'normal') {
       parts.push(BEHAVIOR_OPTIONS.find(o => o.value === behavior)!.label);
     }
+    if (!isChore && behavior !== 'important' && formData.latePolicy !== 'keep') {
+      parts.push(formData.latePolicy === 'skip' ? 'Skip if late' : `Shorten to ${effectiveMin}m if late`);
+    }
     const coins = parseInt(formData.coins) || 0;
     if (coins > 0) parts.push(`${coins} star${coins === 1 ? '' : 's'}`);
     if (!isChore && formData.subtasks.length > 0) {
@@ -336,21 +434,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 pt-1 w-full min-w-0">
-      {/* Task / Chore — the most consequential choice, so it leads and is the
-          one thing in the collapsed form that gets an explainer. */}
+      {/* The kind of task: the most consequential choice, so it leads, and
+          each option says what it does to the day. */}
       {!isSystemEvent && (
         <div>
           <SegmentedField
-            ariaLabel="Task or chore"
-            options={[{ value: 'task', label: 'Task' }, { value: 'chore', label: 'Chore' }]}
-            value={formData.mode}
-            // Keep the typed time across the switch — deriveType() returns
-            // 'floating' for chores and handleSubmit gates scheduled_time on
-            // !isChore, so nothing needs clearing here.
-            onChange={(mode) => setFormData({ ...formData, mode })}
+            ariaLabel="Kind of task"
+            options={KIND_OPTIONS.map(({ value, label }) => ({ value, label }))}
+            value={kind}
+            onChange={setKind}
           />
           <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1 text-center">
-            Tasks sit on the day's timeline. Chores can be done any time.
+            {KIND_OPTIONS.find(o => o.value === kind)!.caption}
           </p>
         </div>
       )}
@@ -379,7 +474,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               <div className="grid grid-cols-7 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => { setFormData({ ...formData, icon: "" }); setIconPickerOpen(false); }}
+                  onClick={() => { setIconTouched(true); setFormData({ ...formData, icon: "" }); setIconPickerOpen(false); }}
                   title="Auto (based on name)"
                   aria-label="Auto icon based on name"
                   className={cn(
@@ -398,7 +493,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { setFormData({ ...formData, icon: key }); setIconPickerOpen(false); }}
+                    onClick={() => { setIconTouched(true); setFormData({ ...formData, icon: key }); setIconPickerOpen(false); }}
                     title={label}
                     aria-label={label}
                     aria-pressed={formData.icon === key}
@@ -420,7 +515,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           id="taskName"
           aria-label={isChore ? 'Chore name' : 'Task name'}
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e) => onNameChange(e.target.value)}
           onKeyDown={(e) => e.stopPropagation()}
           placeholder={isChore ? "e.g. Clean room" : "e.g. Homework"}
           required
@@ -430,6 +525,25 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           className="rounded-pill flex-1 min-w-0"
         />
       </div>
+      {/* What the name suggested, so a length that changed on its own is
+          never a surprise; a checklist is offered, not added. */}
+      {!isEdit && template && !nameClash && (
+        <div className="-mt-1 px-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80 leading-snug">
+          <Sparkles className="w-3 h-3 text-iris-300 shrink-0" aria-hidden />
+          <span>
+            Suggested from the name{!isChore ? `: ${formatDurationLabel(durationTotal)}` : ''}. Change anything.
+          </span>
+          {!isChore && stepIdeas.length > 0 && formData.subtasks.length === 0 && (
+            <button
+              type="button"
+              onClick={() => { setShowMore(true); window.setTimeout(() => document.getElementById('checklist-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }}
+              className="text-iris-300 hover:text-iris-200 underline underline-offset-2"
+            >
+              Checklist ideas ({stepIdeas.length})
+            </button>
+          )}
+        </div>
+      )}
       {nameClash && (
         <p id="taskNameClash" className="text-xs text-coral-300 -mt-1 px-1 leading-snug">
           {nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "{nameClash} at Grandma's".
@@ -439,20 +553,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === WHEN === */}
       {!isChore ? (
         <div className="w-full min-w-0">
-          <Label className="text-sm text-muted-foreground">When</Label>
-          <SegmentedField
-            ariaLabel="When this happens"
-            className="mt-1.5"
-            options={[{ value: 'at', label: 'At a time' }, { value: 'any', label: 'Anytime' }]}
-            value={atTime ? 'at' : 'any'}
-            onChange={(v) => {
-              // Only changes whether the task is pinned — never where it sits.
-              if (v === 'any' && formData.scheduledTime) setLastTime(formData.scheduledTime);
-              setFormData({ ...formData, scheduledTime: v === 'at' ? lastTime : '' });
-            }}
-          />
           {atTime && (
-            <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Starts at</span>
               <TimeSelect
                 value={formData.scheduledTime}
@@ -464,11 +566,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 className="shrink-0"
               />
             </div>
-          )}
-          {!atTime && (
-            <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1">
-              Fits into free time between the fixed things.
-            </p>
           )}
         </div>
       ) : (
@@ -643,6 +740,67 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </div>
           )}
 
+          {/* When the day runs late — a must-finish task is what runs late,
+              so it never gives up time itself. */}
+          {!isChore && !isSystemEvent && behavior !== 'important' && (
+            <div className="w-full min-w-0">
+              <Label className="text-sm text-muted-foreground">If the day runs late</Label>
+              {/* A list, not a segmented pill: the three choices need their
+                  full wording to be understood. */}
+              <div role="radiogroup" aria-label="If the day runs late" className="mt-1.5 flex flex-col gap-1">
+                {LATE_OPTIONS.map(option => {
+                  const on = formData.latePolicy === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setFormData({ ...formData, latePolicy: option.value })}
+                      className={cn(
+                        "w-full flex items-start gap-2.5 rounded-[14px] px-3 py-2 text-left border transition-colors",
+                        on ? "border-iris-400/60 bg-iris-400/10" : "border-transparent hover:bg-white/[0.04]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 shrink-0 w-4 h-4 rounded-full border-2",
+                          on ? "border-iris-300 bg-iris-300 shadow-[inset_0_0_0_2px_rgba(24,10,48,1)]" : "border-fog-300/60",
+                        )}
+                        aria-hidden
+                      />
+                      <span className="min-w-0">
+                        <span className={cn("block text-sm", on ? "text-fog-50" : "text-fog-200")}>{option.label}</span>
+                        <span className="block text-[11px] text-muted-foreground/70 leading-snug">
+                          {option.value === 'shorten' && effectiveMin === 0
+                            ? "This task is too short to keep part of it, so it gives up its time."
+                            : option.caption(effectiveMin)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {formData.latePolicy === 'shorten' && minOptions.length > 0 && (
+                <FormRow label="Keep at least">
+                  <Select
+                    value={String(effectiveMin)}
+                    onValueChange={(v) => setFormData({ ...formData, minDuration: parseInt(v) })}
+                  >
+                    <SelectTrigger className="w-[136px] shrink-0 rounded-pill px-3 gap-1" aria-label="Keep at least">
+                      <SelectValue>{formatDurationLabel(effectiveMin)}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {minOptions.map(m => (
+                        <SelectItem key={m} value={String(m)}>{formatDurationLabel(m)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormRow>
+              )}
+            </div>
+          )}
+
           {/* Stars — never earned automatically. This is what the parent gives
               with one tap (Give ★) once the task or chore is done. */}
           {!isSystemEvent && (isChore || behavior !== 'fun') && (
@@ -691,7 +849,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
           {/* Checklist — task mode only */}
           {!isChore && !isSystemEvent && (
-            <div className="w-full min-w-0">
+            <div className="w-full min-w-0" id="checklist-section">
               <div className="flex items-center h-10 w-full min-w-0 gap-2">
                 <Label className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">Checklist</Label>
                 <span className="text-xs text-muted-foreground flex-1 text-right">
@@ -710,8 +868,27 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                         value={sub.text}
                         onChange={(e) => updateSubtaskText(sub.id, e.target.value)}
                         onKeyDown={(e) => e.stopPropagation()}
+                        aria-label={`Step ${idx + 1}`}
                         className="rounded-pill flex-1 min-w-0 h-9 text-sm"
                       />
+                      <button
+                        type="button"
+                        onClick={() => moveSubtask(idx, -1)}
+                        disabled={idx === 0}
+                        className="tap-target flex-shrink-0 h-8 w-7 rounded-pill text-fog-300 hover:text-fog-50 disabled:opacity-30 flex items-center justify-center"
+                        aria-label="Move step up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSubtask(idx, 1)}
+                        disabled={idx === formData.subtasks.length - 1}
+                        className="tap-target flex-shrink-0 h-8 w-7 rounded-pill text-fog-300 hover:text-fog-50 disabled:opacity-30 flex items-center justify-center"
+                        aria-label="Move step down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeSubtask(sub.id)}
@@ -721,6 +898,60 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                         <X className="w-4 h-4" />
                       </button>
                     </div>
+                  ))}
+                </div>
+              )}
+              {/* Suggested steps for this name (a saved checklist of the same
+                  name first). Pick some or all; they're added after what's
+                  there and can then be edited or moved like any step. */}
+              {stepIdeas.length > 0 && (
+                <div className="mt-2 rounded-[16px] border border-iris-400/25 bg-iris-400/[0.05] p-2.5 space-y-1.5">
+                  <p className="text-[11px] text-iris-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3" aria-hidden />
+                    {matchingSaved ? `From your saved "${matchingSaved.name}" checklist` : 'Suggested steps'}
+                  </p>
+                  {stepIdeas.map(step => {
+                    const on = picked.includes(step);
+                    return (
+                      <label key={step} className="flex items-center gap-2 text-sm text-fog-100 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => setPickedIdeas(on ? picked.filter(s => s !== step) : [...picked, step])}
+                          className="w-4 h-4 accent-[#879bff]"
+                        />
+                        <span className="min-w-0 truncate">{step}</span>
+                      </label>
+                    );
+                  })}
+                  <div className="flex gap-2 pt-1">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => addSteps(stepIdeas)}>
+                      Add all
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={picked.length === 0}
+                      onClick={() => addSteps(stepIdeas.filter(s => picked.includes(s)))}
+                    >
+                      Add selected ({picked.length})
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {/* Other checklists the family saved, for tasks with a new name. */}
+              {!matchingSaved && savedChecklists.length > 0 && formData.subtasks.length === 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {savedChecklists.slice(0, 6).map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => addSteps(c.steps)}
+                      className="h-8 px-3 rounded-full text-xs bg-muted text-muted-foreground hover:text-foreground flex items-center gap-1.5"
+                    >
+                      <Bookmark className="w-3 h-3" aria-hidden /> {c.name}
+                    </button>
                   ))}
                 </div>
               )}
@@ -748,6 +979,23 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
+              {formData.subtasks.length >= 2 && formData.name.trim() && (
+                <button
+                  type="button"
+                  disabled={savingChecklist}
+                  onClick={async () => {
+                    try {
+                      await saveChecklist({ name: formData.name.trim(), steps: formData.subtasks.map(s => s.text.trim()).filter(Boolean) });
+                      toast.success(`Saved "${formData.name.trim()}" checklist for reuse`);
+                    } catch {
+                      toast.error("Couldn't save the checklist. Please try again.");
+                    }
+                  }}
+                  className="mt-2 text-[11px] text-iris-300 hover:text-iris-200 flex items-center gap-1.5"
+                >
+                  <Bookmark className="w-3 h-3" aria-hidden /> Save this checklist for reuse
+                </button>
+              )}
             </div>
           )}
 

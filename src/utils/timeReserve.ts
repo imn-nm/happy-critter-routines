@@ -7,6 +7,8 @@ export interface ReserveTask {
   sort_order?: number;
   is_important?: boolean | null;
   is_fun_time?: boolean | null;
+  late_policy?: 'keep' | 'shorten' | 'skip' | string | null;
+  min_duration?: number | null;
   isCompleted?: boolean;
   is_active?: boolean;
   type?: string;
@@ -24,7 +26,25 @@ const doneAtSeconds = (task: ReserveTask, completions: ReserveCompletion[]) => {
   return first ? secondsOf(new Date(new Date(first.completed_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))) : null;
 };
 
-/** Unallocated gaps first, then activities marked "Free time". Never touch normal tasks.
+/**
+ * How much of a task a running-late day may take, in seconds. "Skip if
+ * needed" gives up all of it, "Shorten if needed" all but its minimum,
+ * "Keep this time" nothing. Tasks saved before the setting existed: fun time
+ * behaves as skip, everything else as keep. Must-finish tasks never give up
+ * time (they're what runs late).
+ */
+const giveableSeconds = (task: ReserveTask) => {
+  if (task.is_important) return 0;
+  const policy = task.late_policy ?? (task.is_fun_time ? 'skip' : 'keep');
+  const total = (task.duration || 0) * 60;
+  if (policy === 'skip') return total;
+  if (policy === 'shorten') return Math.max(0, total - (task.min_duration ?? 0) * 60);
+  return 0;
+};
+const policyRank = (task: ReserveTask) =>
+  (task.late_policy ?? (task.is_fun_time ? 'skip' : 'keep')) === 'skip' ? 0 : 1;
+
+/** Unallocated gaps first, then tasks that may give up time: "skip if needed" before "shorten if needed".
  * Replay today's overdue intervals against the reserve, retaining losses after completion.
  * Overlapping overdue tasks share elapsed time so a minute is only spent once.
  */
@@ -51,10 +71,12 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     }
     occupiedUntil = Math.max(occupiedUntil, busyUntil(task));
   }
-  const activities = eligible.filter(task => !task.is_important && task.is_fun_time && task.scheduled_time && (task.duration || 0) > 0)
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || startOf(a) - startOf(b));
-  const reserves = [...gaps, ...activities]
-    .map(task => ({ task, lost: 0, total: task.duration! * 60 }));
+  const activities = eligible.filter(task => task.scheduled_time && (task.duration || 0) > 0 && giveableSeconds(task) > 0)
+    .sort((a, b) => policyRank(a) - policyRank(b) || (a.sort_order ?? 0) - (b.sort_order ?? 0) || startOf(a) - startOf(b));
+  const reserves = [
+    ...gaps.map(task => ({ task, lost: 0, total: task.duration! * 60, capacity: task.duration! * 60 })),
+    ...activities.map(task => ({ task, lost: 0, total: task.duration! * 60, capacity: giveableSeconds(task) })),
+  ];
   const intervals = eligible.filter(task => task.is_important && task.scheduled_time && (task.duration || 0) > 0)
     .map(task => {
       const doneAt = doneAtSeconds(task, completions);
@@ -69,7 +91,7 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     for (const reserve of reserves) {
       // A later delay cannot consume an activity whose window has already ended.
       if (startOf(reserve.task) + reserve.total <= from) continue;
-      const loss = Math.min(debt, reserve.total - reserve.lost);
+      const loss = Math.min(debt, reserve.capacity - reserve.lost);
       reserve.lost += loss;
       debt -= loss;
       if (debt <= 0) break;
@@ -79,7 +101,7 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
   const free = future.filter(r => r.task.id.startsWith('gap-'));
   const freeRemaining = free.reduce((sum, r) => sum + Math.max(0, r.total - Math.max(r.lost, nowSeconds - startOf(r.task))), 0);
   const optional = future.filter(r => !r.task.id.startsWith('gap-'));
-  const selected = optional.find(r => r.total > r.lost) ?? optional[optional.length - 1];
+  const selected = optional.find(r => r.capacity > r.lost) ?? optional[optional.length - 1];
   return {
     freeWindows: reserves.filter(r => r.task.id.startsWith('gap-')).map(r => ({
       originalStart: startOf(r.task), start: startOf(r.task) + r.lost, end: startOf(r.task) + r.total,

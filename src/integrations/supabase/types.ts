@@ -158,6 +158,41 @@ export type Database = {
           },
         ]
       }
+      checklist_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          household_id: string
+          id: string
+          name: string
+          steps: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          household_id: string
+          id?: string
+          name: string
+          steps?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          household_id?: string
+          id?: string
+          name?: string
+          steps?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_templates_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       day_notes: {
         Row: {
           child_id: string
@@ -690,6 +725,8 @@ export type Database = {
           is_fun_time: boolean | null
           is_important: boolean | null
           is_recurring: boolean
+          late_policy: string
+          min_duration: number | null
           name: string
           recurring_days: string[] | null
           schedule_overrides: Json | null
@@ -716,6 +753,8 @@ export type Database = {
           is_fun_time?: boolean | null
           is_important?: boolean | null
           is_recurring?: boolean
+          late_policy?: string
+          min_duration?: number | null
           name: string
           recurring_days?: string[] | null
           schedule_overrides?: Json | null
@@ -742,6 +781,8 @@ export type Database = {
           is_fun_time?: boolean | null
           is_important?: boolean | null
           is_recurring?: boolean
+          late_policy?: string
+          min_duration?: number | null
           name?: string
           recurring_days?: string[] | null
           schedule_overrides?: Json | null

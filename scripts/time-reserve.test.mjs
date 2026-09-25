@@ -65,3 +65,35 @@ test('moving past one gap does not refill the free-time bar', () => {
   assert.equal(before.totalSeconds, after.totalSeconds);
   assert.ok(after.remainingSeconds < before.remainingSeconds);
 });
+
+// "If the day runs late": keep / shorten (down to a minimum) / skip.
+const lateDay = [
+  { id: 'homework', name: 'Homework', scheduled_time: '12:00', duration: 30, is_important: true },
+  { id: 'piano', name: 'Piano', scheduled_time: '12:30', duration: 20, late_policy: 'keep' },
+  { id: 'story', name: 'Story', scheduled_time: '12:50', duration: 20, late_policy: 'shorten', min_duration: 10 },
+  { id: 'tv', name: 'TV', scheduled_time: '13:10', duration: 20, is_fun_time: true, late_policy: 'skip' },
+];
+const lateBy = minutes => new Date(2026, 8, 13, 12, 30 + minutes);
+test('"keep this time" never gives up any time', () => {
+  assert.equal(calculate(lateDay, [], lateBy(45)).losses.piano, undefined);
+});
+test('"skip if needed" gives up its time before "shorten if needed"', () => {
+  const result = calculate(lateDay, [], lateBy(15));
+  assert.equal(result.losses.tv, 15 * 60);
+  assert.equal(result.losses.story, 0);
+});
+test('"shorten if needed" stops at its minimum', () => {
+  const result = calculate(lateDay, [], lateBy(45));
+  assert.equal(result.losses.tv, 20 * 60);
+  assert.equal(result.losses.story, 10 * 60);
+});
+test('tasks saved before the setting: fun time is skippable, others kept', () => {
+  const legacy = [
+    { id: 'hw', name: 'Homework', scheduled_time: '12:00', duration: 30, is_important: true },
+    { id: 'play', name: 'Play', scheduled_time: '12:30', duration: 20, is_fun_time: true },
+    { id: 'walk', name: 'Walk', scheduled_time: '12:50', duration: 20 },
+  ];
+  const result = calculate(legacy, [], lateBy(30));
+  assert.equal(result.losses.play, 20 * 60);
+  assert.equal(result.losses.walk, undefined);
+});

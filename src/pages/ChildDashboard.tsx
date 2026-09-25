@@ -900,6 +900,7 @@ const ChildDashboard = () => {
           <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
           <TaskForm
             wakeTime={child?.wake_time}
+            childAge={child?.age}
             key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}`}
             task={editingTask} onSave={handleSaveTask}
             onCancel={() => { setShowTaskForm(false); setEditingTask(null); setPrefillTime(undefined); }}

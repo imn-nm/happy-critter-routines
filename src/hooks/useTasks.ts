@@ -56,6 +56,10 @@ export interface Task {
   date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   is_important?: boolean;
   is_fun_time?: boolean;
+  /** When the day runs late: keep this time, shorten it (to min_duration), or skip it. */
+  late_policy?: 'keep' | 'shorten' | 'skip';
+  /** For "shorten": the least time it keeps, in minutes. */
+  min_duration?: number | null;
   window_start?: string;
   window_end?: string;
   icon?: string | null;
