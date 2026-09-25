@@ -232,6 +232,12 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
     },
   },
   {
+    keys: ['play time', 'playtime', 'free play', 'play outside'],
+    icon: 'sparkles',
+    duration: 30,
+    steps: { young: [], older: [] },
+  },
+  {
     keys: ['drawing', 'art', 'craft', 'colouring', 'coloring', 'painting'],
     icon: 'palette',
     duration: 30,

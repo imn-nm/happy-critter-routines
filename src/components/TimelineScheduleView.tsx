@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
+import { orderByAnchors } from '@/utils/afterAnchors';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
@@ -959,15 +960,31 @@ const TimelineScheduleView = ({
     return { start: h * 60 + m, end: h * 60 + m + e.duration };
   });
 
-  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
-    const resolved = getTaskTimeForDay(task);
-    const taskDuration = resolved.duration;
-    // Fallback order: day-specific override → task's scheduled_time → window_start (placement hint
-    // from a gap when "Set Time" was off) → next available slot.
-    const pinnedTime = task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time;
-    let taskTime: string;
-    if (pinnedTime) {
-      taskTime = pinnedTime;
+  // Where things end today, so a task set to start "after" one of them is
+  // placed straight after it. Anchors are placed first (orderByAnchors).
+  const endsAt = new Map<string, number>();
+  const toMinutesOfDay = (t: string) => {
+    const [h, m] = t.slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
+  };
+  fixedEvents.forEach(e => endsAt.set(e.id, toMinutesOfDay(e.time) + e.duration));
+  const pinnedTimeOf = (task: typeof draggableTasks[number]) =>
+    task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time;
+  draggableTasks.forEach(task => {
+    const pinned = pinnedTimeOf(task);
+    if (pinned) endsAt.set(task.id, toMinutesOfDay(pinned) + getTaskTimeForDay(task).duration);
+  });
+  // Flex tasks (no pinned time) are placed in turn: after their anchor when
+  // they have one, otherwise at their window_start hint or the next slot.
+  const flexTimes = new Map<string, string>();
+  for (const task of orderByAnchors(draggableTasks)) {
+    if (pinnedTimeOf(task)) continue;
+    const taskDuration = getTaskTimeForDay(task).duration;
+    const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : undefined;
+    let startMin: number;
+    if (anchorEnd != null) {
+      // "After this": right after the anchor, or the next gap after it.
+      startMin = resolveDropStart(flexOccupied, anchorEnd, taskDuration, dayBounds) ?? anchorEnd;
     } else {
       const hint = task.window_start || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
@@ -984,11 +1001,19 @@ const TimelineScheduleView = ({
         dayBounds.dayStart,
         Math.min((dayBounds.dayEnd ?? 24 * 60) - taskDuration, hintMinutes),
       );
-      const startMin = placedStart ?? clampedHint;
-      // Whatever spot this task took is occupied for the next flex task.
-      flexOccupied.push({ start: startMin, end: startMin + taskDuration });
-      taskTime = minutesToTimeStr(startMin);
+      startMin = placedStart ?? clampedHint;
     }
+    // Whatever spot this task took is occupied for the next flex task.
+    flexOccupied.push({ start: startMin, end: startMin + taskDuration });
+    endsAt.set(task.id, startMin + taskDuration);
+    flexTimes.set(task.id, minutesToTimeStr(startMin));
+  }
+
+  const draggableEvents: TimelineEvent[] = draggableTasks.map(task => {
+    const resolved = getTaskTimeForDay(task);
+    const taskDuration = resolved.duration;
+    // Day-specific override → task's scheduled_time → the spot placed above.
+    const taskTime = pinnedTimeOf(task) || flexTimes.get(task.id) || findNextAvailableTime(taskDuration);
     const isCompleted = completions.some(c => c.task_id === task.id && c.date === selectedDayString);
     return {
       id: task.id,

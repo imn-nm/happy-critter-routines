@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle, BarChart3 } from "lucide-react";
+import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle, BarChart3, Layers } from "lucide-react";
 import SpinningWheelEditor from "@/components/SpinningWheelEditor";
 import { normalizeWheelOptions } from "@/lib/spinningWheel";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
@@ -29,6 +29,9 @@ import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TimelineHeader from "@/components/TimelineHeader";
 import TaskForm from "@/components/TaskForm";
+import RoutinesDialog from "@/components/RoutinesDialog";
+import CopyToChildDialog from "@/components/CopyToChildDialog";
+import { syncSchoolRoutines, useRoutines } from "@/hooks/useRoutines";
 import MonthView from "@/components/MonthView";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +54,9 @@ const ChildDashboard = () => {
   const [scheduleTab, setScheduleTab] = useState("timeline");
   const [showRewards, setShowRewards] = useState(false);
   const [showWheelEditor, setShowWheelEditor] = useState(false);
+  const [showRoutines, setShowRoutines] = useState(false);
+  const [copyingTask, setCopyingTask] = useState<Task | null>(null);
+  const { routines } = useRoutines(childId);
   // Rest day applies to whichever day the parent is currently viewing; a
   // child can have any number of them.
   const selectedDayString = child ? format(currentDate, 'yyyy-MM-dd') : '';
@@ -134,6 +140,23 @@ const ChildDashboard = () => {
     setEditingTask(task);
     setShowTaskForm(true);
   };
+
+  const anchorOptions = (() => {
+    const timed = tasks
+      .filter(t => t.type !== 'floating' && t.is_active !== false && t.name !== 'Bedtime')
+      .sort((a, b) => (a.scheduled_time ?? '99').localeCompare(b.scheduled_time ?? '99') || a.sort_order - b.sort_order);
+    const count = new Map<string, number>();
+    timed.forEach(t => count.set(t.name, (count.get(t.name) ?? 0) + 1));
+    return timed.map(t => {
+      const routineName = routines.find(r => r.id === t.routine_id)?.name;
+      const which = routineName ?? (t.scheduled_time ? t.scheduled_time.slice(0, 5) : undefined);
+      return {
+        id: t.id,
+        after_task_id: t.after_task_id,
+        name: (count.get(t.name) ?? 0) > 1 && which ? `${t.name} (${which})` : t.name,
+      };
+    });
+  })();
 
   const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
   const systemNameToKey: Record<string, string> = {
@@ -293,6 +316,10 @@ const ChildDashboard = () => {
     }
     if (Object.keys(updateData).length > 0) {
       await updateChild(child.id, updateData);
+      // "School days" routines follow the child's school days.
+      if (systemKey === 'school' && updateData.school_days) {
+        await syncSchoolRoutines(child.id, updateData.school_days).catch(() => undefined);
+      }
       // Keep the tasks-table copy of the system task in sync — conflict
       // checks and auto-placement read tasks.scheduled_time, and leaving the
       // old time there makes them compute against a schedule that no longer
@@ -373,7 +400,7 @@ const ChildDashboard = () => {
         // Safety net for anything that still reaches save without a placement
         // (e.g. the /tasks page, which doesn't prefill). Say where it landed.
         let autoPlacedAt: string | undefined;
-        if (!finalTaskData.scheduled_time && !finalTaskData.window_start && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
+        if (!finalTaskData.scheduled_time && !finalTaskData.window_start && !finalTaskData.after_task_id && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
           autoPlacedAt = suggestSlot(finalTaskData.task_date || format(currentDate, 'yyyy-MM-dd'), finalTaskData.duration || DEFAULT_SLOT_MINUTES);
           if (autoPlacedAt) finalTaskData.scheduled_time = autoPlacedAt;
         }
@@ -410,6 +437,14 @@ const ChildDashboard = () => {
             }
             const sibling = children.find(c => c.id === otherId) ?? null;
             const theirs = (siblingTasks ?? []).filter(t => t.child_id === otherId) as unknown as Task[];
+            // Routines and "after" links are per child: drop the routine and
+            // follow their task of the same name, if they have one.
+            row.routine_id = null;
+            row.days_override = false;
+            if (row.after_task_id) {
+              const anchorName = tasks.find(t => t.id === row.after_task_id)?.name;
+              row.after_task_id = theirs.find(t => t.name === anchorName && t.is_active !== false)?.id ?? null;
+            }
             const dates = row.is_recurring ? upcomingDates(theirs, sibling) : [row.task_date || format(currentDate, 'yyyy-MM-dd')];
             const clash = findStartClash({ ...row, id: 'new', is_active: true } as TaskLike, dates, theirs, sibling);
             if (clash) {
@@ -624,16 +659,26 @@ const ChildDashboard = () => {
                 <span />
               )}
 
-              {(!isRestDay || scheduleTab !== "timeline") && (
+              <div className="flex items-center">
                 <button
                   type="button"
-                  onClick={() => handleAddTask()}
-                  className="shrink-0 inline-flex items-center gap-2 h-11 px-4 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  onClick={() => setShowRoutines(true)}
+                  className="shrink-0 inline-flex items-center gap-2 h-11 px-3 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add Task
+                  <Layers className="w-4 h-4" />
+                  Routines
                 </button>
-              )}
+                {(!isRestDay || scheduleTab !== "timeline") && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddTask()}
+                    className="shrink-0 inline-flex items-center gap-2 h-11 px-3 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Task
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Schedule card — solid blue hairline border (matches Figma 145:6983).
@@ -911,9 +956,41 @@ const ChildDashboard = () => {
             }}
             isEdit={!!editingTask} currentDate={currentDate}
             prefillTime={prefillTime}
-            otherChildren={children.filter(c => c.id !== childId).map(c => ({ id: c.id, name: c.name }))} />
+            otherChildren={children.filter(c => c.id !== childId).map(c => ({ id: c.id, name: c.name }))}
+            anchorOptions={anchorOptions}
+            routines={routines}
+            schoolDays={child?.school_days}
+            onCopy={children.length > 1 ? () => {
+              const original = tasks.find(t => t.id === editingTask?.id);
+              if (!original) return;
+              setShowTaskForm(false);
+              setEditingTask(null);
+              setCopyingTask(original);
+            } : undefined} />
         </DialogContent>
       </Dialog>
+
+      {child && (
+        <RoutinesDialog
+          open={showRoutines}
+          onOpenChange={setShowRoutines}
+          child={child}
+          tasks={tasks}
+          otherChildren={children.filter(c => c.id !== childId)}
+          onChanged={() => refetch()}
+        />
+      )}
+
+      {child && copyingTask && (
+        <CopyToChildDialog
+          open={!!copyingTask}
+          onOpenChange={(o) => { if (!o) setCopyingTask(null); }}
+          fromChild={child}
+          items={[copyingTask]}
+          allTasks={tasks}
+          targets={children.filter(c => c.id !== childId)}
+        />
+      )}
 
       <AlertsPanel open={showAlerts} onClose={() => setShowAlerts(false)} childId={childId} />
     </div>

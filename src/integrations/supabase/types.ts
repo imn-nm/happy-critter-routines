@@ -531,6 +531,47 @@ export type Database = {
         }
         Relationships: []
       }
+      routines: {
+        Row: {
+          child_id: string
+          created_at: string
+          days: string[]
+          days_mode: string
+          id: string
+          name: string
+          pack: string | null
+          sort_order: number
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          days?: string[]
+          days_mode?: string
+          id?: string
+          name: string
+          pack?: string | null
+          sort_order?: number
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          days?: string[]
+          days_mode?: string
+          id?: string
+          name?: string
+          pack?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routines_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reward_purchases: {
         Row: {
           child_id: string
@@ -712,10 +753,12 @@ export type Database = {
       }
       tasks: {
         Row: {
+          after_task_id: string | null
           child_id: string
           coins: number
           created_at: string
           date_overrides: Json | null
+          days_override: boolean
           description: string | null
           duration: number | null
           excluded_dates: string[] | null
@@ -729,6 +772,7 @@ export type Database = {
           min_duration: number | null
           name: string
           recurring_days: string[] | null
+          routine_id: string | null
           schedule_overrides: Json | null
           scheduled_time: string | null
           sort_order: number
@@ -740,10 +784,12 @@ export type Database = {
           window_start: string | null
         }
         Insert: {
+          after_task_id?: string | null
           child_id: string
           coins?: number
           created_at?: string
           date_overrides?: Json | null
+          days_override?: boolean
           description?: string | null
           duration?: number | null
           excluded_dates?: string[] | null
@@ -757,6 +803,7 @@ export type Database = {
           min_duration?: number | null
           name: string
           recurring_days?: string[] | null
+          routine_id?: string | null
           schedule_overrides?: Json | null
           scheduled_time?: string | null
           sort_order?: number
@@ -768,10 +815,12 @@ export type Database = {
           window_start?: string | null
         }
         Update: {
+          after_task_id?: string | null
           child_id?: string
           coins?: number
           created_at?: string
           date_overrides?: Json | null
+          days_override?: boolean
           description?: string | null
           duration?: number | null
           excluded_dates?: string[] | null
@@ -785,6 +834,7 @@ export type Database = {
           min_duration?: number | null
           name?: string
           recurring_days?: string[] | null
+          routine_id?: string | null
           schedule_overrides?: Json | null
           scheduled_time?: string | null
           sort_order?: number

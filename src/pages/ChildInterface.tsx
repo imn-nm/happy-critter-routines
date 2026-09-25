@@ -23,6 +23,7 @@ import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
+import { orderByAnchors } from "@/utils/afterAnchors";
 import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2 } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
@@ -409,8 +410,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
           duration: override.duration ?? task.duration,
         };
       }
-      // Use window_start as a placement hint when there's no scheduled time
-      if (!task.scheduled_time && task.window_start) {
+      // Use window_start as a placement hint when there's no scheduled time.
+      // A task that follows another ("after this") is placed after its
+      // anchor below instead.
+      if (!task.scheduled_time && task.window_start && !task.after_task_id) {
         return { ...task, scheduled_time: task.window_start };
       }
       return task;
@@ -462,18 +465,36 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     };
 
-    const withAutoPlacement = tasksWithDaySpecificTimes.map(task => {
-      const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
-      if (hasTime) return task;
-      // Only auto-place non-chores; chores without windows keep their "Today" label.
-      if (task.type === 'floating') return task;
-      const slot = findNextSlot(task.duration ?? 30);
-      if (!slot) return task;
-      const [h, m] = slot.split(':').map(Number);
-      occupied.push({ start: h * 60 + m, end: h * 60 + m + (task.duration ?? 30) });
-      occupied.sort((a, b) => a.start - b.start);
-      return { ...task, scheduled_time: slot };
+    // Where each task ends up today, so a task that follows it can start
+    // straight after. Anchors are placed first (orderByAnchors).
+    const endsAt = new Map<string, number>();
+    tasksWithDaySpecificTimes.forEach(t => {
+      if (!t.scheduled_time || t.type === 'floating') return;
+      const [h, m] = t.scheduled_time.slice(0, 5).split(':').map(Number);
+      endsAt.set(t.id, h * 60 + m + (t.duration ?? 0));
     });
+    const placedAt = new Map<string, string>();
+    for (const task of orderByAnchors(tasksWithDaySpecificTimes)) {
+      const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
+      // Only auto-place non-chores; chores without windows keep their "Today" label.
+      if (hasTime || task.type === 'floating') continue;
+      const duration = task.duration ?? 30;
+      const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : undefined;
+      const slot = anchorEnd != null
+        ? (() => {
+            const start = resolveDropStart(occupied, anchorEnd, duration, dayBounds);
+            return start == null ? null : `${Math.floor(start / 60).toString().padStart(2, '0')}:${(start % 60).toString().padStart(2, '0')}`;
+          })()
+        : findNextSlot(duration);
+      if (!slot) continue;
+      const [h, m] = slot.split(':').map(Number);
+      occupied.push({ start: h * 60 + m, end: h * 60 + m + duration });
+      occupied.sort((a, b) => a.start - b.start);
+      endsAt.set(task.id, h * 60 + m + duration);
+      placedAt.set(task.id, slot);
+    }
+    const withAutoPlacement = tasksWithDaySpecificTimes.map(task =>
+      placedAt.has(task.id) ? { ...task, scheduled_time: placedAt.get(task.id) } : task);
 
     // Sort chronologically by effective time. Chores without a time
     // (rendered as "Today") fall to the end, ordered among themselves by the

@@ -174,3 +174,5 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 - [ ] Base tables (children, tasks, rewards…) still missing from
   `supabase/migrations`.
 - [ ] Almost no tests.
+- [ ] `scripts/time-reserve.test.mjs`: "moving past one gap does not refill the
+  free-time bar" fails, and has since before the late-day work (2026-09-24).

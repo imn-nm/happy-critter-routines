@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { realtimeChannel } from "@/lib/realtime";
 
 // Tables read through React Query, keyed by their table name.
-const TABLES = ["holidays", "day_notes", "parent_events"] as const;
+const TABLES = ["holidays", "day_notes", "parent_events", "routines"] as const;
 
 /**
  * One app-wide listener for the React Query tables: any change refetches the

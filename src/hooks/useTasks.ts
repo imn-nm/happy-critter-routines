@@ -60,6 +60,11 @@ export interface Task {
   late_policy?: 'keep' | 'shorten' | 'skip';
   /** For "shorten": the least time it keeps, in minutes. */
   min_duration?: number | null;
+  /** The routine this task belongs to; it repeats on the routine's days unless days_override. */
+  routine_id?: string | null;
+  days_override?: boolean;
+  /** A flexible task that starts right after this task ("Reading after Bath"). */
+  after_task_id?: string | null;
   window_start?: string;
   window_end?: string;
   icon?: string | null;

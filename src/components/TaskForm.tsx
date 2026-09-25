@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, Minus, Plus, Sparkles, Star, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, Copy, Minus, Plus, Sparkles, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { type Task, type Subtask } from "@/types/Task";
 import { isSystemTaskName, reservedTaskName } from "@/utils/systemTasks";
 import { templateForName, suggestedSteps } from "@/data/taskTemplates";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
+import { routineDays, routineDaysLabel, type Routine } from "@/hooks/useRoutines";
 import { toast } from "sonner";
 
 interface TaskFormProps {
@@ -31,6 +32,14 @@ interface TaskFormProps {
   wakeTime?: string | null;
   /** The child's age, for age-appropriate checklist suggestions. */
   childAge?: number | null;
+  /** The child's timed tasks, for "Starts after…" on a flexible task. */
+  anchorOptions?: { id: string; name: string; after_task_id?: string | null }[];
+  /** The child's routines, so a task can repeat with one. */
+  routines?: Routine[];
+  /** The child's school days, for a "school days" routine. */
+  schoolDays?: string[] | null;
+  /** Edit mode: copy this task to another child. */
+  onCopy?: () => void;
 }
 
 // Row component for consistent spacing — defined outside TaskForm to avoid remounting on re-render
@@ -59,18 +68,22 @@ const SegmentedField = <T extends string>({
   onChange,
   className,
   ariaLabel,
+  compact,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
   className?: string;
   ariaLabel?: string;
+  /** Smaller type, for three long labels on a phone. */
+  compact?: boolean;
 }) => (
   <div
     role="radiogroup"
     aria-label={ariaLabel}
     className={cn("grid bg-ink-900/40 rounded-pill p-1 gap-1", className)}
-    style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    // Compact: columns fit their labels, so a long one isn't cut short.
+    style={{ gridTemplateColumns: compact ? `repeat(${options.length}, auto)` : `repeat(${options.length}, minmax(0, 1fr))` }}
   >
     {options.map(option => (
       <button
@@ -80,7 +93,8 @@ const SegmentedField = <T extends string>({
         aria-checked={value === option.value}
         onClick={() => onChange(option.value)}
         className={cn(
-          "py-2 px-1 rounded-pill text-14 font-medium transition-colors truncate",
+          "py-2 px-1 rounded-pill font-medium transition-colors truncate",
+          compact ? "text-13" : "text-14",
           value === option.value
             ? "border-aurora bg-ink-900/70 text-fog-50 shadow-sh-md"
             : "text-iris-300 hover:bg-white/[0.04]",
@@ -132,7 +146,7 @@ const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 /** A sensible ceiling for one task's stars; rewards are priced against these. */
 const MAX_STARS = 20;
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -170,6 +184,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     subtasks: (task?.subtasks ?? []) as Subtask[],
     latePolicy: (task?.late_policy ?? (task?.is_fun_time ? 'skip' : 'keep')) as LatePolicy,
     minDuration: task?.min_duration ?? 10,
+    afterTaskId: task?.after_task_id ?? '',
+    routineId: task?.routine_id ?? '',
+    daysOverride: task?.days_override ?? false,
   });
   const [newSubtaskText, setNewSubtaskText] = useState("");
   // Suggestions from the name fill in what the parent hasn't set themselves;
@@ -195,6 +212,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       (task?.subtasks?.length ?? 0) > 0 ||
       task?.is_important ||
       task?.is_fun_time ||
+      task?.routine_id ||
       (task?.late_policy && task.late_policy !== 'keep')
     )),
   );
@@ -232,6 +250,28 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const isChore = formData.mode === 'chore';
   const atTime = !!formData.scheduledTime;
+
+  // A task in a routine repeats on the routine's days, unless it has its own.
+  const routine = isChore ? undefined : routines.find(r => r.id === formData.routineId);
+  const followsRoutine = !!routine && !formData.daysOverride;
+  const routineDayList = routine ? routineDays(routine, { school_days: schoolDays }) : [];
+  const repeats = !isChore && (followsRoutine || formData.isRecurring);
+  const repeatDays = followsRoutine ? routineDayList : formData.recurringDays;
+
+  // "Starts after…": any timed task except this one and the ones that already
+  // follow it (that would go round in a circle).
+  const followers = new Set(task?.id ? [task.id] : []);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const o of anchorOptions) {
+      if (o.after_task_id && followers.has(o.after_task_id) && !followers.has(o.id)) {
+        followers.add(o.id);
+        grew = true;
+      }
+    }
+  }
+  const anchors = anchorOptions.filter(o => !followers.has(o.id));
+  const anchor = anchors.find(o => o.id === formData.afterTaskId);
 
   const durationTotal = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
   const setDuration = (minutes: number) => {
@@ -337,15 +377,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // name-based icon.
       icon: formData.icon || null,
       // Chores are always single-date; recurring fields only apply to tasks.
-      is_recurring: isChore ? false : formData.isRecurring,
-      recurring_days: !isChore && formData.isRecurring ? formData.recurringDays : undefined,
+      is_recurring: repeats,
+      recurring_days: repeats ? repeatDays : undefined,
       // Pass-through: the form has no description control, but system tasks
       // carry one from systemTasks.ts and dropping the key would clear it.
       description: task?.description || undefined,
       sort_order: task?.sort_order || 0,
       is_active: task?.is_active ?? true,
       // Chores always pin to a single date; tasks only when not recurring.
-      task_date: isChore ? formData.taskDate : (!formData.isRecurring ? formData.taskDate : undefined),
+      task_date: isChore ? formData.taskDate : (!repeats ? formData.taskDate : undefined),
       // Important / fun-time / checklist are task-mode-only concepts.
       is_important: isChore ? false : formData.isImportant,
       is_fun_time: isChore ? false : formData.isFunTime,
@@ -365,11 +405,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // Must-finish tasks are what runs late; they never give up time.
       late_policy: isChore || formData.isImportant ? 'keep' : formData.latePolicy,
       min_duration: !isChore && !formData.isImportant && formData.latePolicy === 'shorten' ? effectiveMin : null,
+      routine_id: routine?.id ?? null,
+      days_override: !!routine && formData.daysOverride,
+      // Only a flexible task follows another; a fixed time is its own start.
+      after_task_id: !isChore && !scheduledTimeStr && anchor ? anchor.id : null,
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
 
-  const needsDays = formData.isRecurring && formData.recurringDays.length === 0;
+  const needsDays = !isChore && !followsRoutine && formData.isRecurring && formData.recurringDays.length === 0;
   // The child's day starts fresh at midnight, so nothing may run past it.
   // Bedtime's length is the wind-down, not something on the clock, so only
   // its start counts, and it can't be after midnight (earlier than wake-up).
@@ -396,7 +440,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // What's set behind the disclosure, so collapsing never hides a decision.
   const moreSummary = (() => {
     const parts: string[] = [];
-    if (!isChore && formData.isRecurring) {
+    if (routine) parts.push(followsRoutine ? `${routine.name} (${routineDaysLabel(routine)})` : `${routine.name}, own days`);
+    if (!isChore && !followsRoutine && formData.isRecurring) {
       const n = formData.recurringDays.length;
       parts.push(n === 7 ? 'Repeats daily' : n > 0 ? `Repeats ${n} day${n === 1 ? '' : 's'}` : 'Repeats');
     }
@@ -440,6 +485,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         <div>
           <SegmentedField
             ariaLabel="Kind of task"
+            compact
             options={KIND_OPTIONS.map(({ value, label }) => ({ value, label }))}
             value={kind}
             onChange={setKind}
@@ -553,6 +599,31 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === WHEN === */}
       {!isChore ? (
         <div className="w-full min-w-0">
+          {!atTime && !isSystemEvent && anchors.length > 0 && (
+            <>
+              <FormRow label="Starts">
+                <Select
+                  value={anchor ? anchor.id : 'room'}
+                  onValueChange={(v) => setFormData({ ...formData, afterTaskId: v === 'room' ? '' : v })}
+                >
+                  <SelectTrigger className="w-[208px] shrink-0 rounded-pill px-3 gap-1" aria-label="Starts">
+                    <SelectValue>{anchor ? `After ${anchor.name}` : "When there's room"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="room">When there's room</SelectItem>
+                    {anchors.map(o => (
+                      <SelectItem key={o.id} value={o.id}>After {o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormRow>
+              <p className="text-[11px] text-muted-foreground/60 leading-snug -mt-0.5">
+                {anchor
+                  ? `Starts as soon as ${anchor.name} ends, whenever that is. No clock time needed.`
+                  : 'Goes in the next free gap in the day.'}
+              </p>
+            </>
+          )}
           {atTime && (
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Starts at</span>
@@ -609,7 +680,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === DATE === One-off tasks and chores live on a single day; make
           that day editable so a task added to the wrong date can be moved.
           Recurring tasks pick weekdays instead. */}
-      {!isSystemEvent && (isChore || !formData.isRecurring) && (
+      {!isSystemEvent && !repeats && (
         <FormRow
           label="Date"
           htmlFor="taskDate"
@@ -671,9 +742,55 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </CollapsibleTrigger>
 
         <CollapsibleContent className="space-y-3 pt-1">
+          {/* Routine — its tasks repeat together on the routine's days; one
+              task can still keep days of its own. */}
+          {!isChore && !isSystemEvent && routines.length > 0 && (
+            <>
+              <FormRow
+                label="Routine"
+                hint={routine
+                  ? (followsRoutine
+                      ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Change the whole routine's days in Routines.`
+                      : `Part of ${routine.name}, on days of its own.`)
+                  : undefined}
+              >
+                <Select
+                  value={routine ? routine.id : 'none'}
+                  onValueChange={(v) => setFormData({ ...formData, routineId: v === 'none' ? '' : v, daysOverride: false })}
+                >
+                  <SelectTrigger className="w-[184px] shrink-0 rounded-pill px-3 gap-1" aria-label="Routine">
+                    <SelectValue>{routine ? routine.name : 'None'}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {routines.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormRow>
+              {routine && (
+                <FormRow label="Own days" htmlFor="daysOverride">
+                  <Switch
+                    id="daysOverride"
+                    checked={formData.daysOverride}
+                    onCheckedChange={(checked) => setFormData({
+                      ...formData,
+                      daysOverride: checked,
+                      // Start from the routine's days, then change what differs.
+                      isRecurring: checked ? true : formData.isRecurring,
+                      recurringDays: checked ? routineDayList : formData.recurringDays,
+                    })}
+                    className="data-[state=checked]:bg-green-500"
+                  />
+                </FormRow>
+              )}
+            </>
+          )}
+
           {/* Repeat — the switch that gates the only other required field, so
               it finally says what it does. */}
-          {!isChore && !isSystemEvent && (
+          {!isChore && !isSystemEvent && !followsRoutine && (
             <FormRow label="Repeat" htmlFor="isRecurring" hint="Runs again on the days you pick.">
               <Switch
                 id="isRecurring"
@@ -684,7 +801,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </FormRow>
           )}
 
-          {!isChore && formData.isRecurring && (
+          {!isChore && !followsRoutine && formData.isRecurring && (
             <>
               <FormRow label="Days">
                 <div className="flex gap-1 sm:gap-1.5">
@@ -997,6 +1114,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 </button>
               )}
             </div>
+          )}
+
+          {isEdit && onCopy && !isSystemEvent && task?.id && (
+            <FormRow label="Copy" hint="Make the same task for another child, with its own time and length.">
+              <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={onCopy}>
+                <Copy className="w-3.5 h-3.5" /> Copy to another child
+              </Button>
+            </FormRow>
           )}
 
           {/* Also add to other children — create mode only */}

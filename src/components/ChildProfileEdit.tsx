@@ -14,6 +14,7 @@ import { getPet } from "@/components/pets/petCatalog";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
+import { syncSchoolRoutines } from "@/hooks/useRoutines";
 
 const DURATIONS = [
   { value: "10", label: "10 min" },
@@ -285,6 +286,8 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                     })
                     .eq('child_id', child.id)
                     .eq('name', 'School');
+                  // "School days" routines follow along.
+                  await syncSchoolRoutines(child.id, schedule.school_days);
                 }}
               />
             </div>
