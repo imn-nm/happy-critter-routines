@@ -44,7 +44,8 @@ const Login = () => {
       if (mode === 'signin') {
         await signInWithEmail(email, password);
       } else {
-        await signUpWithEmail(email, password, name || undefined);
+        // Confirming the email must come back to the invite, not the home page.
+        await signUpWithEmail(email, password, name || undefined, inviteToken ? redirectTo : undefined);
       }
       navigate(inviteToken ? `/accept-invite?invite=${encodeURIComponent(inviteToken)}` : '/');
     } catch {

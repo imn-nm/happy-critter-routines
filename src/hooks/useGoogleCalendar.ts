@@ -12,6 +12,10 @@ const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.crea
 // Using sessionStorage rather than a URL query param makes the flow robust
 // even when Supabase ignores `redirectTo` (e.g. URL not in the allowlist).
 const PENDING_KEY = 'pending_calendar_connect_household';
+// Who was signed in when "Connect" was tapped. Connecting goes through Google
+// sign-in, so choosing a Google account with a different email signs in as a
+// different (often brand-new) account; this lets us notice and back out.
+const PENDING_USER_KEY = 'pending_calendar_connect_user';
 
 export interface CalendarStatus {
   household_id: string;
@@ -45,6 +49,7 @@ export const useGoogleCalendar = () => {
       return;
     }
     sessionStorage.setItem(PENDING_KEY, household.id);
+    if (user?.id) sessionStorage.setItem(PENDING_USER_KEY, user.id);
     return supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -71,6 +76,18 @@ export const useGoogleCalendar = () => {
         if (!providerToken) return;
 
         sessionStorage.removeItem(PENDING_KEY);
+        const expectedUser = sessionStorage.getItem(PENDING_USER_KEY);
+        sessionStorage.removeItem(PENDING_USER_KEY);
+        if (expectedUser && session?.user?.id && session.user.id !== expectedUser) {
+          // Google signed in a different account than the parent's. Don't
+          // leave them in it (it has no family); sign it out and explain.
+          await supabase.auth.signOut({ scope: 'local' });
+          toast.error(
+            `That Google account (${session.user.email ?? 'another email'}) isn't the one you use here. Sign in again, then connect with the Google account that matches your login.`,
+            { duration: 12000 },
+          );
+          return;
+        }
         try {
           const { error } = await supabase.functions.invoke(
             'google-calendar-connect',

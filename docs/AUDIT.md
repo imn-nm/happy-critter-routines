@@ -118,26 +118,36 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 ## 4. Parent account, rewards, alerts
 
 - [ ] **Invitee who already has children** ends up in two households; the app
-  now picks the most recently joined one. Needs a switcher, or merging the
-  children in on accept. (follow-up from section 1)
-- [ ] **Parent PIN is stored in plain text** in `households.parent_pin` and
-  compared on the device; hash it and check it server-side. (follow-up)
-- [ ] **Invites** — redeemed on page load with no "Join?" confirm; email not
-  checked; no revoke/remove/leave; email sign-up loses the token; lands on
-  the kids' picker. (C)
-- [ ] **Password-reset form never closes** (separate `useAuth` instances). (C)
+  now picks the most recently joined one. Needs a decision: a switcher, or
+  moving their children in on accept. (follow-up from section 1)
+- [x] **Parent PIN is stored in plain text** — now a bcrypt hash in
+  `household_pins`, which no client can read; set and checked by
+  `set_parent_pin` / `verify_parent_pin`; `households.has_parent_pin` for the
+  UI. Five wrong tries pause the lock for 30 seconds. (follow-up)
+- [x] **Invites** — the link shows "Join <family>?" first (or "You're already
+  in", "expired", "already used"); an invite sent to an email only works for
+  that account; invites can be cancelled; the owner can remove a co-parent and
+  anyone can leave; email sign-up from an invite comes back to it; joining
+  lands on the parent side. (C)
+- [x] **Password-reset form never closes** — the "set a new password" state is
+  shared app-wide now. (C)
 - [x] **Deleting a reward leaves pending requests stuck** holding stars. (C)
-- [ ] **Missed-important alerts** can't be dismissed, can stop firing after a
-  Give ★ (open). No longer fire on rest days. (C)
-- [ ] **Empty dashboard dead end** — no Settings/Alerts/Sign out with zero
-  children (open). Load errors now show "We couldn't load your family". (C)
-- [ ] **Connect Google Calendar may switch accounts** (`signInWithOAuth` instead
-  of `linkIdentity`) — unverified. (C)
-- [ ] **Deleting a child from its page** leaves "Child not found". (C)
-- [ ] **Profile edit form keeps stale data**; save overwrites another parent's
-  edits. (C)
-- [ ] **Dashboard Now/Next** ignores overrides and rest days; "Pack lunch" hidden
-  from upcoming. (C)
+- [x] **Missed-important alerts** — can be dismissed for the day (per
+  device); no longer skip newly overdue tasks after a Give ★; not on rest
+  days. (C)
+- [x] **Empty dashboard dead end** — Settings (household, PIN, sign out) is
+  reachable with no children; load errors show "We couldn't load your
+  family". (C)
+- [x] **Connect Google Calendar may switch accounts** — mitigated: if Google
+  signs in a different account, it's signed out with an explanation. The real
+  fix is `linkIdentity`, which needs manual identity linking enabled in
+  Supabase Auth settings. (C)
+- [x] **Deleting a child from its page** now returns to the family dashboard. (C)
+- [x] **Profile edit form keeps stale data** — refreshes every time it opens
+  and saves only the fields you changed; times must run in order. (C)
+- [x] **Dashboard Now/Next** — uses today's real times (one-day changes,
+  skipped days, built-in rows) in Pacific time and says "Rest day"; "Pack
+  lunch" shows in upcoming. (C)
 
 ## 5. Consistency and polish
 

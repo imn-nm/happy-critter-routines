@@ -17,7 +17,7 @@ const ParentPinSettings = () => {
   const [error, setError] = useState("");
 
   if (!household) return null;
-  const hasPin = !!household.parent_pin;
+  const hasPin = household.has_parent_pin;
 
   const close = () => {
     setEditing(false);

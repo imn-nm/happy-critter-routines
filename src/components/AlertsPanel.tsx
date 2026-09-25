@@ -5,7 +5,7 @@ import { useChildren } from "@/hooks/useChildren";
 import { supabase } from "@/integrations/supabase/client";
 import { realtimeChannel } from "@/lib/realtime";
 import { approveRewardPurchase, denyRewardPurchase, isAlreadyHandled } from "@/hooks/useRewards";
-import { fetchMissedImportantToday } from "@/utils/missedImportant";
+import { dismissMissed, fetchMissedImportantToday, onMissedDismissed } from "@/utils/missedImportant";
 import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ interface PendingRewardAlert {
 
 interface MissedImportantAlert {
   type: "missed_important";
+  taskId: string;
   id: string;
   childId: string;
   childName: string;
@@ -61,6 +62,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
       const missedAlerts: Alert[] = missed.map(m => ({
         type: "missed_important" as const,
         id: `missed-${m.taskId}`,
+        taskId: m.taskId,
         childId: m.childId,
         childName: targetChildren.find(c => c.id === m.childId)?.name || "Child",
         taskName: m.name,
@@ -271,6 +273,18 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                             Due by {formatTime12(alert.dueBy)}. Still doable today.
                           </p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            dismissMissed(alert.taskId);
+                            setAlerts(prev => prev.filter(a => a.id !== alert.id));
+                          }}
+                          aria-label={`Dismiss ${alert.taskName} for today`}
+                          className="shrink-0 text-fog-300 hover:text-fog-50"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     );
                   }
@@ -324,10 +338,12 @@ export const useAlertCount = (childId?: string) => {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions" }, () => fetchCount())
       .subscribe();
     const timer = window.setInterval(fetchCount, 60_000);
+    const stopDismissed = onMissedDismissed(fetchCount);
 
     return () => {
       supabase.removeChannel(channel);
       window.clearInterval(timer);
+      stopDismissed();
     };
   }, [idsKey, childId]);
 

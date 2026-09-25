@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,37 +31,68 @@ interface ChildProfileEditProps {
   onDeleteChild?: (id: string) => Promise<void>;
 }
 
+/** The editable fields as the form holds them (strings, like the inputs). */
+const formFromChild = (child: Child) => ({
+  name: child.name,
+  age: child.age?.toString() || "",
+  petType: child.petType,
+  wake_time: child.wake_time || "07:00",
+  wake_duration: child.wake_duration?.toString() || "15",
+  breakfast_time: child.breakfast_time || "07:30",
+  breakfast_duration: child.breakfast_duration?.toString() || "30",
+  lunch_time: child.lunch_time || "12:00",
+  lunch_duration: child.lunch_duration?.toString() || "45",
+  dinner_time: child.dinner_time || "18:00",
+  dinner_duration: child.dinner_duration?.toString() || "45",
+  bedtime: child.bedtime || "20:00",
+  bedtime_duration: child.bedtime_duration?.toString() || "60",
+});
+
 const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileEditProps) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [formData, setFormData] = useState({
-    name: child.name,
-    age: child.age?.toString() || "",
-    petType: child.petType,
-    wake_time: child.wake_time || "07:00",
-    wake_duration: child.wake_duration?.toString() || "15",
-    breakfast_time: child.breakfast_time || "07:30",
-    breakfast_duration: child.breakfast_duration?.toString() || "30",
-    lunch_time: child.lunch_time || "12:00",
-    lunch_duration: child.lunch_duration?.toString() || "45",
-    dinner_time: child.dinner_time || "18:00",
-    dinner_duration: child.dinner_duration?.toString() || "45",
-    bedtime: child.bedtime || "20:00",
-    bedtime_duration: child.bedtime_duration?.toString() || "60",
-  });
+  const [formData, setFormData] = useState(() => formFromChild(child));
+  // What the form showed when it opened. Save sends only what the parent
+  // changed from this, so the other parent's edits to other fields survive.
+  const [openedWith, setOpenedWith] = useState(() => formFromChild(child));
+  // Start from the child's current profile every time: the form used to be
+  // filled once, so reopening showed abandoned edits.
+  const openEditor = (open: boolean) => {
+    if (open) {
+      const fresh = formFromChild(child);
+      setFormData(fresh);
+      setOpenedWith(fresh);
+    }
+    setIsOpen(open);
+  };
+
+  // Same order rule as setup: wake-up, meals, bedtime, all before midnight.
+  const timesProblem = (() => {
+    const order: [string, string][] = [
+      ['Wake up', formData.wake_time], ['Breakfast', formData.breakfast_time], ['Lunch', formData.lunch_time],
+      ['Dinner', formData.dinner_time], ['Bedtime', formData.bedtime],
+    ];
+    for (let i = 1; i < order.length; i++) {
+      if (order[i][1].slice(0, 5) <= order[i - 1][1].slice(0, 5)) {
+        return `${order[i][0]} has to be after ${order[i - 1][0].toLowerCase()}.`;
+      }
+    }
+    return null;
+  })();
   const childrenHook = useChildren();
   const updateChild = onUpdateChild || childrenHook.updateChild;
   const deleteChild = onDeleteChild || childrenHook.deleteChild;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (timesProblem) return;
 
     setSaving(true);
     try {
-      // Update the child profile (exclude school_start_time/school_end_time
-      // since those are managed by SchoolScheduleManager)
-      await updateChild(child.id, {
+      // Only what changed since the form opened (school is its own editor).
+      const all = {
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
         petType: formData.petType,
@@ -74,25 +106,31 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
         dinner_duration: parseInt(formData.dinner_duration) || 45,
         bedtime: formData.bedtime,
         bedtime_duration: parseInt(formData.bedtime_duration) || 60,
-      });
+      };
+      const changed = Object.fromEntries(
+        (Object.keys(all) as (keyof typeof all)[])
+          .filter(k => formData[k as keyof typeof formData] !== openedWith[k as keyof typeof openedWith])
+          .map(k => [k, all[k]]),
+      );
+      if (Object.keys(changed).length > 0) await updateChild(child.id, changed);
 
       // Then update all system task instances with the new times
       // Only include fields that have changed from the original values
       const systemTaskUpdates: any = {};
       
-      if (formData.wake_time !== child.wake_time) {
+      if (formData.wake_time !== openedWith.wake_time) {
         systemTaskUpdates.wake_time = formData.wake_time;
       }
-      if (formData.breakfast_time !== child.breakfast_time) {
+      if (formData.breakfast_time !== openedWith.breakfast_time) {
         systemTaskUpdates.breakfast_time = formData.breakfast_time;
       }
-      if (formData.lunch_time !== child.lunch_time) {
+      if (formData.lunch_time !== openedWith.lunch_time) {
         systemTaskUpdates.lunch_time = formData.lunch_time;
       }
-      if (formData.dinner_time !== child.dinner_time) {
+      if (formData.dinner_time !== openedWith.dinner_time) {
         systemTaskUpdates.dinner_time = formData.dinner_time;
       }
-      if (formData.bedtime !== child.bedtime) {
+      if (formData.bedtime !== openedWith.bedtime) {
         systemTaskUpdates.bedtime = formData.bedtime;
       }
 
@@ -115,6 +153,8 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
     try {
       await deleteChild(child.id);
       setIsOpen(false);
+      // This child's page is gone; go back to the family, not "Child not found".
+      navigate("/parent", { replace: true });
     } catch (error) {
       console.error('Error deleting child profile:', error);
       toast.error("Failed to delete profile. Please try again.");
@@ -134,7 +174,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
   ];
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={openEditor}>
       <DialogTrigger asChild>
         <Button variant="secondary" size="icon-sm" aria-label={`Edit ${child.name}'s profile`}>
           <Settings className="w-4 h-4" />
@@ -250,9 +290,13 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
             </div>
           </div>
 
+          {timesProblem && (
+            <p className="text-12 text-coral-300 -mt-sp-2" role="alert">{timesProblem}</p>
+          )}
+
           {/* Actions */}
           <div className="flex gap-sp-2 pt-sp-1">
-            <Button type="submit" variant="primary" size="md" className="flex-1" disabled={saving}>
+            <Button type="submit" variant="primary" size="md" className="flex-1" disabled={saving || !!timesProblem}>
               {saving ? "Saving…" : "Save"}
             </Button>
             <Button type="button" variant="secondary" size="md" onClick={() => setIsOpen(false)}>

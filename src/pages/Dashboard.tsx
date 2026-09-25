@@ -14,6 +14,10 @@ import LoadErrorCard from "@/components/LoadErrorCard";
 import OnboardingSlides from "@/components/OnboardingSlides";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format, parse, addDays, startOfDay } from "date-fns";
+import { getPSTDate } from "@/utils/pstDate";
+import { isRestDate } from "@/utils/restDays";
+import { tasksOnDate } from "@/utils/startClash";
+import { isSystemTaskName } from "@/utils/systemTasks";
 
 const BADGE_COLORS = ["bg-mint-500", "bg-iris-500", "bg-lilac-500", "bg-amber-500", "bg-coral-500"] as const;
 
@@ -88,29 +92,19 @@ const Dashboard = () => {
 
   const childNowNext = useMemo(() => {
     const out: Record<string, { now?: string; next?: string }> = {};
-    const now = new Date();
-    const today = format(now, "EEEE").toLowerCase();
+    // Pacific time, like the child's screen and the alerts.
+    const now = getPSTDate();
     const todayStr = format(now, "yyyy-MM-dd");
     const currentTime = format(now, "HH:mm");
     for (const child of children) {
-      const tasks = allTasks
-        .filter(t => t.child_id === child.id)
-        .filter(t => {
-          // Recurring tasks scheduled for today
-          if (t.is_recurring && t.recurring_days?.includes(today)) return true;
-          // Non-recurring tasks pinned to today's date (chores, one-off tasks)
-          if (!t.is_recurring && t.task_date === todayStr) return true;
-          return false;
-        })
-        .map(t => {
-          // Chores use window_start as their display time
-          if (!t.scheduled_time && t.window_start) {
-            return { ...t, scheduled_time: t.window_start };
-          }
-          return t;
-        })
-        .filter(t => t.scheduled_time)
-        .sort((a, b) => a.scheduled_time!.localeCompare(b.scheduled_time!));
+      if (isRestDate(child, todayStr)) {
+        out[child.id] = { now: "Rest day" };
+        continue;
+      }
+      // Today's real times: one-day changes, skipped days and the built-in
+      // rows' per-day times all count (they used to be ignored here).
+      const tasks = tasksOnDate(allTasks.filter(t => t.child_id === child.id), todayStr, child)
+        .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
 
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const current = [...tasks].reverse().find(t => {
@@ -152,11 +146,10 @@ const Dashboard = () => {
       allDay?: boolean;
     };
     const grouped = new Map<string, Group>();
-    const now = new Date();
+    const now = getPSTDate();
     const today = startOfDay(now);
     const horizon = addDays(today, 14);
     const currentTime = format(now, "HH:mm");
-    const systemTasks = ["wake", "breakfast", "school", "lunch", "dinner", "bedtime"];
 
     const addGroup = (date: Date, time: string, name: string, child: Child) => {
       const dateKey = format(date, "yyyy-MM-dd");
@@ -182,7 +175,8 @@ const Dashboard = () => {
     for (const task of allTasks) {
       if (task.is_active === false) continue;
       if (!task.scheduled_time) continue;
-      if (systemTasks.some(s => task.name.toLowerCase().includes(s))) continue;
+      // Built-in rows only (exact names): "Pack lunch" is a real event.
+      if (isSystemTaskName(task.name)) continue;
       const child = children.find(c => c.id === task.child_id);
       if (!child) continue;
       const time = task.scheduled_time.slice(0, 5);
@@ -256,7 +250,19 @@ const Dashboard = () => {
           finishLabel="Add your child"
           onFinish={() => navigate("/setup")}
         />
-        <div className="max-w-sm mx-auto text-center pt-24">
+        {/* Settings (household, PIN, sign out) is reachable before any child
+            exists; it used to be a dead end with no way out. */}
+        <div className="max-w-sm mx-auto flex justify-end">
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => navigate("/settings")}
+            className="tap-target w-11 h-11 rounded-full border border-iris-400/30 text-fog-200 hover:text-fog-50 flex items-center justify-center"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="max-w-sm mx-auto text-center pt-16">
           <div className="w-16 h-16 rounded-[20px] glass-strong flex items-center justify-center mx-auto mb-5 glow-iris">
             <Sparkles className="w-7 h-7 text-iris-300" />
           </div>
@@ -266,6 +272,9 @@ const Dashboard = () => {
             <Plus className="w-5 h-5" />
             Add Your First Child
           </Button>
+          <p className="text-12 text-fog-300 mt-5 max-w-[16rem] mx-auto">
+            Joining a family that's already set up? Open the invite link you were sent instead.
+          </p>
         </div>
       </div>
     );

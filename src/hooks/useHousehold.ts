@@ -9,7 +9,8 @@ export interface Household {
   name: string;
   created_by: string | null;
   created_at: string;
-  parent_pin: string | null;
+  /** A PIN is set. The PIN itself is only ever checked on the server. */
+  has_parent_pin: boolean;
 }
 
 export interface HouseholdMember {
@@ -84,14 +85,11 @@ export const useHousehold = () => {
   });
 
   const setParentPin = useMutation({
-    // null turns the PIN off.
+    // null turns the PIN off. Stored as a hash no device can read.
     mutationFn: async (pin: string | null) => {
       if (!household) throw new Error('no household');
       if (pin !== null && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
-      const { error } = await supabase
-        .from('households')
-        .update({ parent_pin: pin, updated_at: new Date().toISOString() })
-        .eq('id', household.id);
+      const { error } = await supabase.rpc('set_parent_pin', { p_household: household.id, p_pin: pin });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['household'] }),
@@ -138,8 +136,17 @@ export const useHousehold = () => {
     onError: (e: any) => toast.error(e.message ?? 'Invite invalid or expired'),
   });
 
+  /** Check a PIN on the server. Throws when it can't be checked (offline). */
+  const verifyParentPin = async (pin: string) => {
+    if (!household) throw new Error('no household');
+    const { data, error } = await supabase.rpc('verify_parent_pin', { p_household: household.id, p_pin: pin });
+    if (error) throw error;
+    return data === true;
+  };
+
   return {
     household,
+    verifyParentPin,
     members,
     isLoading,
     /** The lookup finished without an error (so a null household really is none). */

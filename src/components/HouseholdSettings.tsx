@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Copy, Users, Mail } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Copy, Users, Mail, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface PendingInvite {
   id: string;
@@ -31,6 +41,9 @@ const HouseholdSettings = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [latestUrl, setLatestUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
+  // Someone to remove (or yourself, to leave), waiting for a confirm.
+  const [removing, setRemoving] = useState<{ userId: string; label: string } | null>(null);
 
   // Resolve member names from the profiles table (full_name || email).
   const memberIds = (members ?? []).map(m => m.user_id);
@@ -98,6 +111,41 @@ const HouseholdSettings = () => {
     );
   }
 
+  const isOwner = (members ?? []).some(m => m.user_id === user?.id && m.role === 'owner');
+
+  // An invite link that's no longer wanted stops working right away.
+  const cancelInvite = async (inviteId: string) => {
+    const { error } = await supabase.from('household_invites').delete().eq('id', inviteId);
+    if (error) {
+      toast.error("Couldn't cancel that invite. Please try again.");
+      return;
+    }
+    if (latestUrl && pendingInvites?.some(i => i.id === inviteId && latestUrl.includes(encodeURIComponent(i.token)))) setLatestUrl(null);
+    qc.invalidateQueries({ queryKey: ['household_invites'] });
+    toast.success('Invite cancelled');
+  };
+
+  // The owner can remove a co-parent; anyone can leave. Leaving signs you
+  // out of this family's children on your devices; you get a fresh family.
+  const removeMember = async (userId: string) => {
+    const { error } = await supabase
+      .from('household_members')
+      .delete()
+      .eq('household_id', household.id)
+      .eq('user_id', userId);
+    if (error) {
+      toast.error("Couldn't do that. Please try again.");
+      return;
+    }
+    const leaving = userId === user?.id;
+    toast.success(leaving ? `You left ${household.name}` : 'Removed from the family');
+    qc.invalidateQueries({ queryKey: ['household_members'] });
+    if (leaving) {
+      qc.invalidateQueries({ queryKey: ['household'] });
+      window.location.assign('/parent');
+    }
+  };
+
   const generate = async () => {
     setBusy(true);
     try {
@@ -127,7 +175,28 @@ const HouseholdSettings = () => {
               className="text-14 text-fog-50 px-sp-2 py-1 rounded-[12px] bg-[rgba(8,1,26,0.4)] flex justify-between"
             >
               <span className="truncate">{memberLabel(m.user_id)}</span>
-              <span className="text-fog-200 text-12">{m.role}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-fog-200 text-12">{m.role}</span>
+                {m.user_id === user?.id
+                  ? (members ?? []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setRemoving({ userId: m.user_id, label: 'yourself' })}
+                        className="tap-target text-12 text-coral-300 hover:text-coral-200"
+                      >
+                        Leave
+                      </button>
+                    )
+                  : isOwner && m.role !== 'owner' && (
+                      <button
+                        type="button"
+                        onClick={() => setRemoving({ userId: m.user_id, label: memberLabel(m.user_id) })}
+                        className="tap-target text-12 text-coral-300 hover:text-coral-200"
+                      >
+                        Remove
+                      </button>
+                    )}
+              </span>
             </li>
           ))}
         </ul>
@@ -153,7 +222,7 @@ const HouseholdSettings = () => {
             <button
               type="button"
               onClick={() => copyLink(latestUrl)}
-              className="text-iris-400 hover:text-iris-300"
+              className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-iris-400 hover:text-iris-300"
               aria-label="Copy invite link"
             >
               <Copy className="w-4 h-4" />
@@ -181,10 +250,18 @@ const HouseholdSettings = () => {
                   <button
                     type="button"
                     onClick={() => copyLink(url)}
-                    className="shrink-0 text-iris-400 hover:text-iris-300"
+                    className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-iris-400 hover:text-iris-300"
                     aria-label="Copy invite link"
                   >
                     <Copy className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelInvite(inv.id)}
+                    className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-fog-300 hover:text-coral-300"
+                    aria-label="Cancel invite"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               );
@@ -192,6 +269,30 @@ const HouseholdSettings = () => {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!removing} onOpenChange={(open) => { if (!open) setRemoving(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {removing?.userId === user?.id ? `Leave ${household.name}?` : `Remove ${removing?.label}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {removing?.userId === user?.id
+                ? "You won't see these children's schedules any more. Someone in the family can invite you back."
+                : "They won't see the children's schedules any more. You can invite them again later."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removing && removeMember(removing.userId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removing?.userId === user?.id ? 'Leave' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };

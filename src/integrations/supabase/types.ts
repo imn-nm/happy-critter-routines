@@ -405,6 +405,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          has_parent_pin: boolean
           id: string
           name: string
           parent_pin: string | null
@@ -413,6 +414,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          has_parent_pin?: boolean
           id?: string
           name?: string
           parent_pin?: string | null
@@ -421,6 +423,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          has_parent_pin?: boolean
           id?: string
           name?: string
           parent_pin?: string | null
@@ -823,14 +826,23 @@ export type Database = {
       }
       is_household_member: { Args: { hid: string }; Returns: boolean }
       is_household_owner: { Args: { hid: string }; Returns: boolean }
+      peek_household_invite: { Args: { invite_token: string }; Returns: Json }
       redeem_household_invite: {
         Args: { invite_token: string }
         Returns: string
       }
       redeem_reward_for_child: { Args: { p_reward_id: string }; Returns: Json }
       refund_reward_purchase: { Args: { p_purchase_id: string }; Returns: Json }
+      set_parent_pin: {
+        Args: { p_household: string; p_pin: string | null }
+        Returns: undefined
+      }
       shares_household_with: { Args: { other_user: string }; Returns: boolean }
       undo_task_completion: { Args: { p_completion_id: string }; Returns: Json }
+      verify_parent_pin: {
+        Args: { p_household: string; p_pin: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

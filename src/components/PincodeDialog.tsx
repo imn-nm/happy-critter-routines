@@ -23,8 +23,8 @@ interface PincodeDialogProps {
 //   verify: household has a PIN → ask user to enter it to enter parent portal.
 const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
   const navigate = useNavigate();
-  const { household, setParentPin, isSettingPin } = useHousehold();
-  const isSetupMode = !!household && !household.parent_pin;
+  const { household, setParentPin, isSettingPin, verifyParentPin } = useHousehold();
+  const isSetupMode = !!household && !household.has_parent_pin;
 
   const [pincode, setPincode] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -71,9 +71,9 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
     }
   };
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pincode === household?.parent_pin) {
+    if (await verifyParentPin(pincode).catch(() => false)) {
       onOpenChange(false);
       reset();
       navigate("/parent");

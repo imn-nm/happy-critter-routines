@@ -84,6 +84,42 @@ export const findMissedImportant = (
     })
     .sort((a, b) => a.dueBy.localeCompare(b.dueBy));
 
+// ── Dismissed today ─────────────────────────────────────────────────────
+// A parent who has seen "Maya hasn't finished Homework" can clear it for the
+// rest of the day. Kept on this device, one list per day.
+const DISMISSED_PREFIX = "dismissed-missed:";
+const DISMISSED_EVENT = "missed-dismissed";
+
+export const dismissedMissedToday = (): Set<string> => {
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(DISMISSED_PREFIX + getPSTDateString()) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
+
+export const dismissMissed = (taskId: string) => {
+  const key = DISMISSED_PREFIX + getPSTDateString();
+  try {
+    const next = dismissedMissedToday();
+    next.add(taskId);
+    window.localStorage.setItem(key, JSON.stringify([...next]));
+    // Earlier days' lists are never read again.
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith(DISMISSED_PREFIX) && k !== key) window.localStorage.removeItem(k);
+    }
+  } catch {
+    /* storage unavailable: it just won't stay dismissed */
+  }
+  window.dispatchEvent(new Event(DISMISSED_EVENT));
+};
+
+export const onMissedDismissed = (cb: () => void) => {
+  window.addEventListener(DISMISSED_EVENT, cb);
+  return () => window.removeEventListener(DISMISSED_EVENT, cb);
+};
+
 /** Parent side: today's missed important tasks across several children. */
 export const fetchMissedImportantToday = async (childIds: string[]): Promise<MissedImportant[]> => {
   if (childIds.length === 0) return [];
@@ -106,5 +142,6 @@ export const fetchMissedImportantToday = async (childIds: string[]): Promise<Mis
   // A rest day has nothing to finish: no "hasn't finished" for that child.
   const resting = new Set((kids ?? []).filter(k => isRestDate(k, today)).map(k => k.id));
   const due = ((tasks ?? []) as unknown as TaskLike[]).filter(t => !resting.has(t.child_id));
-  return findMissedImportant(due, done);
+  const dismissed = dismissedMissedToday();
+  return findMissedImportant(due, done).filter(m => !dismissed.has(m.taskId));
 };

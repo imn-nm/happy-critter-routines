@@ -19,10 +19,26 @@ const syncRealtimeAuth = (token?: string) => {
   if (token) supabase.realtime.setAuth(token);
 };
 
+// "Set a new password" mode is one app-wide fact, not per useAuth() call:
+// AuthProvider shows the form from its own instance, and the form updates the
+// password through another, so a per-instance flag left the form up forever.
+let recoveryFlag = false;
+const recoveryListeners = new Set<(on: boolean) => void>();
+const setRecovery = (on: boolean) => {
+  recoveryFlag = on;
+  recoveryListeners.forEach(l => l(on));
+};
+
 export const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(recoveryFlag);
+  useEffect(() => {
+    recoveryListeners.add(setRecoveryMode);
+    return () => {
+      recoveryListeners.delete(setRecoveryMode);
+    };
+  }, []);
   const { toast } = useToast();
 
   const signInWithGoogle = async (opts?: { withCalendarScope?: boolean; redirectTo?: string }) => {
@@ -52,12 +68,13 @@ export const useAuth = () => {
     return data.user;
   };
 
-  const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
+  /** `redirectTo`: where the confirmation email's link lands (e.g. back to an invite). */
+  const signUpWithEmail = async (email: string, password: string, fullName?: string, redirectTo?: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: redirectTo ?? `${window.location.origin}/`,
         data: fullName ? { full_name: fullName } : undefined,
       },
     });
@@ -116,7 +133,7 @@ export const useAuth = () => {
       toast({ title: 'Password update failed', description: error.message, variant: 'destructive' });
       throw error;
     }
-    setRecoveryMode(false);
+    setRecovery(false);
     toast({ title: 'Password set', description: 'You can now sign in with email and password.' });
   };
 
@@ -142,7 +159,7 @@ export const useAuth = () => {
       syncRealtimeAuth(session?.access_token);
       setUser(session?.user ?? null);
       if (event === 'PASSWORD_RECOVERY') {
-        setRecoveryMode(true);
+        setRecovery(true);
       }
       setLoading(false);
     });

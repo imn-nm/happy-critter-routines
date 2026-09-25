@@ -15,10 +15,17 @@ const MissedImportantNotifier = () => {
   const { toast } = useToast();
   // "date:taskId" keys already announced.
   const seenRef = useRef<Set<string>>(new Set());
+  // Names for the toasts, without restarting the watch on every star change.
+  const childrenRef = useRef(children);
+  childrenRef.current = children;
+  // Re-run only when the set of children changes. It used to re-run on every
+  // balance change (a new children array), and each re-run quietly marked
+  // whatever had just become overdue as "already announced".
+  const idsKey = children.map(c => c.id).join(",");
 
   useEffect(() => {
-    if (children.length === 0) return;
-    const ids = children.map(c => c.id);
+    if (!idsKey) return;
+    const ids = idsKey.split(",");
     let cancelled = false;
 
     const check = async () => {
@@ -29,7 +36,7 @@ const MissedImportantNotifier = () => {
         const key = `${today}:${m.taskId}`;
         if (seenRef.current.has(key)) continue;
         seenRef.current.add(key);
-        const child = children.find(c => c.id === m.childId);
+        const child = childrenRef.current.find(c => c.id === m.childId);
         toast({
           title: `${child?.name ?? "Your child"} hasn't finished ${m.name}`,
           description: `It was due by ${formatTime12(m.dueBy)}. They can still do it today.`,
@@ -48,7 +55,7 @@ const MissedImportantNotifier = () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [children, toast]);
+  }, [idsKey, toast]);
 
   return null;
 };
