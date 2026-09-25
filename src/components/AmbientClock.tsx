@@ -38,12 +38,13 @@ const AmbientClock = ({ next, className, picture }: AmbientClockProps) => {
       </div>
       {picture ? (
         next ? (
-          <p className="mt-1 flex items-center gap-2 text-fog-50" aria-label={`Next: ${next.name}`}>
+          <p className="mt-1 flex items-center gap-2 text-fog-50" aria-label={`Next: ${next.name}${next.time ? ` at ${formatTime12(next.time)}` : ''}`}>
             <ArrowRight className="w-6 h-6 text-iris-400" aria-hidden />
             <span className="w-12 h-12 rounded-[14px] bg-fog-50/10 flex items-center justify-center" aria-hidden>
               {getTaskIcon(next.name, "w-7 h-7 text-fog-50", next.icon)}
             </span>
             <span className="text-18">{next.name}</span>
+            {next.time && <span className="text-18 font-semibold tabular-nums">{formatTime12(next.time)}</span>}
           </p>
         ) : (
           <Moon className="mt-1 w-8 h-8 text-fog-200" aria-label="Nothing else today" />

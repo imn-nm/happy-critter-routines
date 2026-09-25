@@ -137,15 +137,24 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
 };
 
 /** Horizontal marker for the current time, sitting between timeline rows. */
-const NowLine = ({ label }: { label: string }) => (
-  <div className="flex items-center gap-2 pointer-events-none" aria-label={`Now, ${label}`}>
-    <div className="text-xs font-semibold text-rose-400 w-16 text-right flex-shrink-0 tabular-nums">{label}</div>
-    <div className="flex-1 flex items-center">
+const NowLine = ({ label, overCard = false }: { label: string; overCard?: boolean }) =>
+  overCard ? (
+    // Across a running card: dot and line first, the time at the far end so
+    // it never covers the card's own start time.
+    <div className="flex items-center pointer-events-none" aria-label={`Now, ${label}`}>
       <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
       <span className="flex-1 h-[2px] bg-rose-400/80" />
+      <span className="text-xs font-semibold text-rose-400 tabular-nums px-1.5 py-0.5 rounded-pill bg-ink-900/90 border border-rose-400/40">{label}</span>
     </div>
-  </div>
-);
+  ) : (
+    <div className="flex items-center gap-2 pointer-events-none" aria-label={`Now, ${label}`}>
+      <div className="text-xs font-semibold text-rose-400 w-16 text-right flex-shrink-0 tabular-nums">{label}</div>
+      <div className="flex-1 flex items-center">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
+        <span className="flex-1 h-[2px] bg-rose-400/80" />
+      </div>
+    </div>
+  );
 
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -1151,13 +1160,21 @@ const TimelineScheduleView = ({
     return lastBottom;
   };
 
-  // Where the current-time line sits in the row list (today only): above the
-  // first row that starts after now; -1 means after the last row.
+  // Where the current-time line sits (today only). Inside a row that's
+  // running now (8:58 during an 8:00–3:00 School) it's drawn across that
+  // card, part way down; otherwise above the first row that starts later,
+  // or after the last row (-1). Drawing it only between rows put 8:58 after
+  // School, as if school were over.
   const showNowLine = isPSTToday(selectedDay) && allEvents.length > 0 && !activeId;
-  const nowLineIndex = allEvents.findIndex(e => {
+  const startOfEvent = (e: TimelineEvent) => {
     const [h, m] = e.time.split(':').map(Number);
-    return h * 60 + m > nowMinutes;
+    return h * 60 + m;
+  };
+  const nowInsideIndex = allEvents.findIndex(e => {
+    const start = startOfEvent(e);
+    return nowMinutes >= start && nowMinutes < start + e.duration;
   });
+  const nowLineIndex = nowInsideIndex >= 0 ? null : allEvents.findIndex(e => startOfEvent(e) > nowMinutes);
 
   // Overlaps the parent should fix: a task whose duration runs past the next
   // event's start (e.g. a 15-min task with the next event 10 minutes later).
@@ -1455,6 +1472,11 @@ const TimelineScheduleView = ({
                       // once the whole day has passed.
                       const showNowAbove = showNowLine && nowLineIndex === eventIdx;
                       const showNowBelow = showNowLine && nowLineIndex === -1 && eventIdx === allEvents.length - 1;
+                      // Kept off the card's very edges so it never reads as
+                      // "just starting" or "already over".
+                      const nowOverAt = showNowLine && nowInsideIndex === eventIdx
+                        ? Math.min(0.85, Math.max(0.15, (nowMinutes - startOfEvent(event)) / event.duration))
+                        : null;
                       const isBeingDraggedOver = overId === event.id && activeId !== event.id;
 
                       const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
@@ -1529,10 +1551,15 @@ const TimelineScheduleView = ({
                           )}
 
                           <div className={cn(
-                            "transition-all duration-200 ease-out",
+                            "relative transition-all duration-200 ease-out",
                             isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-primary/30 ring-offset-2 rounded-lg",
                             (shouldShowSpacingAbove || shouldShowSpacingBelow) && "my-2"
                           )}>
+                            {nowOverAt != null && (
+                              <div className="absolute inset-x-0 z-20 -translate-y-1/2" style={{ top: `${nowOverAt * 100}%` }}>
+                                <NowLine overCard label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />
+                              </div>
+                            )}
                             <SortableTimelineEvent
                               event={event}
                               onEditTask={onEditTask}

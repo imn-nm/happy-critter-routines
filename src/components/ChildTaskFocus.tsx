@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Check, Volume2 } from 'lucide-react';
+import { Check, Clock, Volume2 } from 'lucide-react';
 import CircularTimer from '@/components/CircularTimer';
 import TimeReserve, { TimeReserveState } from '@/components/TimeReserve';
 import { getTaskIcon } from '@/utils/taskIcon';
@@ -20,7 +20,7 @@ interface Props {
   reserve: TimeReserveState | null;
   /** Picture: a big picture and a speaker button. Detailed: exact times and a line of explanation. */
   variant?: DisplayMode;
-  /** Detailed view: "4:00 – 4:20pm · 20min". */
+  /** "4:00pm – 4:20pm · 20min" (picture view: just the times). */
   timeLabel?: string;
   /** Detailed view: what this task asks of them. */
   explanation?: string;
@@ -46,7 +46,8 @@ export default function ChildTaskFocus(props: Props) {
       </div>
       <div className="text-center min-[600px]:text-left">
         {picture ? (
-          // Big picture first: a child who can't read yet knows it by the icon.
+          <>
+          {/* Big picture first: a child who can't read yet knows it by the icon. */}
           <div className="flex items-center justify-center min-[600px]:justify-start gap-3">
             <span className="shrink-0 w-16 h-16 rounded-[20px] bg-fog-50/10 border border-fog-50/15 flex items-center justify-center">
               {getTaskIcon(props.name, 'w-10 h-10 text-fog-50', props.icon)}
@@ -63,6 +64,15 @@ export default function ChildTaskFocus(props: Props) {
               </button>
             )}
           </div>
+          {/* The clock times too: seeing them beside the picture is how the
+              clock starts to mean something. */}
+          {props.timeLabel && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-18 font-medium text-fog-100 tabular-nums">
+              <Clock className="w-5 h-5 text-iris-300" aria-hidden />
+              {props.timeLabel}
+            </p>
+          )}
+          </>
         ) : (
           <>
             <div className="flex items-center justify-center min-[600px]:justify-start gap-2.5">
@@ -89,7 +99,7 @@ export default function ChildTaskFocus(props: Props) {
           </>
         )}
       </button>}
-      {props.reserve && <div className="min-[600px]:col-start-2 pt-3"><TimeReserve reserve={props.reserve} /></div>}
+      {props.reserve && <div className="min-[600px]:col-start-2 pt-3"><TimeReserve reserve={props.reserve} picture={picture} /></div>}
     </section>
   );
 }

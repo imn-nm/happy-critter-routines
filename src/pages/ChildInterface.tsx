@@ -1052,14 +1052,14 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const scheduleOpen = preview?.scheduleOpen ?? showSchedule;
   const placedStart = (task: { id: string; scheduled_time?: string | null }) =>
     todaysSchedule.find(t => t.id === task.id)?.scheduled_time ?? task.scheduled_time ?? null;
-  const timeRange = (start: string | null | undefined, minutes?: number | null) => {
+  const timeRange = (start: string | null | undefined, minutes?: number | null, withLength = true) => {
     if (!start) return undefined;
     const [h, m] = start.slice(0, 5).split(':').map(Number);
     const end = h * 60 + m + (minutes ?? 0);
     const endStr = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
-    return minutes
-      ? `${formatTime(start.slice(0, 5))} – ${formatTime(endStr)} · ${formatDuration(minutes)}`
-      : formatTime(start.slice(0, 5));
+    if (!minutes) return formatTime(start.slice(0, 5));
+    const range = `${formatTime(start.slice(0, 5))} – ${formatTime(endStr)}`;
+    return withLength ? `${range} · ${formatDuration(minutes)}` : range;
   };
   const explainTask = (task: { is_important?: boolean; is_fun_time?: boolean; subtasks?: unknown[] | null }) => {
     if (task.is_fun_time) return 'Fun time! Enjoy it until the timer runs out.';
@@ -1223,7 +1223,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 name={displayTask.name}
                 icon={displayTask.icon}
                 variant={mode}
-                timeLabel={timeRange(placedStart(displayTask), displayTask.duration)}
+                timeLabel={timeRange(placedStart(displayTask), displayTask.duration, !picture)}
                 explanation={explainTask(displayTask)}
                 onSpeak={() => {
                   const step = currentStep(displayTask);
@@ -1310,7 +1310,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{upcomingTasks[0].name}</span>
                     </div>
                   </div>
-                  {!picture && upcomingTasks[0].scheduled_time && (
+                  {upcomingTasks[0].scheduled_time && (
                     <StatusBadge variant="time">{formatTime(upcomingTasks[0].scheduled_time)}</StatusBadge>
                   )}
                 </div>
@@ -1463,7 +1463,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{freeTimeCountdown.nextTask.name}</span>
                 </div>
               </div>
-              {!picture && freeTimeCountdown.nextTask.scheduled_time && (
+              {freeTimeCountdown.nextTask.scheduled_time && (
                 <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
               )}
             </div>
@@ -1740,6 +1740,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         <GetReadyReminder
           speakPrompt={picture}
           nextIcon={freeTimeCountdown.nextTask.icon}
+          nextTime={freeTimeCountdown.nextTask.scheduled_time ? formatTime(freeTimeCountdown.nextTask.scheduled_time.slice(0, 5)) : undefined}
           windowKey={playKey}
           remaining={freeTimeCountdown.remaining}
           nextName={freeTimeCountdown.nextTask.name}
@@ -1809,10 +1810,12 @@ const GET_READY_SECONDS = 5 * 60;
  * window, on top of everything (the wheel, Playtime), with a gentle chime.
  * Closes itself after a while, when the child taps OK, or when free time ends.
  */
-function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, petType, outfit, reminded, speakPrompt }: {
+function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, petType, outfit, reminded, speakPrompt }: {
   /** Picture view: say it out loud, and show pictures instead of a sentence. */
   speakPrompt?: boolean;
   nextIcon?: string | null;
+  /** "3:30pm": when the next thing starts. */
+  nextTime?: string;
   windowKey: string;
   remaining: number;
   nextName: string;
@@ -1860,6 +1863,7 @@ function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, petType, o
                 <span className="w-12 h-12 shrink-0 rounded-[14px] bg-white/10 flex items-center justify-center" aria-hidden>
                   {getTaskIcon(nextName, 'w-7 h-7 text-fog-50', nextIcon)}
                 </span>
+                {nextTime && <span className="text-18 font-semibold text-fog-50 tabular-nums" aria-hidden>{nextTime}</span>}
               </div>
             ) : (
               <div className="flex-1 min-w-0">
@@ -2066,9 +2070,9 @@ const PARTS = ['Morning', 'Afternoon', 'Evening', 'Anytime'] as const;
 const PART_ICONS: Record<(typeof PARTS)[number], typeof Sun> = { Morning: Sunrise, Afternoon: Sun, Evening: Moon, Anytime: ListChecks };
 
 /**
- * Picture view's day for children who don't read clocks: no times, just
- * morning / afternoon / evening, a big picture for each thing and its length
- * as blocks (one per ten minutes).
+ * Picture view's day: morning / afternoon / evening, a big picture for each
+ * thing, when it starts, and its length as blocks (one per ten minutes), so
+ * a child still learning the clock sees the time next to something they know.
  */
 function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; focusTaskId: string | null; nowMinutes: number }) {
   const startOf = (row: PictureRow) => {
@@ -2118,13 +2122,19 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                   <p className={cn('text-18 text-white truncate', done && 'line-through')}>{name}</p>
-                  {minutes > 0 && !isBedtime && (
-                    <span className="flex gap-1" aria-label={`About ${formatDuration(minutes)}`}>
-                      {Array.from({ length: blocks }, (_, i) => (
-                        <span key={i} className={cn('w-3.5 h-3.5 rounded-[4px]', row.kind === 'free' ? 'bg-[#9EBEFF]/60' : 'bg-white/60')} />
-                      ))}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-2.5">
+                    {start != null && (() => {
+                      const [hm, ampm] = splitTime12(`${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`);
+                      return <span className="text-16 font-semibold text-white tabular-nums">{hm}<span className="text-12 font-normal ml-0.5">{ampm}</span></span>;
+                    })()}
+                    {minutes > 0 && !isBedtime && (
+                      <span className="flex gap-1" aria-label={`About ${formatDuration(minutes)}`}>
+                        {Array.from({ length: blocks }, (_, i) => (
+                          <span key={i} className={cn('w-3.5 h-3.5 rounded-[4px]', row.kind === 'free' ? 'bg-[#9EBEFF]/60' : 'bg-white/60')} />
+                        ))}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {now && (
                   <span className="shrink-0 w-9 h-9 rounded-full bg-white text-ink-900 flex items-center justify-center" aria-label="Now">
