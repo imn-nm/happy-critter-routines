@@ -1,52 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence, motion, type PanInfo } from "framer-motion";
-import {
-  CalendarDays,
-  Clock,
-  Gamepad2,
-  Gift,
-  ListChecks,
-  type LucideIcon,
-  Shuffle,
-  Smartphone,
-  Star,
-  Tablet,
-} from "lucide-react";
+import { Clock, ListChecks, type LucideIcon, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import CritterPet from "@/components/critters/CritterPet";
-import type { CritterMood } from "@/components/critters/CritterPet";
-import WormTimer from "@/components/WormTimer";
-import SpinningWheel from "@/components/SpinningWheel";
+import {
+  CalendarVisual,
+  OwnScreenVisual,
+  RewardsVisual,
+  TaskKindsVisual,
+  TimeMovesVisual,
+  WheelVisual,
+  WormVisual,
+} from "@/components/onboarding/OnboardingVisuals";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs, durations } from "@/lib/motion";
-
-/**
- * The worm creeping toward the fun-time icon, looping so the parent sees the
- * mechanic rather than reading about it.
- */
-const WormDemo = () => {
-  const { reduce } = useMotionPrefs();
-  const [progress, setProgress] = useState(reduce ? 0.62 : 0);
-
-  useEffect(() => {
-    if (reduce) return;
-    // Step coarsely and let WormTimer's own eased motion do the smoothing —
-    // animating per frame would re-render for no visible gain.
-    const STEPS = [0, 0.2, 0.4, 0.6, 0.8, 1, 1];
-    let i = 0;
-    const id = window.setInterval(() => {
-      i = (i + 1) % STEPS.length;
-      setProgress(STEPS[i]);
-    }, 620);
-    return () => window.clearInterval(id);
-  }, [reduce]);
-
-  return (
-    <div className="w-full px-sp-2">
-      <WormTimer progress={progress} />
-    </div>
-  );
-};
 
 interface Bullet {
   Icon: LucideIcon;
@@ -57,12 +23,8 @@ interface Bullet {
 
 interface Slide {
   key: string;
-  /** Critter shown when the slide has no custom visual. */
-  petType?: string;
-  mood?: CritterMood;
-  /** Custom illustration — wins over the critter. */
-  visual?: ReactNode;
-  Icon?: LucideIcon;
+  /** A small looping scene that shows the idea; mounts fresh on each visit. */
+  Visual: ComponentType;
   title: string;
   body?: string;
   bullets?: Bullet[];
@@ -71,81 +33,64 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     key: "welcome",
-    petType: "bunny",
-    mood: "happy",
-    title: "Meet Biscuit",
-    body: "Biscuit the rabbit stays by their side all day, doing each task alongside them and cheering them on.",
+    Visual: TimeMovesVisual,
+    title: "Help them learn how time moves.",
+    body: "Biscuit follows the day in real time, helping your child see time passing and learn when to move on. There’s no play or pause—the day keeps moving.",
   },
   {
     key: "task-types",
-    Icon: ListChecks,
-    title: "Three kinds of task",
+    Visual: TaskKindsVisual,
+    title: "Three kinds of tasks",
     bullets: [
       {
         Icon: Clock,
         tint: "text-iris-200 bg-iris-400/20 border-iris-400/30",
-        term: "Normal",
-        text: "Runs on the clock and flows into the next thing — breakfast, school, bath. Never required, but finishing early turns the rest into free time.",
+        term: "Daily routine",
+        text: "Activities like breakfast and bath move along with the clock.",
       },
       {
         Icon: Star,
         tint: "text-amber-400 bg-amber-500/20 border-amber-500/30",
         term: "Must finish",
-        text: "Homework, medicine, packing the bag. They mark it done. If time runs out, you get an alert and it stays on their screen.",
+        text: "Tasks like homework stay on screen until your child marks them done.",
       },
       {
         Icon: ListChecks,
         tint: "text-mint-300 bg-mint-500/20 border-mint-500/30",
         term: "Chores",
-        text: "Anytime, or in a window you set. Feed the dog, tidy room — tapped off as tiles.",
+        text: "Small jobs your child can check off anytime, or within a window you choose.",
       },
     ],
   },
   {
     key: "worm",
-    visual: <WormDemo />,
-    Icon: Gamepad2,
-    title: "The worm eats their fun time",
-    body: "Mark TV or Roblox as fun time. When an important task runs late, the worm creeps toward it and eats it — the time window shrinks before their eyes.",
+    Visual: WormVisual,
+    title: "The worm eats into fun time",
+    body: "You choose which activities are nice to have, like TV or gaming. When a must-finish task runs late, the worm eats into that fun time.\n\nThis helps children see that there’s only so much time in a day—spending longer on one thing leaves less time for another.",
   },
   {
     key: "wheel",
-    visual: <SpinningWheel options={["Draw", "Lego", "Read", "Outside", "Puzzle", "Dance"]} sizePx={200} />,
-    Icon: Shuffle,
-    title: "Free time spins a wheel",
-    body: "You fill the wheel with ideas. When free time comes, they spin — instead of asking you what to do.",
+    Visual: WheelVisual,
+    title: "Ideas for free time",
+    body: "You fill the activity wheel with ideas like drawing, Lego, or playing outside. When your child has free time, they can spin the wheel to pick something to do—helping them make choices on their own.",
   },
   {
     key: "stars",
-    petType: "cat",
-    mood: "happy",
-    Icon: Gift,
-    title: "Stars buy rewards",
-    body: "Stars only come from you: tap Give ★ when they've done something. When they want a reward, they request it — and you approve.",
+    Visual: RewardsVisual,
+    title: "Stars and rewards",
+    body: "Set up the rewards shop together with your child. Give them stars to recognize their effort, and when they’ve saved enough, they can purchase a reward with your approval.",
   },
   {
     key: "calendar",
-    petType: "frog",
-    mood: "idle",
-    Icon: CalendarDays,
-    title: "Mark up the calendar",
-    body: "Holidays, birthdays, snow days. Flag a day as no-school and School drops off automatically. Add notes like \"early dismissal at 1pm\".",
-  },
-  {
-    key: "sync",
-    petType: "duck",
-    mood: "idle",
-    Icon: Smartphone,
-    title: "It syncs to your phone",
-    body: "Connect Google Calendar and it all shows up on your phone. It writes only to its own calendar — yours stay untouched.",
+    Visual: CalendarVisual,
+    title: "Make room for special days",
+    body: "Add birthdays, holidays, and notes to the calendar. Mark a day as a no-school day, and school automatically comes off your child’s schedule. Connect your Google Calendar to keep these events handy on your phone, too.",
   },
   {
     key: "child-device",
-    petType: "penguin",
-    mood: "celebrate",
-    Icon: Tablet,
-    title: "Their own screen",
-    body: "Hand them a device and the day is theirs to run. They feel in control — and learn to be independent.",
+    Visual: OwnScreenVisual,
+    title: "Their day, on their own screen",
+    body: "Open your child’s view on a phone or tablet so they can see what’s happening now and what’s next. With Biscuit beside them, they can practice following their routine on their own.",
   },
 ];
 
@@ -232,8 +177,10 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
       </div>
 
       {/* Slide body — drag horizontally to page through. Scrolls on short
-          screens so the taller slides stay reachable. */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto flex items-center">
+          screens so the taller slides stay reachable; the slide centres with
+          auto margins, because centring the container would push an overflowing
+          slide's top out of reach. */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
         <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
             key={slide.key}
@@ -248,27 +195,17 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
             // Snappy, not gentle: mode="wait" holds the outgoing slide until
             // its exit finishes, so a slow spring makes paging feel stuck.
             transition={t(springs.snappy)}
-            className="w-full max-w-[420px] mx-auto px-sp-6 py-sp-4 flex flex-col items-center text-center gap-sp-5 cursor-grab active:cursor-grabbing"
+            className="w-full max-w-[420px] mx-auto my-auto px-sp-6 py-sp-4 flex flex-col items-center text-center gap-sp-5 cursor-grab active:cursor-grabbing"
           >
-            {/* Illustration — a live component where one tells the story
-                better than a pet does, otherwise the child's own critter. */}
-            {slide.visual ? (
-              <div className="w-full flex items-center justify-center min-h-[168px]">{slide.visual}</div>
-            ) : slide.petType ? (
-              <div className="w-[152px] h-[152px] flex items-center justify-center">
-                <CritterPet petType={slide.petType} mood={slide.mood ?? "idle"} size={152} className="w-full h-full" />
-              </div>
-            ) : null}
+            {/* The scene that shows the idea. */}
+            <div className="w-full flex items-center justify-center">
+              <slide.Visual />
+            </div>
 
             <div className="flex flex-col items-center gap-sp-3 w-full">
-              {slide.Icon && (
-                <span className="w-11 h-11 rounded-[16px] bg-iris-400/20 border border-iris-400/30 flex items-center justify-center">
-                  <slide.Icon className="w-5 h-5 text-iris-200" />
-                </span>
-              )}
               <h2 className="text-24 text-fog-50 leading-tight tracking-[-0.02em]">{slide.title}</h2>
               {slide.body && (
-                <p className="text-14 text-fog-200 leading-relaxed max-w-[19rem]">{slide.body}</p>
+                <p className="text-14 text-fog-200 leading-relaxed max-w-[19rem] whitespace-pre-line">{slide.body}</p>
               )}
 
               {slide.bullets && (

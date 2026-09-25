@@ -8,6 +8,12 @@ interface SpinningWheelProps {
   options: string[];
   sizePx?: number;
   className?: string;
+  /** Just the wheel: no winner line or Spin button. Drive it with `spinSignal`. */
+  bare?: boolean;
+  /** Spins each time this value changes (ignored while 0 or undefined). */
+  spinSignal?: number;
+  /** Called with the winning option once the wheel settles. */
+  onWinner?: (winner: string) => void;
 }
 
 // Split a label into up to 3 lines of ~9 chars so it stays inside its slice
@@ -35,7 +41,7 @@ function wrapLabel(text: string, maxChars = 9, maxLines = 3): string[] {
   return lines.map((l) => (l.length > maxChars + 2 ? l.slice(0, maxChars + 1) + "…" : l));
 }
 
-const SpinningWheel = ({ options, sizePx = 260, className }: SpinningWheelProps) => {
+const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSignal, onWinner }: SpinningWheelProps) => {
   const { t: tMotion } = useMotionPrefs();
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -77,8 +83,17 @@ const SpinningWheel = ({ options, sizePx = 260, className }: SpinningWheelProps)
     spinTimeoutRef.current = setTimeout(() => {
       setWinner(options[targetSliceIdx]);
       setSpinning(false);
+      onWinner?.(options[targetSliceIdx]);
     }, 4000);
   };
+
+  // A caller-driven spin (bare mode) — the latest `spin` closure, so it sees
+  // the current rotation rather than the one from the first render.
+  const spinRef = useRef(spin);
+  spinRef.current = spin;
+  useEffect(() => {
+    if (spinSignal) spinRef.current();
+  }, [spinSignal]);
 
   if (options.length < 2) {
     return (
@@ -92,90 +107,96 @@ const SpinningWheel = ({ options, sizePx = 260, className }: SpinningWheelProps)
     );
   }
 
+  const wheel = (
+    <div className="relative" style={{ width: sizePx, height: sizePx }}>
+      {/* Top pointer — apex points down into the wheel at 12 o'clock. */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[2px] z-10">
+        <div
+          className="w-0 h-0"
+          style={{
+            borderLeft: "11px solid transparent",
+            borderRight: "11px solid transparent",
+            borderTop: "18px solid #f0b542",
+            filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
+          }}
+        />
+      </div>
+
+      <motion.div
+        className="w-full h-full rounded-full overflow-hidden shadow-[0_0_0_4px_rgba(255,255,255,0.08)]"
+        animate={{ rotate: rotation }}
+        transition={{
+          duration: spinning ? 4 : 0,
+          ease: [0.2, 0.85, 0.25, 1],
+        }}
+      >
+        <svg viewBox="0 0 200 200" className="w-full h-full">
+          {options.map((opt, i) => {
+            const startAngle = i * sliceAngle;
+            const endAngle = startAngle + sliceAngle;
+            // -90 so slice 0 starts at the top (12 o'clock), matching pointer.
+            const startRad = (Math.PI / 180) * (startAngle - 90);
+            const endRad = (Math.PI / 180) * (endAngle - 90);
+
+            const x1 = 100 + 100 * Math.cos(startRad);
+            const y1 = 100 + 100 * Math.sin(startRad);
+            const x2 = 100 + 100 * Math.cos(endRad);
+            const y2 = 100 + 100 * Math.sin(endRad);
+
+            const largeArc = sliceAngle > 180 ? 1 : 0;
+            const path = `M100,100 L${x1},${y1} A100,100 0 ${largeArc},1 ${x2},${y2} Z`;
+
+            const midAngle = startAngle + sliceAngle / 2;
+            const midRad = (Math.PI / 180) * (midAngle - 90);
+            // Pull the label toward the rim so wider chords give more room,
+            // but keep padding from the very edge.
+            const labelR = 60;
+            const labelX = 100 + labelR * Math.cos(midRad);
+            const labelY = 100 + labelR * Math.sin(midRad);
+
+            const lines = wrapLabel(opt);
+            const fontSize = lines.length >= 3 ? 7.5 : options.length > 6 ? 8 : 9;
+            const lineHeight = fontSize * 1.15;
+            const firstDy = -((lines.length - 1) / 2) * lineHeight;
+
+            return (
+              <g key={i}>
+                <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="#1a0a2e" strokeWidth={1.25} />
+                <text
+                  x={labelX}
+                  y={labelY}
+                  fill="white"
+                  fontSize={fontSize}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{ paintOrder: "stroke" }}
+                  stroke="rgba(0,0,0,0.35)"
+                  strokeWidth={0.5}
+                >
+                  {lines.map((line, li) => (
+                    <tspan key={li} x={labelX} dy={li === 0 ? firstDy : lineHeight}>
+                      {line}
+                    </tspan>
+                  ))}
+                </text>
+              </g>
+            );
+          })}
+          {/* Hub */}
+          <circle cx={100} cy={100} r={15} fill="#1a0a2e" />
+          <circle cx={100} cy={100} r={10} fill="#271447" />
+        </svg>
+      </motion.div>
+    </div>
+  );
+
+  if (bare) return <div className={className}>{wheel}</div>;
+
   return (
     <div className={cn("flex flex-col items-center gap-3", className)}>
       {/* Pointer + wheel */}
-      <div className="relative" style={{ width: sizePx, height: sizePx }}>
-        {/* Top pointer — apex points down into the wheel at 12 o'clock. */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[2px] z-10">
-          <div
-            className="w-0 h-0"
-            style={{
-              borderLeft: "11px solid transparent",
-              borderRight: "11px solid transparent",
-              borderTop: "18px solid #f0b542",
-              filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
-            }}
-          />
-        </div>
-
-        <motion.div
-          className="w-full h-full rounded-full overflow-hidden shadow-[0_0_0_4px_rgba(255,255,255,0.08)]"
-          animate={{ rotate: rotation }}
-          transition={{
-            duration: spinning ? 4 : 0,
-            ease: [0.2, 0.85, 0.25, 1],
-          }}
-        >
-          <svg viewBox="0 0 200 200" className="w-full h-full">
-            {options.map((opt, i) => {
-              const startAngle = i * sliceAngle;
-              const endAngle = startAngle + sliceAngle;
-              // -90 so slice 0 starts at the top (12 o'clock), matching pointer.
-              const startRad = (Math.PI / 180) * (startAngle - 90);
-              const endRad = (Math.PI / 180) * (endAngle - 90);
-
-              const x1 = 100 + 100 * Math.cos(startRad);
-              const y1 = 100 + 100 * Math.sin(startRad);
-              const x2 = 100 + 100 * Math.cos(endRad);
-              const y2 = 100 + 100 * Math.sin(endRad);
-
-              const largeArc = sliceAngle > 180 ? 1 : 0;
-              const path = `M100,100 L${x1},${y1} A100,100 0 ${largeArc},1 ${x2},${y2} Z`;
-
-              const midAngle = startAngle + sliceAngle / 2;
-              const midRad = (Math.PI / 180) * (midAngle - 90);
-              // Pull the label toward the rim so wider chords give more room,
-              // but keep padding from the very edge.
-              const labelR = 60;
-              const labelX = 100 + labelR * Math.cos(midRad);
-              const labelY = 100 + labelR * Math.sin(midRad);
-
-              const lines = wrapLabel(opt);
-              const fontSize = lines.length >= 3 ? 7.5 : options.length > 6 ? 8 : 9;
-              const lineHeight = fontSize * 1.15;
-              const firstDy = -((lines.length - 1) / 2) * lineHeight;
-
-              return (
-                <g key={i}>
-                  <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="#1a0a2e" strokeWidth={1.25} />
-                  <text
-                    x={labelX}
-                    y={labelY}
-                    fill="white"
-                    fontSize={fontSize}
-                    fontWeight={700}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    style={{ paintOrder: "stroke" }}
-                    stroke="rgba(0,0,0,0.35)"
-                    strokeWidth={0.5}
-                  >
-                    {lines.map((line, li) => (
-                      <tspan key={li} x={labelX} dy={li === 0 ? firstDy : lineHeight}>
-                        {line}
-                      </tspan>
-                    ))}
-                  </text>
-                </g>
-              );
-            })}
-            {/* Hub */}
-            <circle cx={100} cy={100} r={15} fill="#1a0a2e" />
-            <circle cx={100} cy={100} r={10} fill="#271447" />
-          </svg>
-        </motion.div>
-      </div>
+      {wheel}
 
       {/* Winner announcement */}
       <div className="min-h-[28px] flex items-center">

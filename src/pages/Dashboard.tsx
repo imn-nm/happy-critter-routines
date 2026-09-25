@@ -248,7 +248,7 @@ const Dashboard = () => {
         <OnboardingSlides
           open={showOnboarding}
           onDone={dismissOnboarding}
-          finishLabel="Add your first child"
+          finishLabel="Add your child"
           onFinish={() => navigate("/setup")}
         />
         <div className="max-w-sm mx-auto text-center pt-24">
