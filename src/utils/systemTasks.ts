@@ -66,6 +66,20 @@ export const systemTaskTemplates: SystemTaskTemplate[] = [
   }
 ];
 
+/**
+ * Built-in rows are recognised by their exact name, so these names are
+ * reserved: a parent's own task can't use one (the database enforces one row
+ * per name per child, see 20260925000001_atomic_stars.sql).
+ */
+export const SYSTEM_TASK_NAMES = systemTaskTemplates.map(t => t.name);
+
+export const isSystemTaskName = (name?: string | null) =>
+  !!name && SYSTEM_TASK_NAMES.includes(name);
+
+/** The built-in name a typed name would collide with, ignoring case and spaces. */
+export const reservedTaskName = (name: string) =>
+  SYSTEM_TASK_NAMES.find(n => n.toLowerCase() === name.trim().toLowerCase());
+
 export const createSystemTasksForChild = async (childId: string) => {
   const tasksToCreate = systemTaskTemplates.map((template, index) => ({
     child_id: childId,
@@ -132,59 +146,22 @@ export const updateSystemTaskForChild = async (
   return data;
 };
 
-export const cleanupDuplicateSystemTasks = async (childId: string) => {
-  const existingTasks = await getSystemTasksForChild(childId);
-  
-  // Group tasks by name
-  const tasksByName: { [name: string]: any[] } = {};
-  existingTasks.forEach(task => {
-    if (!tasksByName[task.name]) {
-      tasksByName[task.name] = [];
-    }
-    tasksByName[task.name].push(task);
-  });
-  
-  // Find duplicates and keep only the first one
-  const tasksToDelete: string[] = [];
-  Object.values(tasksByName).forEach(tasks => {
-    if (tasks.length > 1) {
-      // Keep the first task, delete the rest
-      tasks.slice(1).forEach(task => {
-        tasksToDelete.push(task.id);
-      });
-    }
-  });
-  
-  if (tasksToDelete.length > 0) {
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .in('id', tasksToDelete);
-      
-    if (error) {
-      console.error('Error removing duplicate system tasks:', error);
-      throw error;
-    }
-  }
-};
-
+/**
+ * Create any built-in rows this child is missing. Runs each time a child
+ * screen opens, so two devices can race: the database allows one row per
+ * name, and the loser's insert is simply ignored. Nothing is ever deleted
+ * here, a cleanup that used to remove "duplicates" could take a parent's own
+ * task with its history.
+ */
 export const ensureSystemTasksExist = async (childId: string) => {
-  // First cleanup any duplicates
-  await cleanupDuplicateSystemTasks(childId);
-  
-  // Check if system tasks already exist
   const existingTasks = await getSystemTasksForChild(childId);
   const existingTaskNames = existingTasks.map(task => task.name);
-  
-  
-  // Create missing system tasks
   const missingTemplates = systemTaskTemplates.filter(
     template => !existingTaskNames.includes(template.name)
   );
-  
-  
-  if (missingTemplates.length > 0) {
-    const tasksToCreate = missingTemplates.map((template, index) => ({
+
+  for (const [index, template] of missingTemplates.entries()) {
+    const { error } = await supabase.from('tasks').insert({
       child_id: childId,
       name: template.name,
       type: template.type,
@@ -195,20 +172,13 @@ export const ensureSystemTasksExist = async (childId: string) => {
       recurring_days: template.defaultDays,
       description: template.description,
       sort_order: existingTasks.length + index,
-      is_active: true
-    }));
-
-
-    const { error } = await supabase
-      .from('tasks')
-      .insert(tasksToCreate);
-
-    if (error) {
-      console.error('Error creating missing system tasks:', error);
+      is_active: true,
+    });
+    // 23505: another device created it first.
+    if (error && error.code !== '23505') {
+      console.error('Error creating missing system task:', error);
       throw error;
     }
-    
-  } else {
   }
 };
 

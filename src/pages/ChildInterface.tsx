@@ -36,6 +36,7 @@ import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/sys
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
+import { lockParentMode } from "@/lib/parentLock";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
 import { AnimatePresence, motion } from "framer-motion";
 import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants } from "@/lib/motion";
@@ -95,6 +96,10 @@ const ChildInterface = ({ childId: propChildId }: ChildInterfaceProps = {}) => {
       return {};
     }
   });
+
+  // This device is showing a child's screen now: the grown-up side needs the
+  // parent PIN again (if one is set).
+  useEffect(() => { lockParentMode(); }, []);
 
   useEffect(() => {
     try {

@@ -4,6 +4,25 @@ import { useToast } from '@/hooks/use-toast';
 import { TaskCompletion } from '@/types/Task';
 import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
+import { broadcastCoins } from '@/utils/coinSync';
+
+/** What a mark-done / undo did. `starsBack` is what an undo took back. */
+export type ToggleResult = { done: boolean; starsBack: number } | null;
+
+/**
+ * The completion row for a task on a date. There is at most one: the
+ * database keeps one "done" per task per day, so an insert that loses a race
+ * (a double tap, or the other device) can look up the winner with this.
+ */
+export const fetchCompletionFor = async (taskId: string, date: string): Promise<TaskCompletion | null> => {
+  const { data } = await supabase
+    .from('task_completions')
+    .select('*')
+    .eq('task_id', taskId)
+    .eq('date', date)
+    .maybeSingle();
+  return (data as TaskCompletion | null) ?? null;
+};
 
 export const useCompletions = (childId?: string) => {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
@@ -43,9 +62,12 @@ export const useCompletions = (childId?: string) => {
     }
   };
 
-  /** Mark done / undo for a date. Resolves true when the change was saved. */
-  const toggleCompletion = async (taskId: string, dateOrDay?: Date | string): Promise<boolean> => {
-    if (!childId) return false;
+  /**
+   * Mark done / undo for a date. Resolves to what happened, or null when
+   * nothing was saved (failed, or the same toggle is already in flight).
+   */
+  const toggleCompletion = async (taskId: string, dateOrDay?: Date | string): Promise<ToggleResult> => {
+    if (!childId) return null;
 
     // Determine target date (defaults to today in PST). Accepts Date or 'YYYY-MM-DD'.
     const formatDateLocal = (d: Date) =>
@@ -55,50 +77,54 @@ export const useCompletions = (childId?: string) => {
       : getPSTDateString();
 
     const toggleKey = `${taskId}:${targetDate}`;
-    if (pendingToggles.current.has(toggleKey)) return false;
+    if (pendingToggles.current.has(toggleKey)) return null;
     pendingToggles.current.add(toggleKey);
 
     try {
-      // Check if task is already completed for the target date
       const existingCompletion = completions.find(
-        completion => completion.task_id === taskId && 
+        completion => completion.task_id === taskId &&
         completion.date === targetDate
       );
 
-      console.log('useCompletions: existingCompletion', existingCompletion);
-
       if (existingCompletion) {
-        // Remove completion
-        console.log('useCompletions: Deleting completion', existingCompletion.id);
-        const { error } = await supabase
-          .from('task_completions')
-          .delete()
-          .eq('id', existingCompletion.id);
-
+        // Undo: delete it and take back the stars it carried in one step, so
+        // two parents (or a stale screen) can't take them back twice.
+        const { data, error } = await supabase.rpc('undo_task_completion', {
+          p_completion_id: existingCompletion.id,
+        });
         if (error) throw error;
-        
         setCompletions(prev => prev.filter(c => c.id !== existingCompletion.id));
-        console.log('useCompletions: Completion deleted successfully');
-      } else {
-        // Add completion for the target date
-        console.log('useCompletions: Inserting completion', { taskId, targetDate, childId });
-        const { data, error } = await supabase
-          .from('task_completions')
-          .insert([{
-            child_id: childId,
-            task_id: taskId,
-            completed_at: new Date().toISOString(),
-            date: targetDate,
-            coins_earned: 0, // Will be updated based on task
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
-        console.log('useCompletions: Completion inserted successfully', data);
+        const undone = data as { stars_back: number; balance: number } | null;
+        if (undone && undone.stars_back > 0) broadcastCoins({ childId, balance: undone.balance });
+        return { done: false, starsBack: undone?.stars_back ?? 0 };
       }
-      return true;
+
+      const { data, error } = await supabase
+        .from('task_completions')
+        .insert([{
+          child_id: childId,
+          task_id: taskId,
+          completed_at: new Date().toISOString(),
+          date: targetDate,
+          coins_earned: 0, // Stars come later, from Give ★.
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        // Already done for that day (the child or the other parent got there
+        // first): show that row rather than an error.
+        if (error.code === '23505') {
+          const existing = await fetchCompletionFor(taskId, targetDate);
+          if (existing) {
+            setCompletions(prev => prev.some(c => c.id === existing.id) ? prev : [...prev, existing]);
+            return { done: true, starsBack: 0 };
+          }
+        }
+        throw error;
+      }
+      setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
+      return { done: true, starsBack: 0 };
     } catch (error) {
       console.error('Error toggling completion:', error);
       toast({
@@ -106,35 +132,27 @@ export const useCompletions = (childId?: string) => {
         description: "Failed to update task completion",
         variant: "destructive",
       });
-      return false;
+      return null;
     } finally {
       pendingToggles.current.delete(toggleKey);
     }
   };
 
   /**
-   * Record that a parent gave `stars` for this completion. Only succeeds
+   * Give `stars` for this completion and pay them, in one step. Only succeeds
    * while none have been given yet, so two parents (or a double-tap) can't
-   * give twice. Resolves true when this call recorded them.
+   * give twice. Resolves true when this call gave them.
    */
   const giveStars = async (completionId: string, stars: number): Promise<boolean> => {
-    const { data, error } = await supabase
-      .from('task_completions')
-      .update({ coins_earned: stars })
-      .eq('id', completionId)
-      .eq('coins_earned', 0)
-      .select()
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('give_completion_stars', {
+      p_completion_id: completionId,
+      p_stars: stars,
+    });
     if (error) throw error;
-    if (!data) return false;
-    setCompletions(prev => prev.map(c => (c.id === completionId ? data : c)));
+    if (data === null) return false;
+    setCompletions(prev => prev.map(c => (c.id === completionId ? { ...c, coins_earned: stars } : c)));
+    if (childId) broadcastCoins({ childId, balance: data as number });
     return true;
-  };
-
-  /** Clear a recorded gift (used when giving the stars themselves failed). */
-  const clearStarsGiven = async (completionId: string) => {
-    await supabase.from('task_completions').update({ coins_earned: 0 }).eq('id', completionId);
-    setCompletions(prev => prev.map(c => (c.id === completionId ? { ...c, coins_earned: 0 } : c)));
   };
 
   useEffect(() => {
@@ -188,7 +206,6 @@ export const useCompletions = (childId?: string) => {
     loading,
     toggleCompletion,
     giveStars,
-    clearStarsGiven,
     refetch: fetchCompletions,
   };
 };

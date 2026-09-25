@@ -17,6 +17,7 @@ import PetAvatar from "@/components/PetAvatar";
 import CritterPicker from "@/components/critters/CritterPicker";
 import { getPet, type PetId } from "@/components/pets/petCatalog";
 import HouseholdSettings from "@/components/HouseholdSettings";
+import ParentPinSettings from "@/components/ParentPinSettings";
 import CalendarConnect from "@/components/CalendarConnect";
 import { Switch } from "@/components/ui/switch";
 import { soundsEnabled, setSoundsEnabled } from "@/lib/sounds";
@@ -42,6 +43,7 @@ const ParentSettings = () => {
   const email = user?.email ?? "";
 
   const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   return (
     <div className="min-h-dvh pb-sp-8">
@@ -110,13 +112,28 @@ const ParentSettings = () => {
 
           <button
             type="button"
-            onClick={async () => { await signOut(); navigate("/"); }}
+            onClick={() => setConfirmSignOut(true)}
             className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-coral-400 hover:underline"
           >
             <LogOut className="w-4 h-4" />
             Sign out
           </button>
         </section>
+
+        <Dialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Sign out of this device?</DialogTitle>
+            </DialogHeader>
+            <p className="text-14 text-fog-200">
+              Your child's screen and your other devices stay signed in.
+            </p>
+            <DialogFooter className="gap-sp-2 pt-sp-2">
+              <Button type="button" variant="secondary" onClick={() => setConfirmSignOut(false)}>Cancel</Button>
+              <Button type="button" onClick={async () => { await signOut(); navigate("/"); }}>Sign out</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Sounds — per device, so set it on the child's screen itself. */}
         <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-2">
@@ -130,6 +147,8 @@ const ParentSettings = () => {
         </section>
 
         <HouseholdSettings />
+
+        <ParentPinSettings />
         <CalendarConnect />
 
         {/* Children */}

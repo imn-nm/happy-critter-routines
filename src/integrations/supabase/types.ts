@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -31,6 +31,7 @@ export type Database = {
           dinner_duration: number | null
           dinner_schedule_overrides: Json | null
           dinner_time: string | null
+          household_id: string
           id: string
           lunch_days: string[] | null
           lunch_duration: number | null
@@ -42,12 +43,12 @@ export type Database = {
           pet_outfit: Json | null
           pet_type: string
           rest_day_date: string | null
-          spinning_wheel_options: Json | null
           school_days: string[] | null
           school_duration: number | null
           school_end_time: string | null
           school_schedule_overrides: Json | null
           school_start_time: string | null
+          spinning_wheel_options: Json | null
           system_date_overrides: Json | null
           updated_at: string
           wake_days: string[] | null
@@ -71,6 +72,7 @@ export type Database = {
           dinner_duration?: number | null
           dinner_schedule_overrides?: Json | null
           dinner_time?: string | null
+          household_id: string
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
@@ -82,12 +84,12 @@ export type Database = {
           pet_outfit?: Json | null
           pet_type: string
           rest_day_date?: string | null
-          spinning_wheel_options?: Json | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
           school_schedule_overrides?: Json | null
           school_start_time?: string | null
+          spinning_wheel_options?: Json | null
           system_date_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
@@ -111,6 +113,7 @@ export type Database = {
           dinner_duration?: number | null
           dinner_schedule_overrides?: Json | null
           dinner_time?: string | null
+          household_id?: string
           id?: string
           lunch_days?: string[] | null
           lunch_duration?: number | null
@@ -122,12 +125,12 @@ export type Database = {
           pet_outfit?: Json | null
           pet_type?: string
           rest_day_date?: string | null
-          spinning_wheel_options?: Json | null
           school_days?: string[] | null
           school_duration?: number | null
           school_end_time?: string | null
           school_schedule_overrides?: Json | null
           school_start_time?: string | null
+          spinning_wheel_options?: Json | null
           system_date_overrides?: Json | null
           updated_at?: string
           wake_days?: string[] | null
@@ -136,6 +139,13 @@ export type Database = {
           wake_time?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "children_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "children_parent_id_fkey"
             columns: ["parent_id"]
@@ -180,14 +190,102 @@ export type Database = {
           },
         ]
       }
+      google_calendar_connections: {
+        Row: {
+          access_token: string | null
+          access_token_expires_at: string | null
+          calendar_id: string | null
+          connected_at: string
+          connected_by: string | null
+          google_email: string | null
+          google_user_id: string
+          household_id: string
+          refresh_token: string
+          scope: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          calendar_id?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          google_email?: string | null
+          google_user_id: string
+          household_id: string
+          refresh_token: string
+          scope?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          calendar_id?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          google_email?: string | null
+          google_user_id?: string
+          household_id?: string
+          refresh_token?: string
+          scope?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_events: {
+        Row: {
+          google_event_id: string
+          household_id: string
+          last_synced_at: string
+          source_id: string
+          source_table: string
+          user_id: string
+        }
+        Insert: {
+          google_event_id: string
+          household_id: string
+          last_synced_at?: string
+          source_id: string
+          source_table: string
+          user_id: string
+        }
+        Update: {
+          google_event_id?: string
+          household_id?: string
+          last_synced_at?: string
+          source_id?: string
+          source_table?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_events_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       holidays: {
         Row: {
           child_id: string
           color: string
           created_at: string
           date: string
-          end_date: string | null
           description: string | null
+          end_date: string | null
           id: string
           is_no_school: boolean
           name: string
@@ -198,8 +296,8 @@ export type Database = {
           color?: string
           created_at?: string
           date: string
-          end_date?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           is_no_school?: boolean
           name: string
@@ -210,8 +308,8 @@ export type Database = {
           color?: string
           created_at?: string
           date?: string
-          end_date?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           is_no_school?: boolean
           name?: string
@@ -226,6 +324,106 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      household_invites: {
+        Row: {
+          created_at: string
+          email: string | null
+          expires_at: string
+          household_id: string
+          id: string
+          invited_by: string | null
+          redeemed_at: string | null
+          redeemed_by: string | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          household_id: string
+          id?: string
+          invited_by?: string | null
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          token: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          household_id?: string
+          id?: string
+          invited_by?: string | null
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_invites_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_members: {
+        Row: {
+          created_at: string
+          household_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          household_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          household_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_members_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      households: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          parent_pin: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          parent_pin?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          parent_pin?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       parent_events: {
         Row: {
@@ -476,9 +674,11 @@ export type Database = {
           child_id: string
           coins: number
           created_at: string
+          date_overrides: Json | null
           description: string | null
           duration: number | null
           excluded_dates: string[] | null
+          icon: string | null
           id: string
           is_active: boolean
           is_fun_time: boolean | null
@@ -491,20 +691,20 @@ export type Database = {
           sort_order: number
           subtasks: Json | null
           task_date: string | null
-          date_overrides: Json | null
           type: string
           updated_at: string
           window_end: string | null
           window_start: string | null
-          icon: string | null
         }
         Insert: {
           child_id: string
           coins?: number
           created_at?: string
+          date_overrides?: Json | null
           description?: string | null
           duration?: number | null
           excluded_dates?: string[] | null
+          icon?: string | null
           id?: string
           is_active?: boolean
           is_fun_time?: boolean | null
@@ -517,20 +717,20 @@ export type Database = {
           sort_order?: number
           subtasks?: Json | null
           task_date?: string | null
-          date_overrides?: Json | null
           type: string
           updated_at?: string
           window_end?: string | null
           window_start?: string | null
-          icon?: string | null
         }
         Update: {
           child_id?: string
           coins?: number
           created_at?: string
+          date_overrides?: Json | null
           description?: string | null
           duration?: number | null
           excluded_dates?: string[] | null
+          icon?: string | null
           id?: string
           is_active?: boolean
           is_fun_time?: boolean | null
@@ -543,12 +743,10 @@ export type Database = {
           sort_order?: number
           subtasks?: Json | null
           task_date?: string | null
-          date_overrides?: Json | null
           type?: string
           updated_at?: string
           window_end?: string | null
           window_start?: string | null
-          icon?: string | null
         }
         Relationships: [
           {
@@ -562,10 +760,74 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      google_calendar_status: {
+        Row: {
+          calendar_id: string | null
+          connected_at: string | null
+          google_email: string | null
+          household_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          calendar_id?: string | null
+          connected_at?: string | null
+          google_email?: string | null
+          household_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          calendar_id?: string | null
+          connected_at?: string | null
+          google_email?: string | null
+          household_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      adjust_child_coins: {
+        Args: { p_child_id: string; p_delta: number }
+        Returns: number
+      }
+      approve_reward_purchase: {
+        Args: { p_purchase_id: string }
+        Returns: Json
+      }
+      get_google_calendar_status: {
+        Args: { hid: string }
+        Returns: {
+          calendar_id: string
+          connected_at: string
+          google_email: string
+          household_id: string
+        }[]
+      }
+      give_completion_stars: {
+        Args: { p_completion_id: string; p_stars: number }
+        Returns: number
+      }
+      is_household_member: { Args: { hid: string }; Returns: boolean }
+      is_household_owner: { Args: { hid: string }; Returns: boolean }
+      redeem_household_invite: {
+        Args: { invite_token: string }
+        Returns: string
+      }
+      redeem_reward_for_child: { Args: { p_reward_id: string }; Returns: Json }
+      refund_reward_purchase: { Args: { p_purchase_id: string }; Returns: Json }
+      shares_household_with: { Args: { other_user: string }; Returns: boolean }
+      undo_task_completion: { Args: { p_completion_id: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
@@ -584,12 +846,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -613,11 +875,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -638,11 +900,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -663,11 +925,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -680,11 +942,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

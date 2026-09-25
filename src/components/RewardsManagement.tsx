@@ -93,7 +93,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
     try {
       // Atomic deduction via the RPC; the parent's balance display updates
       // through the children realtime feed.
-      await redeemForChild(reward.id, reward.cost);
+      await redeemForChild(reward.id);
 
       toast.success(`${child.name} purchased: ${reward.name}!`, {
         description: `Spent ${reward.cost} stars`,
@@ -101,7 +101,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
       });
     } catch (error) {
       console.error('Error purchasing reward:', error);
-      toast.error("Failed to purchase reward. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to purchase reward. Please try again.");
     } finally {
       setRedeemingId(null);
     }
@@ -143,7 +143,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
       });
     } catch (error) {
       console.error('Error approving purchase:', error);
-      toast.error("Failed to approve purchase.");
+      toast.error(error instanceof Error ? error.message : "Failed to approve purchase.");
     } finally {
       setProcessingId(null);
     }
@@ -161,7 +161,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
       });
     } catch (error) {
       console.error('Error denying purchase:', error);
-      toast.error("Failed to deny purchase.");
+      toast.error(error instanceof Error ? error.message : "Failed to deny purchase.");
     } finally {
       setProcessingId(null);
     }
@@ -176,7 +176,7 @@ const RewardsManagement = ({ child }: RewardsManagementProps) => {
       });
     } catch (error) {
       console.error('Error undoing redemption:', error);
-      toast.error("Couldn't undo that. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Couldn't undo that. Please try again.");
     } finally {
       setProcessingId(null);
     }

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { getMyHouseholdId } from '@/utils/household';
 
 export interface Household {
   id: string;
@@ -32,29 +33,18 @@ export const useHousehold = () => {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const { data: household, isLoading } = useQuery({
+  const { data: household, isLoading, isSuccess, isError, refetch } = useQuery({
     queryKey: ['household', user?.id],
     enabled: !!user,
-    retry: false,
+    retry: 2,
     queryFn: async (): Promise<Household | null> => {
-      // Find the current user's household (we assume one for now).
-      const { data: memberships, error } = await supabase
-        .from('household_members')
-        .select('household_id, role')
-        .eq('user_id', user!.id)
-        .limit(1);
-      // If the table doesn't exist yet (migrations not applied), treat as
-      // "no household" so the app can still boot. Real errors still surface.
-      if (error) {
-        if (/relation .* does not exist|schema cache/i.test(error.message)) return null;
-        throw error;
-      }
-      if (!memberships?.length) return null;
+      const householdId = await getMyHouseholdId(user!.id);
+      if (!householdId) return null;
 
       const { data: h, error: hErr } = await supabase
         .from('households')
         .select('*')
-        .eq('id', memberships[0].household_id)
+        .eq('id', householdId)
         .single();
       if (hErr) throw hErr;
       return h as Household;
@@ -94,9 +84,10 @@ export const useHousehold = () => {
   });
 
   const setParentPin = useMutation({
-    mutationFn: async (pin: string) => {
+    // null turns the PIN off.
+    mutationFn: async (pin: string | null) => {
       if (!household) throw new Error('no household');
-      if (!/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
+      if (pin !== null && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
       const { error } = await supabase
         .from('households')
         .update({ parent_pin: pin, updated_at: new Date().toISOString() })
@@ -151,6 +142,11 @@ export const useHousehold = () => {
     household,
     members,
     isLoading,
+    /** The lookup finished without an error (so a null household really is none). */
+    isSuccess,
+    /** The lookup failed (after retries). */
+    isError,
+    refetchHousehold: refetch,
     createHousehold: createHousehold.mutateAsync,
     createInvite: createInvite.mutateAsync,
     redeemInvite: redeemInvite.mutateAsync,

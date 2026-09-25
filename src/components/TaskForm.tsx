@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { formatDuration as formatDurationLabel } from "@/utils/formatDuration";
 import { type Task, type Subtask } from "@/types/Task";
+import { isSystemTaskName, reservedTaskName } from "@/utils/systemTasks";
 
 interface TaskFormProps {
   task?: Task;
@@ -109,7 +110,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const isSystemEvent = task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  // Built-in rows (Wake Up, Breakfast, School, Lunch, Dinner, Bedtime) keep
+  // their time, length and days in the child's profile, so they get the short
+  // form: no rename, stars, type, checklist or delete that would be dropped.
+  const isSystemEvent =
+    (!!task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ||
+    (isEdit && isSystemTaskName(task?.name));
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
 
@@ -264,7 +270,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const needsDays = formData.isRecurring && formData.recurringDays.length === 0;
-  const canSubmit = formData.name.trim().length > 0 && !needsDays;
+  // A parent's own task can't take a built-in row's name: the app would treat
+  // it as that row.
+  const nameClash = isSystemEvent ? undefined : reservedTaskName(formData.name);
+  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash;
 
   // Never hide the reason submit is disabled.
   const moreOpen = showMore || needsDays;
@@ -395,9 +404,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           onKeyDown={(e) => e.stopPropagation()}
           placeholder={isChore ? "e.g. Clean room" : "e.g. Homework"}
           required
+          disabled={!!isSystemEvent}
+          aria-invalid={!!nameClash}
+          aria-describedby={nameClash ? "taskNameClash" : undefined}
           className="rounded-pill flex-1 min-w-0"
         />
       </div>
+      {nameClash && (
+        <p id="taskNameClash" className="text-xs text-coral-300 -mt-1 px-1 leading-snug">
+          {nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "{nameClash} at Grandma's".
+        </p>
+      )}
 
       {/* === WHEN === */}
       {!isChore ? (
@@ -531,7 +548,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         <CollapsibleContent className="space-y-3 pt-1">
           {/* Repeat — the switch that gates the only other required field, so
               it finally says what it does. */}
-          {!isChore && (
+          {!isChore && !isSystemEvent && (
             <FormRow label="Repeat" htmlFor="isRecurring" hint="Runs again on the days you pick.">
               <Switch
                 id="isRecurring"
@@ -582,7 +599,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
           {/* How it works — Normal / Must finish / Free time. One choice, so
               the exclusivity is visible instead of two switches fighting. */}
-          {!isChore && (
+          {!isChore && !isSystemEvent && (
             <div className="w-full min-w-0">
               <Label className="text-sm text-muted-foreground">How it works</Label>
               <SegmentedField
@@ -600,7 +617,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
           {/* Stars — never earned automatically. This is what the parent gives
               with one tap (Give ★) once the task or chore is done. */}
-          {(isChore || behavior !== 'fun') && (
+          {!isSystemEvent && (isChore || behavior !== 'fun') && (
           <FormRow
             label="Stars"
             hint="You give these once it's done: tap Give ★ on their Schedule. Spent in the Rewards shop."
@@ -644,7 +661,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           )}
 
           {/* Checklist — task mode only */}
-          {!isChore && (
+          {!isChore && !isSystemEvent && (
             <div className="w-full min-w-0">
               <div className="flex items-center h-10 w-full min-w-0 gap-2">
                 <Label className="text-sm text-muted-foreground w-20 sm:w-24 flex-shrink-0">Checklist</Label>

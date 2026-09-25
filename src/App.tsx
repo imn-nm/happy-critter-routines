@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AuthProvider from "@/components/AuthProvider";
+import ParentGate from "@/components/ParentGate";
 import ImportantTaskNotifier from "@/components/ImportantTaskNotifier";
 import RewardRequestNotifier from "@/components/RewardRequestNotifier";
 import MissedImportantNotifier from "@/components/MissedImportantNotifier";
@@ -57,13 +58,17 @@ const ProtectedRoutes = () => (
     <Route path="/" element={<ChildNameGate />} />
     <Route path="/landing" element={<Index />} />
     <Route path="/dashboard" element={<Navigate to="/parent" replace />} />
-    <Route path="/parent" element={<Dashboard />} />
-    <Route path="/setup" element={<ChildSetup />} />
-    <Route path="/settings" element={<ParentSettings />} />
     <Route path="/child/:childId" element={<ChildInterface />} />
-    <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
-    <Route path="/tasks" element={<TaskManagement />} />
-    <Route path="/reports/:childId" element={<Reports />} />
+    {/* Grown-up side: behind the parent PIN once a child's screen has been
+        open on this device. */}
+    <Route element={<ParentGate />}>
+      <Route path="/parent" element={<Dashboard />} />
+      <Route path="/setup" element={<ChildSetup />} />
+      <Route path="/settings" element={<ParentSettings />} />
+      <Route path="/child-dashboard/:childId" element={<ChildDashboard />} />
+      <Route path="/tasks" element={<TaskManagement />} />
+      <Route path="/reports/:childId" element={<Reports />} />
+    </Route>
     {DEV_TOOLS && (
       <>
         <Route path="/preview/checklist" element={<ChecklistPreview />} />

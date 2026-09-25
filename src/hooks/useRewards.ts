@@ -37,59 +37,54 @@ export interface RewardPurchase {
 export const isApprovedStatus = (s: string) => s === 'approved' || s === 'completed';
 
 /**
- * Approve a pending request: flip the status, then deduct stars through the
- * atomic adjust_child_coins RPC. The status update is conditional on
- * status='pending' so two parents tapping Approve at once can't deduct twice.
+ * The star functions raise fixed codes (see 20260925000001_atomic_stars.sql).
+ * Turn them into a sentence a parent can act on.
+ */
+export const starErrorMessage = (error: unknown): string => {
+  const e = error as { message?: string; details?: string } | null;
+  const msg = e?.message ?? '';
+  if (msg.includes('not_enough_stars')) {
+    const have = Number(e?.details);
+    return Number.isFinite(have)
+      ? `Not enough stars yet: only ${have} saved.`
+      : 'Not enough stars for that yet.';
+  }
+  if (msg.includes('already_handled')) return 'This was already handled.';
+  if (msg.includes('reward_not_found')) return 'That reward is no longer in the shop.';
+  return "Couldn't save that. Please try again.";
+};
+
+export const isAlreadyHandled = (error: unknown) =>
+  error instanceof Error && error.message === starErrorMessage({ message: 'already_handled' });
+
+type StarResult = { purchase: RewardPurchase; balance: number };
+
+/**
+ * Approve a pending request. One database call checks the balance, flips the
+ * status and takes the stars together, so a dropped request can't leave it
+ * approved but unpaid, and two parents tapping Approve can't both succeed.
  * Shared by every parent surface so there is exactly one deduction path.
  */
 export const approveRewardPurchase = async (purchaseId: string) => {
-  const { data: updated, error } = await supabase
-    .from('reward_purchases')
-    .update({ status: 'approved' })
-    .eq('id', purchaseId)
-    .eq('status', 'pending')
-    .select()
-    .maybeSingle();
-  if (error) throw error;
-  if (!updated) throw new Error('This request was already handled.');
-
-  const { data: balance, error: coinErr } = await supabase.rpc('adjust_child_coins', {
-    p_child_id: updated.child_id,
-    p_delta: -updated.coins_spent,
-  });
-  if (coinErr) throw coinErr;
+  const { data, error } = await supabase.rpc('approve_reward_purchase', { p_purchase_id: purchaseId });
+  if (error) throw new Error(starErrorMessage(error));
+  const { purchase, balance } = data as StarResult;
   // Show the new balance everywhere now, not when realtime gets round to it.
-  broadcastCoins({ childId: updated.child_id, balance: balance as number });
-  return updated as RewardPurchase;
+  broadcastCoins({ childId: purchase.child_id, balance });
+  return purchase;
 };
 
 /**
  * Undo a redemption: the stars go back to the child and the reward leaves
  * their "Mine" shelf. The row is kept as 'refunded' so star history still adds
- * up. The status flip is conditional so a double-tap can't refund twice.
+ * up. Status and refund happen together, so a double-tap can't refund twice.
  */
 export const refundRewardPurchase = async (purchaseId: string) => {
-  const { data: updated, error } = await supabase
-    .from('reward_purchases')
-    .update({ status: 'refunded' })
-    .eq('id', purchaseId)
-    .in('status', ['approved', 'completed'])
-    .select()
-    .maybeSingle();
-  if (error) throw error;
-  if (!updated) throw new Error('This redemption was already undone.');
-
-  const { data: balance, error: coinErr } = await supabase.rpc('adjust_child_coins', {
-    p_child_id: updated.child_id,
-    p_delta: updated.coins_spent,
-  });
-  if (coinErr) {
-    // Don't leave it undone without the refund.
-    await supabase.from('reward_purchases').update({ status: 'approved' }).eq('id', purchaseId);
-    throw coinErr;
-  }
-  broadcastCoins({ childId: updated.child_id, balance: balance as number });
-  return updated as RewardPurchase;
+  const { data, error } = await supabase.rpc('refund_reward_purchase', { p_purchase_id: purchaseId });
+  if (error) throw new Error(starErrorMessage(error));
+  const { purchase, balance } = data as StarResult;
+  broadcastCoins({ childId: purchase.child_id, balance });
+  return purchase;
 };
 
 /** Decline a pending request. The row is kept as 'denied' so the child sees it. */
@@ -102,7 +97,7 @@ export const denyRewardPurchase = async (purchaseId: string) => {
     .select()
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error('This request was already handled.');
+  if (!data) throw new Error(starErrorMessage({ message: 'already_handled' }));
   return data as RewardPurchase;
 };
 
@@ -285,17 +280,15 @@ export const useRewards = (childId?: string) => {
   };
 
   /**
-   * Parent redeems on the child's behalf: record an approved purchase and
-   * deduct atomically. Same coin path as approval.
+   * Parent redeems on the child's behalf: one database call records an
+   * approved purchase and takes the stars, after checking the balance.
    */
-  const redeemForChild = async (rewardId: string, cost: number) => {
-    const purchase = await purchaseReward(rewardId, cost, 'approved');
-    const { data: balance, error } = await supabase.rpc('adjust_child_coins', {
-      p_child_id: childId!,
-      p_delta: -cost,
-    });
-    if (error) throw error;
-    broadcastCoins({ childId: childId!, balance: balance as number });
+  const redeemForChild = async (rewardId: string) => {
+    const { data, error } = await supabase.rpc('redeem_reward_for_child', { p_reward_id: rewardId });
+    if (error) throw new Error(starErrorMessage(error));
+    const { purchase, balance } = data as StarResult;
+    setPurchases(prev => prev.some(p => p.id === purchase.id) ? prev : [purchase, ...prev]);
+    broadcastCoins({ childId: purchase.child_id, balance });
     return purchase;
   };
 

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
+import { fetchCompletionFor } from '@/hooks/useCompletions';
 import { format } from 'date-fns';
 
 /**
@@ -269,6 +270,7 @@ export const useTasks = (childId?: string) => {
 
   const completeTask = async (taskId: string, coinsEarned: number, durationSpent?: number) => {
     try {
+      const date = getPSTDateString();
       const { data, error } = await supabase
         .from('task_completions')
         .insert([{
@@ -276,13 +278,24 @@ export const useTasks = (childId?: string) => {
           task_id: taskId,
           coins_earned: coinsEarned,
           duration_spent: durationSpent,
-          date: getPSTDateString(),
+          date,
         }])
         .select()
         .single();
 
-      if (error) throw error;
-      
+      if (error) {
+        // Already done today (a double tap, or a parent marked it): that's
+        // the outcome the child wanted, so use the existing row.
+        if (error.code === '23505') {
+          const existing = await fetchCompletionFor(taskId, date);
+          if (existing) {
+            setCompletions(prev => prev.some(c => c.id === existing.id) ? prev : [...prev, existing]);
+            return existing;
+          }
+        }
+        throw error;
+      }
+
       setCompletions(prev => prev.some(c => c.id === data.id) ? prev : [...prev, data]);
       return data;
     } catch (error) {

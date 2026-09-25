@@ -13,19 +13,20 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
   const { user, loading, recoveryMode } = useAuth();
   // Only run household lookups once we're signed in (avoids 401s pre-auth).
   const enabled = !!user;
-  const { household, isLoading: hhLoading, createHousehold } = useHousehold();
+  const { household, isSuccess: hhLoaded, createHousehold } = useHousehold();
   const bootstrappedRef = useRef(false);
 
-  // If this user has no household yet (fresh Google sign-up, no invite),
-  // create one for them so they can start adding children right away.
+  // The signup trigger gives every new user a household; this is the backstop
+  // for accounts that predate it. Only when the lookup succeeded and found
+  // none: a failed lookup used to land here too and create a second one.
   useEffect(() => {
-    if (!enabled || hhLoading || household || bootstrappedRef.current) return;
+    if (!enabled || !hhLoaded || household || bootstrappedRef.current) return;
     bootstrappedRef.current = true;
     createHousehold('My Family').catch(() => {
       // Likely a race with another tab; useHousehold will refetch.
       bootstrappedRef.current = false;
     });
-  }, [enabled, hhLoading, household, createHousehold]);
+  }, [enabled, hhLoaded, household, createHousehold]);
 
   // Only block on household lookup briefly — if it fails (e.g. migrations not
   // applied), let the app render anyway so the user can still navigate.

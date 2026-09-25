@@ -7,7 +7,7 @@ import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, Check
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
-import { Child, useChildren } from '@/hooks/useChildren';
+import { Child } from '@/hooks/useChildren';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
@@ -604,8 +604,7 @@ const TimelineScheduleView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDateKey]);
   const { holidays, isHoliday } = useHolidays(child.id);
-  const { completions, toggleCompletion, giveStars, clearStarsGiven } = useCompletions(child.id);
-  const { adjustChildCoins } = useChildren();
+  const { completions, toggleCompletion, giveStars } = useCompletions(child.id);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -631,15 +630,14 @@ const TimelineScheduleView = ({
 
   // Mark done / undo for the selected day. Marking done never pays stars —
   // children only get stars a parent gives (handleGiveStars). Undoing takes
-  // back any stars that were given for it, so they can't be given twice.
+  // back any stars that were given for it (in the same database call), so
+  // they can't be given twice or taken back twice.
   const handleToggleCompletion = async (taskId: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
-    const completion = completions.find(c => c.task_id === taskId && c.date === dateStr);
-    const given = completion?.coins_earned ?? 0;
-    const saved = await toggleCompletion(taskId, dateStr);
-    if (saved && completion && given > 0) {
-      await adjustChildCoins(child.id, -given);
-      toast({ title: `Took back ${given} star${given === 1 ? '' : 's'}`, description: `${child.name}'s task is no longer marked done.` });
+    const result = await toggleCompletion(taskId, dateStr);
+    if (result && !result.done && result.starsBack > 0) {
+      const n = result.starsBack;
+      toast({ title: `Took back ${n} star${n === 1 ? '' : 's'}`, description: `${child.name}'s task is no longer marked done.` });
     }
   };
 
@@ -648,15 +646,9 @@ const TimelineScheduleView = ({
     const completion = completions.find(c => c.task_id === taskId && c.date === dateStr);
     if (!completion || stars <= 0) return;
     try {
-      // Recorded first and only while none are given, so a second tap or the
-      // other parent can't give the same stars again.
+      // Recorded and paid together, and only while none are given, so a
+      // second tap or the other parent can't give the same stars again.
       if (!(await giveStars(completion.id, stars))) return;
-      try {
-        await adjustChildCoins(child.id, stars);
-      } catch (error) {
-        await clearStarsGiven(completion.id);
-        throw error;
-      }
       toast({ title: `+${stars} star${stars === 1 ? '' : 's'} for ${child.name}!` });
     } catch (error) {
       console.error('Error giving stars:', error);

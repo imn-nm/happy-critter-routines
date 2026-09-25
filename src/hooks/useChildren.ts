@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
 import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
 import { realtimeChannel } from "@/lib/realtime";
+import { getMyHouseholdId } from "@/utils/household";
 import { normalizeOutfit, type PetOutfit } from "@/components/pets/pixel/accessories";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
@@ -77,24 +78,18 @@ export const useChildren = () => {
       // Scope to the caller's household, matching the RLS policy. RLS already
       // enforces this server-side; filtering here too means a misconfigured
       // policy can never leak another family's children to the client.
-      const { data: membership } = await supabase
-        .from('household_members')
-        .select('household_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (!membership) {
+      const householdId = await getMyHouseholdId(user.id);
+      if (!householdId) {
         householdIdRef.current = null;
         setChildren([]);
         return;
       }
-      householdIdRef.current = membership.household_id;
+      householdIdRef.current = householdId;
 
       const { data, error } = await supabase
         .from('children')
         .select('*')
-        .eq('household_id', membership.household_id)
+        .eq('household_id', householdId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -148,20 +143,15 @@ export const useChildren = () => {
       if (!user) throw new Error('Not authenticated');
 
       // Look up the caller's household (every child belongs to one).
-      const { data: membership, error: mErr } = await supabase
-        .from('household_members')
-        .select('household_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .single();
-      if (mErr || !membership) throw new Error('No household. Create one in Settings first.');
+      const householdId = await getMyHouseholdId(user.id);
+      if (!householdId) throw new Error('No household. Create one in Settings first.');
 
       // Map interface properties to database columns
       const dbData = {
         name: childData.name,
         age: childData.age,
         parent_id: user.id,
-        household_id: membership.household_id,
+        household_id: householdId,
         pet_type: childData.petType || 'rabbit',
         current_coins: childData.currentCoins,
         pet_happiness: childData.petHappiness,

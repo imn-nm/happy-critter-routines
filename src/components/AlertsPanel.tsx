@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useChildren } from "@/hooks/useChildren";
 import { supabase } from "@/integrations/supabase/client";
 import { realtimeChannel } from "@/lib/realtime";
-import { approveRewardPurchase, denyRewardPurchase } from "@/hooks/useRewards";
+import { approveRewardPurchase, denyRewardPurchase, isAlreadyHandled } from "@/hooks/useRewards";
 import { fetchMissedImportantToday } from "@/utils/missedImportant";
 import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
@@ -126,7 +126,9 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
       });
     } catch (error) {
       console.error("Error approving:", error);
-      toast.error("Failed to approve request.");
+      // The other parent got there first: drop the stale row.
+      if (isAlreadyHandled(error)) setAlerts(prev => prev.filter(a => a.id !== alert.id));
+      toast.error(error instanceof Error ? error.message : "Failed to approve request.");
     } finally {
       setProcessing(prev => { const s = new Set(prev); s.delete(alert.id); return s; });
     }
@@ -143,7 +145,8 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
       });
     } catch (error) {
       console.error("Error denying:", error);
-      toast.error("Failed to deny request.");
+      if (isAlreadyHandled(error)) setAlerts(prev => prev.filter(a => a.id !== alert.id));
+      toast.error(error instanceof Error ? error.message : "Failed to deny request.");
     } finally {
       setProcessing(prev => { const s = new Set(prev); s.delete(alert.id); return s; });
     }

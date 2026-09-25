@@ -7,7 +7,9 @@ import { useToast } from '@/hooks/use-toast';
 const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 
 // Dev fallback so the existing test flow keeps working when explicitly enabled.
-const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
+// Dev server only: a production build must never sign visitors into the
+// shared test account, whatever the local .env says.
+const DEV_AUTOLOGIN = import.meta.env.DEV && import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
 
 // Hand the session token to realtime *before* the app renders any screen that
 // subscribes. Otherwise a channel joined during page load goes out with no
@@ -74,8 +76,10 @@ export const useAuth = () => {
 
   // Legacy dev auto-login, only fires when VITE_DEV_AUTOLOGIN=true.
   const signInDevAuto = async () => {
-    const testEmail = 'test@taskie.app';
-    const testPassword = 'test123456';
+    // Folded to '' in production builds, so the test login never ships.
+    const testEmail = import.meta.env.DEV ? 'test@taskie.app' : '';
+    const testPassword = import.meta.env.DEV ? 'test123456' : '';
+    if (!testEmail) return;
     let { data, error } = await supabase.auth.signInWithPassword({
       email: testEmail,
       password: testPassword,
@@ -117,7 +121,9 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // This device only. The default ('global') ends every session on the
+    // account, which signs the child's always-on screen out too.
+    await supabase.auth.signOut({ scope: 'local' });
     setUser(null);
   };
 
