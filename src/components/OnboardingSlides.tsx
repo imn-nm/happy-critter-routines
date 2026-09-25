@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence, motion, type PanInfo } from "framer-motion";
-import { Clock, ListChecks, type LucideIcon, Star } from "lucide-react";
+import { Clock, ListChecks, type LucideIcon, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CalendarVisual,
@@ -41,24 +41,25 @@ const SLIDES: Slide[] = [
     key: "task-types",
     Visual: TaskKindsVisual,
     title: "Three kinds of tasks",
+    body: "Must finish, fun time and repeating days are set separately, on any of them.",
     bullets: [
       {
         Icon: Clock,
         tint: "text-iris-200 bg-iris-400/20 border-iris-400/30",
-        term: "Daily routine",
-        text: "Activities like breakfast and bath move along with the clock.",
+        term: "Fixed time",
+        text: "Starts at a specific time, like school or soccer practice.",
       },
       {
-        Icon: Star,
-        tint: "text-amber-400 bg-amber-500/20 border-amber-500/30",
-        term: "Must finish",
-        text: "Tasks like homework stay on screen until your child marks them done.",
+        Icon: Puzzle,
+        tint: "text-lilac-300 bg-lilac-400/20 border-lilac-400/30",
+        term: "Flexible",
+        text: "Fits between the fixed activities, or right after one, like reading after bath. No clock time needed.",
       },
       {
         Icon: ListChecks,
         tint: "text-mint-300 bg-mint-500/20 border-mint-500/30",
-        term: "Chores",
-        text: "Small jobs your child can check off anytime, or within a window you choose.",
+        term: "Anytime chore",
+        text: "A separate to-do that doesn’t take up schedule time, like feeding the dog.",
       },
     ],
   },

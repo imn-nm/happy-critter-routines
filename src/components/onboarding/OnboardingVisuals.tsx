@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Cake, Check, Clock, Dog, ListChecks, RefreshCw, Shirt, Sprout, Star, Trees } from "lucide-react";
+import { Cake, Check, Clock, Dog, ListChecks, Puzzle, RefreshCw, Shirt, Sprout, Star, Trees } from "lucide-react";
 import CritterPet from "@/components/critters/CritterPet";
 import SpritePet from "@/components/pets/SpritePet";
 import WormTimer from "@/components/WormTimer";
@@ -193,15 +193,15 @@ const KindCard = ({ tint, border, Icon, title, sub, tilt, lift, children }: {
   </div>
 );
 
-/** A routine bar that fills with the clock, homework that waits for a tick, chores tapped off. */
+/** A fixed-time bar that fills with the clock, reading sliding in after bath, chores tapped off. */
 export function TaskKindsVisual() {
   const { step, reduce } = useStoryboard(KIND_STEPS, 4);
   const { t } = useMotionPrefs();
-  const homeworkDone = step >= 2;
+  const slotted = step >= 1;
   return (
     <div aria-hidden className="w-full flex items-start justify-center gap-2 pt-1 pb-3">
       <KindCard tint="text-iris-200 bg-iris-400/20 border-iris-400/30" border="border-iris-400/25" Icon={Clock}
-        title="Breakfast" sub="7:30 – 7:50" tilt={-4} lift={8}>
+        title="Fixed time" sub="Soccer at 4:00" tilt={-4} lift={8}>
         <div className="w-full h-1.5 rounded-pill bg-fog-50/10 overflow-hidden">
           <motion.div
             className="h-full bg-iris-400 rounded-pill"
@@ -213,29 +213,25 @@ export function TaskKindsVisual() {
         </div>
       </KindCard>
 
-      <KindCard tint="text-amber-400 bg-amber-500/20 border-amber-500/30" border="border-amber-500/30" Icon={Star}
-        title="Homework" sub="Must finish" tilt={0} lift={0}>
-        <span className="flex items-center gap-1.5">
+      {/* Reading has no clock time: it slides into the gap right after Bath. */}
+      <KindCard tint="text-lilac-300 bg-lilac-400/20 border-lilac-400/30" border="border-lilac-400/30" Icon={Puzzle}
+        title="Flexible" sub="Reading after bath" tilt={0} lift={0}>
+        <span className="relative w-full h-4 flex items-center gap-1">
+          <span className="h-4 flex-1 rounded-[6px] bg-fog-50/15 text-[8px] leading-4 text-fog-200 text-center">Bath</span>
+          <span className="h-4 w-[54%] shrink-0 rounded-[6px] border border-dashed border-lilac-400/40" />
           <motion.span
-            key={homeworkDone ? "done" : "todo"}
-            className={cn(
-              "w-6 h-6 rounded-[8px] border-2 flex items-center justify-center",
-              homeworkDone ? "bg-amber-400 border-amber-400 text-ink-900" : "border-amber-500/50",
-            )}
-            initial={homeworkDone ? { scale: 0.4 } : false}
-            animate={{ scale: 1 }}
+            className="absolute right-0 h-4 w-[54%] rounded-[6px] bg-lilac-400 text-[8px] leading-4 font-semibold text-ink-900 text-center"
+            initial={false}
+            animate={slotted ? { x: 0, y: 0, opacity: 1 } : { x: 10, y: -10, opacity: 0.55 }}
             transition={t(springs.bouncy)}
           >
-            {homeworkDone && <Check className="w-4 h-4" strokeWidth={3} />}
+            Reading
           </motion.span>
-          <span className={cn("text-[11px]", homeworkDone ? "text-amber-400 font-semibold" : "text-fog-300")}>
-            {homeworkDone ? "Done!" : "To do"}
-          </span>
         </span>
       </KindCard>
 
       <KindCard tint="text-mint-300 bg-mint-500/20 border-mint-500/30" border="border-mint-500/25" Icon={ListChecks}
-        title="Chores" sub="Anytime" tilt={4} lift={8}>
+        title="Anytime chore" sub="No set time" tilt={4} lift={8}>
         <span className="flex gap-1">
           {CHORES.map((Icon, i) => {
             const done = step > i;
