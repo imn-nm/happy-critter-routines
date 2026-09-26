@@ -69,7 +69,7 @@ export const systemTaskTemplates: SystemTaskTemplate[] = [
 /**
  * Built-in rows are recognised by their exact name, so these names are
  * reserved: a parent's own task can't use one (the database enforces one row
- * per name per child, see 20260925000001_atomic_stars.sql).
+ * per name per child, see 20260925035254_atomic_stars.sql).
  */
 export const SYSTEM_TASK_NAMES = systemTaskTemplates.map(t => t.name);
 
@@ -240,6 +240,41 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
     
   } else {
   }
+};
+
+// ── Weekends ──────────────────────────────────────────────────────────────
+// Wake-up, meals and bedtime can run on other times on Saturday and Sunday.
+// They're stored in the row's per-weekday overrides (wake_schedule_overrides
+// etc.), under both weekend days; everything else uses the everyday time.
+
+export const WEEKEND_DAYS = ['saturday', 'sunday'] as const;
+export const isWeekendDay = (dayOfWeek: string) => dayOfWeek === 'saturday' || dayOfWeek === 'sunday';
+
+/** The built-in rows that can have weekend times (School has its own editor). */
+export type RoutineKey = 'wake' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime';
+export const ROUTINE_KEYS: RoutineKey[] = ['wake', 'breakfast', 'lunch', 'dinner', 'bedtime'];
+export const isRoutineKey = (key: string | null | undefined): key is RoutineKey =>
+  !!key && (ROUTINE_KEYS as string[]).includes(key);
+
+type DayTimes = Record<string, { time: string; duration: number }>;
+
+/** The children column holding a row's per-weekday times. */
+export const overridesField = (key: RoutineKey) => `${key}_schedule_overrides` as const;
+
+/** A row's own weekend time, or null when weekends use the everyday one. */
+export const weekendTimeOf = (child: Partial<Child>, key: RoutineKey) => {
+  const overrides = child[overridesField(key)] as DayTimes | null | undefined;
+  return overrides?.saturday ?? overrides?.sunday ?? null;
+};
+
+/** The row's per-weekday times with the weekend set to `value` (null: back to everyday). */
+export const withWeekendTime = (overrides: DayTimes | null | undefined, value: { time: string; duration: number } | null) => {
+  const next: DayTimes = { ...(overrides ?? {}) };
+  for (const day of WEEKEND_DAYS) {
+    if (value) next[day] = value;
+    else delete next[day];
+  }
+  return next;
 };
 
 /**

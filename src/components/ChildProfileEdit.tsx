@@ -10,13 +10,13 @@ import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import { getPet } from "@/components/pets/petCatalog";
-import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
+import { ROUTINE_KEYS, overridesField, updateAllSystemTaskInstances, weekendTimeOf, withWeekendTime, type RoutineKey } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
 import { syncSchoolRoutines } from "@/hooks/useRoutines";
 import DisplayModePicker from "@/components/DisplayModePicker";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
-import { Caption, SectionHeading, SelectTile, SheetHeader, TimeTile } from "@/components/sheet/SheetParts";
+import { Caption, ChoiceButton, SectionHeading, SelectTile, SheetHeader, TimeTile } from "@/components/sheet/SheetParts";
 import { fmtLen, sheetFooterClass } from "@/components/sheet/sheetStyles";
 
 // Lengths offered for the daily routine rows, worded like every other
@@ -61,6 +61,26 @@ const formFromChild = (child: Child) => ({
   bedtime_duration: child.bedtime_duration?.toString() || "60",
 });
 
+type ProfileForm = ReturnType<typeof formFromChild>;
+type RoutineRow = { key: RoutineKey; label: string; time: keyof ProfileForm; duration: keyof ProfileForm };
+// One row per part of the day, in order. School has its own manager because
+// it varies by weekday.
+const ROUTINE_ROWS: RoutineRow[] = [
+  { key: "wake", label: "Wake Up", time: "wake_time", duration: "wake_duration" },
+  { key: "breakfast", label: "Breakfast", time: "breakfast_time", duration: "breakfast_duration" },
+  { key: "lunch", label: "Lunch", time: "lunch_time", duration: "lunch_duration" },
+  { key: "dinner", label: "Dinner", time: "dinner_time", duration: "dinner_duration" },
+  { key: "bedtime", label: "Bedtime", time: "bedtime", duration: "bedtime_duration" },
+];
+
+type WeekendTimes = Partial<Record<RoutineKey, { time: string; duration: number }>>;
+/** The rows that have their own Saturday and Sunday times. */
+const weekendFromChild = (child: Child): WeekendTimes =>
+  Object.fromEntries(ROUTINE_KEYS.flatMap(key => {
+    const own = weekendTimeOf(child, key);
+    return own ? [[key, { time: own.time.slice(0, 5), duration: own.duration }]] : [];
+  }));
+
 const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenChange, showTrigger = true }: ChildProfileEditProps) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -70,6 +90,11 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
   // What the form showed when it opened. Save sends only what the parent
   // changed from this, so the other parent's edits to other fields survive.
   const [openedWith, setOpenedWith] = useState(() => formFromChild(child));
+  // Saturday and Sunday can have their own times; rows without them follow
+  // the weekday ones.
+  const [weekend, setWeekend] = useState(() => weekendFromChild(child));
+  const [openedWeekend, setOpenedWeekend] = useState(() => weekendFromChild(child));
+  const [routineDays, setRoutineDays] = useState<'weekdays' | 'weekends'>('weekdays');
   // Start from the child's current profile every time: the form used to be
   // filled once, so reopening showed abandoned edits.
   const openEditor = (open: boolean) => {
@@ -77,6 +102,10 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
       const fresh = formFromChild(child);
       setFormData(fresh);
       setOpenedWith(fresh);
+      const freshWeekend = weekendFromChild(child);
+      setWeekend(freshWeekend);
+      setOpenedWeekend(freshWeekend);
+      setRoutineDays('weekdays');
     }
     setIsOpen(open);
   };
@@ -94,18 +123,49 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Same order rule as setup: wake-up, meals, bedtime, all before midnight.
-  const timesProblem = (() => {
-    const order: [string, string][] = [
-      ['Wake up', formData.wake_time], ['Breakfast', formData.breakfast_time], ['Lunch', formData.lunch_time],
-      ['Dinner', formData.dinner_time], ['Bedtime', formData.bedtime],
-    ];
-    for (let i = 1; i < order.length; i++) {
-      if (order[i][1].slice(0, 5) <= order[i - 1][1].slice(0, 5)) {
-        return `${order[i][0]} has to be after ${order[i - 1][0].toLowerCase()}.`;
-      }
+  // What a row shows on the tab being edited: on weekends, a row without its
+  // own time shows (and follows) the weekday one.
+  const onWeekends = routineDays === 'weekends';
+  const weekdayTime = (row: RoutineRow) => formData[row.time].slice(0, 5);
+  const rowTime = (row: RoutineRow) => (onWeekends ? weekend[row.key]?.time ?? weekdayTime(row) : weekdayTime(row));
+  const rowDuration = (row: RoutineRow) =>
+    onWeekends ? String(weekend[row.key]?.duration ?? formData[row.duration]) : formData[row.duration];
+  const setRow = (row: RoutineRow, patch: { time?: string; duration?: string }) => {
+    if (!onWeekends) {
+      setFormData({
+        ...formData,
+        ...(patch.time !== undefined ? { [row.time]: patch.time } : {}),
+        ...(patch.duration !== undefined ? { [row.duration]: patch.duration } : {}),
+      });
+      return;
     }
-    return null;
+    const time = (patch.time ?? rowTime(row)).slice(0, 5);
+    const duration = parseInt(patch.duration ?? rowDuration(row)) || 0;
+    // Back to the weekday time: nothing of its own to keep.
+    const sameAsWeekdays = time === weekdayTime(row) && duration === (parseInt(formData[row.duration]) || 0);
+    setWeekend(prev => {
+      const next = { ...prev };
+      if (sameAsWeekdays) delete next[row.key];
+      else next[row.key] = { time, duration };
+      return next;
+    });
+  };
+  const weekendsDiffer = Object.keys(weekend).length > 0;
+
+  // Same order rule as setup: wake-up, meals, bedtime, all before midnight.
+  // Weekends have to keep it too.
+  const timesProblem = (() => {
+    const check = (timeOf: (row: RoutineRow) => string, onWeekend: boolean) => {
+      for (let i = 1; i < ROUTINE_ROWS.length; i++) {
+        const [row, prev] = [ROUTINE_ROWS[i], ROUTINE_ROWS[i - 1]];
+        if (timeOf(row) <= timeOf(prev)) {
+          const what = onWeekend ? `On weekends, ${row.label.toLowerCase()}` : row.label;
+          return `${what} has to be after ${prev.label.toLowerCase()}.`;
+        }
+      }
+      return null;
+    };
+    return check(weekdayTime, false) ?? check(row => weekend[row.key]?.time ?? weekdayTime(row), true);
   })();
   const childrenHook = useChildren();
   const updateChild = onUpdateChild || childrenHook.updateChild;
@@ -134,12 +194,19 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
         bedtime: formData.bedtime,
         bedtime_duration: parseInt(formData.bedtime_duration) || 60,
       };
-      const changed = Object.fromEntries(
+      const changed: Record<string, unknown> = Object.fromEntries(
         (Object.keys(all) as (keyof typeof all)[])
           .filter(k => formData[k as keyof typeof formData] !== openedWith[k as keyof typeof openedWith])
           .map(k => [k, all[k]]),
       );
-      if (Object.keys(changed).length > 0) await updateChild(child.id, changed);
+      // Weekend times live in each row's per-weekday times, under Saturday
+      // and Sunday. Only rows whose weekend changed are written.
+      for (const key of ROUTINE_KEYS) {
+        if (JSON.stringify(weekend[key] ?? null) !== JSON.stringify(openedWeekend[key] ?? null)) {
+          changed[overridesField(key)] = withWeekendTime(child[overridesField(key)], weekend[key] ?? null);
+        }
+      }
+      if (Object.keys(changed).length > 0) await updateChild(child.id, changed as Partial<Child>);
 
       // Then update all system task instances with the new times
       // Only include fields that have changed from the original values
@@ -189,16 +256,6 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
       setDeleting(false);
     }
   };
-
-  // One row per routine anchor. School has its own manager because it
-  // varies by weekday.
-  const routine: { key: "wake" | "breakfast" | "lunch" | "dinner" | "bedtime"; label: string; time: keyof typeof formData; duration: keyof typeof formData }[] = [
-    { key: "wake", label: "Wake Up", time: "wake_time", duration: "wake_duration" },
-    { key: "breakfast", label: "Breakfast", time: "breakfast_time", duration: "breakfast_duration" },
-    { key: "lunch", label: "Lunch", time: "lunch_time", duration: "lunch_duration" },
-    { key: "dinner", label: "Dinner", time: "dinner_time", duration: "dinner_duration" },
-    { key: "bedtime", label: "Bedtime", time: "bedtime", duration: "bedtime_duration" },
-  ];
 
   return (
     <Dialog open={isOpen} onOpenChange={openEditor}>
@@ -273,32 +330,58 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
             />
           </section>
 
-          {/* Daily routine — each anchor starts at a time and lasts a while. */}
+          {/* Daily routine — each anchor starts at a time and lasts a while.
+              Weekends can run on their own times (a later wake-up). */}
           <section className="flex flex-col gap-2.5">
-            <SectionHeading>Daily Routine</SectionHeading>
-            <Caption>When each part of the day starts and how long it lasts.</Caption>
+            <SectionHeading id="q-routine">Daily Routine</SectionHeading>
+            <div role="radiogroup" aria-labelledby="q-routine" className="grid grid-cols-2 gap-2">
+              <ChoiceButton selected={!onWeekends} onClick={() => setRoutineDays('weekdays')} className="rounded-[14px]">
+                Weekdays
+              </ChoiceButton>
+              <ChoiceButton selected={onWeekends} onClick={() => setRoutineDays('weekends')} className="rounded-[14px]">
+                Weekends
+              </ChoiceButton>
+            </div>
+            <Caption>
+              {!onWeekends
+                ? 'When each part of the day starts and how long it lasts, Monday to Friday.'
+                : weekendsDiffer
+                  ? 'Saturday and Sunday. What you change here is for weekends only.'
+                  : 'Saturday and Sunday use the weekday times. Change one here to make it different on weekends.'}
+            </Caption>
             <div className="flex flex-col gap-2">
-              {routine.map(row => (
+              {ROUTINE_ROWS.map(row => (
                 <div key={row.key} className="flex items-center gap-2.5 rounded-[14px] bg-focus-surface p-2 pl-3.5">
                   <span className="w-[74px] shrink-0 text-14 font-semibold leading-[18px] text-focus-text">{row.label}</span>
                   <div className="flex flex-1 min-w-0 gap-2">
                     <TimeTile
                       label="Starts"
-                      value={formData[row.time]}
-                      onChange={(value) => setFormData({ ...formData, [row.time]: value })}
+                      value={rowTime(row)}
+                      onChange={(value) => setRow(row, { time: value })}
                     />
-                    <SelectTile
-                      label="Lasts"
-                      value={formData[row.duration]}
-                      display={fmtLen(parseInt(formData[row.duration]) || 0)}
-                      onChange={(v) => setFormData({ ...formData, [row.duration]: v })}
-                      options={durationOptions(formData[row.duration])}
-                    />
+                    {/* Bedtime runs until wake-up, so it has no length to set. */}
+                    {row.key === 'bedtime' ? (
+                      <span className="flex-1 min-w-0 px-3 text-12 leading-4 text-focus-muted">Until wake-up</span>
+                    ) : (
+                      <SelectTile
+                        label="Lasts"
+                        value={rowDuration(row)}
+                        display={fmtLen(parseInt(rowDuration(row)) || 0)}
+                        onChange={(v) => setRow(row, { duration: v })}
+                        options={durationOptions(rowDuration(row))}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
+              {onWeekends && weekendsDiffer && (
+                <Button type="button" variant="secondary" size="sm" className="self-start min-h-11" onClick={() => setWeekend({})}>
+                  Use Weekday Times
+                </Button>
+              )}
 
               {/* School varies by weekday, so it has its own editor. */}
+              {!onWeekends && (
               <div className="flex items-center gap-2.5 rounded-[14px] bg-focus-surface p-2 pl-3.5">
                 <span className="w-[74px] shrink-0 text-14 font-semibold leading-[18px] text-focus-text">School</span>
                 <div className="flex flex-1 min-w-0">
@@ -337,6 +420,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
                   />
                 </div>
               </div>
+              )}
             </div>
             {timesProblem && <Caption tone="error" role="alert">{timesProblem}</Caption>}
           </section>

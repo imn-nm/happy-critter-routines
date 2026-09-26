@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Bath, BookOpen, Check, Clock, Dog, ListChecks, Puzzle, RefreshCw, Shirt, Sprout, Star, Trees } from "lucide-react";
+import { Check, Clock, ListChecks, Puzzle, RefreshCw, Star } from "lucide-react";
 import CritterPet from "@/components/critters/CritterPet";
 import SpritePet from "@/components/pets/SpritePet";
 import WormTimer from "@/components/WormTimer";
@@ -200,7 +200,10 @@ export function TimeMovesVisual() {
 /* ── 2. Three kinds of tasks ───────────────────────────────────────────── */
 
 const KIND_STEPS = [900, 800, 800, 800, 1700] as const;
-const CHORES = [Dog, Sprout, Shirt];
+const CHORES = ["pet", "plant", "shirt"].map((key) => getTaskIconComponent("", key));
+const BathIcon = getTaskIconComponent("", "bath");
+const ReadingIcon = getTaskIconComponent("", "book");
+const OutsideIcon = getTaskIconComponent("", "outside");
 
 const KindCard = ({ tint, border, Icon, title, sub, tilt, lift, children }: {
   tint: string;
@@ -252,7 +255,7 @@ export function TaskKindsVisual() {
         title="Flexible" sub="Reading after bath" tilt={0} lift={0}>
         <span className="relative w-full h-5 flex items-center gap-1">
           <span className="h-5 flex-1 rounded-[6px] bg-focus-raised text-focus-muted flex items-center justify-center">
-            <Bath className="w-3 h-3" />
+            <BathIcon className="w-3 h-3" />
           </span>
           <span className="h-5 w-[54%] shrink-0 rounded-[6px] border border-dashed border-focus-lavender/50" />
           <motion.span
@@ -261,7 +264,7 @@ export function TaskKindsVisual() {
             animate={slotted ? { x: 0, y: 0, opacity: 1 } : { x: 10, y: -10, opacity: 0.55 }}
             transition={t(springs.bouncy)}
           >
-            <BookOpen className="w-3 h-3" strokeWidth={2.5} />
+            <ReadingIcon className="w-3 h-3" />
           </motion.span>
         </span>
       </KindCard>
@@ -464,7 +467,7 @@ export function RewardsVisual() {
         >
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-[10px] bg-focus-mint/20 border border-focus-mint/30 flex items-center justify-center">
-              <Trees className="w-4 h-4 text-focus-mint" />
+              <OutsideIcon className="w-4 h-4 text-focus-mint" />
             </span>
             <span className="flex-1 text-14 font-medium text-focus-text">Park trip</span>
             <span className="flex items-center gap-0.5 text-13 font-bold text-focus-text">

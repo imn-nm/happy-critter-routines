@@ -1,110 +1,141 @@
-import {
-  Sunrise,
-  Moon,
-  Coffee,
-  Sandwich,
-  UtensilsCrossed,
-  Apple,
-  Cookie,
-  GraduationCap,
-  BookOpen,
-  Pencil,
-  Music,
-  Dumbbell,
-  Bike,
-  Gamepad2,
-  Brush,
-  Sparkles,
-  Bath,
-  ShoppingCart,
-  Dog,
-  Flower2,
-  Shirt,
-  Droplet,
-  Palette,
-  Smile,
-  Heart,
-  Star,
-  Clock,
-  type LucideIcon,
-} from "lucide-react";
+import { uicon, type UIconComponent } from "@/components/icons/UIcon";
 
-// Curated icon set the parent can pick from in the task form. The `key` is what
-// gets persisted on the task (tasks.icon); keep keys stable once shipped.
-export const ICON_OPTIONS: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: "sunrise", label: "Wake up", Icon: Sunrise },
-  { key: "moon", label: "Bedtime", Icon: Moon },
-  { key: "coffee", label: "Breakfast", Icon: Coffee },
-  { key: "sandwich", label: "Lunch", Icon: Sandwich },
-  { key: "utensils", label: "Dinner", Icon: UtensilsCrossed },
-  { key: "cookie", label: "Snack", Icon: Cookie },
-  { key: "apple", label: "Fruit", Icon: Apple },
-  { key: "droplet", label: "Water", Icon: Droplet },
-  { key: "smile", label: "Teeth", Icon: Smile },
-  { key: "bath", label: "Bath", Icon: Bath },
-  { key: "school", label: "School", Icon: GraduationCap },
-  { key: "book", label: "Reading", Icon: BookOpen },
-  { key: "pencil", label: "Writing", Icon: Pencil },
-  { key: "music", label: "Music", Icon: Music },
-  { key: "palette", label: "Art", Icon: Palette },
-  { key: "bike", label: "Bike", Icon: Bike },
-  { key: "dumbbell", label: "Exercise", Icon: Dumbbell },
-  { key: "game", label: "Play", Icon: Gamepad2 },
-  { key: "clean", label: "Clean", Icon: Brush },
-  { key: "shirt", label: "Laundry", Icon: Shirt },
-  { key: "plant", label: "Plants", Icon: Flower2 },
-  { key: "pet", label: "Pet", Icon: Dog },
-  { key: "shopping", label: "Shopping", Icon: ShoppingCart },
-  { key: "clock", label: "Time", Icon: Clock },
-  { key: "heart", label: "Heart", Icon: Heart },
-  { key: "sparkles", label: "Fun", Icon: Sparkles },
-  { key: "star", label: "Star", Icon: Star },
+export type TaskIconComponent = UIconComponent;
+
+// Curated icon set the parent can pick from in the task form, drawn from
+// Flaticon UIcons (regular, rounded). The `key` is what gets persisted on the
+// task (tasks.icon); keep keys stable once shipped, even where the picture
+// behind one has changed (e.g. "smile" is now a toothbrush). Add pictures with
+// `python scripts/uicons.py <name>`.
+export const ICON_OPTIONS: { key: string; label: string; Icon: TaskIconComponent }[] = [
+  // Morning and night
+  { key: "sunrise", label: "Wake up", Icon: uicon("sunrise") },
+  { key: "bed", label: "Make bed", Icon: uicon("bed") },
+  { key: "moon", label: "Bedtime", Icon: uicon("moon-stars") },
+  { key: "clock", label: "Time", Icon: uicon("clock") },
+  // Food and drink
+  { key: "coffee", label: "Breakfast", Icon: uicon("egg-fried") },
+  { key: "sandwich", label: "Lunch", Icon: uicon("sandwich") },
+  { key: "utensils", label: "Dinner", Icon: uicon("plate-utensils") },
+  { key: "cookie", label: "Snack", Icon: uicon("cookie") },
+  { key: "apple", label: "Fruit", Icon: uicon("apple-whole") },
+  { key: "carrot", label: "Veggies", Icon: uicon("carrot") },
+  { key: "droplet", label: "Water", Icon: uicon("glass-water-droplet") },
+  // Washing up and getting dressed
+  { key: "smile", label: "Teeth", Icon: uicon("toothbrush") },
+  { key: "soap", label: "Wash hands", Icon: uicon("soap") },
+  { key: "toilet", label: "Toilet", Icon: uicon("toilet") },
+  { key: "bath", label: "Bath", Icon: uicon("bath") },
+  { key: "shower", label: "Shower", Icon: uicon("shower") },
+  { key: "shirt", label: "Get dressed", Icon: uicon("shirt") },
+  { key: "shoes", label: "Shoes", Icon: uicon("shoe-prints") },
+  // School and learning
+  { key: "school", label: "School", Icon: uicon("school") },
+  { key: "backpack", label: "Pack bag", Icon: uicon("backpack") },
+  { key: "bus", label: "Bus", Icon: uicon("school-bus") },
+  { key: "car", label: "Car", Icon: uicon("car-side") },
+  { key: "pencil", label: "Homework", Icon: uicon("pencil") },
+  { key: "book", label: "Reading", Icon: uicon("book-open-reader") },
+  { key: "music", label: "Music", Icon: uicon("music-alt") },
+  { key: "palette", label: "Art", Icon: uicon("palette") },
+  // Moving and playing
+  { key: "dumbbell", label: "Exercise", Icon: uicon("running") },
+  { key: "ball", label: "Sports", Icon: uicon("football") },
+  { key: "swim", label: "Swimming", Icon: uicon("swimmer") },
+  { key: "bike", label: "Bike", Icon: uicon("bike") },
+  { key: "outside", label: "Outside", Icon: uicon("tree") },
+  { key: "yoga", label: "Calm down", Icon: uicon("meditation") },
+  { key: "toys", label: "Toys", Icon: uicon("cubes") },
+  { key: "game", label: "Games", Icon: uicon("gamepad") },
+  { key: "tablet", label: "Screen time", Icon: uicon("tablet") },
+  { key: "tv", label: "TV", Icon: uicon("tv-retro") },
+  { key: "friends", label: "Friends", Icon: uicon("users") },
+  // Chores
+  { key: "clean", label: "Tidy up", Icon: uicon("broom") },
+  { key: "dishes", label: "Dishes", Icon: uicon("sink") },
+  { key: "laundry", label: "Laundry", Icon: uicon("washer") },
+  { key: "trash", label: "Trash", Icon: uicon("trash") },
+  { key: "plant", label: "Plants", Icon: uicon("seedling") },
+  { key: "pet", label: "Dog", Icon: uicon("dog") },
+  { key: "cat", label: "Cat", Icon: uicon("cat") },
+  { key: "shopping", label: "Shopping", Icon: uicon("shopping-cart") },
+  // Everything else
+  { key: "medicine", label: "Medicine", Icon: uicon("medicine") },
+  { key: "heart", label: "Heart", Icon: uicon("heart") },
+  { key: "sparkles", label: "Fun", Icon: uicon("sparkles") },
+  { key: "star", label: "Star", Icon: uicon("star") },
 ];
 
-const ICON_BY_KEY: Record<string, LucideIcon> = Object.fromEntries(
+const ICON_BY_KEY: Record<string, TaskIconComponent> = Object.fromEntries(
   ICON_OPTIONS.map((o) => [o.key, o.Icon]),
 );
 
-// Maps a task name to an appropriate lucide icon for the child view.
-// Order matters — earlier, more specific keywords win. Falls back to a star.
-const RULES: { keywords: string[]; Icon: LucideIcon }[] = [
-  { keywords: ["wake", "morning", "get up"], Icon: Sunrise },
-  { keywords: ["bed", "sleep", "bedtime", "nap", "goodnight"], Icon: Moon },
-  { keywords: ["breakfast"], Icon: Coffee },
-  { keywords: ["lunch"], Icon: Sandwich },
-  { keywords: ["dinner", "supper"], Icon: UtensilsCrossed },
-  { keywords: ["snack"], Icon: Cookie },
-  { keywords: ["fruit", "eat", "meal"], Icon: Apple },
-  { keywords: ["water", "drink"], Icon: Droplet },
-  { keywords: ["teeth", "brush teeth", "dentist", "floss"], Icon: Smile },
-  { keywords: ["bath", "shower", "wash"], Icon: Bath },
-  { keywords: ["school", "class"], Icon: GraduationCap },
-  { keywords: ["homework", "study", "read", "reading", "story", "stories"], Icon: BookOpen },
-  { keywords: ["write", "journal", "spelling"], Icon: Pencil },
-  { keywords: ["music", "piano", "guitar", "practice", "violin"], Icon: Music },
-  { keywords: ["draw", "paint", "art", "craft", "color"], Icon: Palette },
-  { keywords: ["bike", "ride", "scooter"], Icon: Bike },
-  { keywords: ["exercise", "workout", "gym", "run", "sport", "soccer", "stretch"], Icon: Dumbbell },
-  { keywords: ["play", "game", "toys", "lego"], Icon: Gamepad2 },
-  { keywords: ["clean", "tidy", "room", "chore", "vacuum", "dishes"], Icon: Brush },
-  { keywords: ["laundry", "clothes", "dress", "fold"], Icon: Shirt },
-  { keywords: ["plant", "garden", "flower", "water plant"], Icon: Flower2 },
-  { keywords: ["pet", "dog", "cat", "feed", "walk"], Icon: Dog },
-  { keywords: ["shop", "store", "grocery", "errand"], Icon: ShoppingCart },
-  { keywords: ["fun", "free time", "reward"], Icon: Sparkles },
+// Picks an icon from the task's name when the parent hasn't chosen one.
+// Order matters: earlier rules win, so the specific ones come first ("make
+// bed" before "bed", "water plants" before "water"). Keywords match from the
+// start of a word ("read" finds "reading" but not "bread"); end one with a
+// space to match only the whole word ("car " skips "carrot" and "care").
+const RULES: { keywords: string[]; key: string }[] = [
+  { keywords: ["wake", "morning", "get up", "rise"], key: "sunrise" },
+  { keywords: ["make bed", "make the bed", "make your bed"], key: "bed" },
+  { keywords: ["bed ", "beds ", "bedtime", "sleep", "nap", "goodnight", "good night", "night"], key: "moon" },
+  { keywords: ["teeth", "tooth", "floss", "dentist"], key: "smile" },
+  { keywords: ["clean", "tidy", "chore", "vacuum", "sweep", "dust", "room", "bedroom"], key: "clean" },
+  { keywords: ["medicine", "vitamin", "pill", "doctor"], key: "medicine" },
+  { keywords: ["breakfast", "cereal", "pancake"], key: "coffee" },
+  { keywords: ["lunch"], key: "sandwich" },
+  { keywords: ["dinner", "supper", "set the table", "set table"], key: "utensils" },
+  { keywords: ["snack"], key: "cookie" },
+  { keywords: ["veg", "carrot", "salad"], key: "carrot" },
+  { keywords: ["fruit", "eat", "meal", "food"], key: "apple" },
+  { keywords: ["dish", "clear the table", "sink"], key: "dishes" },
+  { keywords: ["shop", "store", "grocer", "errand"], key: "shopping" },
+  { keywords: ["hands", "hand wash", "soap", "wash face", "wash your face"], key: "soap" },
+  { keywords: ["toilet", "potty"], key: "toilet" },
+  { keywords: ["shower"], key: "shower" },
+  { keywords: ["bath", "wash"], key: "bath" },
+  { keywords: ["laundry", "fold", "washing"], key: "laundry" },
+  { keywords: ["dress", "clothes", "outfit", "pajama", "pyjama", "uniform", "shirt"], key: "shirt" },
+  { keywords: ["shoe", "sock", "boot"], key: "shoes" },
+  { keywords: ["pack", "backpack", "bag "], key: "backpack" },
+  { keywords: ["bus"], key: "bus" },
+  { keywords: ["car ", "drive", "driving"], key: "car" },
+  { keywords: ["school", "preschool", "class", "kindergarten"], key: "school" },
+  { keywords: ["homework", "study", "write", "writing", "journal", "spelling", "math"], key: "pencil" },
+  { keywords: ["read", "book", "story", "stories", "library"], key: "book" },
+  { keywords: ["exercise", "workout", "gym", "run", "stretch", "dance", "ballet", "karate", "hike"], key: "dumbbell" },
+  { keywords: ["swim", "pool"], key: "swim" },
+  { keywords: ["soccer", "football", "basketball", "ball", "sport", "tennis", "hockey", "baseball"], key: "ball" },
+  { keywords: ["bike", "ride", "scooter", "skate", "cycl"], key: "bike" },
+  { keywords: ["music", "piano", "guitar", "violin", "drum", "instrument", "sing", "practi"], key: "music" },
+  { keywords: ["draw", "paint", "art", "craft", "color", "colour"], key: "palette" },
+  { keywords: ["yoga", "calm", "breath", "meditat", "quiet", "relax", "wind down"], key: "yoga" },
+  { keywords: ["tv", "movie", "cartoon", "film"], key: "tv" },
+  { keywords: ["tablet", "ipad", "screen", "youtube", "phone", "computer"], key: "tablet" },
+  { keywords: ["video game", "gaming", "game", "minecraft", "roblox", "nintendo"], key: "game" },
+  { keywords: ["plant", "garden", "flower", "seed"], key: "plant" },
+  { keywords: ["water", "drink"], key: "droplet" },
+  { keywords: ["trash", "garbage", "rubbish", "bin ", "recycl"], key: "trash" },
+  { keywords: ["toy", "lego", "block", "puzzle", "build"], key: "toys" },
+  { keywords: ["outside", "outdoor", "park", "playground", "nature"], key: "outside" },
+  { keywords: ["friend", "playdate", "play date", "party", "visit", "family"], key: "friends" },
+  { keywords: ["fun", "free time", "free play", "playtime", "play time", "reward"], key: "sparkles" },
+  { keywords: ["play"], key: "game" },
+  { keywords: ["cat ", "cats ", "kitten"], key: "cat" },
+  { keywords: ["pet", "dog", "puppy", "feed", "walk", "fish", "hamster", "rabbit", "bunny"], key: "pet" },
 ];
 
 /**
- * Resolve the lucide icon component for a task. An explicit `iconKey` (chosen by
+ * Resolve the icon component for a task. An explicit `iconKey` (chosen by
  * the parent) wins; otherwise fall back to keyword matching on the name.
  */
-export function getTaskIconComponent(taskName: string, iconKey?: string | null): LucideIcon {
+export function getTaskIconComponent(taskName: string, iconKey?: string | null): TaskIconComponent {
   if (iconKey && ICON_BY_KEY[iconKey]) return ICON_BY_KEY[iconKey];
-  const name = (taskName || "").toLowerCase();
-  for (const { keywords, Icon } of RULES) {
-    if (keywords.some((k) => name.includes(k))) return Icon;
+  const name = ` ${(taskName || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  for (const { keywords, key } of RULES) {
+    if (keywords.some((k) => name.includes(` ${k}`))) return ICON_BY_KEY[key];
   }
-  return Star;
+  return ICON_BY_KEY.star;
 }
 
 /** Render the icon for a task. `className` controls size/color. */

@@ -24,6 +24,7 @@ import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
 import { orderByAnchors } from "@/utils/afterAnchors";
+import { displayDuration, displayStart, eventPhase, getReadyLength, withGetReadyTime } from "@/utils/eventWindow";
 import RewardsShop from "@/components/RewardsShop";
 import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
@@ -397,7 +398,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     }
 
     const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
-    const tasksWithDaySpecificTimes = todaysTasks.map(task => {
+    const resolvedTasks = todaysTasks.map(task => {
       // System tasks: pull per-day time/duration from the child record.
       if (child && systemTaskNames.includes(task.name)) {
         const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr);
@@ -429,6 +430,12 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       const isAnytime = task.type === 'flexible' || task.type === 'floating' || task.type === 'regular';
       return hasTime || isAnytime;
     });
+    // An event's block starts when getting ready does (never before wake-up),
+    // so free time and overlaps count that time as taken. Its real start
+    // stays in event_start for the labels.
+    const wakeRow = resolvedTasks.find(t => t.name === 'Wake Up' && t.scheduled_time);
+    const [ewh, ewm] = (wakeRow?.scheduled_time || child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+    const tasksWithDaySpecificTimes = resolvedTasks.map(task => withGetReadyTime(task, ewh * 60 + ewm));
 
     // Auto-place untimed non-chore tasks into the first available gap, mirroring
     // the parent dashboard's findNextAvailableTime (TimelineScheduleView). Chores
@@ -715,12 +722,13 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     }
 
     // Keep the unfinished activity in focus while the wall-clock schedule
-    // continues underneath it. Bedtime remains a fixed end to the day.
+    // continues underneath it. Bedtime remains a fixed end to the day, and so
+    // does an event: the game starts when it starts.
     const sorted = [...overdueImportant].sort((a, b) =>
       (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
     );
     let stillToDo = sorted;
-    if (sorted.length > 0 && !current?.name.toLowerCase().includes('bedtime')) {
+    if (sorted.length > 0 && !current?.name.toLowerCase().includes('bedtime') && !current?.is_event) {
       if (current) upcoming.unshift(current);
       current = sorted[0];
       stillToDo = sorted.slice(1);
@@ -796,6 +804,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     const [h, m] = getPSTTimeString().split(':').map(Number);
     return h * 60 + m;
   })();
+  // Getting ready for an event, or at the event itself.
+  const activePhase = activeTask ? eventPhase(activeTask, nowMinutes) : null;
   const wakeMinutes = (() => {
     const [h, m] = wakeTimeToday.split(':').map(Number);
     return h * 60 + m;
@@ -1044,7 +1054,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   };
 
   /** "Next · Soccer Practice · 4:00pm" — the Figma Next Task row. */
-  const renderNext = (next: { name: string; icon?: string | null; scheduled_time?: string | null }) => (
+  const renderNext = (next: { name: string; icon?: string | null; scheduled_time?: string | null; event_start?: string | null }) => (
     <div className="w-full min-h-14 flex items-center justify-between gap-sp-3">
       <div className="flex flex-col gap-1 min-w-0">
         {picture
@@ -1059,8 +1069,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           <span className={cn(picture ? "text-18" : "text-[17px]", "font-semibold text-focus-text truncate")}>{next.name}</span>
         </div>
       </div>
-      {next.scheduled_time && (
-        <StatusBadge variant="time">{formatTime(next.scheduled_time)}</StatusBadge>
+      {displayStart(next) && (
+        <StatusBadge variant="time">{formatTime(displayStart(next)!)}</StatusBadge>
       )}
     </div>
   );
@@ -1089,7 +1099,20 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     const range = `${formatTime(start.slice(0, 5))} – ${formatTime(endStr)}`;
     return withLength ? `${range} · ${formatDuration(minutes)}` : range;
   };
-  const explainTask = (task: { is_important?: boolean; is_fun_time?: boolean; subtasks?: unknown[] | null }) => {
+  const explainTask = (
+    task: { name: string; is_important?: boolean; is_fun_time?: boolean; subtasks?: unknown[] | null; scheduled_time?: string | null; duration?: number | null; event_start?: string | null },
+    phase?: 'prep' | 'event' | null,
+  ) => {
+    if (phase) {
+      const start = displayStart(task) || '00:00';
+      const [h, m] = start.split(':').map(Number);
+      const endMin = h * 60 + m + displayDuration(task);
+      const end = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      if (phase === 'event') return `Have fun! It ends by itself at ${formatTime(end)}.`;
+      return task.subtasks?.length
+        ? `Tick off each step to get ready. ${task.name} starts at ${formatTime(start)}.`
+        : `Time to get ready. ${task.name} starts at ${formatTime(start)}.`;
+    }
     if (task.is_fun_time) return 'Fun time! Enjoy it until the timer runs out.';
     if (task.is_important) return 'Must finish. Slide Mark as Done when it’s all finished.';
     if (task.subtasks?.length) return 'Do each step, then slide Mark as Done. Finish early and the extra time is yours.';
@@ -1120,8 +1143,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {!isRestDay && (
           <ScheduleSoundCues
             speakPrompts={picture}
-            activeTaskId={activeTask?.id ?? null}
+            // An event starts twice: getting ready, then the event itself.
+            activeTaskId={activeTask ? `${activeTask.id}${activePhase ? `:${activePhase}` : ''}` : null}
             activeTaskName={activeTask?.name ?? null}
+            announce={activePhase === 'prep' ? `Time to get ready for ${activeTask.name}!`
+              : activePhase === 'event' ? `Time for ${activeTask.name}. Have fun!` : null}
             // At bedtime the day is over for chimes too: no "still to do"
             // ping on top of the goodnight one.
             stillToDoIds={activeTask?.name.toLowerCase().includes('bedtime') ? [] : stillToDo.map(t => t.id)}
@@ -1232,11 +1258,30 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             );
           }
 
-          const totalSecs = displayTask.duration ? displayTask.duration * 60 : 1800;
+          // An event: getting ready first (the ring counts down to its start),
+          // then the event itself. Neither has a done button: finishing the
+          // get-ready steps never ends the event.
+          const phase = eventPhase(displayTask, nowMinutes);
+          const untilEventStart = () => {
+            const now = getCurrentTime();
+            const [eh, em] = (displayStart(displayTask) || '00:00').split(':').map(Number);
+            return Math.max(0, eh * 3600 + em * 60 - (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()));
+          };
+          const totalSecs = phase === 'prep'
+            ? Math.max(60, getReadyLength(displayTask) * 60)
+            : phase === 'event'
+              ? Math.max(60, displayDuration(displayTask) * 60)
+              : displayTask.duration ? displayTask.duration * 60 : 1800;
           // While frozen, hold remaining at totalSecs so the ring stays full
           // and the timer doesn't visually tick during the celebrate + pause.
-          const remaining = isFrozen ? totalSecs : getActiveTaskRemainingTime();
+          const remaining = isFrozen ? totalSecs : phase === 'prep' ? untilEventStart() : getActiveTaskRemainingTime();
           const petMood = petCelebrating ? 'celebrate' : petMoodForTask(displayTask.name);
+          const checkedIds = checkedSubtasks[displayTask.id] ?? [];
+          const ready = phase === 'prep' && !!displayTask.subtasks?.length
+            && displayTask.subtasks.every(sub => checkedIds.includes(sub.id));
+          const petPrompt = phase === 'prep'
+            ? (ready ? say("You're ready!", "🎉") : say("Let's get ready!", "🎒"))
+            : say(promptForTask(displayTask.name), taskEmoji(displayTask.name));
 
           return (
             <motion.div
@@ -1251,16 +1296,25 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 name={displayTask.name}
                 icon={displayTask.icon}
                 variant={mode}
-                timeLabel={timeRange(placedStart(displayTask), displayTask.duration, !picture)}
-                explanation={explainTask(displayTask)}
+                timeLabel={phase
+                  ? timeRange(displayStart(displayTask), displayDuration(displayTask), !picture)
+                  : timeRange(placedStart(displayTask), displayTask.duration, !picture)}
+                explanation={explainTask(displayTask, phase)}
                 onSpeak={() => {
                   const step = currentStep(displayTask);
-                  speak(step ? `${displayTask.name}. Next step: ${step}` : `Time for ${displayTask.name}!`, { force: true });
+                  if (phase === 'prep') {
+                    speak(step ? `Get ready for ${displayTask.name}. Next step: ${step}` : ready ? `You're ready for ${displayTask.name}!` : `Time to get ready for ${displayTask.name}!`, { force: true });
+                  } else if (phase === 'event') {
+                    speak(`Have fun at ${displayTask.name}!`, { force: true });
+                  } else {
+                    speak(step ? `${displayTask.name}. Next step: ${step}` : `Time for ${displayTask.name}!`, { force: true });
+                  }
                 }}
+                phase={phase ?? undefined}
                 totalSeconds={totalSecs}
                 remainingSeconds={remaining}
                 done={isFrozen}
-                showDone={!displayTask.is_fun_time}
+                showDone={!displayTask.is_fun_time && !displayTask.is_event}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
                 // The worm only appears while the child is running late on a
@@ -1268,16 +1322,29 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
                 overdue={!isFrozen && !!displayTask.is_important && isActiveTaskOverdue()}
                 companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} mood={petMood}
-                  activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
+                  activity={petCelebrating || phase === 'prep' ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive picture={picture}
-                  prompt={greeting ?? say(promptForTask(displayTask.name), taskEmoji(displayTask.name))}
+                  prompt={greeting ?? petPrompt}
                   reaction={returnGreeting ? "Wave" : undefined} reactionKey={returnGreeting?.id}
                   className="w-full h-full" />}
-                checklist={displayTask.subtasks?.length ? <TaskChecklistView
+                // An event's steps are for getting ready, so they go once it starts.
+                checklist={displayTask.subtasks?.length && phase !== 'event' ? <TaskChecklistView
                   picture={picture}
                   subtasks={displayTask.subtasks}
-                  checkedIds={checkedSubtasks[displayTask.id] ?? []}
-                  onToggle={(subId) => toggleSubtask(displayTask.id, subId)} /> : undefined}
+                  checkedIds={checkedIds}
+                  doneLabel={phase === 'prep' ? "You're Ready!" : undefined}
+                  onToggle={(subId) => {
+                    const finishing = phase === 'prep' && !checkedIds.includes(subId)
+                      && displayTask.subtasks!.every(sub => sub.id === subId || checkedIds.includes(sub.id));
+                    toggleSubtask(displayTask.id, subId);
+                    // Ready to go: Biscuit cheers, and the event stays on.
+                    if (finishing) {
+                      sounds.done();
+                      if (picture) speak("You're ready!");
+                      setPetCelebrating(true);
+                      window.setTimeout(() => setPetCelebrating(false), 3000);
+                    }
+                  }} /> : undefined}
               />
 
               {stillToDo.length > 0 && <>
@@ -1321,7 +1388,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               </>}
               {/* Chore tiles — between the focus card and the Next row, per Figma
                   "Child / Focus — redesigned". */}
-              {!isFrozen && renderChores()}
+              {!isFrozen && !displayTask.is_event && renderChores()}
 
               {/* Next Task row with StatusBadge time */}
               {upcomingTasks.length > 0 && renderNext(upcomingTasks[0])}
@@ -1465,7 +1532,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <AmbientClock picture={picture} next={{ name: upcomingTasks[0].name, time: upcomingTasks[0].scheduled_time, icon: upcomingTasks[0].icon }} />
+            <AmbientClock picture={picture} next={{ name: upcomingTasks[0].name, time: displayStart(upcomingTasks[0]), icon: upcomingTasks[0].icon }} />
             <CritterPet
               petType={child.petType}
               outfit={child.pet_outfit}
@@ -1677,13 +1744,14 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       transition={tMotion(springs.gentle)}
                     >
                       <ScheduleRow
-                        time={task.scheduled_time?.slice(0, 5)}
+                        time={displayStart(task) ?? undefined}
                         windowStart={task.window_start?.slice(0, 5)}
                         windowEnd={task.window_end?.slice(0, 5)}
                         isChore={task.type === 'floating'}
                         name={task.name}
                         icon={task.icon}
-                        durationMin={task.duration}
+                        durationMin={task.is_event ? displayDuration(task) : task.duration}
+                        getReadyAt={getReadyLength(task) > 0 ? task.scheduled_time?.slice(0, 5) : undefined}
                         important={task.is_important}
                         fun={task.is_fun_time}
                         state={done ? 'done' : isNow ? 'now' : 'upcoming'}
@@ -1728,7 +1796,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         <GetReadyReminder
           speakPrompt={picture}
           nextIcon={freeTimeCountdown.nextTask.icon}
-          nextTime={freeTimeCountdown.nextTask.scheduled_time ? formatTime(freeTimeCountdown.nextTask.scheduled_time.slice(0, 5)) : undefined}
+          nextTime={displayStart(freeTimeCountdown.nextTask) ? formatTime(displayStart(freeTimeCountdown.nextTask)!) : undefined}
           windowKey={playKey}
           remaining={freeTimeCountdown.remaining}
           nextName={freeTimeCountdown.nextTask.name}
@@ -1914,6 +1982,7 @@ function ScheduleRow({
   durationMin,
   important,
   fun,
+  getReadyAt,
   state,
 }: {
   time?: string;
@@ -1925,6 +1994,8 @@ function ScheduleRow({
   durationMin?: number;
   important?: boolean;
   fun?: boolean;
+  /** An event's get-ready start ("HH:MM"), before its own time. */
+  getReadyAt?: string;
   state: 'done' | 'now' | 'upcoming';
 }) {
   // Time column rules:
@@ -1948,7 +2019,8 @@ function ScheduleRow({
       const [h, m] = displayTime.split(':').map(Number);
       const end = h * 60 + m + durationMin;
       const [e, eap] = splitTime12(`${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`);
-      const kind = important ? ' · Must finish' : fun ? ' · Fun time' : '';
+      const kind = important ? ' · Must finish' : fun ? ' · Fun time'
+        : getReadyAt ? ` · Get ready ${splitTime12(getReadyAt).join('')}` : '';
       return `Until ${e}${eap} · ${formatDuration(durationMin)}${kind}`;
     }
     return null;
@@ -2040,7 +2112,7 @@ function FreeTimeRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex items-center gap-sp-2">
-        <Gamepad2 className="w-5 h-5 text-focus-mint shrink-0" />
+        {getTaskIcon("Free time", "w-5 h-5 text-focus-mint shrink-0", "game")}
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <p className="text-16 text-focus-text/80 truncate">Free Time</p>
           <p className="text-12 text-focus-muted truncate">{formatDuration(durationMin)} all yours</p>
@@ -2051,7 +2123,7 @@ function FreeTimeRow({
 }
 
 type PictureRow =
-  | { kind: 'task'; task: { id: string; name: string; icon?: string | null; duration?: number; scheduled_time?: string | null; window_start?: string | null; type?: string; isCompleted?: boolean } }
+  | { kind: 'task'; task: { id: string; name: string; icon?: string | null; duration?: number; scheduled_time?: string | null; event_start?: string | null; window_start?: string | null; type?: string; isCompleted?: boolean } }
   | { kind: 'free'; id: string; startMin: number; durationMin: number };
 
 const PARTS = ['Morning', 'Afternoon', 'Evening', 'Anytime'] as const;
@@ -2065,7 +2137,8 @@ const PART_ICONS: Record<(typeof PARTS)[number], typeof Sun> = { Morning: Sunris
 function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; focusTaskId: string | null; nowMinutes: number }) {
   const startOf = (row: PictureRow) => {
     if (row.kind === 'free') return row.startMin;
-    const t = row.task.scheduled_time || row.task.window_start;
+    // An event shows at its own time, not when getting ready starts.
+    const t = displayStart(row.task) || row.task.window_start;
     if (!t || row.task.type === 'floating') return null;
     const [h, m] = t.slice(0, 5).split(':').map(Number);
     return h * 60 + m;
@@ -2083,7 +2156,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
           })()}
           {partRows.map(row => {
             const start = startOf(row);
-            const minutes = row.kind === 'free' ? row.durationMin : row.task.duration ?? 0;
+            const minutes = row.kind === 'free' ? row.durationMin : displayDuration(row.task);
             const done = row.kind === 'task'
               ? !!row.task.isCompleted
               : start != null && nowMinutes >= start + minutes;
@@ -2105,7 +2178,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
               >
                 <span className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-raised flex items-center justify-center">
                   {row.kind === 'free'
-                    ? <Gamepad2 className="w-8 h-8 text-focus-mint" />
+                    ? getTaskIcon('Free time', 'w-8 h-8 text-focus-mint', 'game')
                     : getTaskIcon(name, 'w-8 h-8 text-focus-text', row.task.icon)}
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">

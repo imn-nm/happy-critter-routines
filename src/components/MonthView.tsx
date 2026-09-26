@@ -20,6 +20,7 @@ import { useDayNotes, DayNote } from '@/hooks/useDayNotes';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
 import { isRestDate } from '@/utils/restDays';
+import { prepMinutes } from '@/utils/eventWindow';
 import { useParentEvents, ParentEvent } from '@/hooks/useParentEvents';
 import { cn } from '@/lib/utils';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
@@ -350,7 +351,8 @@ const MonthView = ({
   /** Which day types a cell carries, in legend order. */
   const kindsFor = (dayData: DayData): Exclude<Kind, 'task'>[] => {
     const kinds: Exclude<Kind, 'task'>[] = [];
-    if (dayData.parentEvents.length) kinds.push('event');
+    // Your appointments and the child's events (a game, a class) alike.
+    if (dayData.parentEvents.length || dayData.tasksForDay.some(t => t.is_event)) kinds.push('event');
     if (dayData.note) kinds.push('note');
     if (dayData.isRestDay) kinds.push('rest');
     if (dayData.holiday) kinds.push('holiday');
@@ -360,7 +362,7 @@ const MonthView = ({
   // The drawer lists what makes this day different: the parent's own marks
   // and one-off tasks. The repeating routine lives on the Day tab.
   const dayItems: DayItem[] = [];
-  const routineTaskCount = selectedDayData?.tasksForDay.filter(t => t.is_recurring).length ?? 0;
+  const routineTaskCount = selectedDayData?.tasksForDay.filter(t => t.is_recurring && !t.is_event).length ?? 0;
   if (selectedDayData) {
     for (const event of selectedDayData.parentEvents) {
       dayItems.push({
@@ -371,6 +373,22 @@ const MonthView = ({
         detail: event.notes || undefined,
         onEdit: () => handleEditEvent(event),
         onDelete: () => handleDeleteEvent(event.id),
+      });
+    }
+    // The child's events (a game, a class), repeating ones included: they're
+    // what a week gets planned around.
+    for (const task of selectedDayData.tasksForDay.filter(t => t.is_event)) {
+      const parts = [task.scheduled_time ? formatTime(task.scheduled_time) : 'Anytime'];
+      if (task.duration && task.duration > 0) parts.push(formatDuration(task.duration));
+      if (prepMinutes(task)) parts.push(`get ready ${formatDuration(prepMinutes(task))} before`);
+      parts.push(task.is_recurring ? 'repeats' : 'this day only');
+      dayItems.push({
+        key: `te-${task.id}`,
+        kind: 'event',
+        title: task.name,
+        meta: parts.join(' · '),
+        onEdit: onEditTask ? () => onEditTask(task) : undefined,
+        onDelete: onDeleteTask ? () => setPendingDelete({ task, date: selectedDate }) : undefined,
       });
     }
     if (selectedDayData.note) {
@@ -409,7 +427,7 @@ const MonthView = ({
         onDelete: () => handleDeleteHoliday(holiday.id),
       });
     }
-    for (const task of selectedDayData.tasksForDay.filter(t => !t.is_recurring)) {
+    for (const task of selectedDayData.tasksForDay.filter(t => !t.is_recurring && !t.is_event)) {
       const when = task.scheduled_time
         ? formatTime(task.scheduled_time)
         : task.type === 'floating' && task.window_start && task.window_end

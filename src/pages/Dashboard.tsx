@@ -27,6 +27,7 @@ import { isRestDate } from "@/utils/restDays";
 import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
 import StarBadge from "@/components/StarBadge";
+import { prepMinutes } from "@/utils/eventWindow";
 
 // Per-child chip colours on event cards (Figma 390:3407: tinted fill, same-
 // colour text). Assigned by the child's position in the list.
@@ -139,7 +140,12 @@ const Dashboard = () => {
         const time = formatTime(t.scheduled_time!);
         return `${t.name} at ${time}`;
       };
-      out[child.id] = { now: current?.name ?? undefined, next: fmt(next) };
+      // Before an event with get-ready time, getting ready is what's on now.
+      const gettingReady = !current && next && prepMinutes(next) > 0 && (() => {
+        const [h, m] = next.scheduled_time!.slice(0, 5).split(":").map(Number);
+        return nowMinutes >= h * 60 + m - prepMinutes(next);
+      })();
+      out[child.id] = { now: current?.name ?? (gettingReady ? `Getting ready for ${next!.name}` : undefined), next: fmt(next) };
     }
     return out;
   }, [allTasks, children]);
@@ -193,7 +199,9 @@ const Dashboard = () => {
     for (const task of allTasks) {
       if (task.is_active === false) continue;
       if (!task.scheduled_time) continue;
-      // Built-in rows only (exact names): "Pack lunch" is a real event.
+      // Only what a grown-up is part of: the child's events (a game to drive
+      // to, a class). Homework, routines and bedtime are the child's own.
+      if (!task.is_event) continue;
       if (isSystemTaskName(task.name)) continue;
       const child = children.find(c => c.id === task.child_id);
       if (!child) continue;
@@ -239,9 +247,9 @@ const Dashboard = () => {
       });
     }
 
-    // Parent events (appointments) always make the list — recurring daily
-    // tasks would otherwise fill the 5-entry cap days before an appointment
-    // later in the window ever surfaces. The cap applies to task entries only.
+    // Parent events (appointments) always make the list — a repeating
+    // practice would otherwise fill the 5-entry cap days before an appointment
+    // later in the window ever surfaces. The cap applies to the child's events only.
     const byDateTime = (a: Group, b: Group) =>
       parse(a.time, "HH:mm", a.date).getTime() - parse(b.time, "HH:mm", b.date).getTime();
     const all = Array.from(grouped.values()).sort(byDateTime);

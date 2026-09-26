@@ -36,7 +36,7 @@ import { springs } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
-import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
+import { getSystemTaskScheduleForDay, isRoutineKey, isWeekendDay, overridesField, updateAllSystemTaskInstances, weekendTimeOf, withWeekendTime } from "@/utils/systemTasks";
 import { isRestDate, restDayUpdate } from "@/utils/restDays";
 import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
 import { toast as sonner } from "sonner";
@@ -168,6 +168,9 @@ const ChildDashboard = () => {
     'Wake Up': 'wake', 'Breakfast': 'breakfast', 'School': 'school',
     'Lunch': 'lunch', 'Dinner': 'dinner', 'Bedtime': 'bedtime',
   };
+  const taskNameForKey: Record<string, string> = Object.fromEntries(
+    Object.entries(systemNameToKey).map(([name, key]) => [key, name]),
+  );
 
   // Apply a recurring-task edit globally. Also clears any per-date override
   // for the current date so the new base value wins on that date.
@@ -253,7 +256,7 @@ const ChildDashboard = () => {
     return clash ? describeClash(clash) : null;
   };
 
-  const clashForEdit = (taskData: Partial<Task>, et: Task, scope: 'this-date' | 'all') => {
+  const clashForEdit = (taskData: Partial<Task>, et: Task, scope: 'this-date' | 'all' | 'weekend') => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const sysKey = systemNameToKey[et.name];
     if (sysKey && child) {
@@ -266,7 +269,7 @@ const ChildDashboard = () => {
         nextChild = { ...child, system_date_overrides: { ...existing, [dateStr]: forDate } };
       } else {
         const { [dateStr]: _drop, ...rest } = existing;
-        nextChild = { ...child, ...buildSystemUpdateData(sysKey, taskData), system_date_overrides: rest };
+        nextChild = { ...child, ...systemScopeUpdate(sysKey, taskData, scope === 'weekend' ? 'weekend' : 'all'), system_date_overrides: rest };
       }
       const dates = scope === 'this-date' ? [dateStr] : upcomingDates(tasks, nextChild);
       const clash = findStartClash(et, dates, tasks, nextChild);
@@ -295,7 +298,8 @@ const ChildDashboard = () => {
     const changed: string[] = [];
     if ((taskData.name ?? '') !== (et.name ?? '')) changed.push('name');
     if ((taskData.coins ?? 0) !== (et.coins ?? 0)) changed.push('stars');
-    if (!!taskData.is_important !== !!et.is_important || !!taskData.is_fun_time !== !!et.is_fun_time || (taskData.type === 'floating') !== (et.type === 'floating')) changed.push('how it works');
+    if (!!taskData.is_important !== !!et.is_important || !!taskData.is_fun_time !== !!et.is_fun_time || !!taskData.is_event !== !!et.is_event || (taskData.type === 'floating') !== (et.type === 'floating')) changed.push('how it works');
+    if ((taskData.prep_minutes ?? 0) !== (et.prep_minutes ?? 0)) changed.push('get-ready time');
     if ((taskData.icon ?? null) !== (et.icon ?? null)) changed.push('icon');
     if (JSON.stringify(taskData.subtasks ?? []) !== JSON.stringify(et.subtasks ?? [])) changed.push('checklist');
     if (JSON.stringify([...(taskData.recurring_days ?? [])].sort()) !== JSON.stringify([...(et.recurring_days ?? [])].sort())) changed.push('days');
@@ -307,10 +311,40 @@ const ChildDashboard = () => {
 
   // Apply a system-task edit (school start, etc.) globally. Also clears the
   // current date's per-date override so the new base wins on that date.
-  const applySystemEditAllDays = async (taskData: any, systemKey: string) => {
+  /**
+   * What an edit to a built-in row writes beyond one date. Wake-up, meals and
+   * bedtime can have their own weekend times: "weekend" changes only those,
+   * "all" from a Saturday or Sunday sets every day (weekends follow again),
+   * and "all" from a weekday leaves weekends that have their own time alone.
+   */
+  const systemScopeUpdate = (systemKey: string, taskData: Partial<Task>, scope: 'all' | 'weekend') => {
+    if (!child || !isRoutineKey(systemKey)) return buildSystemUpdateData(systemKey, taskData);
+    const field = overridesField(systemKey);
+    if (scope === 'weekend') {
+      // A profile that never saved this time still has it on the row itself.
+      const row = tasks.find(t => t.name === taskNameForKey[systemKey]);
+      const everyday = getSystemTaskScheduleForDay(child, taskNameForKey[systemKey], 'wednesday')
+        ?? (row?.scheduled_time ? { time: row.scheduled_time, duration: row.duration ?? 0 } : null);
+      const current = weekendTimeOf(child, systemKey) ?? everyday;
+      const weekendTime = {
+        time: (taskData.scheduled_time ?? current?.time ?? '').slice(0, 5),
+        duration: taskData.duration ?? current?.duration ?? 0,
+      };
+      // The same as every other day: weekends simply follow it again.
+      const same = !!everyday && everyday.time.slice(0, 5) === weekendTime.time && everyday.duration === weekendTime.duration;
+      return { [field]: withWeekendTime(child[field], same ? null : weekendTime) };
+    }
+    const updateData = buildSystemUpdateData(systemKey, taskData);
+    if (isWeekendDay(format(currentDate, 'EEEE').toLowerCase()) && weekendTimeOf(child, systemKey)) {
+      updateData[field] = withWeekendTime(child[field], null);
+    }
+    return updateData;
+  };
+
+  const applySystemEditAllDays = async (taskData: any, systemKey: string, scope: 'all' | 'weekend' = 'all') => {
     if (!child) return;
     const dateStr = format(currentDate, 'yyyy-MM-dd');
-    const updateData = buildSystemUpdateData(systemKey, taskData);
+    const updateData = systemScopeUpdate(systemKey, taskData, scope);
     const existing = (child as any).system_date_overrides || {};
     if (existing[dateStr]?.[systemKey]) {
       const { [systemKey]: _drop, ...restForDate } = existing[dateStr];
@@ -587,9 +621,18 @@ const ChildDashboard = () => {
             ? `Only the time and length can change for one day. Changing the ${everyDay.join(', ')} applies to every day.`
             : clashForEdit(taskData, et, 'this-date'),
           allDays: clashForEdit(taskData, et, 'all'),
+          weekend: clashForEdit(taskData, et, 'weekend'),
         };
       })()
     : null;
+  // Wake-up, meals and bedtime edited from a weekend day can apply to every
+  // weekend; from a weekday, weekends with their own time keep it.
+  const editDay = format(currentDate, 'EEEE').toLowerCase();
+  const pendingRoutineKey = pendingRecurringEdit ? systemNameToKey[pendingRecurringEdit.editingTask.name] : undefined;
+  const routineRow = isRoutineKey(pendingRoutineKey) ? pendingRoutineKey : null;
+  const offerWeekend = !!routineRow && isWeekendDay(editDay);
+  const weekendsOwn = !!routineRow && !!child && !!weekendTimeOf(child, routineRow);
+  const allDaysLabel = !routineRow ? 'All recurring' : !offerWeekend && weekendsOwn ? 'Every Weekday' : 'Every Day';
 
   if (!child) {
     return (
@@ -782,7 +825,7 @@ const ChildDashboard = () => {
                   className="flex-1 min-w-0 h-12 inline-flex items-center justify-center gap-1.5 rounded-[14px] bg-focus-lime font-semibold leading-5 text-focus-bg hover:bg-focus-lime/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
                 >
                   <span className="text-[18px]" aria-hidden>+</span>
-                  <span className="text-[15px]">Add Task</span>
+                  <span className="text-[15px]">Add to Schedule</span>
                 </button>
               )}
             </div>
@@ -867,7 +910,11 @@ const ChildDashboard = () => {
                   <span className="font-medium text-foreground">
                     {format(currentDate, 'EEE, MMM d')}
                   </span>
-                  , or to all recurring days?
+                  {offerWeekend
+                    ? ', every Saturday and Sunday, or every day?'
+                    : routineRow && weekendsOwn
+                      ? ', or every weekday? Weekends keep their own time.'
+                      : ', or to all recurring days?'}
                 </>
               )}
             </AlertDialogDescription>
@@ -876,6 +923,9 @@ const ChildDashboard = () => {
             )}
             {scopeClash?.allDays && (
               <p className="text-sm text-focus-coral">{scopeClash.allDays}</p>
+            )}
+            {offerWeekend && scopeClash?.weekend && scopeClash.weekend !== scopeClash.allDays && (
+              <p className="text-sm text-focus-coral">{scopeClash.weekend}</p>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -902,6 +952,25 @@ const ChildDashboard = () => {
             >
               Only on {format(currentDate, 'EEE, MMM d')}
             </AlertDialogAction>
+            {offerWeekend && (
+              <AlertDialogAction
+                disabled={!!scopeClash?.weekend}
+                onClick={async () => {
+                  if (!pendingRecurringEdit) return;
+                  const { taskData, editingTask: et } = pendingRecurringEdit;
+                  setPendingRecurringEdit(null);
+                  setEditingTask(null);
+                  setPrefillTime(undefined);
+                  try {
+                    await applySystemEditAllDays(taskData, systemNameToKey[et.name], 'weekend');
+                  } catch {
+                    toast({ title: "Error updating task", variant: "destructive" });
+                  }
+                }}
+              >
+                Every Weekend
+              </AlertDialogAction>
+            )}
             <AlertDialogAction
               disabled={!!scopeClash?.allDays}
               onClick={async () => {
@@ -922,7 +991,7 @@ const ChildDashboard = () => {
                 }
               }}
             >
-              All recurring
+              {allDaysLabel}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -932,8 +1001,8 @@ const ChildDashboard = () => {
         {/* TaskForm draws its own sheet header (title + 44px close), so the
             dialog's title is screen-reader only and its close button hidden. */}
         <DialogContent className="h-[92vh] supports-[height:100dvh]:h-[92dvh] sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
-          <DialogTitle className="sr-only">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
-          <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
+          <DialogTitle className="sr-only">{editingTask ? "Edit" : "Add to Schedule"}</DialogTitle>
+          <DialogDescription className="sr-only">{editingTask ? "Change what is on the schedule" : "Add a task, chore or event"}</DialogDescription>
           <TaskForm
             wakeTime={child?.wake_time}
             childAge={child?.age}

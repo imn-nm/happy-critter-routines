@@ -136,7 +136,7 @@ const TaskManagement = () => {
               onClick={() => setShowTaskForm(true)}
               disabled={!selectedChild}
             >
-              Add Task
+              Add to Schedule
             </Button>
           </div>
 

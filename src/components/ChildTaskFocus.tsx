@@ -30,6 +30,11 @@ interface Props {
   explanation?: string;
   /** Picture view: read the task (and current step) aloud. */
   onSpeak?: () => void;
+  /**
+   * An event: getting ready before it (the timer counts down to its start) or
+   * at the event itself. Neither has a done button.
+   */
+  phase?: 'prep' | 'event';
 }
 
 /**
@@ -45,12 +50,19 @@ export default function ChildTaskFocus(props: Props) {
     await props.onDone();
   };
   const minutesLeft = Math.max(0, Math.ceil(props.remainingSeconds / 60));
+  const prep = props.phase === 'prep';
+  const title = prep ? `Get Ready for ${props.name}` : props.name;
 
   const badge = props.done ? (
     <StatusBadge variant="complete">Done!</StatusBadge>
   ) : props.overdue ? (
     <StatusBadge variant="overdue">
       {picture ? <><AlarmClock className="w-4 h-4" aria-hidden /><span className="sr-only">Overdue</span></> : 'Overdue'}
+    </StatusBadge>
+  ) : prep && props.remainingSeconds > 0 ? (
+    <StatusBadge variant="time">
+      {picture && getTaskIcon('', 'w-4 h-4', 'backpack')}
+      <span className="tabular-nums">{picture ? `${minutesLeft}m` : `Starts in ${minutesLeft} min`}</span>
     </StatusBadge>
   ) : props.remainingSeconds > 0 ? (
     <StatusBadge variant="time">
@@ -68,10 +80,10 @@ export default function ChildTaskFocus(props: Props) {
               <span className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-raised flex items-center justify-center">
                 {getTaskIcon(props.name, 'w-9 h-9 text-focus-text', props.icon)}
               </span>
-              <h2 className="text-[26px] font-semibold leading-tight text-focus-text break-words min-w-0">{props.name}</h2>
+              <h2 className="text-[26px] font-semibold leading-tight text-focus-text break-words min-w-0">{title}</h2>
             </div>
           ) : (
-            <h2 className="text-[26px] font-semibold leading-tight text-focus-text break-words min-w-0">{props.name}</h2>
+            <h2 className="text-[26px] font-semibold leading-tight text-focus-text break-words min-w-0">{title}</h2>
           )}
           <div className="shrink-0 flex items-center gap-sp-2">
             {badge}
@@ -79,7 +91,7 @@ export default function ChildTaskFocus(props: Props) {
               <button
                 type="button"
                 onClick={props.onSpeak}
-                aria-label={`Hear it: ${props.name}`}
+                aria-label={`Hear it: ${title}`}
                 className="shrink-0 w-11 h-11 rounded-full bg-focus-lavender/20 text-focus-lavender flex items-center justify-center hover:bg-focus-lavender/30 active:scale-95 transition"
               >
                 <Volume2 className="w-6 h-6" aria-hidden />

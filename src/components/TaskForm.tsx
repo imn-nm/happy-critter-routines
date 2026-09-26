@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { format, isValid, parse } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Check, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +10,7 @@ import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
 import { isSystemTaskName, reservedTaskName } from "@/utils/systemTasks";
 import { templateForName, suggestedSteps } from "@/data/taskTemplates";
+import { DEFAULT_PREP_MINUTES, PREP_OPTIONS } from "@/utils/eventWindow";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
 import { routineDays, routineDaysLabel, type Routine } from "@/hooks/useRoutines";
 import { toast } from "sonner";
@@ -128,7 +129,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   const [formData, setFormData] = useState({
     name: task?.name || "",
-    mode: (task?.type === 'floating' ? 'chore' : 'task') as 'task' | 'chore',
+    mode: (task?.type === 'floating' ? 'chore' : task?.is_event ? 'event' : 'task') as 'task' | 'chore' | 'event',
     scheduledTime: toHHMM(task?.scheduled_time) || toHHMM(prefillTime) || "",
     choreAnytime: task?.type === 'floating' && !task?.window_start,
     // Tasks always carry a length now; ones saved before that (and new ones)
@@ -150,6 +151,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     afterTaskId: task?.after_task_id ?? '',
     routineId: task?.routine_id ?? '',
     daysOverride: task?.days_override ?? false,
+    // An event's get-ready time before it starts (its steps show then).
+    getReady: (task?.prep_minutes ?? 0) > 0,
+    prepMinutes: task?.prep_minutes || DEFAULT_PREP_MINUTES,
   });
   const [newSubtaskText, setNewSubtaskText] = useState("");
   // Suggestions from the name fill in what the parent hasn't set themselves;
@@ -157,6 +161,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [durationTouched, setDurationTouched] = useState(isEdit);
   const [iconTouched, setIconTouched] = useState(isEdit || !!task?.icon);
   const [funTouched, setFunTouched] = useState(isEdit);
+  const [whatTouched, setWhatTouched] = useState(isEdit);
+  // An end time picked before the start: shown with an error, never saved.
+  const [badEnd, setBadEnd] = useState<string | null>(null);
   const { saved: savedChecklists, saveChecklist, saving: savingChecklist } = useChecklistTemplates();
 
   // Time to restore when the task is switched back to a fixed time. A flexible
@@ -179,6 +186,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       subtasks: [...prev.subtasks, { id: crypto.randomUUID(), text }],
     }));
     setNewSubtaskText("");
+    newStepRef.current?.focus({ preventScroll: true });
   };
 
   const removeSubtask = (id: string) => {
@@ -193,6 +201,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const isChore = formData.mode === 'chore';
+  // Something they go to (a game, class): a set time, no done button, and it
+  // ends by itself. Optional get-ready time before it holds its steps.
+  const isEvent = formData.mode === 'event';
   const atTime = !!formData.scheduledTime;
 
   // A task in a routine repeats on the routine's days, unless it has its own.
@@ -245,11 +256,22 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     ? formData.minDuration
     : minOptions.filter(m => m <= formData.minDuration).pop() ?? minOptions[0] ?? 0;
 
-  // Task, Fun Time (a task with no done button, is_fun_time) or Chore.
-  const isFun = !isChore && formData.isFunTime;
-  type WhatKind = 'task' | 'fun' | 'chore';
+  // Task, Fun Time (a task with no done button, is_fun_time), Chore or Event.
+  const isFun = !isChore && !isEvent && formData.isFunTime;
+  type WhatKind = 'task' | 'fun' | 'chore' | 'event';
   const setWhat = (next: WhatKind) => {
     if (next === 'chore') return setFormData({ ...formData, mode: 'chore', isFunTime: false });
+    // An event always has a set time. Steps it already had become its
+    // get-ready steps. Stars, Fun Time and Must Get Done stay in the form in
+    // case the parent switches back, but an event saves without them.
+    if (next === 'event') {
+      return setFormData({
+        ...formData,
+        mode: 'event',
+        scheduledTime: formData.scheduledTime || lastTime,
+        getReady: formData.getReady || formData.subtasks.length > 0,
+      });
+    }
     const on = next === 'fun';
     setFormData({
       ...formData,
@@ -288,6 +310,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     }
     if (t && !iconTouched) next.icon = t.icon;
     if (!t && !iconTouched) next.icon = '';
+    // Games, practices and lessons become Events on their own, with
+    // get-ready time, until the parent picks what it is themselves.
+    if (!whatTouched && next.mode !== 'chore') {
+      if (t?.event && next.mode !== 'event') {
+        next.mode = 'event';
+        next.scheduledTime = next.scheduledTime || lastTime;
+        next.getReady = true;
+        next.prepMinutes = t.prep ?? DEFAULT_PREP_MINUTES;
+      } else if (!t?.event && next.mode === 'event') {
+        next.mode = 'task';
+      }
+    }
     // TV, games, playtime… become Fun Time on their own (no done button,
     // first to go on a busy day) until the parent flips it themselves.
     if (!funTouched && next.mode === 'task') {
@@ -305,15 +339,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const stepIdeas = Array.from(new Set([
     ...(matchingSaved?.steps ?? []),
     ...suggestedSteps(formData.name, childAge),
-  ])).filter(step => !existingSteps.has(step.trim().toLowerCase())).slice(0, 5);
-  const [pickedIdeas, setPickedIdeas] = useState<string[] | null>(null);
-  const picked = pickedIdeas ?? stepIdeas;
+  ])).slice(0, 5);
+  const remainingIdeas = stepIdeas.filter(step => !existingSteps.has(step.trim().toLowerCase()));
   // Suggestions are only ever added after what's there: never replaced.
   const addSteps = (steps: string[]) => {
     const fresh = steps.filter(step => !existingSteps.has(step.trim().toLowerCase()));
     if (!fresh.length) return;
     setFormData(prev => ({ ...prev, subtasks: [...prev.subtasks, ...fresh.map(text => ({ id: crypto.randomUUID(), text }))] }));
-    setPickedIdeas(null);
   };
   const moveSubtask = (index: number, delta: -1 | 1) => {
     setFormData(prev => {
@@ -346,7 +378,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       type: derivedType,
       scheduled_time: !isChore && scheduledTimeStr ? scheduledTimeStr : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
-      coins: parseInt(formData.coins),
+      // Events have no done button, so nothing to give stars for.
+      coins: isEvent ? 0 : parseInt(formData.coins),
       // Parent-chosen icon; null clears it so the child view falls back to the
       // name-based icon.
       icon: formData.icon || null,
@@ -361,8 +394,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // A one-off (task or chore) pins to its date; repeats use weekdays.
       task_date: !repeats ? formData.taskDate : undefined,
       // Important / fun-time / checklist are task-mode-only concepts.
-      is_important: isChore ? false : formData.isImportant,
-      is_fun_time: isChore ? false : formData.isFunTime,
+      is_important: isChore || isEvent ? false : formData.isImportant,
+      is_fun_time: isChore || isEvent ? false : formData.isFunTime,
+      is_event: isEvent,
+      prep_minutes: isEvent && formData.getReady ? formData.prepMinutes : 0,
       window_start: derivedType === 'floating' && !formData.choreAnytime
         ? formData.windowStart
         // Non-chore task without a set time — preserve a placement hint so
@@ -375,10 +410,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 : (task?.window_start || prefillTime || undefined))
             : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
-      subtasks: !isChore && formData.subtasks.length > 0 ? formData.subtasks : undefined,
-      // Must-finish tasks are what runs late; they never give up time.
-      late_policy: isChore || formData.isImportant ? 'keep' : formData.latePolicy,
-      min_duration: !isChore && !formData.isImportant && formData.latePolicy === 'shorten' ? effectiveMin : null,
+      // An event's steps are its get-ready steps: none without get-ready time.
+      subtasks: !isChore && (!isEvent || formData.getReady) && formData.subtasks.length > 0 ? formData.subtasks : undefined,
+      // Must-finish tasks are what runs late; they never give up time. Nor
+      // does an event: the game starts when it starts.
+      late_policy: isChore || isEvent || formData.isImportant ? 'keep' : formData.latePolicy,
+      min_duration: !isChore && !isEvent && !formData.isImportant && formData.latePolicy === 'shorten' ? effectiveMin : null,
       routine_id: routine?.id ?? null,
       days_override: !!routine && formData.daysOverride,
       // Only a flexible task follows another; a fixed time is its own start.
@@ -394,6 +431,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const startMinutes = !isChore && formData.scheduledTime
     ? Number(formData.scheduledTime.slice(0, 2)) * 60 + Number(formData.scheduledTime.slice(3, 5))
     : null;
+  const hhmmOf = (min: number) =>
+    `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  // An event is set by its start and end; the end moves with the start.
+  const eventEnd = startMinutes != null ? hhmmOf(startMinutes + durationTotal) : '';
+  const prepStart = startMinutes != null ? hhmmOf(Math.max(0, startMinutes - formData.prepMinutes)) : '';
   const isBedtimeRow = isSystemEvent && task?.name === 'Bedtime';
   const wakeMinutes = wakeTime ? Number(wakeTime.slice(0, 2)) * 60 + Number(wakeTime.slice(3, 5)) : null;
   const timeProblem = startMinutes == null
@@ -406,7 +448,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const nameClash = isSystemEvent ? undefined : reservedTaskName(formData.name);
   // A chore window that ends before it starts would never be open.
   const windowBackwards = isChore && !formData.choreAnytime && formData.windowEnd <= formData.windowStart;
-  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards;
+  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !(isEvent && badEnd);
 
 
   const coinCount = parseInt(formData.coins) || 0;
@@ -422,6 +464,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     if (formData.subtasks.length > 0) lost.push('checklist');
     if (!lost.length) return null;
     return `Chores don't use ${lost.join(', ')} — that will be cleared when you save.`;
+  })();
+  // Likewise for an event, which has no done button.
+  const eventWouldDrop = (() => {
+    if (!isEvent) return null;
+    const lost: string[] = [];
+    if (coinCount > 0) lost.push('stars');
+    if (formData.isImportant || formData.isFunTime) lost.push('Fun Time or Must Get Done');
+    if (!formData.getReady && formData.subtasks.length > 0) lost.push('steps (turn on Getting Ready to keep them)');
+    if (!lost.length) return null;
+    return `Events don't use ${lost.join(', ')}. That will be cleared when you save.`;
   })();
 
   // The single date, as the summary and "Which Days?" say it.
@@ -439,12 +491,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         starsText,
       ].filter(Boolean).join(' · ');
     }
+    if (isEvent && formData.scheduledTime) {
+      const lead = repeats ? daysPhrase(repeatDays) : dateLabel;
+      const parts = [`${lead}, ${fmtRange(formData.scheduledTime, eventEnd)}.`];
+      if (formData.getReady) parts.push(`Get ready ${formData.prepMinutes} min before.`);
+      return parts.join(' ');
+    }
     const when = atTime
       ? `at ${fmtTime(formData.scheduledTime)}`
       : anchor ? `after ${anchor.name}` : 'whenever there is room';
     const lead = isSystemEvent ? '' : repeats ? daysPhrase(repeatDays) : dateLabel;
     const first = lead ? `${lead} ${when}` : when.charAt(0).toUpperCase() + when.slice(1);
-    const parts = [`${first} for ${fmtLen(durationTotal)}.`];
+    const parts = [isBedtimeRow ? `${first}, until wake-up.` : `${first} for ${fmtLen(durationTotal)}.`];
     if (!isSystemEvent) {
       if (formData.isFunTime) parts.push('Fun time.');
       if (priority === 'must') parts.push('Must finish.');
@@ -514,15 +572,40 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       value={formData.scheduledTime}
       onChange={(value) => {
         if (value) setLastTime(value);
+        // The end moves with the start, keeping the length (as calendars do).
+        setBadEnd(null);
         setFormData({ ...formData, scheduledTime: value });
       }}
     />
   );
+  const endsTimeTile = (
+    <TimeTile
+      label="Ends"
+      value={badEnd ?? eventEnd}
+      onChange={(value) => {
+        if (!value || startMinutes == null) return;
+        const length = Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) - startMinutes;
+        if (length <= 0) return setBadEnd(value);
+        setBadEnd(null);
+        setDuration(length);
+      }}
+    />
+  );
+  const prepTile = (
+    <SelectTile
+      label="Get Ready"
+      value={String(formData.prepMinutes)}
+      display={`${fmtLen(formData.prepMinutes)} before`}
+      onChange={(v) => setFormData({ ...formData, prepMinutes: parseInt(v) })}
+      options={(PREP_OPTIONS.includes(formData.prepMinutes) ? PREP_OPTIONS : [...PREP_OPTIONS, formData.prepMinutes].sort((a, b) => a - b))
+        .map(m => ({ value: String(m), label: `${fmtLen(m)} before` }))}
+    />
+  );
 
-  const noun = isChore ? 'Chore' : isFun ? 'Fun Time' : 'Task';
+  const noun = isChore ? 'Chore' : isEvent ? 'Event' : isFun ? 'Fun Time' : 'Task';
   const sheetTitle = `${isEdit ? 'Edit' : 'New'} ${noun}`;
   const stepInputClass =
-    "h-11 flex-1 min-w-0 rounded-[12px] border-0 bg-focus-surface px-3 text-14 text-focus-text placeholder:text-focus-muted/70 focus:outline-none focus:ring-2 focus:ring-focus-lavender";
+    "h-11 flex-1 min-w-0 rounded-[12px] border-0 bg-focus-surface px-3 text-[16px] text-focus-text placeholder:text-focus-muted/70 focus:outline-none focus:ring-2 focus:ring-focus-lavender";
   const iconButtonClass =
     "tap-target h-11 shrink-0 rounded-[12px] flex items-center justify-center text-focus-muted transition-colors hover:enabled:text-focus-text disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
 
@@ -546,7 +629,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   <SummaryIcon className="w-6 h-6" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[316px] p-3 bg-focus-sheet border-focus-raised" align="start">
+              <PopoverContent className="w-[316px] max-h-[min(26rem,var(--radix-popover-content-available-height))] overflow-y-auto p-3 bg-focus-sheet border-focus-raised" align="start">
                 <p className="text-12 font-medium text-focus-muted mb-2">Icon</p>
                 <div className="grid grid-cols-6 gap-1.5">
                   <button
@@ -586,10 +669,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           <label htmlFor="taskName" className="flex-1 min-w-0 min-h-11 flex flex-col justify-center gap-0.5 cursor-text">
             <input
               id="taskName"
-              aria-label={isChore ? 'Chore name' : 'Task name'}
+              aria-label={isChore ? 'Chore name' : isEvent ? 'Event name' : 'Task name'}
               value={formData.name}
               onChange={(e) => onNameChange(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                            e.preventDefault();
+                            newStepRef.current?.focus({ preventScroll: true });
+                          }
+                        }}
               placeholder="Title"
               required
               autoComplete="off"
@@ -609,7 +698,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           <div className="flex items-center gap-1.5 px-1">
             <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
             <Caption>
-              {isChore ? 'Icon suggested from the name.' : `Suggested from the name: ${fmtLen(durationTotal)} and an icon. Change anything.`}
+              {isChore
+                ? 'Icon suggested from the name.'
+                : isEvent && template.event
+                  ? `Suggested from the name: an event of ${fmtLen(durationTotal)} with time to get ready. Change anything.`
+                  : `Suggested from the name: ${fmtLen(durationTotal)} and an icon. Change anything.`}
             </Caption>
           </div>
         )}
@@ -624,19 +717,25 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {!isSystemEvent && (
         <section className="flex flex-col gap-2.5">
           <SectionHeading id="q-what">What Is It?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-2 gap-2">
-            <ChoiceButton selected={!isChore} onClick={() => setWhat(isFun ? 'fun' : 'task')} className="min-h-12 rounded-[16px] text-14">
+          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-3 gap-2">
+            <ChoiceButton selected={!isChore && !isEvent} onClick={() => { setWhatTouched(true); setWhat(formData.isFunTime ? 'fun' : 'task'); }} className="min-h-12 rounded-[16px] text-14">
               Task
             </ChoiceButton>
-            <ChoiceButton selected={isChore} onClick={() => setWhat('chore')} className="min-h-12 rounded-[16px] text-14">
+            <ChoiceButton selected={isChore} onClick={() => { setWhatTouched(true); setWhat('chore'); }} className="min-h-12 rounded-[16px] text-14">
               Chore
+            </ChoiceButton>
+            <ChoiceButton selected={isEvent} onClick={() => { setWhatTouched(true); setWhat('event'); }} className="min-h-12 rounded-[16px] text-14">
+              Event
             </ChoiceButton>
           </div>
           <Caption>
             {isChore
               ? "A to-do that doesn't take up schedule time."
-              : 'Something on their schedule, like homework, brushing teeth or TV.'}
+              : isEvent
+                ? 'Something your child attends, like a game or a class. It has no done button and ends by itself.'
+                : 'Something on their schedule, like homework, brushing teeth or TV.'}
           </Caption>
+          {eventWouldDrop && <Caption tone="warn">{eventWouldDrop}</Caption>}
         </section>
       )}
 
@@ -646,8 +745,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         {isSystemEvent ? (
           <div className="flex gap-2">
             {atTime && startsTimeTile}
-            {lastsTile}
+            {/* Bedtime runs until wake-up: there's no length to set. */}
+            {!isBedtimeRow && lastsTile}
           </div>
+        ) : isEvent ? (
+          <>
+            <div className="flex gap-2">{startsTimeTile}{endsTimeTile}</div>
+            {badEnd
+              ? <Caption tone="error" role="alert">It has to end after it starts.</Caption>
+              : <Caption>It keeps this time, even when the day runs late.</Caption>}
+          </>
         ) : !isChore ? (
           <div role="radiogroup" aria-labelledby="q-when" className="flex flex-col gap-2">
             {KIND_OPTIONS.map(option => {
@@ -777,7 +884,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           Must Get Done, the one timing choice that needs a person. The rest
           is automatic: a task keeps its full time, fun time is the first to
           go on a busy day. (Older tasks keep whatever they were set to.) */}
-      {!isChore && !isSystemEvent && (
+      {!isChore && !isEvent && !isSystemEvent && (
         <ToggleCard>
           <SwitchRow
             id="funTime"
@@ -804,7 +911,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {/* === STARS === tasks and chores (fun time has no done button).
           Never earned automatically: the parent gives them once it's done. */}
-      {!isFun && !isSystemEvent && (
+      {!isFun && !isEvent && !isSystemEvent && (
         <section className="flex flex-col gap-2.5">
           <SectionHeading>Stars for Completing It</SectionHeading>
           <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
@@ -815,15 +922,63 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === STEPS === tasks and fun time; chores don't have steps. */}
       {!isSystemEvent && !isChore && (
         <section id="checklist-section" className="flex flex-col gap-2">
-          <SectionHeading
-            aside={formData.subtasks.length > 0
-              ? `Optional · ${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}`
-              : 'Optional'}
-          >
-            Steps
-          </SectionHeading>
-          {(
+          {/* An event's steps are for getting ready before it: finishing them
+              shows "You're Ready!" and never ends the event itself. */}
+          {isEvent ? (
+            <ToggleCard>
+              <SwitchRow
+                id="getReady"
+                label="Getting Ready"
+                caption={formData.getReady
+                  ? `Starts at ${fmtTime(prepStart)}. Finishing the steps shows "You're Ready!" but never ends the event.`
+                  : 'Time before it starts to get ready, with steps to tick off.'}
+                checked={formData.getReady}
+                onCheckedChange={(on) => setFormData({ ...formData, getReady: on })}
+              />
+            </ToggleCard>
+          ) : (
+            <SectionHeading
+              aside={formData.subtasks.length > 0
+                ? `Optional · ${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}`
+                : 'Optional'}
+            >
+              Steps
+            </SectionHeading>
+          )}
+          {(!isEvent || formData.getReady) && (
             <>
+              {isEvent && <div className="flex gap-2">{prepTile}<span className="flex-1" aria-hidden /></div>}
+              {(checklistOpen || formData.subtasks.length > 0) && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={newStepRef}
+                      value={newSubtaskText}
+                      onChange={(e) => setNewSubtaskText(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          addSubtask();
+                        }
+                      }}
+                      aria-label="New step"
+                      enterKeyHint="next"
+                      autoComplete="off"
+                      placeholder="Add a step…"
+                      className={stepInputClass}
+                    />
+                    <button
+                      type="button"
+                      onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
+                      onClick={addSubtask}
+                      disabled={!newSubtaskText.trim()}
+                      className={cn(iconButtonClass, "w-11 bg-focus-surface text-focus-lavender hover:enabled:bg-focus-raised")}
+                      aria-label="Add step"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+              )}
               {formData.subtasks.length > 0 && (
                 <ol className="flex flex-col gap-1.5">
                   {formData.subtasks.map((sub, idx) => (
@@ -840,7 +995,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                         type="button"
                         onClick={() => moveSubtask(idx, -1)}
                         disabled={idx === 0}
-                        className={cn(iconButtonClass, "w-8")}
+                        className={cn(iconButtonClass, "w-11")}
                         aria-label="Move step up"
                       >
                         <ArrowUp className="w-4 h-4" />
@@ -849,7 +1004,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                         type="button"
                         onClick={() => moveSubtask(idx, 1)}
                         disabled={idx === formData.subtasks.length - 1}
-                        className={cn(iconButtonClass, "w-8")}
+                        className={cn(iconButtonClass, "w-11")}
                         aria-label="Move step down"
                       >
                         <ArrowDown className="w-4 h-4" />
@@ -857,7 +1012,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                       <button
                         type="button"
                         onClick={() => removeSubtask(sub.id)}
-                        className={cn(iconButtonClass, "w-9 hover:enabled:text-focus-coral hover:bg-focus-coral/10")}
+                        className={cn(iconButtonClass, "w-11 hover:enabled:text-focus-coral hover:bg-focus-coral/10")}
                         aria-label="Remove step"
                       >
                         <X className="w-4 h-4" />
@@ -871,15 +1026,19 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 <>
                   <button
                     type="button"
-                    onClick={() => { setChecklistOpen(true); window.setTimeout(() => newStepRef.current?.focus(), 50); }}
+                    onClick={() => setChecklistOpen(true)}
                     className={choiceClass(false, "w-full rounded-[12px]")}
                   >
-                    + Add a Checklist
+                    {isEvent ? '+ Add Get-Ready Steps' : '+ Add a Checklist'}
                   </button>
                   {stepIdeas.length > 0 ? (
                     <Caption>Ideas: {stepIdeas.slice(0, 3).join(', ')}</Caption>
                   ) : (
-                    <Caption>Break the task into steps your child can tick off one by one.</Caption>
+                    <Caption>
+                      {isEvent
+                        ? 'Things to do before leaving, like shoes on and a water bottle.'
+                        : 'Break the task into steps your child can tick off one by one.'}
+                    </Caption>
                   )}
                 </>
               ) : (
@@ -893,34 +1052,28 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                         <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
                         <Caption>{matchingSaved ? `From your saved "${matchingSaved.name}" checklist` : 'Ideas'}</Caption>
                       </div>
+                      <Caption>Tap an idea to add it, or write your own above.</Caption>
                       {stepIdeas.map(step => {
-                        const on = picked.includes(step);
+                        const added = existingSteps.has(step.trim().toLowerCase());
                         return (
-                          <label key={step} className="flex min-h-11 items-center gap-3 text-14 text-focus-text cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={on}
-                              onChange={() => setPickedIdeas(on ? picked.filter(s => s !== step) : [...picked, step])}
-                              className="w-5 h-5 shrink-0 accent-focus-lavender"
-                            />
-                            <span className="min-w-0 truncate">{step}</span>
-                          </label>
+                          <button
+                            key={step}
+                            type="button"
+                            disabled={added}
+                            onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
+                            onClick={() => addSteps([step])}
+                            className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-2 text-left text-14 text-focus-text hover:enabled:bg-focus-lavender/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender disabled:text-focus-muted"
+                            aria-label={added ? step + ', added' : 'Add ' + step}
+                          >
+                            {added ? <Check className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden /> : <Plus className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden />}
+                            <span className="min-w-0 flex-1 break-words">{step}</span>
+                            {added && <span className="text-12 text-focus-muted">Added</span>}
+                          </button>
                         );
                       })}
-                      <div className="flex gap-2 pt-1">
-                        <Button type="button" size="sm" variant="secondary" onClick={() => addSteps(stepIdeas)}>
-                          Add All
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={picked.length === 0}
-                          onClick={() => addSteps(stepIdeas.filter(s => picked.includes(s)))}
-                        >
-                          Add Selected ({picked.length})
-                        </Button>
-                      </div>
+                      <Button type="button" size="sm" variant="secondary" className="min-h-11 self-start mt-1" disabled={remainingIdeas.length === 0} onClick={() => addSteps(remainingIdeas)}>
+                        {remainingIdeas.length === 0 ? 'All Ideas Added' : 'Add All Ideas'}
+                      </Button>
                     </div>
                   )}
                   {/* Other checklists the family saved, for tasks with a new name. */}
@@ -938,32 +1091,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={newStepRef}
-                      value={newSubtaskText}
-                      onChange={(e) => setNewSubtaskText(e.target.value)}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addSubtask();
-                        }
-                      }}
-                      aria-label="New step"
-                      placeholder="Add a step…"
-                      className={stepInputClass}
-                    />
-                    <button
-                      type="button"
-                      onClick={addSubtask}
-                      disabled={!newSubtaskText.trim()}
-                      className={cn(iconButtonClass, "w-11 bg-focus-surface text-focus-lavender hover:enabled:bg-focus-raised")}
-                      aria-label="Add step"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </div>
                   {formData.subtasks.length >= 2 && formData.name.trim() && (
                     <button
                       type="button"

@@ -768,12 +768,14 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean
+          is_event: boolean
           is_fun_time: boolean | null
           is_important: boolean | null
           is_recurring: boolean
           late_policy: string
           min_duration: number | null
           name: string
+          prep_minutes: number
           recurring_days: string[] | null
           routine_id: string | null
           schedule_overrides: Json | null
@@ -799,12 +801,14 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          is_event?: boolean
           is_fun_time?: boolean | null
           is_important?: boolean | null
           is_recurring?: boolean
           late_policy?: string
           min_duration?: number | null
           name: string
+          prep_minutes?: number
           recurring_days?: string[] | null
           routine_id?: string | null
           schedule_overrides?: Json | null
@@ -830,12 +834,14 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          is_event?: boolean
           is_fun_time?: boolean | null
           is_important?: boolean | null
           is_recurring?: boolean
           late_policy?: string
           min_duration?: number | null
           name?: string
+          prep_minutes?: number
           recurring_days?: string[] | null
           routine_id?: string | null
           schedule_overrides?: Json | null

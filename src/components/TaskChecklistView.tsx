@@ -20,6 +20,8 @@ interface TaskChecklistViewProps {
   className?: string;
   /** Picture view: fewer words — progress as dots, icons for the controls. */
   picture?: boolean;
+  /** What finishing every step says ("You're Ready!" before an event). */
+  doneLabel?: string;
 }
 
 /**
@@ -34,12 +36,14 @@ const TaskChecklistView = ({
   onToggle,
   className,
   picture,
+  doneLabel,
 }: TaskChecklistViewProps) => {
   const { t, reduce } = useMotionPrefs();
   const [expanded, setExpanded] = useState(false);
   const currentIndex = subtasks.findIndex(s => !checkedIds.includes(s.id));
   const current = currentIndex >= 0 ? subtasks[currentIndex] : null;
   const doneCount = subtasks.filter(s => checkedIds.includes(s.id)).length;
+  const allDone = doneLabel ?? "All steps done!";
 
   return (
     <div className={cn("w-full flex flex-col gap-sp-2", className)}>
@@ -47,10 +51,10 @@ const TaskChecklistView = ({
         <>
           <div className={cn("flex items-center px-1", picture ? "justify-center" : "justify-between")}>
             {picture ? (
-              <span className="sr-only">{current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}</span>
+              <span className="sr-only">{current ? `Step ${currentIndex + 1} of ${subtasks.length}` : allDone}</span>
             ) : (
               <span className="text-13 text-focus-muted">
-                {current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}
+                {current ? `Step ${currentIndex + 1} of ${subtasks.length}` : allDone}
               </span>
             )}
             {/* Progress dots — the whole story in picture view */}
@@ -97,9 +101,9 @@ const TaskChecklistView = ({
                 transition={t(springs.bouncy)}
               >
                 {picture ? (
-                  <Check className="w-9 h-9" strokeWidth={3} aria-label="All steps done!" />
+                  <Check className="w-9 h-9" strokeWidth={3} aria-label={allDone} />
                 ) : (
-                  <><Check className="w-5 h-5" strokeWidth={3} /> All {subtasks.length} steps done!</>
+                  <><Check className="w-5 h-5" strokeWidth={3} /> {doneLabel ?? `All ${subtasks.length} steps done!`}</>
                 )}
               </motion.div>
             )}

@@ -56,6 +56,10 @@ export interface Task {
   date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
   is_important?: boolean;
   is_fun_time?: boolean;
+  /** Something the child goes to (a game, class): set time, no done button, ends by itself. */
+  is_event?: boolean;
+  /** An event's get-ready time before it starts, in minutes (0 = none). */
+  prep_minutes?: number;
   /** When the day runs late: keep this time, shorten it (to min_duration), or skip it. */
   late_policy?: 'keep' | 'shorten' | 'skip';
   /** For "shorten": the least time it keeps, in minutes. */

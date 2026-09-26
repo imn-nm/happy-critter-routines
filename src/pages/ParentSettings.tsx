@@ -188,6 +188,19 @@ const ParentSettings = () => {
             </ul>
           )}
         </section>
+
+        {/* The free UIcons licence asks for this credit. */}
+        <p className="text-12 text-focus-muted text-center">
+          Task icons:{" "}
+          <a
+            href="https://www.flaticon.com/uicons"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-focus-text"
+          >
+            Uicons by Flaticon
+          </a>
+        </p>
       </div>
 
       <EditChildDialog

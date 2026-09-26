@@ -9,6 +9,8 @@ interface ScheduleSoundCuesProps {
   dayOver: boolean;
   /** Picture view: after the chime, say what's starting. */
   speakPrompts?: boolean;
+  /** What to say instead of "Time for …!" (an event's get-ready start). */
+  announce?: string | null;
 }
 
 /**
@@ -16,7 +18,7 @@ interface ScheduleSoundCuesProps {
  * hooks run unconditionally — the child page has early loading returns above
  * the point where the schedule is known.
  */
-const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver, speakPrompts }: ScheduleSoundCuesProps) => {
+const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver, speakPrompts, announce }: ScheduleSoundCuesProps) => {
   // A new activity took the stage. Skips the first render so opening the
   // page mid-task is silent.
   const prevActiveIdRef = useRef<string | null | undefined>(undefined);
@@ -28,7 +30,7 @@ const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver
     if (bedtime) sounds.bedtime();
     else sounds.start();
     if (!speakPrompts || !activeTaskName) return;
-    const id = window.setTimeout(() => speak(bedtime ? "Time for bed. Goodnight!" : `Time for ${activeTaskName}!`), 700);
+    const id = window.setTimeout(() => speak(bedtime ? "Time for bed. Goodnight!" : announce || `Time for ${activeTaskName}!`), 700);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTaskId, activeTaskName]);

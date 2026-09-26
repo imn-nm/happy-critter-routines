@@ -170,6 +170,9 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
             is_active: true,
             is_important: t.is_important ?? false,
             is_fun_time: t.is_fun_time ?? false,
+            // An event needs a set time; without one it lands as a plain task.
+            is_event: !!t.is_event && !!candidate.scheduled_time,
+            prep_minutes: t.is_event && candidate.scheduled_time ? t.prep_minutes ?? 0 : 0,
             late_policy: t.late_policy === "shorten" && !min ? "skip" : t.late_policy ?? "keep",
             min_duration: min,
             window_start: t.window_start ?? null,

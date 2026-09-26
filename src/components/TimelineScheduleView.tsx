@@ -1,4 +1,6 @@
 import { Fragment, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { timelineCollisionDetection } from '@/utils/timelineCollision';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,11 +15,14 @@ import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
+import { prepMinutes } from '@/utils/eventWindow';
+import { getTaskIcon } from '@/utils/taskIcon';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
 import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
 import {
   DndContext,
-  closestCenter,
+  DragOverlay,
+  MeasuringStrategy,
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
@@ -35,7 +40,6 @@ import {
 import {
   useSortable,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { motion } from "motion/react";
 import { springs } from "@/lib/motion";
@@ -147,9 +151,9 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
   tickTime: number; label: string; isHour: boolean; isHovered: boolean;
   inWindow: boolean; isStart: boolean; isEnd: boolean; children?: React.ReactNode;
 }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: `tick-${tickTime}` });
-  const highlighted = isHovered || isOver;
-  const inWin = inWindow || isOver;
+  const { setNodeRef } = useDroppable({ id: `tick-${tickTime}` });
+  const highlighted = isHovered;
+  const inWin = inWindow;
 
   return (
     <div ref={setNodeRef} className="flex gap-[10px] h-7">
@@ -252,33 +256,28 @@ const formatRange = (timeStr: string, duration: number, withSuffix = false) => {
 
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  // Draggable: user tasks without a set time. Tasks the parent has pinned
-  // to a specific clock time (event.task.scheduled_time) shouldn't drag —
-  // the time was deliberate and editing belongs in the form, not by drag.
-  // System tasks and gaps stay fixed too.
+  // Keep fixed-time tasks, system rows and completed tasks in place.
+  // They remain drop targets for placing a flexible task beside them.
   const isGap = event.type === 'gap';
   const hasFixedTime = !!event.task?.scheduled_time;
-  const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime;
+  const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime && !event.isCompleted;
   
   const {
     attributes,
     listeners,
     setNodeRef,
-    transform,
-    transition,
+    setActivatorNodeRef,
     isDragging,
   } = useSortable({
     id: event.id,
-    disabled: !isDraggable,
+    disabled: { draggable: !isDraggable, droppable: false },
     animateLayoutChanges: () => false,
   });
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: isDragging ? 1.03 : 1, scaleY: isDragging ? 1.03 : 1 } : null),
-    transition: isDragging ? 'none' : (transition || 'transform 200ms ease, box-shadow 200ms ease'),
-    zIndex: isDragging ? 1000 : 'auto',
-    opacity: isDragging ? 0.95 : 1,
-    boxShadow: isDragging ? '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)' : undefined,
+    // The overlay follows the finger; the source stays in the timeline so
+    // scrolling and expanded gaps cannot pull the lifted card away.
+    opacity: isDragging ? 0.3 : 1,
     // Mobile: only lock touch-action during the actual drag so iOS doesn't try to
     // scroll underneath the lifted tile. When not dragging, leave it alone so the
     // page scrolls normally — the long-press drag is triggered by the handle icon
@@ -393,8 +392,28 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
         isDragging && "shadow-2xl ring-2 ring-focus-lavender/60 rounded-[18px]"
       )}
     >
-      {/* Gap (Free Time) */}
-      {isGap ? (
+      {/* An event's get-ready time: a smaller block just before it. Tapping
+          it opens the event, where the time and steps are set. */}
+      {event.type === 'prep' ? (
+        <div className="flex items-stretch gap-[10px]">
+          <div className="w-[50px] shrink-0 flex items-center justify-end">
+            <span className="text-[12px] leading-4 text-focus-muted tabular-nums whitespace-nowrap">{formatTime(event.time)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onEditTask?.(event.task)}
+            aria-label={`${event.name}, ${formatRange(event.time, event.duration, true)}. Tap to change it.`}
+            className="flex-1 min-w-0 min-h-11 flex items-center gap-2 px-3 py-2 rounded-[12px] border border-dashed border-focus-lavender/45 bg-focus-lavender/[0.07] text-left transition-colors hover:bg-focus-lavender/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            {getTaskIcon('', 'w-4 h-4 shrink-0 text-focus-lavender', 'backpack')}
+            <span className="flex-1 min-w-0 truncate text-[12px] leading-4 text-focus-muted">
+              <span className="font-medium text-focus-text">Get ready</span>
+              {' · '}{formatRange(event.time, event.duration, true)}
+              {event.task?.subtasks?.length ? ` · ${event.task.subtasks.length} step${event.task.subtasks.length === 1 ? '' : 's'}` : ''}
+            </span>
+          </button>
+        </div>
+      ) : isGap ? (
         <div>
           {isDraggingAny ? (() => {
             // Show 15-min grid lines only during drag
@@ -502,6 +521,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             metaParts.push(formatRange(event.time, event.duration));
             metaParts.push(formatDuration(event.duration));
           }
+          if (event.task?.is_event) metaParts.push('Event');
           if (event.starsGiven) metaParts.push(`★ ${event.starsGiven} given`);
           else if (event.coins != null && event.coins > 0) metaParts.push(`${event.coins} star${event.coins === 1 ? '' : 's'}`);
           if (isDoneLate) metaParts.push('Done Late');
@@ -564,6 +584,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             const showMarkDone =
               onToggleCompletion &&
               !event.task?.is_fun_time &&
+              !event.task?.is_event &&
               (event.task?.is_important || (event.coins ?? 0) > 0) &&
               (isOverdueImportant || isPastOrCurrent);
             if (showMarkDone) {
@@ -615,6 +636,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onEditTask?.(event.task);
@@ -648,7 +670,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 {/* Drag handle — always rightmost. */}
                 {isDraggable && !event.isCompleted && (
                   <div
+                    ref={setActivatorNodeRef}
                     {...handleAttributes}
+                    onKeyDown={(e) => listeners?.onKeyDown?.(e)}
                     data-drag-handle=""
                     onClick={(e) => e.stopPropagation()}
                     aria-label="Drag to reschedule"
@@ -1133,8 +1157,29 @@ const TimelineScheduleView = ({
     };
   });
 
+  // An event's get-ready time, as a small block just before it. It moves
+  // with the event and counts as taken time (free time, overlaps, drops).
+  const prepEvents: TimelineEvent[] = draggableEvents.flatMap(e => {
+    const prep = e.task ? prepMinutes(e.task) : 0;
+    if (!prep) return [];
+    const start = toMinutesOfDay(e.time);
+    const prepStart = Math.min(start, Math.max(dayBounds.dayStart, start - prep));
+    if (prepStart >= start) return [];
+    return [{
+      id: `prep-${e.id}`,
+      name: `Get ready for ${e.name}`,
+      time: minutesToTimeStr(prepStart),
+      duration: start - prepStart,
+      type: 'prep',
+      color: '',
+      task: e.task,
+      isCompleted: false,
+      isLate: false,
+    }];
+  });
+
   // Combine and sort all events by time
-  const sortedEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents].sort((a, b) => {
+  const sortedEvents: TimelineEvent[] = [...fixedEvents, ...draggableEvents, ...prepEvents].sort((a, b) => {
     const timeA = a.time.split(':').map(Number);
     const timeB = b.time.split(':').map(Number);
     const minutesA = timeA[0] * 60 + timeA[1];
@@ -1279,7 +1324,7 @@ const TimelineScheduleView = ({
   };
   const sectionLabels: Record<SectionKey, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
   const sectionSummary = (key: SectionKey) => {
-    const tasks = allEvents.filter(e => e.type !== 'gap' && sectionOf(e) === key);
+    const tasks = allEvents.filter(e => e.type !== 'gap' && e.type !== 'prep' && sectionOf(e) === key);
     if (tasks.length === 0) return 'Free';
     const done = tasks.filter(e => e.isCompleted).length;
     if (done > 0) return `${done} of ${tasks.length} done`;
@@ -1396,7 +1441,11 @@ const TimelineScheduleView = ({
     const activeTask = draggableTasks.find(task => task.id === active.id);
     if (!activeTask) return;
 
-    const taskDuration = activeTask.duration || 30;
+    const taskDuration = getTaskTimeForDay(activeTask).duration;
+    const draggedRect = active.rect.current.translated;
+    const finalPosition = draggedRect && over.rect
+      ? (draggedRect.top + draggedRect.height / 2 < over.rect.top + over.rect.height / 2 ? 'before' : 'after')
+      : dropPosition || 'after';
 
     // Drop on a specific 15-min tick slot (e.g. "tick-300" = 5:00am).
     // Still resolved through the overlap-safe placement so a tick near the
@@ -1405,7 +1454,7 @@ const TimelineScheduleView = ({
     const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
     const landingMinutes = tickMatch
       ? resolveDropStart(buildOccupied(activeTask.id), parseInt(tickMatch[1]), taskDuration, dayBounds)
-      : calculateDropTime(over.id, dropPosition || 'after', taskDuration, activeTask.id);
+      : calculateDropTime(over.id, finalPosition, taskDuration, activeTask.id);
 
     if (landingMinutes == null) {
       toast({
@@ -1420,6 +1469,18 @@ const TimelineScheduleView = ({
       onTaskTimeUpdate(activeTask.id, minutesToTimeStr(landingMinutes), dayOfWeek);
     }
   };
+
+  const draggedEvent = activeId ? draggableEvents.find(e => e.id === activeId) : null;
+  const dragDuration = draggedEvent?.duration ?? 30;
+  const landingMinute = (() => {
+    if (!draggedEvent || !overId || !dropPosition) return null;
+    const tick = overId.match(/^tick-(\d+)$/);
+    return tick
+      ? resolveDropStart(buildOccupied(activeId!), Number(tick[1]), dragDuration, dayBounds)
+      : calculateDropTime(overId, dropPosition, dragDuration, activeId!);
+  })();
+  const landingLabel = landingMinute == null ? ''
+    : formatTimeShortLocal(minutesToTimeStr(landingMinute)) + '–' + formatTimeShortLocal(minutesToTimeStr(landingMinute + dragDuration));
 
   const goToPreviousWeek = () => {
     setCurrentWeek(prev => addDays(prev, -7));
@@ -1585,7 +1646,8 @@ const TimelineScheduleView = ({
             <div ref={timelineColRef} className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
               <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={timelineCollisionDetection}
+                measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 // Keep before/after current while the card moves inside one
@@ -1595,7 +1657,7 @@ const TimelineScheduleView = ({
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={allEvents.filter(e => e.type !== 'gap' && e.type !== 'system').map(e => e.id)}
+                  items={allEvents.filter(e => e.type !== 'gap' && e.type !== 'system' && e.type !== 'prep').map(e => e.id)}
                   strategy={() => null}
                 >
                   <div className="flex flex-col gap-2">
@@ -1615,57 +1677,16 @@ const TimelineScheduleView = ({
                       const showSectionHeader = eventIdx === 0 || sectionOf(allEvents[eventIdx - 1]) !== section;
                       const isBeingDraggedOver = overId === event.id && activeId !== event.id;
 
-                      const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
-                      const shouldShowSpacingBelow = activeId && overId === event.id && dropPosition === 'after' && !isActiveEvent;
-
-                      // Calculate drop time for indicators and gap highlight
-                      const activeTaskForDrop = activeId ? draggableTasks.find(t => t.id === activeId) : null;
-                      const dropTimeMinutes = (() => {
-                        if (!activeTaskForDrop || !overId || !dropPosition) return null;
-                        // If hovering a tick, resolve it through the same
-                        // overlap-safe placement used on drop so the preview
-                        // shows the real landing time.
-                        if (typeof overId === 'string' && overId.startsWith('tick-')) {
-                          if (overId !== event.id) return null; // only for non-gap indicators
-                          return resolveDropStart(
-                            buildOccupied(activeTaskForDrop.id),
-                            parseInt(overId.replace('tick-', '')),
-                            activeTaskForDrop.duration || 30,
-                            dayBounds
-                          );
-                        }
-                        if (overId !== event.id) return null;
-                        return calculateDropTime(event.id, dropPosition, activeTaskForDrop.duration || 30, activeTaskForDrop.id);
-                      })();
-                      const dropTimeLabel = dropTimeMinutes != null ? formatTimeShortLocal(minutesToTimeStr(dropTimeMinutes)) : '';
-
-                      // For gap events: highlight based on which tick slot is being hovered
-                      const gapHighlightMinute = (() => {
-                        if (!activeTaskForDrop || !activeId || event.type !== 'gap') return null;
-                        // Hovering a tick within this gap: resolve the tick
-                        // through the same placement math as the drop, so the
-                        // highlighted window is exactly where the task lands
-                        // (snapped back from the gap edge when needed).
-                        if (overId && typeof overId === 'string' && overId.startsWith('tick-')) {
-                          const tickMin = parseInt(overId.replace('tick-', ''));
-                          const [gH, gM] = event.time.split(':').map(Number);
-                          const gStart = gH * 60 + gM;
-                          const gEnd = gStart + event.duration;
-                          if (tickMin >= gStart && tickMin < gEnd) {
-                            return resolveDropStart(
-                              buildOccupied(activeTaskForDrop.id),
-                              tickMin,
-                              activeTaskForDrop.duration || 30,
-                              dayBounds
-                            );
-                          }
-                        }
-                        // If hovering this gap directly (not a tick), use calculated drop time
-                        if (overId === event.id && dropTimeMinutes != null) {
-                          return dropTimeMinutes;
-                        }
-                        return null;
-                      })();
+                      // Highlight the actual landing time after overlap-safe snapping.
+                      const eventStart = startOfEvent(event);
+                      const eventEnd = eventStart + event.duration;
+                      const gapHighlightMinute = event.type === 'gap' && landingMinute != null
+                        && landingMinute >= eventStart && landingMinute < eventEnd ? landingMinute : null;
+                      const shouldShowSpacingAbove = landingMinute != null && event.type !== 'gap'
+                        && !isActiveEvent && landingMinute + dragDuration === eventStart;
+                      const shouldShowSpacingBelow = landingMinute != null && event.type !== 'gap'
+                        && !isActiveEvent && landingMinute === eventEnd;
+                      const dropTimeLabel = landingLabel;
 
                       return (
                         <Fragment key={event.id}>
@@ -1688,7 +1709,7 @@ const TimelineScheduleView = ({
                           className="relative touch-manipulation"
                         >
                           {shouldShowSpacingAbove && (
-                            <motion.div className="mb-2" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+                            <motion.div className="absolute left-[60px] right-0 top-0 -translate-y-full z-30 pointer-events-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
                               <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
                               <div className="text-center mt-1">
                                 <span className="inline-flex items-center gap-1.5 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-1 rounded-full">
@@ -1701,8 +1722,7 @@ const TimelineScheduleView = ({
 
                           <div className={cn(
                             "relative transition-all duration-200 ease-out",
-                            isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-focus-lavender/40 ring-offset-2 ring-offset-focus-bg rounded-[18px]",
-                            (shouldShowSpacingAbove || shouldShowSpacingBelow) && "my-2"
+                            isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-focus-lavender/40 ring-offset-2 ring-offset-focus-bg rounded-[18px]"
                           )}>
                             {nowOverAt != null && (
                               <div
@@ -1725,12 +1745,12 @@ const TimelineScheduleView = ({
                               selectedDay={selectedDay}
                               isDraggingAny={!!activeId}
                               highlightMinute={gapHighlightMinute}
-                              highlightDuration={activeTaskForDrop?.duration || 30}
+                              highlightDuration={dragDuration}
                             />
                           </div>
 
                           {shouldShowSpacingBelow && (
-                            <motion.div className="mt-2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+                            <motion.div className="absolute left-[60px] right-0 bottom-0 translate-y-full z-30 pointer-events-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
                               <div className="text-center mb-1">
                                 <span className="inline-flex items-center gap-1.5 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-1 rounded-full">
                                   <span>↓ Drop Here</span>
@@ -1750,15 +1770,17 @@ const TimelineScheduleView = ({
                   </div>
                 </SortableContext>
 
-                {activeId && (
-                  <motion.div className="mt-4" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={springs.gentle}>
-                    <div className="text-center mb-2">
-                      <span className="inline-flex items-center gap-2 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-2 rounded-full">
-                        📍 Drop At End Of Timeline
-                      </span>
-                    </div>
-                    <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
-                  </motion.div>
+                {createPortal(
+                  <DragOverlay dropAnimation={null} zIndex={1000}>
+                    {draggedEvent && (
+                      <div className="ml-[60px] pointer-events-none rounded-[18px] border-2 border-focus-lavender bg-focus-surface/95 px-3 py-3 shadow-2xl">
+                        <div className="text-[15px] font-semibold text-focus-text truncate">{draggedEvent.name}</div>
+                        <div role="status" aria-live="polite" className="text-[12px] font-semibold text-focus-lavender mt-1">
+                          {landingLabel ? 'Release to place · ' + landingLabel : overId ? 'No room available' : 'Drag to a time slot'}
+                        </div>
+                      </div>
+                    )}
+                  </DragOverlay>, document.body
                 )}
 
               </DndContext>

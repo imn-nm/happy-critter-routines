@@ -16,6 +16,10 @@ export interface TaskTemplate {
   duration: number;
   /** Play / screen time: set up as Fun Time (no done button) automatically. */
   fun?: boolean;
+  /** Something the child goes to (a game, lesson): set up as an Event with
+   *  `prep` minutes of get-ready time; its steps are the get-ready steps. */
+  event?: boolean;
+  prep?: number;
   steps: { young: string[]; older: string[] };
 }
 
@@ -49,7 +53,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   },
   {
     keys: ['make bed', 'make your bed'],
-    icon: 'sparkles',
+    icon: 'bed',
     duration: 5,
     steps: {
       young: ['Pull up the blanket', 'Put the pillow on top', 'Stuffies on the bed'],
@@ -58,7 +62,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   },
   {
     keys: ['pack bag', 'backpack', 'pack school bag', 'get ready for school', 'ready for school'],
-    icon: 'school',
+    icon: 'backpack',
     duration: 10,
     steps: {
       young: ['Lunchbox in the bag', 'Water bottle in the bag', 'Shoes on', 'Jacket on'],
@@ -94,7 +98,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   },
   {
     keys: ['shower'],
-    icon: 'bath',
+    icon: 'shower',
     duration: 15,
     steps: {
       young: ['Clothes in the basket', 'Wash body', 'Wash hair', 'Dry off', 'Pajamas on'],
@@ -148,7 +152,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   },
   {
     keys: ['dishes', 'unload dishwasher', 'load dishwasher', 'clear the table'],
-    icon: 'clean',
+    icon: 'dishes',
     duration: 10,
     steps: {
       young: ['Carry your plate to the sink', 'Scrape leftovers', 'Wipe your spot'],
@@ -192,8 +196,10 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
     },
   },
   {
-    keys: ['soccer', 'football', 'swim', 'swimming', 'gymnastics', 'basketball', 'karate', 'sports', 'soccer practice'],
-    icon: 'dumbbell',
+    keys: ['soccer', 'football', 'swim', 'swimming', 'gymnastics', 'basketball', 'karate', 'sports', 'soccer practice', 'soccer game'],
+    icon: 'ball',
+    event: true,
+    prep: 15,
     duration: 60,
     steps: {
       young: ['Sports clothes on', 'Water bottle', 'Shoes on'],
@@ -209,7 +215,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   },
   {
     keys: ['laundry', 'put clothes away', 'fold clothes'],
-    icon: 'shirt',
+    icon: 'laundry',
     duration: 10,
     steps: {
       young: ['Socks together', 'Shirts in the drawer', 'Pants in the drawer'],
