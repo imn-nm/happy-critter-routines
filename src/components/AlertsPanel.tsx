@@ -333,17 +333,26 @@ export const useAlertCount = (childId?: string) => {
     fetchCount();
 
     // Reward changes arrive in realtime; missed tasks are a function of the
-    // clock, so re-check once a minute.
+    // clock, so re-check once a minute. Only while the tab is visible: a
+    // forgotten background tab polling all night kept the free-tier database
+    // from ever idling. Catch up as soon as the tab is shown again.
     const channel = realtimeChannel(`alert-count-${childId || "all"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "reward_purchases" }, () => fetchCount())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions" }, () => fetchCount())
       .subscribe();
-    const timer = window.setInterval(fetchCount, 60_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") fetchCount();
+    }, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchCount();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const stopDismissed = onMissedDismissed(fetchCount);
 
     return () => {
       supabase.removeChannel(channel);
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
       stopDismissed();
     };
   }, [idsKey, childId]);

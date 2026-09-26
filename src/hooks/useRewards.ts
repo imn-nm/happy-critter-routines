@@ -38,7 +38,7 @@ export interface RewardPurchase {
 export const isApprovedStatus = (s: string) => s === 'approved' || s === 'completed';
 
 /**
- * The star functions raise fixed codes (see 20260925000001_atomic_stars.sql).
+ * The star functions raise fixed codes (see 20260925035254_atomic_stars.sql).
  * Turn them into a sentence a parent can act on.
  */
 export const starErrorMessage = (error: unknown): string => {

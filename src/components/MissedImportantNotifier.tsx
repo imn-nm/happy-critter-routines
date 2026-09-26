@@ -7,7 +7,7 @@ import { getPSTDateString } from "@/utils/pstDate";
 
 /**
  * Tells the parent, while the app is open, when a child's important task
- * window closes without a completion. Polls once a minute; each task is
+ * window closes without a completion. Polls once a minute while visible; each task is
  * announced once per day. The Alerts panel shows the same list persistently.
  */
 const MissedImportantNotifier = () => {
@@ -50,10 +50,17 @@ const MissedImportantNotifier = () => {
       const today = getPSTDateString();
       missed.forEach(m => seenRef.current.add(`${today}:${m.taskId}`));
     });
-    const timer = window.setInterval(check, 60_000);
+    // Only while the tab is visible (see useAlertCount); anything that went
+    // overdue while hidden is announced as soon as the tab is shown again.
+    const checkIfVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    const timer = window.setInterval(checkIfVisible, 60_000);
+    document.addEventListener("visibilitychange", checkIfVisible);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", checkIfVisible);
     };
   }, [idsKey, toast]);
 

@@ -10,8 +10,8 @@ supabase db push
 
 This applies:
 
-- `20260511000001_add_households.sql` — households, members, invites, RLS
-- `20260511000002_add_google_calendar_sync.sql` — calendar connection + event-map tables
+- `20260511054039_add_households.sql` — households, members, invites, RLS
+- `20260511054052_add_google_calendar_sync.sql` — calendar connection + event-map tables
 
 The first migration **backfills one household per existing parent**. Existing data keeps working — all current children and tasks get rolled into their owner's new household.
 
