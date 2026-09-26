@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { format, isValid, parse } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Gamepad2, Plus, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +23,7 @@ import {
   StarStepper,
   SwitchRow,
   TimeTile,
+  ToggleCard,
 } from "@/components/sheet/SheetParts";
 import { choiceClass, fmtLen, fmtRange, fmtTime, sheetFooterClass } from "@/components/sheet/sheetStyles";
 
@@ -244,8 +245,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     ? formData.minDuration
     : minOptions.filter(m => m <= formData.minDuration).pop() ?? minOptions[0] ?? 0;
 
-  // "What Is It?": Task, Fun Time or Chore. Fun time is a task with no done
-  // button (is_fun_time), so it shares the task questions below.
+  // Task, Fun Time (a task with no done button, is_fun_time) or Chore.
   const isFun = !isChore && formData.isFunTime;
   type WhatKind = 'task' | 'fun' | 'chore';
   const setWhat = (next: WhatKind) => {
@@ -258,7 +258,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // Fun time has no done button, so it can't be must-finish; it's the
       // first thing to give way on a late day unless the parent says otherwise.
       isImportant: on ? false : formData.isImportant,
-      latePolicy: on && (formData.isImportant || formData.latePolicy === 'keep') ? 'skip' : formData.latePolicy,
+      latePolicy: on
+        ? (formData.isImportant || formData.latePolicy === 'keep' ? 'skip' : formData.latePolicy)
+        // Back to a plain task: its own saved setting, or keep its full time
+        // (never the "skip" that fun time put there).
+        : (!task?.is_fun_time && task?.late_policy ? task.late_policy as LatePolicy : 'keep'),
     });
   };
 
@@ -594,9 +598,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               aria-describedby={nameClash ? "taskNameClash" : undefined}
               className="w-full min-w-0 bg-transparent border-0 p-0 text-16 font-semibold leading-[21px] text-focus-text placeholder:text-focus-text/80 focus:outline-none disabled:cursor-default disabled:opacity-100"
             />
-            {formData.name.trim() && (
-              <span className="text-12 leading-[17px] text-focus-muted">{summarySentence}</span>
-            )}
+            {/* Always shown, even before there's a name, so the parent sees
+                what they're setting up as they answer below. */}
+            <span className="text-12 leading-[17px] text-focus-muted">{summarySentence}</span>
           </label>
         </div>
         {/* What the name suggested, so a length that changed on its own is
@@ -606,27 +610,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
             <Caption>
               {isChore ? 'Icon suggested from the name.' : `Suggested from the name: ${fmtLen(durationTotal)} and an icon. Change anything.`}
-            </Caption>
-          </div>
-        )}
-        {!isChore && !isSystemEvent && (
-          <div className="flex items-center gap-2 px-1">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isFun}
-              onClick={() => { setFunTouched(true); setWhat(isFun ? 'task' : 'fun'); }}
-              className={cn(
-                "shrink-0 min-h-11 -my-1.5 inline-flex items-center gap-1.5 rounded-full px-3 text-12 font-semibold transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
-                isFun ? "bg-focus-lavender text-focus-bg" : "bg-focus-surface text-focus-muted hover:text-focus-text",
-              )}
-            >
-              <Gamepad2 className="w-4 h-4" aria-hidden />
-              Fun Time
-            </button>
-            <Caption>
-              {isFun ? 'No done button. The first thing to go on a busy day.' : 'For TV, games or playtime.'}
             </Caption>
           </div>
         )}
@@ -790,22 +773,33 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </section>
       )}
 
-      {/* === MUST GET DONE === the one timing choice that needs a person.
-          Everything else is automatic: a task keeps its full time, fun time
-          is the first to go on a busy day. (Older tasks keep whatever they
-          were set to.) */}
-      {!isChore && !isFun && !isSystemEvent && (
-        <section className="flex flex-col gap-1 rounded-[14px] bg-focus-surface px-3.5 py-1.5">
+      {/* === TOGGLES === Fun Time (on by itself for TV, games, playtime…) and
+          Must Get Done, the one timing choice that needs a person. The rest
+          is automatic: a task keeps its full time, fun time is the first to
+          go on a busy day. (Older tasks keep whatever they were set to.) */}
+      {!isChore && !isSystemEvent && (
+        <ToggleCard>
           <SwitchRow
-            id="mustGetDone"
-            label="Must Get Done"
-            caption="It stays on their screen until it's finished, even if it runs over. You get an alert."
-            checked={priority === 'must'}
-            onCheckedChange={(on) => on
-              ? setPriority('must')
-              : setFormData({ ...formData, isImportant: false, latePolicy: formData.latePolicy })}
+            id="funTime"
+            label="Fun Time"
+            caption={isFun
+              ? "No done button: it simply ends when its time is up. If the day runs behind, its time shrinks or it's skipped first, so everything else still fits."
+              : "For TV, games or playtime. There's no done button, and its time adjusts on its own if the day runs behind."}
+            checked={isFun}
+            onCheckedChange={(on) => { setFunTouched(true); setWhat(on ? 'fun' : 'task'); }}
           />
-        </section>
+          {!isFun && (
+            <SwitchRow
+              id="mustGetDone"
+              label="Must Get Done"
+              caption="It stays on their screen until it's finished, even if it runs over. You get an alert."
+              checked={priority === 'must'}
+              onCheckedChange={(on) => on
+                ? setPriority('must')
+                : setFormData({ ...formData, isImportant: false, latePolicy: formData.latePolicy })}
+            />
+          )}
+        </ToggleCard>
       )}
 
       {/* === STARS === tasks and chores (fun time has no done button).

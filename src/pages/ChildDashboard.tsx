@@ -712,7 +712,7 @@ const ChildDashboard = () => {
               aria-hidden
               className={cn(
                 "relative w-[54px] h-[30px] rounded-[14px] p-1 transition-colors",
-                isRestDay ? "bg-focus-lavender" : "bg-focus-surface",
+                isRestDay ? "bg-focus-lime" : "bg-focus-surface",
               )}
             >
               <span

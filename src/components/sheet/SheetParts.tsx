@@ -239,26 +239,38 @@ export const StarStepper = ({ value, onChange, max }: { value: number; onChange:
   </div>
 );
 
-/** A labelled switch row. */
+/**
+ * A labelled switch: label with its caption underneath on the left, the
+ * switch lined up with the label on the right. Tapping the label toggles it.
+ */
 export const SwitchRow = ({
   id,
   label,
   caption,
   checked,
   onCheckedChange,
+  className,
 }: {
   id: string;
   label: string;
-  caption?: string;
+  caption?: ReactNode;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  className?: string;
 }) => (
-  <div className="flex flex-col gap-1">
-    <div className="flex min-h-11 items-center justify-between gap-3">
-      <label htmlFor={id} className="text-14 font-semibold text-focus-text">{label}</label>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-    {caption && <Caption>{caption}</Caption>}
+  <div className={cn("flex items-start justify-between gap-3 py-3", className)}>
+    <label htmlFor={id} className="min-w-0 flex flex-1 flex-col gap-1 cursor-pointer">
+      <span className="text-14 font-semibold leading-5 text-focus-text">{label}</span>
+      {caption && <span className="text-12 leading-[17px] text-focus-muted">{caption}</span>}
+    </label>
+    <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="-mt-0.5" />
   </div>
+);
+
+/** A surface card of SwitchRows separated by hairlines. */
+export const ToggleCard = ({ children }: { children: ReactNode }) => (
+  <section className="flex flex-col divide-y divide-focus-bg rounded-[14px] bg-focus-surface px-3.5">
+    {children}
+  </section>
 );
 

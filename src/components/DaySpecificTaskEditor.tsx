@@ -178,6 +178,7 @@ const DaySpecificTaskEditor = ({
               label={`${taskName} on ${dayLabel}`}
               checked={currentDaySchedule.enabled}
               onCheckedChange={() => handleToggleDay(selectedDay)}
+              className="py-0"
             />
             {currentDaySchedule.enabled ? (
               <>
