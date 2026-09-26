@@ -4,8 +4,36 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { AnimatePresence, motion } from "motion/react"
+import { closeButtonClass, closeIconClass, scrimClass } from "@/lib/focusStyles"
+import { cardMotion, overlayMotion, useMotionPrefs } from "@/lib/motion"
 
-const AlertDialog = AlertDialogPrimitive.Root
+/**
+ * Confirmation cards, animated with Motion for React: the scrim fades in and
+ * the card scales up in the middle of the screen. Open state is mirrored into
+ * context so the portal can stay mounted for the exit animation.
+ */
+type AlertDialogState = { open: boolean }
+const AlertDialogStateContext = React.createContext<AlertDialogState>({ open: false })
+
+const AlertDialog = ({ open: openProp, defaultOpen, onOpenChange, ...props }: AlertDialogPrimitive.AlertDialogProps) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
+  const controlled = openProp !== undefined
+  const open = controlled ? !!openProp : uncontrolledOpen
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!controlled) setUncontrolledOpen(next)
+      onOpenChange?.(next)
+    },
+    [controlled, onOpenChange],
+  )
+  const state = React.useMemo(() => ({ open }), [open])
+  return (
+    <AlertDialogStateContext.Provider value={state}>
+      <AlertDialogPrimitive.Root open={open} onOpenChange={setOpen} {...props} />
+    </AlertDialogStateContext.Provider>
+  )
+}
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
@@ -14,52 +42,68 @@ const AlertDialogPortal = AlertDialogPrimitive.Portal
 const AlertDialogOverlay = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <AlertDialogPrimitive.Overlay
-    className={cn(
-      // Match the Figma settings overlay backdrop.
-      "fixed inset-0 z-50 bg-[rgba(8,1,26,0.72)] backdrop-blur-[7.1px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
-    )}
-    {...props}
-    ref={ref}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const { t } = useMotionPrefs()
+  return (
+    <AlertDialogPrimitive.Overlay ref={ref} asChild forceMount {...props}>
+      <motion.div
+        className={cn("fixed inset-0 z-50", scrimClass, className)}
+        initial={overlayMotion.initial}
+        animate={overlayMotion.animate}
+        exit={overlayMotion.exit}
+        transition={t(overlayMotion.transition)}
+      />
+    </AlertDialogPrimitive.Overlay>
+  )
+})
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content> & { children?: React.ReactNode }
->(({ className, children, ...props }, ref) => (
-  <AlertDialogPortal>
-    <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        // Match the Figma settings overlay: iris-tinted glass surface.
-        "fixed left-[50%] top-[50%] z-50 flex flex-col translate-x-[-50%] translate-y-[-50%] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] text-fog-50 shadow-lg duration-200 rounded-[28px] overflow-hidden",
-        "w-[calc(100vw-1rem)] max-w-lg max-h-[calc(100vh-1rem)]",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
-        className
+>(({ className, children, ...props }, ref) => {
+  const { open } = React.useContext(AlertDialogStateContext)
+  const { t } = useMotionPrefs()
+  return (
+    <AnimatePresence>
+      {open && (
+        <AlertDialogPortal forceMount>
+          <AlertDialogOverlay />
+          <AlertDialogPrimitive.Content ref={ref} asChild forceMount {...props}>
+            <motion.div
+              className={cn(
+                // Centred Focus card. Motion owns the transform, so the
+                // -50% centring offset is set through `style`, not classes.
+                "fixed left-1/2 top-1/2 z-50 flex flex-col bg-focus-sheet text-focus-text shadow-sh-lg rounded-[28px] overflow-hidden outline-none",
+                "w-[calc(100vw-2.5rem)] max-w-lg max-h-[calc(100dvh-2.5rem)]",
+                className
+              )}
+              style={{ x: "-50%", y: "-50%" }}
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={t(cardMotion.transition)}
+            >
+              <div className="overflow-y-auto p-5 sm:p-6 grid gap-4">
+                {children}
+              </div>
+              <AlertDialogPrimitive.Cancel asChild>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  className={cn("absolute right-3 top-3 z-10", closeButtonClass)}
+                >
+                  <X className={closeIconClass} />
+                  <span className="sr-only">Close</span>
+                </button>
+              </AlertDialogPrimitive.Cancel>
+            </motion.div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPortal>
       )}
-      {...props}
-    >
-      <div className="overflow-y-auto p-5 sm:p-6 grid gap-4">
-        {children}
-      </div>
-      <AlertDialogPrimitive.Cancel asChild>
-        <button
-          type="button"
-          aria-label="Close"
-          className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-pill border border-iris-400/40 bg-ink-900/80 text-fog-50 transition-colors hover:bg-iris-400/20 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
-      </AlertDialogPrimitive.Cancel>
-    </AlertDialogPrimitive.Content>
-  </AlertDialogPortal>
-))
+    </AnimatePresence>
+  )
+})
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({
@@ -82,7 +126,7 @@ const AlertDialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
       className
     )}
     {...props}
@@ -96,7 +140,7 @@ const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold pr-10", className)}
+    className={cn("text-20 font-semibold leading-tight text-focus-text pr-10", className)}
     {...props}
   />
 ))
@@ -108,7 +152,7 @@ const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-14 text-focus-muted", className)}
     {...props}
   />
 ))
@@ -135,7 +179,7 @@ const AlertDialogCancel = React.forwardRef<
     ref={ref}
     className={cn(
       buttonVariants({ variant: "outline" }),
-      "mt-2 sm:mt-0",
+      "sm:mt-0",
       className
     )}
     {...props}

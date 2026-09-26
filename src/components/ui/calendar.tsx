@@ -21,33 +21,33 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
+        caption_label: "text-[15px] font-semibold text-focus-text",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+          "h-11 w-11 bg-transparent p-0 text-focus-muted hover:text-focus-text"
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+          "text-focus-muted rounded-md w-11 font-semibold text-12",
         row: "flex w-full mt-2",
-        cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+        cell: "h-11 w-11 text-center text-14 p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-[14px] [&:has([aria-selected].day-outside)]:bg-focus-lavender/20 [&:has([aria-selected])]:bg-focus-lavender/20 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100"
+          "h-11 w-11 p-0 font-normal text-focus-text aria-selected:opacity-100"
         ),
         day_range_end: "day-range-end",
         day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
+          "bg-focus-lavender text-focus-bg font-semibold hover:bg-focus-lavender hover:text-focus-bg focus:bg-focus-lavender focus:text-focus-bg",
+        day_today: "border border-focus-lime text-focus-lime",
         day_outside:
-          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
-        day_disabled: "text-muted-foreground opacity-50",
+          "day-outside text-focus-muted opacity-50 aria-selected:bg-focus-lavender/20 aria-selected:text-focus-muted aria-selected:opacity-30",
+        day_disabled: "text-focus-muted opacity-50",
         day_range_middle:
-          "aria-selected:bg-accent aria-selected:text-accent-foreground",
+          "aria-selected:bg-focus-lavender/20 aria-selected:text-focus-text",
         day_hidden: "invisible",
         ...classNames,
       }}

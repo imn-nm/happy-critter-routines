@@ -138,17 +138,17 @@ const Reports = () => {
   }
   if (!child) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-sp-3 text-fog-200">
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-sp-3 text-focus-muted">
         <p>Child not found</p>
-        <button type="button" onClick={() => navigate("/parent")} className="text-iris-400 underline">Back</button>
+        <button type="button" onClick={() => navigate("/parent")} className="min-h-11 px-4 text-focus-lavender underline">Back</button>
       </div>
     );
   }
 
   const Tile = ({ icon, value, label }: { icon: React.ReactNode; value: string | number; label: string }) => (
-    <div className="flex flex-col gap-1 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]">
-      <div className="flex items-center gap-1.5 text-fog-300">{icon}<span className="text-12">{label}</span></div>
-      <span className="text-24 font-bold text-fog-50 tabular-nums leading-none">{value}</span>
+    <div className="flex flex-col gap-1 p-sp-3 rounded-[24px] bg-focus-surface">
+      <div className="flex items-center gap-1.5 text-focus-muted">{icon}<span className="text-12">{label}</span></div>
+      <span className="text-24 font-bold text-focus-text tabular-nums leading-none">{value}</span>
     </div>
   );
 
@@ -160,42 +160,42 @@ const Reports = () => {
             type="button"
             onClick={() => navigate(`/child-dashboard/${child.id}`)}
             aria-label="Back"
-            className="w-11 h-11 -ml-2 flex items-center justify-center rounded-full hover:bg-white/5"
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-[14px] bg-focus-surface hover:bg-focus-raised"
           >
-            <ArrowLeft className="w-5 h-5 text-fog-50" />
+            <ArrowLeft className="w-5 h-5 text-focus-muted" />
           </button>
           <div>
-            <h1 className="text-20 text-fog-50 leading-tight">{child.name}'s last two weeks</h1>
-            <p className="text-12 text-fog-300">{format(new Date(start + "T00:00:00"), "MMM d")} to {format(new Date(today + "T00:00:00"), "MMM d")}</p>
+            <h1 className="text-20 font-bold text-focus-text leading-tight">{child.name}'s Last Two Weeks</h1>
+            <p className="text-12 text-focus-muted">{format(new Date(start + "T00:00:00"), "MMM d")} to {format(new Date(today + "T00:00:00"), "MMM d")}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-sp-2">
-          <Tile icon={<Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />} value={starsEarned} label="Stars earned" />
-          <Tile icon={<Gift className="w-3.5 h-3.5" />} value={starsSpent} label="Stars spent" />
-          <Tile icon={<Check className="w-3.5 h-3.5 text-mint-400" />} value={`${importantDone} / ${importantDone + importantMissed}`} label="Must-finish done" />
-          <Tile icon={<ListChecks className="w-3.5 h-3.5" />} value={choresDone} label="Chores done" />
+          <Tile icon={<Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} />} value={starsEarned} label="Stars Earned" />
+          <Tile icon={<Gift className="w-3.5 h-3.5" />} value={starsSpent} label="Stars Spent" />
+          <Tile icon={<Check className="w-3.5 h-3.5 text-focus-mint" />} value={`${importantDone} / ${importantDone + importantMissed}`} label="Must-Finish Done" />
+          <Tile icon={<ListChecks className="w-3.5 h-3.5" />} value={choresDone} label="Chores Done" />
         </div>
 
         {/* Day strip */}
-        <section className="rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
-          <h2 className="text-14 font-medium text-iris-400">Must-finish tasks by day</h2>
+        <section className="rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
+          <h2 className="text-14 font-semibold text-focus-text">Must-Finish Tasks by Day</h2>
           <div className="flex flex-col gap-sp-2">
             {days.filter(d => d.items.length > 0).length === 0 && (
-              <p className="text-13 text-fog-300">No must-finish tasks in this period.</p>
+              <p className="text-13 text-focus-muted">No must-finish tasks in this period.</p>
             )}
             {days.filter(d => d.items.length > 0).map(d => (
               <div key={d.date} className="flex items-start gap-sp-3">
-                <span className={cn("w-14 shrink-0 text-12 tabular-nums whitespace-nowrap", d.date === today ? "text-fog-50 font-medium" : "text-fog-300")}>{d.label}</span>
+                <span className={cn("w-14 shrink-0 text-12 tabular-nums whitespace-nowrap", d.date === today ? "text-focus-text font-medium" : "text-focus-muted")}>{d.label}</span>
                 <div className="flex flex-wrap gap-1.5">
                   {d.items.map((it, i) => (
                     <span
                       key={i}
                       className={cn(
-                        "inline-flex items-center gap-1 px-2 h-6 rounded-pill text-12",
-                        it.status === "done" && "bg-mint-500/20 text-mint-300",
-                        it.status === "missed" && "bg-amber-400/15 text-amber-300",
-                        it.status === "pending" && "bg-white/5 text-fog-300",
+                        "inline-flex items-center gap-1 px-2.5 h-7 rounded-pill text-12 font-medium",
+                        it.status === "done" && "bg-focus-mint/20 text-focus-mint",
+                        it.status === "missed" && "bg-focus-amber/15 text-focus-amber",
+                        it.status === "pending" && "bg-focus-raised text-focus-muted",
                       )}
                     >
                       {it.status === "done" ? <Check className="w-3 h-3" strokeWidth={3} /> : it.status === "missed" ? <Minus className="w-3 h-3" /> : null}
@@ -209,22 +209,22 @@ const Reports = () => {
         </section>
 
         {/* Star ledger */}
-        <section className="rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
+        <section className="rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-14 font-medium text-iris-400">Star ledger</h2>
-            <span className="text-12 text-fog-300">Balance now: {child.currentCoins}</span>
+            <h2 className="text-14 font-semibold text-focus-text">Star Ledger</h2>
+            <span className="text-12 text-focus-muted">Balance now: {child.currentCoins}</span>
           </div>
           {ledger.length === 0 ? (
-            <p className="text-13 text-fog-300">No stars earned or spent yet.</p>
+            <p className="text-13 text-focus-muted">No stars earned or spent yet.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {ledger.map(row => (
                 <li key={row.id} className="flex items-center gap-sp-2">
-                  <span className="text-12 text-fog-300 w-[92px] shrink-0 tabular-nums">
+                  <span className="text-12 text-focus-muted w-[92px] shrink-0 tabular-nums">
                     {format(new Date(row.at), "MMM d")} · {formatTime12(format(new Date(row.at), "HH:mm"))}
                   </span>
-                  <span className="flex-1 min-w-0 text-14 text-fog-50 truncate">{row.label}</span>
-                  <span className={cn("text-14 font-semibold tabular-nums", row.delta > 0 ? "text-[#FFD66B]" : "text-fog-300")}>
+                  <span className="flex-1 min-w-0 text-14 text-focus-text truncate">{row.label}</span>
+                  <span className={cn("text-14 font-semibold tabular-nums", row.delta > 0 ? "text-focus-lime" : "text-focus-muted")}>
                     {row.delta > 0 ? "+" : ""}{row.delta}
                   </span>
                 </li>

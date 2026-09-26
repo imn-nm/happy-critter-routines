@@ -25,7 +25,7 @@ import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
 import { orderByAnchors } from "@/utils/afterAnchors";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -42,8 +42,8 @@ import { isRestDate } from "@/utils/restDays";
 import { realtimeChannel } from "@/lib/realtime";
 import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { getPSTDate, getPSTDateString, getPSTTimeString, getPSTDayName } from '@/utils/pstDate';
-import { AnimatePresence, motion } from "framer-motion";
-import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants } from "@/lib/motion";
+import { AnimatePresence, motion } from "motion/react";
+import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants, overlayMotion, sheetMotion } from "@/lib/motion";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { speak } from "@/lib/speech";
 
@@ -316,9 +316,9 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       return <ConnectionTrouble fullScreen={!propChildId} onRetry={refetchChildren} />;
     }
     return (
-      <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-background p-4`}>
+      <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-focus-bg p-4`}>
         <div className="max-w-2xl mx-auto text-center py-16">
-          <p className="text-muted-foreground text-sm">Child not found</p>
+          <p className="text-focus-muted text-14">Child Not Found</p>
           {!propChildId && (
             <Button variant="outline" onClick={() => navigate("/")} className="mt-3 rounded-full" size="sm">
               Back
@@ -593,7 +593,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     return tasksWithCompletion.filter(task => {
       if (task.type !== 'floating') return false;
       if (!task.is_active) return false;
-      // Chores are always pinned to a single date — never recurring.
+      // Repeating chores show on their weekdays; one-offs pin to a date.
+      if (task.is_recurring && task.recurring_days?.length) {
+        return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr);
+      }
       if (task.task_date) return task.task_date === todayStr;
       // Legacy fallback: chores added before task_date existed pin to created_at.
       if (task.created_at) {
@@ -985,11 +988,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     const activeChores = getActiveWindowChores();
     if (activeChores.length === 0) return null;
     return (
-      <div className={cn("w-full flex flex-col gap-sp-1", className)}>
+      <div className={cn("w-full flex flex-col gap-2.5", className)}>
         {picture
-          ? <ListChecks className="w-6 h-6 text-iris-400" aria-label="Chores" />
-          : <p className="text-14 text-iris-400 leading-none">Chores</p>}
-        <div className="w-full flex flex-wrap items-stretch gap-sp-1">
+          ? <ListChecks className="w-6 h-6 text-focus-lavender" aria-label="Chores" />
+          : <p className="text-16 font-semibold text-focus-text leading-none">Chores</p>}
+        <div className="w-full grid grid-cols-3 gap-2">
           {activeChores.map(chore => {
             const done = !!chore.isCompleted;
             return (
@@ -999,18 +1002,20 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 onClick={() => markChoreDone(chore)}
                 aria-pressed={done}
                 className={cn(
-                  "flex-1 min-w-[96px] flex flex-col items-center justify-center gap-sp-1 px-sp-4 py-sp-2 rounded-[20px] border transition-colors",
+                  "min-h-20 min-w-0 flex flex-col items-center justify-center gap-1.5 px-2 py-2.5 rounded-[18px] transition-colors",
                   done
-                    ? "bg-mint-500/20 border-mint-500 hover:bg-mint-500/10"
-                    : "bg-[#271447] border-transparent hover:bg-[#2f1856]",
+                    ? "bg-focus-lavender text-focus-sheet hover:bg-focus-lavender/90"
+                    : "bg-focus-surface text-focus-text hover:bg-focus-raised",
                 )}
               >
                 {done ? (
-                  <Check className={picture ? "w-8 h-8 text-mint-500" : "w-4 h-4 text-mint-500"} strokeWidth={3} />
+                  <Check className={picture ? "w-8 h-8 text-focus-bg" : "w-5 h-5 text-focus-bg"} strokeWidth={picture ? 3 : 2} />
+                ) : picture ? (
+                  getTaskIcon(chore.name, "w-8 h-8 text-focus-text", chore.icon)
                 ) : (
-                  getTaskIcon(chore.name, picture ? "w-8 h-8 text-fog-50" : "w-4 h-4 text-fog-50", chore.icon)
+                  <Sparkles className="w-4 h-4 text-focus-muted" aria-hidden />
                 )}
-                <span className="w-full text-12 text-center leading-tight text-fog-50">
+                <span className="w-full text-13 text-center leading-[17px] break-words">
                   {chore.name}
                 </span>
               </button>
@@ -1022,20 +1027,42 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <motion.button
               type="button"
               onClick={undoRecentChore}
-              className="self-center mt-sp-1 flex items-center gap-1.5 min-h-11 px-4 rounded-pill bg-white/5 text-13 text-fog-200 hover:text-fog-50"
+              className="self-center mt-sp-1 flex items-center gap-1.5 min-h-11 px-4 rounded-pill bg-focus-surface text-13 text-focus-muted hover:text-focus-text"
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={tMotion({ duration: durations.quick })}
             >
               <Undo2 className={picture ? "w-6 h-6" : "w-4 h-4"} aria-hidden />
-              <span className={words}>Oops, not done yet</span>
+              <span className={words}>Oops, Not Done Yet</span>
             </motion.button>
           )}
         </AnimatePresence>
       </div>
     );
   };
+
+  /** "Next · Soccer Practice · 4:00pm" — the Figma Next Task row. */
+  const renderNext = (next: { name: string; icon?: string | null; scheduled_time?: string | null }) => (
+    <div className="w-full min-h-14 flex items-center justify-between gap-sp-3">
+      <div className="flex flex-col gap-1 min-w-0">
+        {picture
+          ? <ArrowRight className="w-6 h-6 text-focus-muted" aria-label="Next" />
+          : <span className="text-14 text-focus-muted">Next</span>}
+        <div className="flex items-center gap-2 min-w-0">
+          {picture && (
+            <span className="shrink-0 w-10 h-10 rounded-[14px] bg-focus-surface flex items-center justify-center">
+              {getTaskIcon(next.name, "w-6 h-6 text-focus-text", next.icon)}
+            </span>
+          )}
+          <span className={cn(picture ? "text-18" : "text-[17px]", "font-semibold text-focus-text truncate")}>{next.name}</span>
+        </div>
+      </div>
+      {next.scheduled_time && (
+        <StatusBadge variant="time">{formatTime(next.scheduled_time)}</StatusBadge>
+      )}
+    </div>
+  );
 
   // Timer hits zero. Regular tasks simply flow to the next one by the clock
   // (categorizeTasks drops them once their window ends) — nothing is recorded
@@ -1063,9 +1090,9 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   };
   const explainTask = (task: { is_important?: boolean; is_fun_time?: boolean; subtasks?: unknown[] | null }) => {
     if (task.is_fun_time) return 'Fun time! Enjoy it until the timer runs out.';
-    if (task.is_important) return 'Must finish. Tap I’m done when it’s all finished.';
-    if (task.subtasks?.length) return 'Do each step, then tap I’m done. Finish early and the extra time is yours.';
-    return 'Finish early? Tap I’m done and the extra time is yours.';
+    if (task.is_important) return 'Must finish. Slide Mark as Done when it’s all finished.';
+    if (task.subtasks?.length) return 'Do each step, then slide Mark as Done. Finish early and the extra time is yours.';
+    return 'Finish early? Slide Mark as Done and the extra time is yours.';
   };
   const currentStep = (task: { id: string; subtasks?: { id: string; text: string }[] | null }) =>
     task.subtasks?.find(s => !(checkedSubtasks[task.id] ?? []).includes(s.id))?.text;
@@ -1087,7 +1114,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   };
 
   return (
-    <div className={`${!propChildId ? 'min-h-dvh' : ''} px-sp-2 py-sp-5 ${propChildId ? 'pt-sp-9' : ''}`}>
+    <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-focus-bg text-focus-text px-5 py-6 ${propChildId ? 'pt-sp-9' : ''}`}>
       <div className="max-w-[420px] min-[600px]:max-w-[660px] mx-auto">
         {!isRestDay && (
           <ScheduleSoundCues
@@ -1103,22 +1130,22 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* Parent pill removed — parent portal is at /parent */}
 
         {/* Greeting + coin chip row — matches Figma "Child Dashboard - overtime-new":
-            greeting 20px Inter Regular, coin chip 13px Bold with star icon */}
+            greeting 20px Semi Bold, lime stars pill (Child / Focus — redesigned). */}
         {!dayOver && !sleepTime && (
-          <div className="flex items-center justify-between mb-sp-3">
+          <div className="flex items-center justify-between gap-sp-3 min-h-11 mb-5">
             <div className="flex items-center gap-2 min-w-0">
-              <p className="text-20 text-fog-50 leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
+              <p className="text-20 font-semibold text-focus-text leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
             </div>
             <button
               type="button"
               onClick={() => setShowRewardsShop(true)}
-              className="relative flex items-center gap-1.5 h-11 px-4 rounded-pill border-2 border-iris-400/[0.32] hover:border-iris-400/50 transition-colors"
+              className="relative shrink-0 flex items-center gap-1.5 h-11 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime hover:bg-focus-lime/20 transition-colors"
               aria-label="Open rewards shop"
             >
-              <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+              <Star className="w-3.5 h-3.5 fill-current" strokeWidth={0} aria-hidden />
               <motion.span
                 key={child.currentCoins}
-                className="text-13 font-bold text-fog-50 leading-none"
+                className="text-14 font-semibold leading-4 tabular-nums"
                 initial={{ scale: 1.25 }}
                 animate={{ scale: 1 }}
                 transition={tMotion(springs.bouncy)}
@@ -1130,7 +1157,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   <motion.span
                     key={d.id}
                     aria-hidden
-                    className="pointer-events-none absolute -top-1 right-2 text-12 font-bold text-[#FFD66B]"
+                    className="pointer-events-none absolute -top-1 right-2 text-12 font-bold text-focus-lime"
                     initial={{ y: 0, opacity: 0 }}
                     animate={{ y: -24, opacity: [0, 1, 0] }}
                     exit={{ opacity: 0 }}
@@ -1147,7 +1174,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* A "done" that couldn't be sent yet is kept on this screen and
             retried; say so quietly rather than showing an error. */}
         {pendingCount > 0 && (
-          <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-12 text-fog-300" role="status">
+          <p className="-mt-sp-3 mb-sp-3 flex items-center justify-end gap-1.5 text-12 text-focus-muted" role="status">
             <CloudOff className={picture ? "w-5 h-5" : "w-3.5 h-3.5"} aria-hidden />
             <span className={words}>Saved here. Sending when the internet is back.</span>
           </p>
@@ -1156,15 +1183,15 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* Rest day: no schedule, but stars, the shop and chores still work. */}
         {isRestDay && !dayOver && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            className="flex flex-col items-center gap-5 mb-5"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
             <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
-            {picture && <Sofa className="w-12 h-12 text-fog-100" aria-hidden />}
-            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>Cozy rest day</h2>
-            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+            {picture && <Sofa className="w-12 h-12 text-focus-lavender" aria-hidden />}
+            <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>Cozy rest day</h2>
+            <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
               No plans today. {petNick(child.petType)} is resting too!
             </p>
             {renderChores()}
@@ -1185,19 +1212,19 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             return (
               <motion.div
                 key={`bedtime-${displayTask.id}`}
-                className="flex flex-col items-center gap-sp-4 mb-sp-4"
+                className="flex flex-col items-center gap-5 mb-5"
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={tMotion(springs.gentle)}
               >
-                {picture && <Moon className="w-12 h-12 text-fog-100" aria-hidden />}
-                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
+                {picture && <Moon className="w-12 h-12 text-focus-lavender" aria-hidden />}
+                <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
                   Goodnight, {child.name}! 🌙
                 </h2>
-                {!picture && <StatusBadge variant="info">Time to rest</StatusBadge>}
+                {!picture && <StatusBadge variant="info">Time to Rest</StatusBadge>}
                 <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
-                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+                <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
               </motion.div>
@@ -1213,7 +1240,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           return (
             <motion.div
               key={`task-${displayTask.id}`}
-              className="flex flex-col items-center gap-sp-4 mb-sp-4"
+              className="flex flex-col items-center gap-5 mb-5"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -1238,6 +1265,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 // The worm only appears while the child is running late on a
                 // must-do task; on time, or on any other task, nothing is eaten.
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
+                overdue={!isFrozen && !!displayTask.is_important && isActiveTaskOverdue()}
                 companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} mood={petMood}
                   activity={petCelebrating ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive picture={picture}
@@ -1255,30 +1283,30 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* Still to do — important tasks whose time ran out while something
             else is on the clock. Never nagging: one warm card per task with
             its own Done, and the rest of the day keeps moving underneath. */}
-        <details className="w-full text-fog-200"><summary className="min-h-11 cursor-pointer py-3 text-sm">{picture ? (
-          <span className="inline-flex items-center gap-2 align-middle"><AlertCircle className="w-6 h-6 text-amber-400" aria-hidden /><span className="text-16 text-fog-50">{stillToDo.length}</span><span className="sr-only">Other things to finish</span></span>
-        ) : "Other things to finish"}</summary><AnimatePresence initial={false}>
+        <details className="w-full text-focus-muted"><summary className="min-h-11 cursor-pointer py-3 text-14">{picture ? (
+          <span className="inline-flex items-center gap-2 align-middle"><AlertCircle className="w-6 h-6 text-focus-amber" aria-hidden /><span className="text-16 text-focus-text">{stillToDo.length}</span><span className="sr-only">Other Things to Finish</span></span>
+        ) : "Other Things to Finish"}</summary><AnimatePresence initial={false}>
           {!frozenTask && stillToDo.map(task => (
             <motion.div
               key={`still-${task.id}`}
-              className="mb-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30 flex flex-col gap-sp-2"
+              className="mb-sp-3 p-sp-3 rounded-[20px] bg-focus-surface border border-focus-amber/30 flex flex-col gap-sp-2"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={tMotion({ duration: durations.quick })}
             >
               <div className="flex items-center gap-sp-2">
-                {getTaskIcon(task.name, "w-5 h-5 text-amber-400", task.icon)}
+                {getTaskIcon(task.name, "w-5 h-5 text-focus-amber", task.icon)}
                 <div className="flex-1 min-w-0">
-                  <p className="text-16 font-medium text-fog-50 truncate">{task.name}</p>
-                  <p className={cn("text-12 text-fog-300", words)}>
+                  <p className="text-16 font-medium text-focus-text truncate">{task.name}</p>
+                  <p className={cn("text-12 text-focus-muted", words)}>
                     Still to do. {petNick(child.petType)} knows you can!
                   </p>
                 </div>
               </div>
               <SlideToConfirm
                 iconOnly={picture}
-                label="I did it!"
+                label="I Did It!"
                 onConfirm={async () => {
                   setPetCelebrating(true);
                   window.setTimeout(() => setPetCelebrating(false), 3000);
@@ -1290,31 +1318,12 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         </AnimatePresence></details>
 
               </>}
-              {/* Chore tiles — between slide and Next row, per Figma
-                  "Child Dashboard - overtime-new". */}
-              {!isFrozen && renderChores("px-sp-4")}
+              {/* Chore tiles — between the focus card and the Next row, per Figma
+                  "Child / Focus — redesigned". */}
+              {!isFrozen && renderChores()}
 
               {/* Next Task row with StatusBadge time */}
-              {upcomingTasks.length > 0 && (
-                <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    {picture
-                      ? <ArrowRight className="w-6 h-6 text-iris-400" aria-label="Next" />
-                      : <span className="text-14 text-iris-400">Next</span>}
-                    <div className="flex items-center gap-2 min-w-0">
-                      {picture ? (
-                        <span className="shrink-0 w-10 h-10 rounded-[14px] bg-fog-50/10 flex items-center justify-center">
-                          {getTaskIcon(upcomingTasks[0].name, "w-6 h-6 text-fog-50", upcomingTasks[0].icon)}
-                        </span>
-                      ) : getTaskIcon(upcomingTasks[0].name, "w-4 h-4 text-fog-50 shrink-0", upcomingTasks[0].icon)}
-                      <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{upcomingTasks[0].name}</span>
-                    </div>
-                  </div>
-                  {upcomingTasks[0].scheduled_time && (
-                    <StatusBadge variant="time">{formatTime(upcomingTasks[0].scheduled_time)}</StatusBadge>
-                  )}
-                </div>
-              )}
+              {upcomingTasks.length > 0 && renderNext(upcomingTasks[0])}
             </motion.div>
           );
         })()}
@@ -1325,25 +1334,17 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             after a child marks a task done. */}
         {!isRestDay && !sleepTime && !frozenTask && !activeTask && freeTimeCountdown && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            className="flex flex-col items-center gap-5 mb-5"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <div className="flex flex-col items-center gap-1 py-2">
-              <h2
-                className="text-fog-50"
-                style={{
-                  fontFamily: "Inter",
-                  fontWeight: 400,
-                  fontSize: 24,
-                  lineHeight: 1.15,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {picture ? <><Gamepad2 className="w-10 h-10 text-mint-300" aria-hidden /><span className="sr-only">Free Time</span></> : "Free Time"}
+            <section className="w-full flex flex-col items-center gap-sp-3 p-4 rounded-[28px] bg-focus-surface" aria-label="Free Time">
+            <div className="w-full min-h-9 flex items-center justify-between gap-sp-2">
+              <h2 className="text-[26px] font-semibold leading-tight text-focus-text">
+                {picture ? <><Gamepad2 className="w-10 h-10 text-focus-mint" aria-hidden /><span className="sr-only">Free Time</span></> : "Free Time"}
               </h2>
-              <StatusBadge variant="info">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
+              <StatusBadge variant="time">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
             {(() => {
               // The wheel is configured by a parent (stored on the child record).
@@ -1364,20 +1365,20 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       exit={{ opacity: 0, scale: 0.9, rotateY: -90 }}
                       transition={tMotion(springs.gentle)}
                     >
-                      <SpinningWheel options={wheelOptions} sizePx={260} />
+                      <SpinningWheel options={wheelOptions} sizePx={240} />
                       <button
                         type="button"
                         onClick={() => { setWheelFor(null); setPlayFor(playKey); }}
                         aria-label={picture ? `Play with ${petNick(child.petType)} instead` : undefined}
-                        className="mt-2 flex items-center gap-1.5 min-h-11 px-4 rounded-full bg-white/5 text-13 text-fog-200 hover:text-fog-50 transition-colors"
+                        className="mt-2 flex items-center gap-1.5 min-h-11 px-4 rounded-[16px] bg-focus-sheet text-14 text-focus-muted hover:text-focus-text transition-colors"
                       >
-                        {picture ? <Gamepad2 className="w-7 h-7" aria-hidden /> : <>Play with {petNick(child.petType)} instead</>}
+                        {picture ? <Gamepad2 className="w-7 h-7" aria-hidden /> : <>Play With {petNick(child.petType)} Instead</>}
                       </button>
                     </motion.div>
                   ) : (
                     <motion.div
                       key="pet"
-                      className="flex flex-col items-center"
+                      className="w-full flex flex-col items-center"
                       initial={{ opacity: 0, scale: 0.9, rotateY: -90 }}
                       animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                       exit={{ opacity: 0, scale: 0.9, rotateY: 90 }}
@@ -1387,7 +1388,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         totalSeconds={freeTimeCountdown.total}
                         remainingSeconds={freeTimeCountdown.remaining}
                         status="ahead"
-                        sizePx={293}
+                        sizePx={220}
                         isRunning={true}
                         frameContent
                       >
@@ -1418,25 +1419,25 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       </CircularTimer>
                       {/* What to do with the free time: play with Biscuit,
                           or (with over ten minutes left) spin the wheel. */}
-                      <div className="mt-sp-3 flex flex-wrap justify-center gap-sp-2">
+                      <div className="w-full mt-sp-3 grid grid-cols-1 min-[360px]:grid-flow-col min-[360px]:auto-cols-fr gap-sp-2">
                         <button
                           type="button"
                           onClick={() => setPlayFor(playKey)}
                           aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
-                          className={cn("flex items-center gap-1.5 rounded-full bg-mint-500 text-ink-900 text-14 font-semibold hover:bg-mint-400 transition-colors", picture ? "min-h-14 px-7" : "min-h-11 px-4")}
+                          className={cn("flex items-center justify-center gap-1.5 rounded-[16px] bg-focus-lavender text-focus-sheet text-14 font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-14 px-7" : "min-h-12 px-4")}
                         >
                           <Gamepad2 className={picture ? "w-8 h-8" : "w-4 h-4"} aria-hidden />
-                          {!picture && <>Play with {petNick(child.petType)}</>}
+                          {!picture && <>Play With {petNick(child.petType)}</>}
                         </button>
                         {canSpin && (
                           <button
                             type="button"
                             onClick={() => setWheelFor(playKey)}
                             aria-label={picture ? "Spin the wheel" : undefined}
-                            className={cn("flex items-center gap-1.5 rounded-full bg-iris-500/25 text-iris-200 text-14 font-semibold hover:bg-iris-500/35 transition-colors", picture ? "min-h-14 px-7" : "min-h-11 px-4")}
+                            className={cn("flex items-center justify-center gap-1.5 rounded-[16px] bg-focus-raised text-focus-text text-14 font-semibold hover:bg-focus-raised/80 transition-colors", picture ? "min-h-14 px-7" : "min-h-12 px-4")}
                           >
                             <Shuffle className={picture ? "w-8 h-8" : "w-4 h-4"} aria-hidden />
-                            {!picture && "Spin the wheel"}
+                            {!picture && "Spin the Wheel"}
                           </button>
                         )}
                       </div>
@@ -1445,37 +1446,20 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 </AnimatePresence>
               );
             })()}
+            </section>
             {/* Chore tiles — also visible during free time so kids can
                 knock out chores between scheduled tasks. */}
             {renderChores()}
             {/* Next task row — same shape as the active-task block. */}
-            <div className="w-full flex items-end justify-between gap-sp-3 pt-sp-2">
-              <div className="flex flex-col gap-1 min-w-0">
-                {picture
-                  ? <ArrowRight className="w-6 h-6 text-iris-400" aria-label="Next" />
-                  : <span className="text-14 text-iris-400">Next</span>}
-                <div className="flex items-center gap-2 min-w-0">
-                  {picture ? (
-                    <span className="shrink-0 w-10 h-10 rounded-[14px] bg-fog-50/10 flex items-center justify-center">
-                      {getTaskIcon(freeTimeCountdown.nextTask.name, "w-6 h-6 text-fog-50", freeTimeCountdown.nextTask.icon)}
-                    </span>
-                  ) : getTaskIcon(freeTimeCountdown.nextTask.name, "w-4 h-4 text-fog-50 shrink-0", freeTimeCountdown.nextTask.icon)}
-                  <span className={cn(picture ? "text-18" : "text-16", "text-fog-50 truncate")}>{freeTimeCountdown.nextTask.name}</span>
-                </div>
-              </div>
-              {freeTimeCountdown.nextTask.scheduled_time && (
-                <StatusBadge variant="time">{formatTime(freeTimeCountdown.nextTask.scheduled_time)}</StatusBadge>
-              )}
-            </div>
+            {renderNext(freeTimeCountdown.nextTask)}
           </motion.div>
         )}
-
         {/* Waiting for the next thing, but it isn't free time (the worm already
             ate this stretch, or the next task has no set time). Keep the pet
             and the clock instead of dropping to a bare list. */}
         {!isRestDay && !sleepTime && !frozenTask && !activeTask && !freeTimeCountdown && upcomingTasks.length > 0 && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mb-sp-4"
+            className="flex flex-col items-center gap-5 mb-5"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
@@ -1495,29 +1479,29 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           </motion.div>
         )}
 
-        {/* Schedule Button — matches the Figma secondary pill */}
+        {/* Schedule Button — Figma "Today’s Schedule" (339:180): focus-sheet,
+            radius 16, 48 tall, Inter 16 in focus-muted. */}
         {!dayOver && !sleepTime && !isRestDay && (
-          <Button
+          <button
+            type="button"
             onClick={() => setShowSchedule(true)}
-            variant="secondary"
-            size="md"
-            className="w-full"
-            aria-label={picture ? "Today's schedule" : undefined}
+            className="w-full h-12 px-5 flex items-center justify-center rounded-[16px] bg-focus-sheet text-16 leading-[1.15] text-focus-muted hover:text-focus-text transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-lavender"
+            aria-label={picture ? "Today’s Schedule" : undefined}
           >
-            {picture ? <CalendarDays className="w-7 h-7" aria-hidden /> : "Today's Schedule"}
-          </Button>
+            {picture ? <CalendarDays className="w-7 h-7" aria-hidden /> : "Today’s Schedule"}
+          </button>
         )}
 
         {/* Still night: before wake-up. No free time, games or chores. */}
         {sleepTime && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            className="flex flex-col items-center gap-5 mt-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
             <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
-            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
+            <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Still sleepy time, {child.name}
             </h2>
             <StatusBadge variant="info">
@@ -1525,7 +1509,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 ? <span className="inline-flex items-center gap-1.5"><Sunrise className="w-4 h-4" aria-label="Wake up at" />{formatTime(wakeTimeToday)}</span>
                 : <>Wake up at {formatTime(wakeTimeToday)}</>}
             </StatusBadge>
-            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+            <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
               {petNick(child.petType)} is still asleep. See you in the morning!
             </p>
           </motion.div>
@@ -1534,19 +1518,19 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* Goodnight — day is over */}
         {dayOver && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            className="flex flex-col items-center gap-5 mt-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
             {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
             <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
-            {picture && <Moon className="w-12 h-12 text-fog-100" aria-hidden />}
-            <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>
+            {picture && <Moon className="w-12 h-12 text-focus-lavender" aria-hidden />}
+            <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Goodnight, {child.name}! 🌙
             </h2>
-            {!picture && <StatusBadge variant="info">Sleep tight</StatusBadge>}
-            <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+            {!picture && <StatusBadge variant="info">Sleep Tight</StatusBadge>}
+            <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
               {petNick(child.petType)} is going to sleep too. See you tomorrow!
             </p>
           </motion.div>
@@ -1555,7 +1539,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {/* All done — during the day, no more tasks */}
         {!isRestDay && !sleepTime && !frozenTask && !dayOver && !activeTask && upcomingTasks.length === 0 && !freeTimeCountdown && (
           <motion.div
-            className="flex flex-col items-center gap-sp-4 mt-sp-4"
+            className="flex flex-col items-center gap-5 mt-sp-4"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
@@ -1574,22 +1558,22 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             />
             {hasTimedTasks ? (
               <>
-                {picture && <PartyPopper className="w-12 h-12 text-amber-300" aria-hidden />}
-                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>All done for today!</h2>
+                {picture && <PartyPopper className="w-12 h-12 text-focus-lavender" aria-hidden />}
+                <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>All done for today!</h2>
                 {!picture && (
-                  <div className="px-3 h-7 rounded-pill bg-mint-500 flex items-center">
-                    <span className="text-12 font-medium text-ink-900">Nice work</span>
+                  <div className="px-3 py-1.5 rounded-pill bg-focus-mint flex items-center">
+                    <span className="text-12 font-medium text-focus-bg">Nice Work</span>
                   </div>
                 )}
-                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+                <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   Great job {child.name}. {petNick(child.petType)} is so proud of you.
                 </p>
               </>
             ) : (
               <>
-                {picture && <Sun className="w-12 h-12 text-amber-300" aria-hidden />}
-                <h2 className={cn("text-24 text-fog-50 text-center leading-tight", words)}>A free day!</h2>
-                <p className={cn("text-14 text-fog-200 text-center max-w-xs", words)}>
+                {picture && <Sun className="w-12 h-12 text-focus-lavender" aria-hidden />}
+                <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>A free day!</h2>
+                <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   Nothing planned today, {child.name}. {petNick(child.petType)} is happy to hang out.
                 </p>
               </>
@@ -1602,24 +1586,27 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             Greeting + coins stay visible above the sheet's rounded top edge.
             Tap the dimmed backdrop or scroll-down on the handle to dismiss. */}
         {/* Backdrop — light dim above the sheet so the greeting stays legible */}
-        <div
+        <motion.div
           className={cn(
-            "fixed inset-0 z-40 bg-black/30 transition-opacity duration-300",
-            scheduleOpen ? "opacity-100" : "opacity-0 pointer-events-none",
+            "fixed inset-0 z-40 bg-focus-scrim/85 backdrop-blur-md",
+            !scheduleOpen && "pointer-events-none",
           )}
+          initial={false}
+          animate={{ opacity: scheduleOpen ? 1 : 0 }}
+          transition={tMotion(overlayMotion.transition)}
           onClick={() => setShowSchedule(false)}
           aria-hidden
         />
         {/* Sheet */}
-        <div
+        <motion.div
           className={cn(
             "fixed left-0 right-0 bottom-0 z-50 mx-auto max-w-[420px]",
-            "rounded-t-[28px] px-sp-2 pt-sp-6 pb-sp-8",
-            "transition-transform duration-300 ease-out",
-            scheduleOpen ? "translate-y-0" : "translate-y-full",
+            "rounded-t-[28px] px-sp-2 pt-sp-6 pb-sp-8 bg-focus-sheet",
           )}
+          initial={false}
+          animate={{ y: scheduleOpen ? 0 : "100%" }}
+          transition={tMotion(scheduleOpen ? sheetMotion.transition : sheetMotion.exitTransition)}
           style={{
-            background: "#6C6BBF",
             top: 110,
           }}
           role="dialog"
@@ -1635,22 +1622,22 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             aria-label="Close schedule"
             className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-11 flex items-center justify-center cursor-pointer"
           >
-            <span className="w-10 h-1 rounded-pill bg-white/40" />
+            <span className="w-10 h-1 rounded-pill bg-focus-muted/40" />
           </button>
 
           <div className="h-full overflow-y-auto flex flex-col gap-sp-2 px-sp-2">
             {picture ? (
-              <CalendarDays className="w-7 h-7 text-white mx-sp-2" aria-label="Today's schedule" />
+              <CalendarDays className="w-7 h-7 text-focus-text mx-sp-2" aria-label="Today’s Schedule" />
             ) : (
-              <p className="text-14 text-white uppercase tracking-wider px-sp-2">
-                Today's schedule
+              <p className="text-16 font-semibold text-focus-text px-sp-2">
+                Today’s Schedule
               </p>
             )}
 
             {todaysSchedule.length === 0 ? (
-              <div className="rounded-[24px] bg-[#333881]/20 p-sp-6 text-center">
-                <p className="text-16 text-white mb-1">No schedule</p>
-                <p className="text-14 text-fog-200">Nothing scheduled for today.</p>
+              <div className="rounded-[24px] bg-focus-surface p-sp-6 text-center">
+                <p className="text-16 text-focus-text mb-1">No Schedule</p>
+                <p className="text-14 text-focus-muted">Nothing scheduled for today.</p>
               </div>
             ) : picture ? (
               <PictureDay rows={scheduleRows} focusTaskId={focusTask?.id ?? null} nowMinutes={nowMinutes} />
@@ -1706,7 +1693,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               </motion.ul>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Rewards Shop popup */}
@@ -1754,7 +1741,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       <AnimatePresence>
         {approvedReward && (
           <motion.div
-            className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-sp-4 px-sp-6 bg-[#08011A]/90"
+            className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-sp-4 px-sp-6 bg-focus-scrim/85 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1775,7 +1762,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                     animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist - 40, scale: [0, 1.2, 0.9], opacity: [0, 1, 0] }}
                     transition={tMotion({ duration: 1.6, delay: 0.1 + (i % 4) * 0.08, ease: 'easeOut' })}
                   >
-                    <Star className="w-6 h-6 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+                    <Star className="w-6 h-6 text-focus-lime fill-current" strokeWidth={0} />
                   </motion.span>
                 );
               })}
@@ -1787,10 +1774,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             >
               <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="celebrate" size={192} />
             </motion.div>
-            {picture && <Gift className="w-12 h-12 text-[#FFD66B]" aria-hidden />}
-            <p className={cn("text-2xl font-bold text-fog-50 text-center", words)}>You got your reward!</p>
-            <p className="text-18 font-semibold text-[#FFD66B] text-center">🎁 {approvedReward}</p>
-            <p className={cn("text-16 text-fog-200 text-center", words)}>
+            {picture && <Gift className="w-12 h-12 text-focus-lime" aria-hidden />}
+            <p className={cn("text-24 font-semibold text-focus-text text-center", words)}>You got your reward!</p>
+            <p className="text-18 font-semibold text-focus-lime text-center">🎁 {approvedReward}</p>
+            <p className={cn("text-16 text-focus-muted text-center", words)}>
               {petNick(child.petType)} is so happy for you, {child.name}!
             </p>
           </motion.div>
@@ -1852,32 +1839,32 @@ function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, 
           exit={{ opacity: 0, y: -12 }}
           transition={t(springs.gentle)}
         >
-          <div role="status" aria-live="polite" className="w-full max-w-sm rounded-[24px] bg-ink-800/95 border border-iris-300/40 shadow-xl p-sp-3 flex items-center gap-sp-3">
+          <div role="status" aria-live="polite" className="w-full max-w-sm rounded-[24px] bg-focus-sheet/95 border border-focus-lavender/40 shadow-xl p-sp-3 flex items-center gap-sp-3">
             <div className="w-16 h-14 shrink-0 flex items-center justify-center">
               <CritterPet petType={petType} outfit={outfit} mood="excited" size={56} reaction="Wave" reactionKey={windowKey} />
             </div>
             {speakPrompt ? (
               <div className="flex-1 min-w-0 flex items-center gap-2" aria-label={`${minutes} minute${minutes === 1 ? '' : 's'} until ${nextName}. Time to get ready.`}>
-                <AlarmClock className="w-8 h-8 text-amber-300 shrink-0" aria-hidden />
-                <ArrowRight className="w-5 h-5 text-fog-300 shrink-0" aria-hidden />
-                <span className="w-12 h-12 shrink-0 rounded-[14px] bg-white/10 flex items-center justify-center" aria-hidden>
-                  {getTaskIcon(nextName, 'w-7 h-7 text-fog-50', nextIcon)}
+                <AlarmClock className="w-8 h-8 text-focus-lavender shrink-0" aria-hidden />
+                <ArrowRight className="w-5 h-5 text-focus-muted shrink-0" aria-hidden />
+                <span className="w-12 h-12 shrink-0 rounded-[14px] bg-focus-surface flex items-center justify-center" aria-hidden>
+                  {getTaskIcon(nextName, 'w-7 h-7 text-focus-text', nextIcon)}
                 </span>
-                {nextTime && <span className="text-18 font-semibold text-fog-50 tabular-nums" aria-hidden>{nextTime}</span>}
+                {nextTime && <span className="text-18 font-semibold text-focus-text tabular-nums" aria-hidden>{nextTime}</span>}
               </div>
             ) : (
               <div className="flex-1 min-w-0">
-                <p className="text-16 font-semibold text-fog-50 leading-tight">
+                <p className="text-16 font-semibold text-focus-text leading-tight">
                   {minutes} minute{minutes === 1 ? '' : 's'} until {nextName}!
                 </p>
-                <p className="text-13 text-fog-200">Time to get ready.</p>
+                <p className="text-13 text-focus-muted">Time to get ready.</p>
               </div>
             )}
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label={speakPrompt ? 'OK' : undefined}
-              className="shrink-0 min-h-11 px-4 rounded-full bg-iris-500 text-white text-14 font-semibold"
+              className="shrink-0 min-h-11 px-4 rounded-[16px] bg-focus-lavender text-focus-sheet text-14 font-semibold"
             >
               {speakPrompt ? <Check className="w-6 h-6" strokeWidth={3} aria-hidden /> : 'OK!'}
             </button>
@@ -1902,9 +1889,9 @@ function ConnectionTrouble({ fullScreen, onRetry }: { fullScreen: boolean; onRet
     <div className={cn(fullScreen && 'min-h-dvh', 'flex items-center justify-center p-sp-6')}>
       <div className="max-w-xs flex flex-col items-center gap-sp-4 text-center" role="status">
         <CritterPet petType="rabbit" mood="happy" size={150} />
-        <h1 className="text-20 font-semibold text-fog-50">Can't reach the internet</h1>
-        <p className="text-14 text-fog-200">We'll keep trying. Your day will show up as soon as we're back.</p>
-        <Button variant="secondary" size="md" onClick={onRetry}>Try again</Button>
+        <h1 className="text-20 font-semibold text-focus-text">Can't Reach the Internet</h1>
+        <p className="text-14 text-focus-muted">We'll keep trying. Your day will show up as soon as we're back.</p>
+        <Button variant="secondary" size="md" onClick={onRetry}>Try Again</Button>
       </div>
     </div>
   );
@@ -1971,13 +1958,13 @@ function ScheduleRow({
       className={cn(
         'flex items-stretch gap-sp-3 p-sp-4 rounded-[24px]',
         state === 'now'
-          ? 'bg-iris-400/30 ring-1 ring-iris-400/60'
-          : 'bg-[#333881]/[0.2]',
+          ? 'bg-focus-lavender/20 ring-1 ring-focus-lavender'
+          : 'bg-focus-surface',
         state === 'done' && 'opacity-60',
       )}
     >
       {/* Time column */}
-      <div className="shrink-0 w-11 text-right text-white flex flex-col items-end justify-center">
+      <div className="shrink-0 w-11 text-right text-focus-text flex flex-col items-end justify-center">
         {showToday ? (
           <span className="text-12 leading-tight uppercase tracking-wider">Today</span>
         ) : displayTime ? (
@@ -1991,22 +1978,22 @@ function ScheduleRow({
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 w-px self-stretch bg-white/30" />
+      <div className="shrink-0 w-px self-stretch bg-focus-muted/30" />
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex items-center gap-sp-2">
-        {getTaskIcon(name, "w-5 h-5 text-white/70 shrink-0", icon)}
+        {getTaskIcon(name, "w-5 h-5 text-focus-muted shrink-0", icon)}
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <p
             className={cn(
-              'text-16 text-white truncate',
+              'text-16 text-focus-text truncate',
               state === 'done' && 'line-through',
             )}
           >
             {name}
           </p>
           {subtitle && (
-            <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
+            <p className="text-12 text-focus-muted truncate">{subtitle}</p>
           )}
         </div>
       </div>
@@ -2036,26 +2023,26 @@ function FreeTimeRow({
       className={cn(
         'flex items-stretch gap-sp-3 p-sp-4 rounded-[24px] border border-dashed',
         state === 'now'
-          ? 'border-[#9EBEFF]/70 bg-[#9EBEFF]/10'
-          : 'border-white/25 bg-transparent',
+          ? 'border-focus-mint/70 bg-focus-mint/10'
+          : 'border-focus-muted/30 bg-transparent',
         state === 'done' && 'opacity-40',
       )}
     >
       {/* Time column */}
-      <div className="shrink-0 w-11 text-right text-white/70 flex flex-col items-end justify-center">
+      <div className="shrink-0 w-11 text-right text-focus-muted flex flex-col items-end justify-center">
         <span className="text-16 leading-tight">{hourMin}</span>
         <span className="text-12 leading-tight">{ampm}</span>
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 w-px self-stretch bg-white/20" />
+      <div className="shrink-0 w-px self-stretch bg-focus-muted/20" />
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex items-center gap-sp-2">
-        <Gamepad2 className="w-5 h-5 text-[#9EBEFF] shrink-0" />
+        <Gamepad2 className="w-5 h-5 text-focus-mint shrink-0" />
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <p className="text-16 text-white/80 truncate">Free time</p>
-          <p className="text-12 text-[#9EBEFF] truncate">{formatDuration(durationMin)} all yours</p>
+          <p className="text-16 text-focus-text/80 truncate">Free Time</p>
+          <p className="text-12 text-focus-muted truncate">{formatDuration(durationMin)} all yours</p>
         </div>
       </div>
     </div>
@@ -2091,7 +2078,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
         <section key={part} aria-label={part} className="flex flex-col gap-sp-1">
           {(() => {
             const PartIcon = PART_ICONS[part];
-            return <PartIcon className="w-7 h-7 text-white/90 mx-sp-2" aria-hidden />;
+            return <PartIcon className="w-7 h-7 text-focus-muted mx-sp-2" aria-hidden />;
           })()}
           {partRows.map(row => {
             const start = startOf(row);
@@ -2102,7 +2089,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
             const now = row.kind === 'task'
               ? focusTaskId === row.task.id && !done
               : start != null && !done && nowMinutes >= start;
-            const name = row.kind === 'free' ? 'Free time' : row.task.name;
+            const name = row.kind === 'free' ? 'Free Time' : row.task.name;
             const blocks = Math.min(6, Math.max(1, Math.round(minutes / 10)));
             const isBedtime = name.toLowerCase().includes('bedtime');
             return (
@@ -2110,38 +2097,38 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
                 key={row.kind === 'free' ? row.id : row.task.id}
                 className={cn(
                   'flex items-center gap-sp-3 p-sp-3 rounded-[24px]',
-                  row.kind === 'free' ? 'border border-dashed border-white/25' : 'bg-[#333881]/[0.2]',
-                  now && 'bg-iris-400/30 ring-1 ring-iris-400/60',
+                  row.kind === 'free' ? 'border border-dashed border-white/25' : 'bg-focus-surface',
+                  now && 'bg-focus-lavender/20 ring-1 ring-focus-lavender',
                   done && 'opacity-50',
                 )}
               >
-                <span className="shrink-0 w-14 h-14 rounded-[18px] bg-white/10 flex items-center justify-center">
+                <span className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-raised flex items-center justify-center">
                   {row.kind === 'free'
-                    ? <Gamepad2 className="w-8 h-8 text-[#9EBEFF]" />
-                    : getTaskIcon(name, 'w-8 h-8 text-white', row.task.icon)}
+                    ? <Gamepad2 className="w-8 h-8 text-focus-mint" />
+                    : getTaskIcon(name, 'w-8 h-8 text-focus-text', row.task.icon)}
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                  <p className={cn('text-18 text-white truncate', done && 'line-through')}>{name}</p>
+                  <p className={cn('text-18 text-focus-text truncate', done && 'line-through')}>{name}</p>
                   <span className="flex items-center gap-2.5">
                     {start != null && (() => {
                       const [hm, ampm] = splitTime12(`${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`);
-                      return <span className="text-16 font-semibold text-white tabular-nums">{hm}<span className="text-12 font-normal ml-0.5">{ampm}</span></span>;
+                      return <span className="text-16 font-semibold text-focus-text tabular-nums">{hm}<span className="text-12 font-normal ml-0.5">{ampm}</span></span>;
                     })()}
                     {minutes > 0 && !isBedtime && (
                       <span className="flex gap-1" aria-label={`About ${formatDuration(minutes)}`}>
                         {Array.from({ length: blocks }, (_, i) => (
-                          <span key={i} className={cn('w-3.5 h-3.5 rounded-[4px]', row.kind === 'free' ? 'bg-[#9EBEFF]/60' : 'bg-white/60')} />
+                          <span key={i} className={cn('w-3.5 h-3.5 rounded-[4px]', row.kind === 'free' ? 'bg-focus-mint/60' : 'bg-focus-lavender/60')} />
                         ))}
                       </span>
                     )}
                   </span>
                 </div>
                 {now && (
-                  <span className="shrink-0 w-9 h-9 rounded-full bg-white text-ink-900 flex items-center justify-center" aria-label="Now">
+                  <span className="shrink-0 w-9 h-9 rounded-full bg-focus-lavender text-focus-sheet flex items-center justify-center" aria-label="Now">
                     <Play className="w-4 h-4 fill-current ml-0.5" aria-hidden />
                   </span>
                 )}
-                {done && <Check className="shrink-0 w-6 h-6 text-mint-300" aria-label="Done" />}
+                {done && <Check className="shrink-0 w-6 h-6 text-focus-mint" aria-label="Done" />}
               </div>
             );
           })}

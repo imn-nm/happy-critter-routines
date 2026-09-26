@@ -68,13 +68,13 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
   return (
     <div
       className={cn(
-        "p-4 cursor-pointer transition-all duration-200 glass-card rounded-2xl hover:scale-[1.01]",
+        "p-4 cursor-pointer transition-all duration-200 bg-focus-surface rounded-[24px] hover:bg-focus-raised",
         className
       )}
       onClick={() => onClick?.(child)}
     >
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl glass-strong overflow-hidden flex items-center justify-center flex-shrink-0">
+        <div className="w-12 h-12 rounded-[14px] bg-focus-sunken overflow-hidden flex items-center justify-center flex-shrink-0">
           <PetAvatar
             petType={child.petType}
             happiness={calculateHappiness()}
@@ -85,13 +85,13 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm text-foreground">{child.name}</h3>
-          <p className="text-xs text-muted-foreground">{completed}/{total} tasks today</p>
+          <h3 className="font-semibold text-16 text-focus-text">{child.name}</h3>
+          <p className="text-12 text-focus-muted">{completed}/{total} tasks today</p>
         </div>
 
-        <div className="flex items-center gap-1.5 glass rounded-full px-2.5 py-1">
-          <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-          <span className="text-sm font-bold text-foreground">{child.currentCoins}</span>
+        <div className="flex items-center gap-1.5 rounded-[12px] border border-focus-lime bg-focus-lime/10 px-2.5 py-1">
+          <Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} />
+          <span className="text-14 font-bold text-focus-lime">{child.currentCoins}</span>
         </div>
       </div>
     </div>

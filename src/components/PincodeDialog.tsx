@@ -85,13 +85,13 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-[90vw] max-w-md mx-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+          <DialogTitle className="flex items-center gap-2 text-18 sm:text-20">
+            <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-focus-muted" />
             {isSetupMode ? "Set Parent PIN" : "Parent Access"}
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="text-14">
             {isSetupMode
               ? "Pick a 4–6 digit PIN to keep the parent dashboard safe from little hands."
               : "Enter the parent pincode to access the dashboard"}
@@ -106,7 +106,7 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
               placeholder="New PIN"
               value={pincode}
               onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-xl sm:text-2xl font-mono tracking-wider py-3"
+              className="text-center text-20 sm:text-24 font-mono tracking-wider py-3"
               maxLength={6}
               autoFocus
             />
@@ -116,11 +116,11 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
               placeholder="Confirm PIN"
               value={confirmPin}
               onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-xl sm:text-2xl font-mono tracking-wider py-3"
+              className="text-center text-20 sm:text-24 font-mono tracking-wider py-3"
               maxLength={6}
             />
             {error && (
-              <p className="text-destructive text-sm text-center">{error}</p>
+              <p className="text-focus-coral text-14 text-center">{error}</p>
             )}
             <Button
               type="submit"
@@ -141,12 +141,12 @@ const PincodeDialog = ({ open, onOpenChange }: PincodeDialogProps) => {
                 placeholder="Enter pincode"
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
-                className="text-center text-xl sm:text-2xl font-mono tracking-wider py-3"
+                className="text-center text-20 sm:text-24 font-mono tracking-wider py-3"
                 maxLength={6}
                 autoFocus
               />
               {error && (
-                <p className="text-destructive text-sm mt-2 text-center">{error}</p>
+                <p className="text-focus-coral text-14 mt-2 text-center">{error}</p>
               )}
             </div>
 

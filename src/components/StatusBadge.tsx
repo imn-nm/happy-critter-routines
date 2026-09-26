@@ -10,44 +10,36 @@ interface StatusBadgeProps {
 }
 
 /**
- * StatusBadge — outline pill used for task status (time remaining,
- * overdue, complete, info). Matches the Figma component set:
- *   State=Time     → mint-500  @ 40% stroke
- *   State=Overdue  → coral-400 @ 22% stroke
- *   State=Complete → mint-500  @ 100% stroke
- *   State=Info     → iris-400  @ 30% stroke
- *
- * Padding 6 × 12, gap 6, radius pill, 2px stroke.
- * Label text: Inter Medium 12, color fog-50.
+ * StatusBadge — outline pill used for task status on the child screen
+ * (time, overdue, complete, info). Figma "Child / Focus — redesigned":
+ *   Time     (StatusBadge 336:437) → 2px focus-mint stroke, Inter Medium 12 focus-text
+ *   Overdue  (Child Badge 336:444) → focus-pink @ 16% fill, 2px focus-alert
+ *                                     stroke, Inter Regular 14 focus-pink
+ *   Complete → focus-mint stroke + faint mint fill
+ *   Info     → focus-lavender stroke
+ * Padding 6 × 12, radius pill.
  */
 export default function StatusBadge({
   variant = "time",
   children,
   className,
 }: StatusBadgeProps) {
-  // Stroke opacities pulled from Figma StatusBadge component (107:47):
-  //   Time      → mint-500 @ 40%
-  //   Overdue   → coral-400 @ 22%
-  //   Complete  → mint-500 @ 100%
-  //   Info      → iris-400 @ 30%
-  const stroke = {
-    time:     "border-mint-500/40",
-    overdue:  "border-amber-400/[0.4]",
-    complete: "border-mint-500",
-    info:     "border-iris-400/30",
+  const tone = {
+    time:     "border-focus-mint text-focus-text text-12 font-medium",
+    overdue:  "border-focus-alert bg-focus-pink/15 text-focus-pink text-14 font-normal",
+    complete: "border-focus-mint bg-focus-mint/15 text-focus-text text-12 font-medium",
+    info:     "border-focus-lavender text-focus-text text-12 font-medium",
   }[variant];
 
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-pill border-2 bg-transparent",
-        stroke,
+        "inline-flex shrink-0 items-center justify-center gap-1.5 px-3 py-1.5 rounded-pill border-2 leading-none whitespace-nowrap",
+        tone,
         className,
       )}
     >
-      <span className="text-12 font-medium text-fog-50 leading-none">
-        {children}
-      </span>
+      {children}
     </span>
   );
 }

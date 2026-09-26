@@ -25,18 +25,17 @@ const ChildNameGate = () => {
     return (
       <div className="min-h-dvh flex items-center justify-center p-6">
         <div className="w-full max-w-sm text-center space-y-6">
-          <div className="w-20 h-20 rounded-3xl glass-strong flex items-center justify-center mx-auto glow-purple">
-            <Sparkles className="w-9 h-9 text-primary-light" />
+          <div className="w-20 h-20 rounded-[24px] bg-focus-surface flex items-center justify-center mx-auto">
+            <Sparkles className="w-9 h-9 text-focus-lavender" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground text-glow">Welcome to PetPals!</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-24 font-bold text-focus-text">Welcome to PetPals!</h1>
+          <p className="text-14 text-focus-muted">
             No children profiles yet. Go to the parent portal to set up your first profile,
             or switch accounts if you're on a child's device.
           </p>
           <div className="flex flex-col gap-3">
             <Button
-              variant="outline"
-              className="rounded-full"
+              variant="primary"
               onClick={() => navigate("/parent")}
             >
               Go to Parent Portal
@@ -44,9 +43,9 @@ const ChildNameGate = () => {
             <button
               type="button"
               onClick={signOut}
-              className="text-xs text-muted-foreground hover:text-foreground transition"
+              className="min-h-11 text-13 text-focus-muted hover:text-focus-text transition"
             >
-              Sign out{user?.email ? ` (${user.email})` : ''}
+              Sign Out{user?.email ? ` (${user.email})` : ''}
             </button>
           </div>
         </div>
@@ -58,11 +57,11 @@ const ChildNameGate = () => {
     <div className="min-h-dvh flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 rounded-3xl glass-strong flex items-center justify-center mx-auto glow-purple">
-            <Sparkles className="w-8 h-8 text-primary-light" />
+          <div className="w-16 h-16 rounded-[20px] bg-focus-surface flex items-center justify-center mx-auto">
+            <Sparkles className="w-8 h-8 text-focus-lavender" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground text-glow">Who's using this?</h1>
-          <p className="text-sm text-muted-foreground">Tap your name to get started</p>
+          <h1 className="text-24 font-bold text-focus-text">Who's Using This?</h1>
+          <p className="text-14 text-focus-muted">Tap your name to get started</p>
         </div>
 
         {/* One tile per child — pet + name, big tap targets so even
@@ -73,10 +72,10 @@ const ChildNameGate = () => {
               key={child.id}
               type="button"
               onClick={() => navigate(`/child/${child.id}`)}
-              className="glass-card rounded-3xl p-4 flex flex-col items-center gap-2 transition-transform hover:scale-[1.03] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="bg-focus-surface rounded-[24px] p-4 flex flex-col items-center gap-2 transition-colors hover:bg-focus-raised active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
             >
               <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" size={96} />
-              <span className="text-lg font-semibold text-foreground truncate w-full text-center">
+              <span className="text-18 font-semibold text-focus-text truncate w-full text-center">
                 {child.name}
               </span>
             </button>
@@ -88,7 +87,7 @@ const ChildNameGate = () => {
           <button
             type="button"
             onClick={() => navigate("/parent")}
-            className="tap-target text-12 text-fog-300 hover:text-fog-100 transition-colors"
+            className="min-h-11 px-4 rounded-[14px] text-13 font-semibold text-focus-muted hover:bg-focus-surface hover:text-focus-text transition-colors"
           >
             Grown-ups
           </button>

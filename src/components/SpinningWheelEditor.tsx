@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Plus, X, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
@@ -42,12 +42,12 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <div className="shrink-0 mt-0.5 flex items-center justify-center w-9 h-9 rounded-full bg-iris-500/20">
-          <Shuffle className="w-5 h-5 text-iris-400" />
+        <div className="shrink-0 mt-0.5 flex items-center justify-center w-9 h-9 rounded-[12px] bg-focus-raised">
+          <Shuffle className="w-5 h-5 text-focus-lavender" />
         </div>
         <div className="flex flex-col">
-          <span className="text-15 font-medium text-foreground">Free-Time Spinning Wheel</span>
-          <span className="text-13 text-muted-foreground leading-snug">
+          <span className="text-[15px] font-semibold text-focus-text">Free-Time Spinning Wheel</span>
+          <span className="text-13 text-focus-muted leading-snug">
             Add fun activities {childName ? `${childName} can` : "your child can"} land on during
             free time. They'll see the wheel and can spin it — they can't change the options.
           </span>
@@ -58,7 +58,7 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
         {options.map((opt, i) => (
           <motion.div
             key={`${i}-${opt}`}
-            className="flex items-center gap-2.5 bg-muted/50 rounded-xl px-3 py-2"
+            className="flex items-center gap-2.5 bg-focus-surface rounded-[14px] pl-3 pr-1 min-h-11"
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={tMotion(springs.gentle)}
@@ -67,12 +67,12 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
               className="w-3.5 h-3.5 rounded-full shrink-0"
               style={{ background: WHEEL_COLORS[i % WHEEL_COLORS.length] }}
             />
-            <span className="text-14 text-foreground flex-1 truncate">{opt}</span>
+            <span className="text-14 text-focus-text flex-1 truncate">{opt}</span>
             <button
               type="button"
               onClick={() => removeOption(i)}
               aria-label={`Remove ${opt}`}
-              className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-[12px] text-focus-muted hover:text-focus-coral transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -80,7 +80,7 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
         ))}
 
         {options.length === 0 && (
-          <p className="text-13 text-muted-foreground italic py-1">No activities yet.</p>
+          <p className="text-13 text-focus-muted italic py-1">No activities yet.</p>
         )}
 
         {options.length < MAX_WHEEL_OPTIONS && (
@@ -98,14 +98,14 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
               }}
               placeholder="e.g. Draw, Read a book, Play outside"
               maxLength={30}
-              className="flex-1 min-w-0 bg-background text-foreground placeholder:text-muted-foreground text-14 px-3 py-2 rounded-xl border border-input focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+              className="flex-1 min-w-0 h-12 bg-focus-surface text-focus-text placeholder:text-focus-muted/70 text-[16px] sm:text-[15px] px-4 rounded-[14px] border border-focus-raised focus:border-focus-lavender focus:outline-none focus:ring-2 focus:ring-focus-lavender transition-colors"
             />
             <button
               type="button"
               onClick={addOption}
               disabled={!newOption.trim()}
               aria-label="Add activity"
-              className="shrink-0 p-2.5 rounded-full bg-iris-500 text-white disabled:opacity-40 transition-opacity"
+              className="shrink-0 w-12 h-12 flex items-center justify-center rounded-[14px] bg-focus-lime text-focus-bg disabled:opacity-40 transition-opacity"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -113,13 +113,13 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
         )}
       </div>
 
-      <div className="flex items-center justify-between text-12 text-muted-foreground">
+      <div className="flex items-center justify-between text-12 text-focus-muted">
         <span>
           {options.length < 2
             ? "Add at least 2 to enable the wheel."
             : "Wheel is ready! 🎉"}
         </span>
-        <span className={cn(options.length >= MAX_WHEEL_OPTIONS && "text-destructive")}>
+        <span className={cn(options.length >= MAX_WHEEL_OPTIONS && "text-focus-coral")}>
           {options.length}/{MAX_WHEEL_OPTIONS}
         </span>
       </div>

@@ -26,7 +26,7 @@ export default {
 			},
 			fontSize: {
 				// Aligned to --fs-* in tokens.css
-				'11': ['11px', { lineHeight: '1.0' }],
+				'11': ['12px', { lineHeight: '1.15' }], // 12px floor
 				'12': ['12px', { lineHeight: '1.15' }],
 				'13': ['13px', { lineHeight: '1.4' }],
 				'14': ['14px', { lineHeight: '1.4' }],
@@ -152,6 +152,25 @@ export default {
 					300: 'rgb(var(--fog-300-rgb) / <alpha-value>)',
 					400: 'rgb(var(--fog-400-rgb) / <alpha-value>)',
 					500: 'rgb(var(--fog-500-rgb) / <alpha-value>)',
+				},
+				// Focus — Navy & Play (parent hub redesign)
+				focus: {
+					bg: 'rgb(var(--focus-bg-rgb) / <alpha-value>)',
+					surface: 'rgb(var(--focus-surface-rgb) / <alpha-value>)',
+					raised: 'rgb(var(--focus-raised-rgb) / <alpha-value>)',
+					sunken: 'rgb(var(--focus-sunken-rgb) / <alpha-value>)',
+					sheet: 'rgb(var(--focus-sheet-rgb) / <alpha-value>)',
+					text: 'rgb(var(--focus-text-rgb) / <alpha-value>)',
+					muted: 'rgb(var(--focus-muted-rgb) / <alpha-value>)',
+					lavender: 'rgb(var(--focus-lavender-rgb) / <alpha-value>)',
+					mint: 'rgb(var(--focus-mint-rgb) / <alpha-value>)',
+					lime: 'rgb(var(--focus-lime-rgb) / <alpha-value>)',
+					pink: 'rgb(var(--focus-pink-rgb) / <alpha-value>)',
+					amber: 'rgb(var(--focus-amber-rgb) / <alpha-value>)',
+					coral: 'rgb(var(--focus-coral-rgb) / <alpha-value>)',
+					alert: 'rgb(var(--focus-alert-rgb) / <alpha-value>)',
+					iris: 'rgb(var(--focus-iris-rgb) / <alpha-value>)',
+					scrim: 'rgb(var(--focus-scrim-rgb) / <alpha-value>)',
 				},
 				paper: 'rgb(var(--paper-rgb) / <alpha-value>)',
 			},

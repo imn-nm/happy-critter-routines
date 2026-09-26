@@ -17,11 +17,11 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button } from "@/components/ui/button";
 import TaskCard from "@/components/TaskCard";
-import { Edit, Trash2, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Task } from "@/types/Task";
+import { EditButton, DeleteButton } from "@/components/IconActionButtons";
 
 // Convert from Task to TaskCard format
 const convertToTaskCardTask = (task: Task) => ({
@@ -93,20 +93,8 @@ const SortableTaskItem = ({ task, onEdit, onDelete }: SortableTaskItemProps) => 
       </div>
       
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onEdit(task)}
-        >
-          <Edit className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="destructive"
-          size="icon"
-          onClick={() => onDelete(task.id)}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <EditButton onClick={() => onEdit(task)} label={`Edit ${task.name}`} />
+        <DeleteButton onClick={() => onDelete(task.id)} label={`Delete ${task.name}`} />
       </div>
     </div>
   );

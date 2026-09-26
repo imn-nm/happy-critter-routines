@@ -145,10 +145,10 @@ const DaySpecificTaskEditor = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 flex-shrink-0">
-          <DialogTitle className="text-lg">{taskName} Schedule</DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogTitle className="text-18">{taskName} Schedule</DialogTitle>
+          <DialogDescription className="text-12">
             Tap a day to edit. Uncheck days with no {taskName.toLowerCase()}.
           </DialogDescription>
         </DialogHeader>
@@ -165,21 +165,21 @@ const DaySpecificTaskEditor = ({
                   type="button"
                   onClick={() => setSelectedDay(day.id)}
                   className={`
-                    flex flex-col items-center justify-center w-14 h-14 rounded-2xl text-sm font-semibold
+                    flex flex-col items-center justify-center flex-1 min-w-0 max-w-14 h-14 rounded-[14px] text-14 font-semibold
                     transition-all duration-150 active:scale-95
                     ${isSelected
-                      ? 'bg-primary text-primary-foreground shadow-lg'
+                      ? 'bg-focus-lavender text-focus-bg'
                       : isEnabled
-                        ? 'bg-muted/50 text-foreground hover:bg-muted'
-                        : 'bg-muted/20 text-muted-foreground/40'
+                        ? 'bg-focus-surface text-focus-text hover:bg-focus-raised'
+                        : 'bg-focus-surface/50 text-focus-muted/60'
                     }
                   `}
                 >
-                  <span className="text-base font-bold">{day.short}</span>
+                  <span className="text-16 font-bold">{day.short}</span>
                   {isEnabled ? (
-                    <span className="text-[10px] mt-0.5 opacity-75">{formatTime(schedules[day.id].time).replace(' ', '')}</span>
+                    <span className="text-12 mt-0.5 opacity-75">{formatTime(schedules[day.id].time).replace(' ', '')}</span>
                   ) : (
-                    <span className="text-[10px] mt-0.5 opacity-50">Off</span>
+                    <span className="text-12 mt-0.5 opacity-50">Off</span>
                   )}
                 </button>
               );
@@ -187,7 +187,7 @@ const DaySpecificTaskEditor = ({
           </div>
 
           {/* Selected day editor */}
-          <Card className="p-4">
+          <Card className="p-4 bg-focus-surface">
             <div className="space-y-4">
               {/* Enable/Disable Toggle */}
               <div className="flex items-center justify-between">
@@ -196,15 +196,15 @@ const DaySpecificTaskEditor = ({
                     type="checkbox"
                     checked={currentDaySchedule.enabled}
                     onChange={() => handleToggleDay(selectedDay)}
-                    className="w-5 h-5 rounded border-gray-300 accent-primary"
+                    className="w-5 h-5 rounded accent-[#A89AF0]"
                     id={`enable-${selectedDay}`}
                   />
-                  <Label htmlFor={`enable-${selectedDay}`} className="text-sm font-semibold">
+                  <Label htmlFor={`enable-${selectedDay}`} className="text-14 font-semibold text-focus-text mb-0">
                     {weekdays.find(d => d.id === selectedDay)?.label}
                   </Label>
                 </div>
                 {!currentDaySchedule.enabled && (
-                  <Badge variant="secondary" className="text-xs">No {taskName}</Badge>
+                  <Badge variant="secondary" className="text-12">No {taskName}</Badge>
                 )}
               </div>
 
@@ -212,7 +212,7 @@ const DaySpecificTaskEditor = ({
                 <>
                   {/* Start Time */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Label className="text-12 text-focus-muted flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" />
                       Start Time
                     </Label>
@@ -220,13 +220,13 @@ const DaySpecificTaskEditor = ({
                       type="time"
                       value={currentDaySchedule.time}
                       onChange={(e) => handleTimeChange(selectedDay, e.target.value)}
-                      className="h-11 text-base w-full"
+                      className="text-16 w-full"
                     />
                   </div>
 
                   {/* End Time */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Label className="text-12 text-focus-muted flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" />
                       End Time
                     </Label>
@@ -239,9 +239,9 @@ const DaySpecificTaskEditor = ({
                         const newDuration = diffInMinutes(currentDaySchedule.time, newEnd);
                         handleDurationChange(selectedDay, newDuration);
                       }}
-                      className="h-11 text-base w-full"
+                      className="text-16 w-full"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-12 text-focus-muted">
                       Duration: {formatDuration(currentDaySchedule.duration)}
                     </p>
                   </div>
@@ -252,7 +252,7 @@ const DaySpecificTaskEditor = ({
                     variant="outline"
                     size="sm"
                     onClick={() => handleCopyToAll(selectedDay)}
-                    className="w-full h-10"
+                    className="w-full"
                   >
                     <Copy className="w-3.5 h-3.5 mr-1.5" />
                     Copy to All Active Days
@@ -264,11 +264,11 @@ const DaySpecificTaskEditor = ({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 px-4 pb-4 sm:px-6 sm:pb-6 pt-2 border-t flex-shrink-0">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
+        <div className="flex gap-2 px-4 pb-4 sm:px-6 sm:pb-6 pt-2 border-t border-focus-raised flex-shrink-0">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="flex-1">
             Cancel
           </Button>
-          <Button type="button" onClick={handleSave} className="flex-1 h-11">
+          <Button type="button" onClick={handleSave} className="flex-1">
             <Save className="w-4 h-4 mr-1.5" />
             Save
           </Button>

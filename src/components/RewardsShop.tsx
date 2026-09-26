@@ -3,9 +3,10 @@ import { Star, Gift, X, ShoppingCart, Clock, Check, Loader2, CircleSlash, AlertC
 import { Button } from "@/components/ui/button";
 import { useRewards, isApprovedStatus } from "@/hooks/useRewards";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useMotionPrefs } from "@/lib/motion";
 import { getPSTDateString, toPSTDateString } from "@/utils/pstDate";
+import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
 
 interface RewardsShopProps {
   childId: string;
@@ -83,7 +84,7 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
         <>
           {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 z-[60] bg-black/40"
+            className="fixed inset-0 z-[60] bg-focus-scrim/85 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -95,8 +96,8 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
             role="dialog"
             aria-modal="true"
             aria-label="Rewards Shop"
-            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] px-sp-4 pt-sp-5 pb-sp-8 sheet-safe-bottom"
-            style={{ background: "#3D2B6B", maxHeight: "75dvh" }}
+            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] bg-focus-sheet px-5 pt-sp-5 pb-sp-8 sheet-safe-bottom"
+            style={{ maxHeight: "75dvh" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -104,21 +105,21 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
           >
             {/* Handle */}
             <div className="flex justify-center mb-sp-3">
-              <div className="w-10 h-1 rounded-full bg-fog-50/20" />
+              <div className="w-10 h-1 rounded-full bg-focus-muted/30" />
             </div>
 
             {/* Header */}
             <div className="flex items-center justify-between mb-sp-4">
               <div className="flex items-center gap-sp-2">
-                <Gift className={picture ? "w-8 h-8 text-iris-400" : "w-5 h-5 text-iris-400"} />
-                <h2 className={picture ? "sr-only" : "text-18 font-bold text-fog-50"}>Rewards</h2>
+                <Gift className={picture ? "w-8 h-8 text-focus-lavender" : "w-5 h-5 text-focus-lavender"} />
+                <h2 className={picture ? "sr-only" : "text-20 font-semibold text-focus-text"}>Rewards</h2>
               </div>
               <div className="flex items-center gap-sp-2">
                 <div className={picture
-                  ? "flex items-center gap-2 px-4 py-2 rounded-pill border-2 border-iris-400/[0.32]"
-                  : "flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]"}>
-                  <Star className={picture ? "w-6 h-6 text-[#FFD66B] fill-[#FFD66B]" : "w-4 h-4 text-[#FFD66B] fill-[#FFD66B]"} strokeWidth={0} />
-                  <span className={picture ? "text-20 font-bold text-fog-50 leading-none tabular-nums" : "text-13 font-bold text-fog-50 leading-none tabular-nums"}>
+                  ? "flex items-center gap-2 h-12 px-4 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime"
+                  : "flex items-center gap-1.5 h-11 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime"}>
+                  <Star className={picture ? "w-6 h-6 fill-current" : "w-3.5 h-3.5 fill-current"} strokeWidth={0} />
+                  <span className={picture ? "text-20 font-semibold leading-none tabular-nums" : "text-14 font-semibold leading-none tabular-nums"}>
                     {currentCoins}
                   </span>
                   {picture && <span className="sr-only">stars</span>}
@@ -126,12 +127,10 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                 <button
                   type="button"
                   onClick={onClose}
-                  className={picture
-                    ? "w-12 h-12 -mr-2 flex items-center justify-center rounded-full bg-fog-50/[0.06] hover:bg-fog-50/10 transition-colors"
-                    : "w-11 h-11 -mr-2 flex items-center justify-center rounded-full hover:bg-fog-50/10 transition-colors"}
+                  className={cn(closeButtonClass, picture && "h-12 w-12")}
                   aria-label="Close shop"
                 >
-                  <X className={picture ? "w-7 h-7 text-fog-200" : "w-5 h-5 text-fog-300"} />
+                  <X className={picture ? "w-7 h-7 text-focus-muted" : "w-5 h-5 text-focus-muted"} />
                 </button>
               </div>
             </div>
@@ -140,14 +139,14 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                 "10 stars" and "5 more to go" don't look like they disagree. */}
             {reserved > 0 && (picture ? (
               // A clock on the stars: that many are waiting on an ask.
-              <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-16 font-semibold tabular-nums text-fog-300">
+              <p className="-mt-sp-2 mb-sp-3 flex items-center justify-end gap-1.5 text-16 font-semibold tabular-nums text-focus-muted">
                 <span className="sr-only">{reserved} of them saved for what you asked for</span>
-                <Clock className="w-5 h-5 text-iris-400" aria-hidden />
-                <Star className="w-5 h-5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} aria-hidden />
+                <Clock className="w-5 h-5 text-focus-lavender" aria-hidden />
+                <Star className="w-5 h-5 text-focus-lime fill-current" strokeWidth={0} aria-hidden />
                 <span aria-hidden>{reserved}</span>
               </p>
             ) : (
-              <p className="-mt-sp-2 mb-sp-3 text-12 text-fog-300 text-right">
+              <p className="-mt-sp-2 mb-sp-3 text-12 text-focus-muted text-right">
                 {reserved} of them saved for what you asked for
               </p>
             ))}
@@ -156,18 +155,18 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75dvh - 120px)" }}>
               {loading ? (
                 picture ? (
-                  <div className="flex justify-center py-sp-6 text-fog-300" role="status">
+                  <div className="flex justify-center py-sp-6 text-focus-muted" role="status">
                     <Loader2 className="w-8 h-8 animate-spin motion-reduce:animate-none" aria-hidden />
                     <span className="sr-only">Just a sec...</span>
                   </div>
                 ) : (
-                  <div className="text-center py-sp-6 text-fog-300 text-14">Just a sec...</div>
+                  <div className="text-center py-sp-6 text-focus-muted text-14">Just a sec...</div>
                 )
               ) : rewards.length === 0 ? (
                 <div className="text-center py-sp-8 flex flex-col items-center gap-sp-2">
-                  <Gift className={picture ? "w-14 h-14 text-iris-400/40" : "w-10 h-10 text-iris-400/40"} />
-                  <p className={picture ? "sr-only" : "text-fog-200 text-14"}>No rewards yet</p>
-                  <p className={picture ? "sr-only" : "text-fog-400 text-12"}>Ask a grown-up to add some!</p>
+                  <Gift className={picture ? "w-14 h-14 text-focus-lavender/40" : "w-10 h-10 text-focus-lavender/40"} />
+                  <p className={picture ? "sr-only" : "text-focus-text text-14"}>No Rewards Yet</p>
+                  <p className={picture ? "sr-only" : "text-focus-muted text-12"}>Ask a grown-up to add some!</p>
                 </div>
               ) : (
                 rewards.map(reward => {
@@ -183,21 +182,21 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                       className={cn(
                         "flex flex-col gap-sp-2 p-sp-3 rounded-[20px] transition-colors",
                         pending
-                          ? "bg-iris-400/15 border border-iris-400/30"
-                          : "bg-[rgba(8,1,26,0.4)]"
+                          ? "bg-focus-lavender/15 border border-focus-lavender/40"
+                          : "bg-focus-surface"
                       )}
                     >
                       <div className={picture ? "flex items-center justify-between gap-sp-2" : "flex items-start justify-between gap-sp-2"}>
                         <div className="flex-1 min-w-0">
                           {/* A grown-up typed the name, so it stays; Picture view just makes it bigger. */}
-                          <p className={picture ? "text-20 font-semibold text-fog-50 truncate" : "text-16 font-medium text-fog-50 truncate"}>{reward.name}</p>
+                          <p className={picture ? "text-20 font-semibold text-focus-text truncate" : "text-16 font-medium text-focus-text truncate"}>{reward.name}</p>
                           {reward.description && (
-                            <p className={picture ? "sr-only" : "text-12 text-fog-300 mt-0.5"}>{reward.description}</p>
+                            <p className={picture ? "sr-only" : "text-12 text-focus-muted mt-0.5"}>{reward.description}</p>
                           )}
                         </div>
                         <div className={picture ? "flex items-center gap-1.5 shrink-0" : "flex items-center gap-1 shrink-0"}>
-                          <Star className={picture ? "w-7 h-7 text-[#FFD66B] fill-[#FFD66B]" : "w-4 h-4 text-[#FFD66B] fill-[#FFD66B]"} strokeWidth={0} />
-                          <span className={picture ? "text-24 font-bold text-fog-50 tabular-nums" : "text-14 font-bold text-fog-50"}>{reward.cost}</span>
+                          <Star className={picture ? "w-7 h-7 text-focus-lime fill-current" : "w-4 h-4 text-focus-lime fill-current"} strokeWidth={0} />
+                          <span className={picture ? "text-24 font-semibold text-focus-text tabular-nums" : "text-14 font-semibold text-focus-text tabular-nums"}>{reward.cost}</span>
                           {picture && <span className="sr-only">stars</span>}
                         </div>
                       </div>
@@ -206,13 +205,13 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                         picture ? (
                           // A clock: asked, and waiting on a grown-up.
                           <div className="flex items-center justify-center py-1">
-                            <Clock className="w-8 h-8 text-iris-400" aria-hidden />
+                            <Clock className="w-8 h-8 text-focus-lavender" aria-hidden />
                             <span className="sr-only">Asked! Waiting for a grown-up</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-sp-2 py-1">
-                            <Clock className="w-4 h-4 text-iris-400" />
-                            <span className="text-13 text-iris-400 font-medium">
+                            <Clock className="w-4 h-4 text-focus-lavender" />
+                            <span className="text-13 text-focus-lavender font-medium">
                               Asked! Waiting for a grown-up
                             </span>
                           </div>
@@ -223,9 +222,9 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                             <Button
                               variant="primary"
                               size="lg"
-                              className="w-full"
+                              className="w-full bg-focus-lavender text-focus-sheet hover:bg-focus-lavender/90"
                               disabled={isRequesting}
-                              aria-label={isRequesting ? "Asking..." : "Ask for it"}
+                              aria-label={isRequesting ? "Asking..." : "Ask for It"}
                               onClick={() => handleRequest(reward.id, reward.cost)}
                             >
                               {isRequesting ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : <ShoppingCart aria-hidden />}
@@ -234,49 +233,49 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                             <Button
                               variant="primary"
                               size="md"
-                              className="w-full"
+                              className="w-full bg-focus-lavender text-focus-sheet hover:bg-focus-lavender/90"
                               disabled={isRequesting}
                               onClick={() => handleRequest(reward.id, reward.cost)}
                             >
                               <ShoppingCart className="w-4 h-4" />
-                              {isRequesting ? "Asking..." : "Ask for it"}
+                              {isRequesting ? "Asking..." : "Ask for It"}
                             </Button>
                           )}
                           {denied && (picture ? (
-                            <p className="flex justify-center text-fog-300">
+                            <p className="flex justify-center text-focus-muted">
                               <CircleSlash className="w-6 h-6" aria-hidden />
                               <span className="sr-only">Not this time. Keep earning and try again!</span>
                             </p>
                           ) : (
-                            <p className="text-12 text-fog-300 text-center">
+                            <p className="text-12 text-focus-muted text-center">
                               Not this time. Keep earning and try again!
                             </p>
                           ))}
                           {failedId === reward.id && (picture ? (
-                            <p className="flex justify-center text-coral-400">
+                            <p className="flex justify-center text-focus-pink">
                               <AlertCircle className="w-6 h-6" aria-hidden />
                               <span className="sr-only">Couldn't send that. Try again!</span>
                             </p>
                           ) : (
-                            <p className="text-12 text-coral-400 text-center">
+                            <p className="text-12 text-focus-pink text-center">
                               Couldn't send that. Try again!
                             </p>
                           ))}
                         </>
                       ) : picture ? (
                         // How close: a bar filling toward the price, and the stars still to earn.
-                        <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
+                        <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-focus-surface">
                           <span className="sr-only">{deficit} more star{deficit !== 1 ? "s" : ""} to go</span>
-                          <div className="flex-1 h-3 rounded-full bg-fog-50/10 overflow-hidden" aria-hidden>
-                            <div className="h-full rounded-full bg-[#FFD66B]" style={{ width: `${Math.round((available / reward.cost) * 100)}%` }} />
+                          <div className="flex-1 h-3 rounded-full bg-focus-sunken overflow-hidden" aria-hidden>
+                            <div className="h-full rounded-full bg-focus-lime" style={{ width: `${Math.round((available / reward.cost) * 100)}%` }} />
                           </div>
-                          <Star className="w-6 h-6 text-fog-400" strokeWidth={1.5} aria-hidden />
-                          <span className="text-18 font-semibold tabular-nums text-fog-200" aria-hidden>{deficit}</span>
+                          <Star className="w-6 h-6 text-focus-muted" strokeWidth={1.5} aria-hidden />
+                          <span className="text-18 font-semibold tabular-nums text-focus-muted" aria-hidden>{deficit}</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-fog-50/5">
-                          <Star className="w-3.5 h-3.5 text-fog-400" strokeWidth={1.5} />
-                          <span className="text-13 text-fog-300">
+                        <div className="flex items-center gap-sp-2 py-1 px-sp-2 rounded-xl bg-focus-surface">
+                          <Star className="w-3.5 h-3.5 text-focus-muted" strokeWidth={1.5} />
+                          <span className="text-13 text-focus-muted">
                             {deficit} more star{deficit !== 1 ? "s" : ""} to go
                           </span>
                         </div>
@@ -290,22 +289,22 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
               {mine.length > 0 && (
                 <div className="flex flex-col gap-sp-2 mt-sp-3">
                   <div className="flex items-center gap-sp-2">
-                    <Check className={picture ? "w-7 h-7 text-mint-500" : "w-4 h-4 text-mint-500"} strokeWidth={3} />
-                    <span className={picture ? "sr-only" : "text-14 font-medium text-mint-500"}>Mine</span>
+                    <Check className={picture ? "w-7 h-7 text-focus-mint" : "w-4 h-4 text-focus-mint"} strokeWidth={3} />
+                    <span className={picture ? "sr-only" : "text-14 font-semibold text-focus-mint"}>Mine</span>
                   </div>
                   {mine.slice(0, 5).map(({ purchase, reward }) => (
                     <div
                       key={purchase.id}
-                      className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-2 rounded-[16px] bg-mint-500/10 border border-mint-500/30"
+                      className="flex items-center justify-between gap-sp-2 px-sp-3 py-sp-2 rounded-[16px] bg-focus-mint/10 border border-focus-mint/30"
                     >
-                      <p className={picture ? "text-18 text-fog-50 truncate" : "text-14 text-fog-50 truncate"}>{reward!.name}</p>
+                      <p className={picture ? "text-18 text-focus-text truncate" : "text-14 text-focus-text truncate"}>{reward!.name}</p>
                       {picture ? (
                         <span className="shrink-0">
-                          <Check className="w-6 h-6 text-mint-500" strokeWidth={3} aria-hidden />
+                          <Check className="w-6 h-6 text-focus-mint" strokeWidth={3} aria-hidden />
                           <span className="sr-only">Yes!</span>
                         </span>
                       ) : (
-                        <span className="text-12 text-fog-300 shrink-0">Yes!</span>
+                        <span className="text-12 text-focus-muted shrink-0">Yes!</span>
                       )}
                     </div>
                   ))}

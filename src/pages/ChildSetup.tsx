@@ -139,9 +139,9 @@ const ChildSetup = () => {
   };
   const moments = [
     { id: "morning" as const, label: "Morning", at: (routineStart("school-morning") ?? toMin(times.wake)) + 1 },
-    ...(school ? [{ id: "afternoon" as const, label: "After school", at: (routineStart("after-school") ?? toMin(times.schoolEnd)) + 1 }] : []),
+    ...(school ? [{ id: "afternoon" as const, label: "After School", at: (routineStart("after-school") ?? toMin(times.schoolEnd)) + 1 }] : []),
     { id: "evening" as const, label: "Evening", at: (routineStart("bedtime") ?? toMin(dinner) + 45) + 1 },
-    { id: "now" as const, label: "Right now", at: null },
+    { id: "now" as const, label: "Right Now", at: null },
   ];
   useEffect(() => {
     if (step !== 3) return;
@@ -227,7 +227,7 @@ const ChildSetup = () => {
   const taskCount = chosenPacks.reduce((n, p) => n + chosen[p.id].length, 0);
 
   return (
-    <div className="min-h-dvh p-4 flex items-center justify-center">
+    <div className="min-h-dvh bg-focus-bg p-4 flex items-center justify-center">
       <div className={cn("w-full", step === 3 ? "max-w-[480px]" : "max-w-md")}>
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-6">
@@ -236,39 +236,39 @@ const ChildSetup = () => {
               <div
                 aria-label={`Step ${i + 1}: ${label}`}
                 className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
-                  i < step ? "bg-mint-500 text-white" : i === step ? "bg-iris-400 text-white" : "border border-iris-400/30 text-fog-400",
+                  "w-9 h-9 rounded-full flex items-center justify-center text-12 font-bold transition-colors",
+                  i < step ? "bg-focus-mint text-focus-bg" : i === step ? "bg-focus-lavender text-focus-bg" : "bg-focus-surface text-focus-muted",
                 )}
               >
                 {i < step ? <Check className="w-4 h-4" /> : i + 1}
               </div>
               {i < STEPS.length - 1 && (
-                <div className={cn("w-8 h-0.5 rounded-full", i < step ? "bg-mint-500" : "bg-white/10")} />
+                <div className={cn("w-8 h-0.5 rounded-full", i < step ? "bg-focus-mint" : "bg-focus-raised")} />
               )}
             </div>
           ))}
         </div>
 
-        <div className="rounded-[28px] border border-[rgba(102,153,255,0.25)] bg-iris-400/[0.06] p-6">
+        <div className="rounded-[24px] bg-focus-surface p-6">
           {step === 0 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">Who's this for?</h2>
-                <p className="text-sm text-muted-foreground">Just a name and age to start.</p>
+                <h2 className="text-20 font-bold text-focus-text mb-1">Who's This For?</h2>
+                <p className="text-14 text-focus-muted">Just a name and age to start.</p>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-sp-3">
                 <div>
-                  <Label htmlFor="setup-name" className="text-fog-200 text-sm font-medium mb-1.5 block">Name</Label>
-                  <Input id="setup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter name" className="h-11" autoFocus />
+                  <Label htmlFor="setup-name" className="text-focus-muted text-14 font-semibold mb-1.5 block">Name</Label>
+                  <Input id="setup-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter name" autoFocus />
                 </div>
                 <div>
-                  <Label htmlFor="setup-age" className="text-fog-200 text-sm font-medium mb-1.5 block">Age</Label>
+                  <Label htmlFor="setup-age" className="text-focus-muted text-14 font-semibold mb-1.5 block">Age</Label>
                   <Input id="setup-age" type="number" inputMode="numeric" min="3" max="18" value={age}
-                    onChange={(e) => { setAge(e.target.value); setPackKeys(null); }} placeholder="—" className="h-11" />
+                    onChange={(e) => { setAge(e.target.value); setPackKeys(null); }} placeholder="—" />
                 </div>
               </div>
               {age && !isNaN(ageNum) && (ageNum < 3 || ageNum > 18) && (
-                <p className="text-xs text-coral-300" role="alert">Ages 3 to 18.</p>
+                <p className="text-12 text-focus-coral" role="alert">Ages 3 to 18.</p>
               )}
             </div>
           )}
@@ -276,8 +276,8 @@ const ChildSetup = () => {
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1 truncate">{name.trim()}'s routines</h2>
-                <p className="text-sm text-muted-foreground">Pick the ones you want. Untick any task you don't need; you can add your own later.</p>
+                <h2 className="text-20 font-bold text-focus-text mb-1 truncate">{name.trim()}'s Routines</h2>
+                <p className="text-14 text-focus-muted">Pick the ones you want. Untick any task you don't need; you can add your own later.</p>
               </div>
               <ul className="flex flex-col gap-sp-2">
                 {ROUTINE_PACKS.map(pack => {
@@ -285,22 +285,22 @@ const ChildSetup = () => {
                   const on = keys.length > 0;
                   const open = openPack === pack.id;
                   return (
-                    <li key={pack.id} className={cn("rounded-[20px] border p-sp-3", on ? "border-iris-400/50 bg-iris-400/10" : "border-white/10")}>
+                    <li key={pack.id} className={cn("rounded-[20px] border p-sp-3", on ? "border-focus-lavender bg-focus-lavender/10" : "border-focus-raised bg-focus-bg/40")}>
                       <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => togglePack(pack)}
                           aria-label={pack.name}
-                          className="mt-1 w-5 h-5 shrink-0 accent-[#879bff]"
+                          className="tap-target mt-1 w-5 h-5 shrink-0 accent-[#A89AF0]"
                         />
-                        <button type="button" onClick={() => setOpenPack(open ? null : pack.id)} className="flex-1 min-w-0 text-left" aria-expanded={open}>
+                        <button type="button" onClick={() => setOpenPack(open ? null : pack.id)} className="flex-1 min-w-0 min-h-11 text-left" aria-expanded={open}>
                           <span className="flex items-center gap-2">
-                            <span className="text-16 font-medium text-fog-50">{pack.name}</span>
-                            <span className="text-12 text-fog-300 ml-auto">{pack.daysMode === "school" ? "School days" : "Every day"}</span>
-                            <ChevronDown className={cn("w-4 h-4 text-fog-300 transition-transform", open && "rotate-180")} aria-hidden />
+                            <span className="text-16 font-semibold text-focus-text">{pack.name}</span>
+                            <span className="text-12 text-focus-muted ml-auto">{pack.daysMode === "school" ? "School days" : "Every day"}</span>
+                            <ChevronDown className={cn("w-4 h-4 text-focus-muted transition-transform", open && "rotate-180")} aria-hidden />
                           </span>
-                          <span className="block text-12 text-fog-300 mt-0.5">
+                          <span className="block text-12 text-focus-muted mt-0.5">
                             {on ? pack.tasks.filter(t => keys.includes(t.key)).map(t => t.name).join(" · ") : pack.description}
                           </span>
                         </button>
@@ -309,11 +309,11 @@ const ChildSetup = () => {
                         <ul className="mt-2 pl-8 flex flex-col gap-1">
                           {pack.tasks.map(task => (
                             <li key={task.key}>
-                              <label className="flex items-center gap-2.5 min-h-9 cursor-pointer">
+                              <label className="flex items-center gap-2.5 min-h-11 cursor-pointer">
                                 <input type="checkbox" checked={keys.includes(task.key)} onChange={() => toggleTask(pack, task.key)}
-                                  className="w-4 h-4 shrink-0 accent-[#879bff]" />
-                                <span className="text-13 text-fog-100 flex-1">{task.name}</span>
-                                <span className="text-11 text-fog-300">{formatDuration(packTaskDetails(task, ageNum).duration)}</span>
+                                  className="w-5 h-5 shrink-0 accent-[#A89AF0]" />
+                                <span className="text-14 text-focus-text flex-1">{task.name}</span>
+                                <span className="text-12 text-focus-muted">{formatDuration(packTaskDetails(task, ageNum).duration)}</span>
                               </label>
                             </li>
                           ))}
@@ -323,7 +323,7 @@ const ChildSetup = () => {
                   );
                 })}
               </ul>
-              <p className="text-12 text-fog-300">
+              <p className="text-12 text-focus-muted">
                 {taskCount ? `${taskCount} task${taskCount === 1 ? "" : "s"}, each starting right after the one before.` : "No routines: you'll start with an empty day."}
               </p>
             </div>
@@ -332,22 +332,22 @@ const ChildSetup = () => {
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">A few times</h2>
-                <p className="text-sm text-muted-foreground">Only what {name.trim()}'s routines hang off. Everything else can be changed later in their profile.</p>
+                <h2 className="text-20 font-bold text-focus-text mb-1">A Few Times</h2>
+                <p className="text-14 text-focus-muted">Only what {name.trim()}'s routines hang off. Everything else can be changed later in their profile.</p>
               </div>
-              <div className="rounded-2xl border border-iris-400/20 p-4 space-y-3">
-                <TimeRow label="Wake up" value={times.wake} onChange={setTime("wake")} />
+              <div className="rounded-[20px] bg-focus-bg/40 p-4 space-y-3">
+                <TimeRow label="Wake Up" value={times.wake} onChange={setTime("wake")} />
                 {asks.breakfast && <TimeRow label="Breakfast" value={times.breakfast} onChange={setTime("breakfast")} />}
                 {asks.dinner && <TimeRow label="Dinner" value={times.dinner} onChange={setTime("dinner")} />}
                 <TimeRow label="Bedtime" value={times.bedtime} onChange={setTime("bedtime")} />
               </div>
-              <div className="rounded-2xl border border-iris-400/20 p-4 space-y-3">
+              <div className="rounded-[20px] bg-focus-bg/40 p-4 space-y-3">
                 {needsSchool ? (
-                  <p className="text-14 font-medium text-fog-100">School</p>
+                  <p className="text-14 font-medium text-focus-text">School</p>
                 ) : (
                   <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="goes-to-school" className="text-14 font-medium text-fog-100">Goes to school</Label>
-                    <Switch id="goes-to-school" checked={school} onCheckedChange={setGoesToSchool} className="data-[state=checked]:bg-green-500" />
+                    <Label htmlFor="goes-to-school" className="text-14 font-medium text-focus-text mb-0">Goes to School</Label>
+                    <Switch id="goes-to-school" checked={school} onCheckedChange={setGoesToSchool} />
                   </div>
                 )}
                 {school && (
@@ -358,7 +358,7 @@ const ChildSetup = () => {
                         return (
                           <button key={day} type="button" aria-pressed={on} aria-label={day}
                             onClick={() => setSchoolDays(on ? schoolDays.filter(d => d !== day) : [...schoolDays, day])}
-                            className={cn("h-9 w-9 rounded-full text-xs font-semibold", on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}>
+                            className={cn("h-11 w-11 rounded-full text-12 font-semibold", on ? "bg-focus-lavender text-focus-bg" : "bg-focus-raised text-focus-muted")}>
                             {DAY_LETTERS[day]}
                           </button>
                         );
@@ -369,35 +369,35 @@ const ChildSetup = () => {
                   </>
                 )}
               </div>
-              {timesProblem && <p className="text-xs text-coral-300 px-1" role="alert">{timesProblem}</p>}
+              {timesProblem && <p className="text-12 text-focus-coral px-1" role="alert">{timesProblem}</p>}
             </div>
           )}
 
           {step === 3 && draftId && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold text-fog-50 mb-1">What {name.trim()} will see</h2>
-                <p className="text-sm text-muted-foreground">This is their real screen. Pick a view, try a time of day, then finish.</p>
+                <h2 className="text-20 font-bold text-focus-text mb-1">What {name.trim()} Will See</h2>
+                <p className="text-14 text-focus-muted">This is their real screen. Pick a view, try a time of day, then finish.</p>
               </div>
               <DisplayModePicker value={displayMode} onChange={setMode} age={ageNum} childName={name.trim()} />
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Time of day">
                 {moments.map(m => (
                   <button key={m.id} type="button" role="radio" aria-checked={moment === m.id} onClick={() => setMoment(m.id)}
-                    className={cn("h-9 px-3 rounded-full text-13 font-medium", moment === m.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground")}>
+                    className={cn("h-11 px-3 rounded-full text-13 font-semibold", moment === m.id ? "bg-focus-lavender text-focus-bg" : "bg-focus-raised text-focus-muted hover:text-focus-text")}>
                     {m.label}
                   </button>
                 ))}
                 <button type="button" aria-pressed={showDay} onClick={() => setShowDay(!showDay)}
-                  className={cn("h-9 px-3 rounded-full text-13 font-medium ml-auto", showDay ? "bg-iris-400 text-white" : "bg-muted text-muted-foreground hover:text-foreground")}>
-                  Whole day
+                  className={cn("h-11 px-3 rounded-full text-13 font-semibold ml-auto", showDay ? "bg-focus-lavender text-focus-bg" : "bg-focus-raised text-focus-muted hover:text-focus-text")}>
+                  Whole Day
                 </button>
               </div>
               {/* The child's screen, contained: `transform` makes this box the
                   frame for its fixed sheet and pop-ups; taps are off so the
                   preview can't mark anything done. */}
               <div
-                className="relative h-[620px] rounded-[28px] overflow-hidden border border-iris-400/30 pointer-events-none select-none"
-                style={{ transform: "translateZ(0)", background: "radial-gradient(218% 145% at -22% -13%, #515AAD 13%, #452774 41%, #271447 65%, #08011A 100%)" }}
+                className="relative h-[620px] rounded-[28px] overflow-hidden border border-focus-raised bg-focus-bg pointer-events-none select-none"
+                style={{ transform: "translateZ(0)" }}
                 aria-label={`Preview of ${name.trim()}'s screen`}
               >
                 <ChildInterface childId={draftId} preview={{ displayMode, scheduleOpen: showDay }} />
@@ -406,7 +406,7 @@ const ChildSetup = () => {
           )}
 
           {/* Nav */}
-          <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-focus-raised">
             <Button variant="ghost" size="md" onClick={step === 0 ? cancel : back} className="gap-1.5" disabled={busy}>
               <ChevronLeft className="w-4 h-4" />
               {step === 0 ? "Cancel" : "Back"}
@@ -418,7 +418,7 @@ const ChildSetup = () => {
               </Button>
             ) : (
               <Button variant="primary" size="md" onClick={finish} disabled={busy} className="gap-1.5">
-                Use this routine
+                Use This Routine
               </Button>
             )}
           </div>
@@ -428,12 +428,12 @@ const ChildSetup = () => {
       <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard setup?</AlertDialogTitle>
+            <AlertDialogTitle>Discard Setup?</AlertDialogTitle>
             <AlertDialogDescription>Everything you've entered so far will be lost.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => { await discardDraft(); navigate("/parent"); }}>Discard</AlertDialogAction>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogAction className="bg-focus-coral hover:bg-focus-coral/90" onClick={async () => { await discardDraft(); navigate("/parent"); }}>Discard</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -444,7 +444,7 @@ const ChildSetup = () => {
 function TimeRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="text-muted-foreground text-sm">{label}</Label>
+      <Label className="text-focus-muted text-14 mb-0">{label}</Label>
       <TimeSelect value={value} onChange={onChange} className="shrink-0" />
     </div>
   );

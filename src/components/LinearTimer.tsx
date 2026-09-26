@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, durations } from "@/lib/motion";
 import type { TimerStatus } from "./CircularTimer";

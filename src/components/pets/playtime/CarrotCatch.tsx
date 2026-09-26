@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { MoveHorizontal, Play, Pointer, RotateCcw, Trophy } from "lucide-react";
 import { useMotionPrefs } from "@/lib/motion";
 import { Pix, squash } from "../pixel/pix";

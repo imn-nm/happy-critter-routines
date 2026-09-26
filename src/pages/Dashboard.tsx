@@ -19,7 +19,7 @@ import { isRestDate } from "@/utils/restDays";
 import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
 
-const BADGE_COLORS = ["bg-mint-500", "bg-iris-500", "bg-lilac-500", "bg-amber-500", "bg-coral-500"] as const;
+const BADGE_COLORS = ["bg-focus-mint", "bg-focus-lavender", "bg-focus-pink", "bg-focus-amber", "bg-focus-iris"] as const;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -242,12 +242,12 @@ const Dashboard = () => {
 
   if (children.length === 0) {
     return (
-      <div className="min-h-dvh p-4">
+      <div className="min-h-dvh bg-focus-bg p-4">
         {/* No children yet — the intro ends by sending them into setup. */}
         <OnboardingSlides
           open={showOnboarding}
           onDone={dismissOnboarding}
-          finishLabel="Add your child"
+          finishLabel="Add Your Child"
           onFinish={() => navigate("/setup")}
         />
         {/* Settings (household, PIN, sign out) is reachable before any child
@@ -257,22 +257,22 @@ const Dashboard = () => {
             type="button"
             aria-label="Settings"
             onClick={() => navigate("/settings")}
-            className="tap-target w-11 h-11 rounded-full border border-iris-400/30 text-fog-200 hover:text-fog-50 flex items-center justify-center"
+            className="w-11 h-11 rounded-[14px] bg-focus-surface text-focus-muted hover:text-focus-text flex items-center justify-center"
           >
             <Settings className="w-4 h-4" />
           </button>
         </div>
         <div className="max-w-sm mx-auto text-center pt-16">
-          <div className="w-16 h-16 rounded-[20px] glass-strong flex items-center justify-center mx-auto mb-5 glow-iris">
-            <Sparkles className="w-7 h-7 text-iris-300" />
+          <div className="w-16 h-16 rounded-[20px] bg-focus-surface flex items-center justify-center mx-auto mb-5">
+            <Sparkles className="w-7 h-7 text-focus-lavender" />
           </div>
-          <h1 className="text-2xl font-bold text-fog-50 mb-2 text-glow">Welcome to PetPals!</h1>
-          <p className="text-fog-200 text-sm mb-6">Add your first child to get started.</p>
+          <h1 className="text-24 font-bold text-focus-text mb-2">Welcome to PetPals!</h1>
+          <p className="text-focus-muted text-14 mb-6">Add your first child to get started.</p>
           <Button size="lg" onClick={() => navigate("/setup")} className="gap-2">
             <Plus className="w-5 h-5" />
             Add Your First Child
           </Button>
-          <p className="text-12 text-fog-300 mt-5 max-w-[16rem] mx-auto">
+          <p className="text-12 text-focus-muted mt-5 max-w-[16rem] mx-auto">
             Joining a family that's already set up? Open the invite link you were sent instead.
           </p>
         </div>
@@ -286,24 +286,23 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="min-h-dvh pb-sp-5">
+    <div className="min-h-dvh bg-focus-bg pb-sp-5">
       <OnboardingSlides open={showOnboarding} onDone={dismissOnboarding} />
       <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
-        {/* Hero panel — iris-tinted, rounded-bottom; wraps the header row +
-            children list together. Matches Figma node 174:7514. */}
-        <div className="bg-iris-400/[0.35] rounded-b-[36px] px-sp-4 pt-sp-5 pb-sp-4 flex flex-col gap-sp-3">
+        {/* Header + children list on the flat page (Focus design system). */}
+        <div className="px-sp-4 pt-sp-5 flex flex-col gap-sp-3">
           {/* Header row — greeting/date left, settings pill right */}
           <header className="flex items-end justify-between gap-sp-3">
             <div className="flex flex-col gap-1 min-w-0">
-              <p className="text-16 text-white">Hi, {firstName}</p>
-              <p className="text-20 text-white leading-none truncate">{dateLabel}</p>
+              <p className="text-14 text-focus-muted">Hi, {firstName}</p>
+              <p className="text-24 font-bold text-focus-text leading-none truncate">{dateLabel}</p>
             </div>
             <div className="shrink-0 flex items-center gap-sp-2">
               <button
                 type="button"
                 aria-label="Switch to the kids' screen"
                 onClick={() => navigate("/")}
-                className="h-11 px-sp-3 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center gap-1.5 text-fog-50 text-14 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="h-11 px-sp-3 rounded-[14px] bg-focus-surface flex items-center gap-1.5 text-focus-muted text-14 font-semibold hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
               >
                 <Users className="w-4 h-4" />
                 Kids
@@ -312,11 +311,11 @@ const Dashboard = () => {
                 type="button"
                 aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
                 onClick={() => setShowAlerts(true)}
-                className="relative w-11 h-11 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="relative w-11 h-11 rounded-[14px] bg-focus-surface flex items-center justify-center text-focus-muted hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
               >
                 <Bell className="w-4 h-4" />
                 {alertCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral-400 text-[10px] font-bold text-white leading-none">
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-focus-alert text-12 font-bold text-focus-bg leading-none">
                     {alertCount}
                   </span>
                 )}
@@ -325,19 +324,18 @@ const Dashboard = () => {
                 type="button"
                 aria-label="Settings"
                 onClick={() => navigate("/settings")}
-                className="w-11 h-11 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors duration-sm"
+                className="w-11 h-11 rounded-[14px] bg-focus-surface flex items-center justify-center text-focus-muted hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
               >
                 <Settings className="w-4 h-4" />
               </button>
             </div>
           </header>
 
-          {/* Children panel — bordered iris-400/25, child cards stacked with
-              a horizontal rule between them. */}
-          <section className="border border-iris-400/[0.25] rounded-[28px] p-sp-4 flex flex-col gap-sp-1">
+          {/* Children panel — surface card, child rows separated by a rule. */}
+          <section className="bg-focus-surface rounded-[24px] p-sp-2 flex flex-col gap-sp-1">
             {children.map((child, idx) => (
               <div key={child.id}>
-                {idx > 0 && <div className="h-px bg-iris-400/25 mb-sp-1" />}
+                {idx > 0 && <div className="h-px bg-focus-raised mx-sp-3 mb-sp-1" />}
                 <ChildRow
                   child={child}
                   now={childNowNext[child.id]?.now}
@@ -351,12 +349,12 @@ const Dashboard = () => {
         </div>
 
         {/* Upcoming events header */}
-        <h2 className="text-16 font-medium text-white px-sp-4">Upcoming events</h2>
+        <h2 className="text-12 font-semibold uppercase tracking-wide text-focus-muted px-sp-4 pt-sp-2">Upcoming Events</h2>
 
         {/* Events list */}
         <section className="px-sp-4 flex flex-col gap-sp-2">
           {upcomingEvents.length === 0 ? (
-            <div className="rounded-[28px] bg-[#8C94FF]/20 p-sp-4 text-center text-fog-200 text-14">
+            <div className="rounded-[24px] bg-focus-surface p-sp-4 text-center text-focus-muted text-14">
               No upcoming events in the next two weeks.
             </div>
           ) : (
@@ -401,28 +399,28 @@ function ChildRow({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full flex items-center gap-sp-3 p-sp-3 rounded-[28px] text-left hover:bg-white/[0.03] transition-colors duration-sm"
+      className="w-full min-h-11 flex items-center gap-sp-3 p-sp-3 rounded-[20px] text-left hover:bg-focus-raised transition-colors duration-sm"
     >
       {/* Pet avatar */}
-      <div className="shrink-0 w-14 h-[62px] rounded-[28px] bg-[#3A2D6C] flex items-center justify-center overflow-hidden">
+      <div className="shrink-0 w-14 h-[62px] rounded-[20px] bg-focus-sunken flex items-center justify-center overflow-hidden">
         <PetAvatar petType={child.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <p className="text-20 text-fog-50 leading-none truncate">{child.name}</p>
-        <p className="text-12 font-medium text-[#9EBEFF] truncate">
+        <p className="text-18 font-semibold text-focus-text leading-none truncate">{child.name}</p>
+        <p className="text-12 font-medium text-focus-muted truncate">
           Now: {now || (pending ? "—" : "Nothing scheduled")}
         </p>
-        <p className="text-12 font-medium text-[#9EBEFF] truncate">
+        <p className="text-12 font-medium text-focus-muted truncate">
           Next: {next || "—"}
         </p>
       </div>
 
       {/* Star chip — same gold star + count used on the child interface */}
-      <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
-        <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-        <span className="text-13 font-bold text-fog-50 leading-none">{child.currentCoins}</span>
+      <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[12px] border border-focus-lime bg-focus-lime/10">
+        <Star className="w-4 h-4 text-focus-lime fill-focus-lime" strokeWidth={0} />
+        <span className="text-14 font-bold text-focus-lime leading-none">{child.currentCoins}</span>
       </div>
     </button>
   );
@@ -445,9 +443,9 @@ function EventCard({
 }) {
   const [hourMin, ampm] = splitTime(time);
   return (
-    <div className="flex items-center gap-sp-3 p-sp-4 rounded-[28px] bg-[#8C94FF]/20">
+    <div className="flex items-center gap-sp-3 p-sp-4 rounded-[24px] bg-focus-surface">
       {/* Time column — stacked hour + am/pm, both 12px (Figma 174:7504) */}
-      <div className="shrink-0 w-11 text-right text-white leading-tight flex flex-col">
+      <div className="shrink-0 w-11 text-right text-focus-text font-semibold leading-tight flex flex-col">
         {allDay ? (
           <span className="text-12">All day</span>
         ) : (
@@ -459,23 +457,23 @@ function EventCard({
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 w-px self-stretch bg-white/30" />
+      <div className="shrink-0 w-px self-stretch bg-focus-raised" />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-16 text-white truncate flex items-center gap-1.5">
+        <p className="text-16 font-semibold text-focus-text truncate flex items-center gap-1.5">
           {/* Sky calendar icon marks a parent-only appointment */}
-          {isParentEvent && <CalendarClock className="w-4 h-4 text-sky-300 shrink-0" />}
+          {isParentEvent && <CalendarClock className="w-4 h-4 text-focus-iris shrink-0" />}
           <span className="truncate">{title}</span>
         </p>
-        <p className="text-12 text-[#9EBEFF] truncate">{subtitle}</p>
+        <p className="text-12 text-focus-muted truncate">{subtitle}</p>
       </div>
 
       {/* Child badges — one solid pill per child sharing this slot */}
       <div className="shrink-0 flex flex-wrap items-center justify-end gap-1">
         {badges.map(b => (
           <div key={b.name} className={`px-3 py-1.5 rounded-pill ${b.color} flex items-center`}>
-            <span className="text-12 font-medium text-white">{b.name}</span>
+            <span className="text-12 font-semibold text-focus-bg">{b.name}</span>
           </div>
         ))}
       </div>

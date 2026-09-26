@@ -22,10 +22,10 @@ type ChipProps = OutlineChipProps | SolidChipProps;
 /**
  * Chip — mirrors the Figma Chip component set (95:31).
  *
- *   Outline  → 50×28, no fill, iris-400 @ 30% stroke 2px,
- *              padding 6×12, gap 6, label fog-50 13 Bold (e.g. coin counter).
+ *   Outline  → 50×28, no fill, focus-raised stroke 2px,
+ *              padding 6×12, gap 6, label focus-text 12 Bold (e.g. coin counter).
  *   Solid    → 56×26 (visual minimum), solid colour fill,
- *              padding 6×12, label fog-50 12 Medium.
+ *              padding 6×12, label focus-bg 12 Semibold.
  *
  * The container hugs its content, so the actual rendered width depends on
  * the children — these are minimum-style targets, not hard widths.
@@ -34,11 +34,11 @@ export default function Chip(props: ChipProps) {
   if (props.variant === "solid") {
     const { color = "mint", children, className } = props;
     const fill = {
-      mint:  "bg-mint-500",
-      iris:  "bg-iris-400",
-      lilac: "bg-lilac-400",
-      coral: "bg-coral-500",
-      amber: "bg-amber-500",
+      mint:  "bg-focus-mint",
+      iris:  "bg-focus-iris",
+      lilac: "bg-focus-lavender",
+      coral: "bg-focus-coral",
+      amber: "bg-focus-amber",
     }[color];
     return (
       <span
@@ -48,7 +48,7 @@ export default function Chip(props: ChipProps) {
           className,
         )}
       >
-        <span className="text-12 font-medium text-fog-50 leading-none">
+        <span className="text-12 font-semibold text-focus-bg leading-none">
           {children}
         </span>
       </span>
@@ -60,11 +60,11 @@ export default function Chip(props: ChipProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-pill border-2 border-iris-400/30",
+        "inline-flex items-center justify-center gap-1.5 h-7 px-3 rounded-pill border-2 border-focus-raised",
         className,
       )}
     >
-      <span className="text-12 font-bold text-fog-50 leading-none">
+      <span className="text-12 font-bold text-focus-text leading-none">
         {children}
       </span>
     </span>

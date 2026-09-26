@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Clock, Coins, Edit, Trash2 } from "lucide-react";
+import { Clock, Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Task } from "@/types/Task";
+import { EditButton, DeleteButton } from "@/components/IconActionButtons";
 
 interface TaskCardTask {
   id: string;
@@ -112,23 +113,11 @@ const TaskCard = ({ task, onToggleCompletion, onEdit, onDelete, showCompleteButt
           )}
           
           {onEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(task as unknown as Task)}
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
+            <EditButton onClick={() => onEdit(task as unknown as Task)} label={`Edit ${task.name}`} />
           )}
           
           {onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDelete(task.id)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <DeleteButton onClick={() => onDelete(task.id)} label={`Delete ${task.name}`} />
           )}
         </div>
       </div>

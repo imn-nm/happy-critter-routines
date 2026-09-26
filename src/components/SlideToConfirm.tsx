@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { ArrowRight, Check } from "lucide-react";
-import { motion, useMotionValue, useTransform, animate, type PanInfo } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate, type PanInfo } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
 
@@ -22,12 +22,12 @@ interface SlideToConfirmProps {
   iconOnly?: boolean;
 }
 
-// Figma spec (Child Dashboard - overtime-new, node 201:7755 → 201:7812):
-//   Track pill:  full × 48, fill #000 @ 30%, stroke #8B5CF6 @ 55% 1px, radius 90.
-//   Thumb pill:  98 × 42, fill #08011a, stroke #A67FFF 1px, radius pill.
-//                Sits inside the track (not overhanging) and slides right.
-//                Check icon centered in thumb.
-//   Label:       Inter Regular 18, color #6699FF @ 60%, preceded by → arrow.
+// Figma spec (Child / Focus — redesigned, node 339:152):
+//   Track:  full × 56, fill + 1px stroke focus-lime, radius 20, 4px inset.
+//   Thumb:  84 × 48, fill focus-sheet, 1px stroke focus-bg, radius 16,
+//           lime check (28) centered. Slides right inside the track.
+//   Label:  → arrow + Inter Semi Bold 14 in focus-bg, centered in the
+//           space right of the thumb.
 
 export default function SlideToConfirm({
   label = "Mark as Done",
@@ -39,12 +39,13 @@ export default function SlideToConfirm({
   iconOnly = false,
 }: SlideToConfirmProps) {
   const { t } = useMotionPrefs();
-  const TRACK_H = compact ? 36 : 48;
-  const THUMB_W = compact ? 64 : 98;
-  const THUMB_H = compact ? 30 : 42;
-  const LABEL_FONT_PX = compact ? 14 : 18;
-  const ARROW_PX = compact ? 16 : 22;
-  const CHECK_PX = compact ? 20 : 28;
+  const TRACK_H = compact ? 48 : 56;
+  const INSET = 4;
+  const THUMB_W = compact ? 64 : 84;
+  const THUMB_H = TRACK_H - INSET * 2;
+  const LABEL_FONT_PX = 14;
+  const ARROW_PX = compact ? 18 : 22;
+  const CHECK_PX = compact ? 22 : 28;
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -65,7 +66,7 @@ export default function SlideToConfirm({
   useEffect(() => {
     const measure = () => {
       const w = rootRef.current?.clientWidth ?? 0;
-      setMax(Math.max(0, w - THUMB_W));
+      setMax(Math.max(0, w - THUMB_W - INSET * 2));
     };
     measure();
     // ResizeObserver, not just window resize — when this mounts inside an
@@ -117,25 +118,16 @@ export default function SlideToConfirm({
       className={cn("relative w-full select-none", disabled && "opacity-60", className)}
       style={{ height: TRACK_H, touchAction: "none" }}
     >
-      {/* Track pill — full container height. Reserves the thumb width on the
-          left so the arrow + label are centered in the remaining space. */}
+      {/* Track — lime, the one primary action on the child screen. Reserves
+          the thumb width on the left so the arrow + label are centered in
+          the remaining space. */}
       <div
-        className="absolute inset-0 flex items-center justify-center gap-2 overflow-hidden"
-        style={{
-          background: "rgba(0,0,0,0.3)",
-          border: "1px solid rgba(139,92,246,0.55)",
-          borderRadius: 90,
-          paddingLeft: THUMB_W + 16,
-          paddingRight: 16,
-        }}
+        className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[20px] border border-focus-lime bg-focus-lime"
+        style={{ paddingLeft: THUMB_W + INSET + 12, paddingRight: 12 }}
       >
         <motion.span
-          className="flex items-center gap-2.5 font-normal leading-none whitespace-nowrap"
-          style={{
-            color: "rgba(133,175,255,0.95)",
-            fontSize: LABEL_FONT_PX,
-            opacity: labelOpacity,
-          }}
+          className="flex items-center gap-3 font-semibold leading-none whitespace-nowrap text-focus-bg"
+          style={{ fontSize: LABEL_FONT_PX, opacity: labelOpacity }}
         >
           <ArrowRight
             style={{ width: ARROW_PX, height: ARROW_PX }}
@@ -153,8 +145,8 @@ export default function SlideToConfirm({
         </motion.span>
       </div>
 
-      {/* Thumb — wide pill (98×42), #08011a fill, lavender stroke, slides
-          horizontally inside the track via Motion drag + spring snap-back. */}
+      {/* Thumb — focus-sheet block with a lime check, slides horizontally
+          inside the track via Motion drag + spring snap-back. */}
       <motion.button
         type="button"
         aria-label={label}
@@ -167,21 +159,21 @@ export default function SlideToConfirm({
         onKeyDown={handleKeyDown}
         whileTap={disabled || completed ? undefined : { scale: 0.96 }}
         className={cn(
-          "absolute rounded-pill flex items-center justify-center",
+          "absolute rounded-[16px] border flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-text",
           disabled ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
-          completed ? "bg-mint-500 text-ink-900" : "text-fog-50",
+          completed
+            ? "bg-focus-mint border-focus-mint text-focus-bg"
+            : "bg-focus-sheet border-focus-bg text-focus-lime",
         )}
         style={{
           x,
           width: THUMB_W,
           height: THUMB_H,
-          left: 0,
-          top: (TRACK_H - THUMB_H) / 2,
-          background: completed ? undefined : "#08011a",
-          border: completed ? "1px solid #4DC5B7" : "1px solid #A67FFF",
+          left: INSET,
+          top: INSET,
         }}
       >
-        <Check style={{ width: CHECK_PX, height: CHECK_PX }} strokeWidth={2.5} />
+        <Check style={{ width: CHECK_PX, height: CHECK_PX }} strokeWidth={2} />
       </motion.button>
     </div>
   );

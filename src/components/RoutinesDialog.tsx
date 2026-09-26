@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Copy, Layers, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Layers, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ import { ROUTINE_PACKS, addRoutinePack, packTaskDetails, type RoutinePack } from
 import CopyToChildDialog from "@/components/CopyToChildDialog";
 import type { Child } from "@/hooks/useChildren";
 import type { Task } from "@/hooks/useTasks";
+import { DeleteButton } from "@/components/IconActionButtons";
 
 const DAY_LETTERS: Record<string, string> = {
   sunday: "S", monday: "M", tuesday: "T", wednesday: "W", thursday: "T", friday: "F", saturday: "S",
@@ -62,7 +63,7 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) setPack(null); onOpenChange(o); }}>
-        <DialogContent className="sm:max-w-[480px] max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[480px]">
           {pack ? (
             <PackPreview
               pack={pack}
@@ -80,27 +81,27 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
             <div className="flex flex-col gap-sp-4">
               <div>
                 <DialogTitle className="text-20 flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-iris-300" /> Routines
+                  <Layers className="w-5 h-5 text-focus-lavender" /> Routines
                 </DialogTitle>
-                <DialogDescription className="text-13 text-fog-300 mt-1">
+                <DialogDescription className="text-13 text-focus-muted mt-1">
                   Groups of tasks that repeat together. Set the days once for the whole routine.
                 </DialogDescription>
               </div>
 
               {routines.length === 0 ? (
-                <p className="text-13 text-fog-300">{child.name} has no routines yet. Start with one below.</p>
+                <p className="text-13 text-focus-muted">{child.name} has no routines yet. Start with one below.</p>
               ) : (
                 <ul className="flex flex-col gap-sp-3">
                   {routines.map(routine => {
                     const count = tasksOf(routine).length;
                     return (
-                      <li key={routine.id} className="rounded-[20px] border border-iris-400/25 bg-iris-400/[0.06] p-sp-3 flex flex-col gap-2">
+                      <li key={routine.id} className="rounded-[24px] bg-focus-surface p-sp-3 flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-16 font-medium text-fog-50">{routine.name}</span>
-                          <span className="text-12 text-fog-300">{count} task{count === 1 ? "" : "s"}</span>
+                          <span className="text-16 font-semibold text-focus-text">{routine.name}</span>
+                          <span className="text-12 text-focus-muted">{count} task{count === 1 ? "" : "s"}</span>
                         </div>
-                        <div role="radiogroup" aria-label={`${routine.name} repeats`} className="grid grid-cols-3 gap-1 bg-ink-900/40 rounded-pill p-1">
-                          {([["school", "School days"], ["every", "Every day"], ["custom", "Pick days"]] as const).map(([mode, label]) => (
+                        <div role="radiogroup" aria-label={`${routine.name} repeats`} className="grid grid-cols-3 gap-1 bg-focus-bg/60 rounded-full p-1">
+                          {([["school", "School Days"], ["every", "Every Day"], ["custom", "Pick Days"]] as const).map(([mode, label]) => (
                             <button
                               key={mode}
                               type="button"
@@ -108,8 +109,8 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
                               aria-checked={routine.days_mode === mode}
                               onClick={() => changeDays(routine, mode, mode === "custom" ? (routine.days.length ? routine.days : ["saturday", "sunday"]) : [])}
                               className={cn(
-                                "py-1.5 rounded-pill text-12 font-medium truncate",
-                                routine.days_mode === mode ? "bg-ink-900/70 text-fog-50 border-aurora" : "text-iris-300 hover:bg-white/[0.04]",
+                                "h-11 px-1 rounded-full text-13 font-semibold truncate",
+                                routine.days_mode === mode ? "bg-focus-lavender text-focus-bg" : "text-focus-muted hover:text-focus-text",
                               )}
                             >
                               {label}
@@ -117,7 +118,7 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
                           ))}
                         </div>
                         {routine.days_mode === "custom" && (
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 justify-between">
                             {ALL_DAYS.map(day => {
                               const on = routine.days.includes(day);
                               return (
@@ -131,8 +132,8 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
                                     if (next.length) changeDays(routine, "custom", next);
                                   }}
                                   className={cn(
-                                    "h-8 w-8 rounded-full text-xs font-semibold",
-                                    on ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                                    "h-11 w-11 rounded-full text-12 font-semibold",
+                                    on ? "bg-focus-lavender text-focus-bg" : "bg-focus-raised text-focus-muted",
                                   )}
                                 >
                                   {DAY_LETTERS[day]}
@@ -141,18 +142,16 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
                             })}
                           </div>
                         )}
-                        <p className="text-11 text-fog-300">
+                        <p className="text-12 text-focus-muted">
                           {routineDaysLabel(routine)}. A task in it can still have its own days (edit the task).
                         </p>
                         <div className="flex gap-2">
                           {otherChildren.length > 0 && (
                             <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={() => setCopying(routine)}>
-                              <Copy className="w-3.5 h-3.5" /> Copy to…
+                              <Copy className="w-3.5 h-3.5" /> Copy To…
                             </Button>
                           )}
-                          <Button type="button" size="sm" variant="ghost" className="gap-1.5 text-coral-300" onClick={() => setRemoving(routine)}>
-                            <Trash2 className="w-3.5 h-3.5" /> Remove
-                          </Button>
+                          <DeleteButton onClick={() => setRemoving(routine)} label={`Remove ${routine.name}`} />
                         </div>
                       </li>
                     );
@@ -161,18 +160,18 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
               )}
 
               <div className="flex flex-col gap-2">
-                <p className="text-13 font-medium text-fog-100">Starter routines</p>
+                <p className="text-12 font-semibold uppercase tracking-wide text-focus-muted">Starter Routines</p>
                 {ROUTINE_PACKS.map(p => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => setPack(p)}
-                    className="w-full text-left rounded-[18px] border border-white/10 hover:border-iris-400/40 bg-white/[0.03] p-sp-3 flex items-start gap-3"
+                    className="w-full min-h-11 text-left rounded-[20px] border border-dashed border-focus-raised hover:border-focus-lavender bg-transparent p-sp-3 flex items-start gap-3"
                   >
-                    <Plus className="w-4 h-4 mt-0.5 text-iris-300 shrink-0" />
+                    <Plus className="w-4 h-4 mt-0.5 text-focus-lavender shrink-0" />
                     <span className="min-w-0">
-                      <span className="block text-14 font-medium text-fog-50">{p.name}</span>
-                      <span className="block text-12 text-fog-300">{p.daysMode === "school" ? "School days" : "Every day"}: {p.tasks.map(t => t.name).join(" · ")}</span>
+                      <span className="block text-14 font-semibold text-focus-text">{p.name}</span>
+                      <span className="block text-12 text-focus-muted">{p.daysMode === "school" ? "School days" : "Every day"}: {p.tasks.map(t => t.name).join(" · ")}</span>
                     </span>
                   </button>
                 ))}
@@ -199,17 +198,17 @@ const RoutinesDialog = ({ open, onOpenChange, child, tasks, otherChildren, onCha
                 onChanged();
               }}
             >
-              Keep its tasks
+              Keep Its Tasks
             </AlertDialogAction>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-focus-coral text-focus-bg hover:bg-focus-coral/90"
               onClick={async () => {
                 if (!removing) return;
                 await removeRoutine({ routine: removing, withTasks: true });
                 onChanged();
               }}
             >
-              Remove tasks too
+              Remove Tasks Too
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -267,27 +266,27 @@ function PackPreview({ pack, child, tasks, routines, onBack, onAdded }: {
 
   return (
     <div className="flex flex-col gap-sp-4">
-      <button type="button" onClick={onBack} className="self-start flex items-center gap-1.5 text-13 text-fog-300 hover:text-fog-50 min-h-11">
+      <button type="button" onClick={onBack} className="self-start flex items-center gap-1.5 text-13 text-focus-muted hover:text-focus-text min-h-11">
         <ArrowLeft className="w-4 h-4" /> Routines
       </button>
       <div>
         <DialogTitle className="text-20">{pack.name}</DialogTitle>
-        <DialogDescription className="text-13 text-fog-300 mt-1">
+        <DialogDescription className="text-13 text-focus-muted mt-1">
           {pack.description} Untick anything {child.name} doesn't need; each task starts right after the one before it.
         </DialogDescription>
       </div>
       {alreadyAdded && (
-        <p className="text-12 text-amber-300 -mt-2">{child.name} already has a {pack.name} routine. Adding it again makes a second one.</p>
+        <p className="text-12 text-focus-amber -mt-2">{child.name} already has a {pack.name} routine. Adding it again makes a second one.</p>
       )}
-      <div role="radiogroup" aria-label="Repeats" className="grid grid-cols-2 gap-1 bg-ink-900/40 rounded-pill p-1">
-        {([["school", "School days"], ["every", "Every day"]] as const).map(([mode, label]) => (
+      <div role="radiogroup" aria-label="Repeats" className="grid grid-cols-2 gap-1 bg-focus-surface rounded-full p-1">
+        {([["school", "School Days"], ["every", "Every Day"]] as const).map(([mode, label]) => (
           <button
             key={mode}
             type="button"
             role="radio"
             aria-checked={daysMode === mode}
             onClick={() => setDaysMode(mode)}
-            className={cn("py-1.5 rounded-pill text-13 font-medium", daysMode === mode ? "bg-ink-900/70 text-fog-50 border-aurora" : "text-iris-300")}
+            className={cn("h-11 rounded-full text-14 font-semibold", daysMode === mode ? "bg-focus-lavender text-focus-bg" : "text-focus-muted hover:text-focus-text")}
           >
             {label}
           </button>
@@ -300,23 +299,23 @@ function PackPreview({ pack, child, tasks, routines, onBack, onAdded }: {
           const already = existingNames.has(t.name.toLowerCase());
           return (
             <li key={t.key}>
-              <label className="flex items-start gap-3 rounded-[16px] border border-white/10 p-3 cursor-pointer">
+              <label className="flex items-start gap-3 rounded-[20px] bg-focus-surface p-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={on}
                   onChange={() => setKeys(on ? keys.filter(k => k !== t.key) : [...keys, t.key])}
-                  className="mt-1 w-4 h-4 shrink-0 accent-[#879bff]"
+                  className="mt-0.5 w-5 h-5 shrink-0 accent-[#A89AF0]"
                 />
                 <span className="min-w-0">
-                  <span className="block text-14 text-fog-50">{t.name}</span>
-                  <span className="block text-12 text-fog-300">
+                  <span className="block text-14 text-focus-text">{t.name}</span>
+                  <span className="block text-12 text-focus-muted">
                     {formatDuration(details.duration)} · after {nameOf(t.after)}
                     {t.important ? " · Must finish" : ""}
                     {t.late === "skip" ? " · Can be skipped" : t.late === "shorten" ? ` · Can shorten to ${t.min ?? 10} min` : ""}
                     {details.steps.length ? ` · ${details.steps.length}-step checklist` : ""}
                   </span>
                   {already && on && (
-                    <span className="block text-11 text-amber-300">{child.name} already has a {t.name}. Untick it if this would double up.</span>
+                    <span className="block text-12 text-focus-amber">{child.name} already has a {t.name}. Untick it if this would double up.</span>
                   )}
                 </span>
               </label>

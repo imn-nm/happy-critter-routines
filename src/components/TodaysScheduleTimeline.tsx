@@ -44,8 +44,8 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
     return (
       <div className="p-8 text-center">
         <div className="text-4xl mb-4">📅</div>
-        <h3 className="text-xl font-bold mb-2 text-white">No Schedule Today</h3>
-        <p className="text-white/80">
+        <h3 className="text-20 font-bold mb-2 text-focus-text">No Schedule Today</h3>
+        <p className="text-focus-muted">
           No tasks or events are scheduled for today.
         </p>
       </div>
@@ -59,25 +59,25 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
           return (
             <div 
               key={item.id} 
-              className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
+              className={`flex items-center gap-4 p-3 rounded-[20px] transition-colors ${
                 isCurrentTask 
-                  ? 'bg-white/20 border-2 border-white shadow-md' 
-                  : 'bg-white/10 hover:bg-white/15'
+                  ? 'bg-focus-raised border-2 border-focus-pink' 
+                  : 'bg-focus-surface hover:bg-focus-raised'
               }`}
             >
               {/* Timeline dot */}
               <div className="flex flex-col items-center">
                 <div className={`w-3 h-3 rounded-full ${
-                  isCurrentTask ? 'bg-white border-2 border-accent shadow-lg' :
-                  item.isCompleted ? 'bg-green-400' : 'bg-white'
+                  isCurrentTask ? 'bg-focus-pink' :
+                  item.isCompleted ? 'bg-focus-mint' : 'bg-focus-muted'
                 }`}></div>
                 {index < schedule.length - 1 && (
-                  <div className="w-0.5 h-8 bg-white/30 mt-2"></div>
+                  <div className="w-0.5 h-8 bg-focus-raised mt-2"></div>
                 )}
               </div>
               
               {/* Task icon */}
-              <div className={`text-2xl ${isCurrentTask ? 'animate-pulse' : ''}`}>
+              <div className={`text-24 ${isCurrentTask ? 'animate-pulse' : ''}`}>
                 {getTaskIcon(item.name)}
               </div>
               
@@ -85,15 +85,15 @@ const TodaysScheduleTimeline = ({ schedule, highlightTaskId }: TodaysScheduleTim
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className={`font-medium ${
-                    isCurrentTask ? 'text-white font-bold' :
-                    item.isCompleted ? 'text-white/60 line-through' : 'text-white'
+                    isCurrentTask ? 'text-focus-text font-bold' :
+                    item.isCompleted ? 'text-focus-muted line-through' : 'text-focus-text'
                   }`}>
                     {item.name}
-                    {isCurrentTask && <span className="ml-2 text-sm bg-accent text-white px-2 py-1 rounded-full">Current</span>}
+                    {isCurrentTask && <span className="ml-2 text-12 font-semibold bg-focus-pink/20 text-focus-pink px-2 py-1 rounded-full">Current</span>}
                   </h4>
                   {item.scheduled_time && (
-                    <div className={`flex items-center gap-1 text-sm ${
-                      isCurrentTask ? 'text-white font-semibold' : 'text-white/80'
+                    <div className={`flex items-center gap-1 text-14 ${
+                      isCurrentTask ? 'text-focus-text font-semibold' : 'text-focus-muted'
                     }`}>
                       <Clock className="w-3 h-3" />
                       <span>{formatTime(item.scheduled_time)}</span>

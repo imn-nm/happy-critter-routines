@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Cake, Check, Clock, Dog, ListChecks, Puzzle, RefreshCw, Shirt, Sprout, Star, Trees } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Bath, BookOpen, Check, Clock, Dog, ListChecks, Puzzle, RefreshCw, Shirt, Sprout, Star, Trees } from "lucide-react";
 import CritterPet from "@/components/critters/CritterPet";
 import SpritePet from "@/components/pets/SpritePet";
 import WormTimer from "@/components/WormTimer";
@@ -45,14 +45,15 @@ function DemoRing({
   to = 1,
   seconds,
   runKey,
-  color = "#38b2a4",
+  strokeClass = "stroke-focus-lavender",
   children,
 }: {
   size: number;
   to?: number;
   seconds?: number;
   runKey?: number;
-  color?: string;
+  /** Tailwind stroke colour for the progress arc (a focus token). */
+  strokeClass?: string;
   children?: ReactNode;
 }) {
   const { reduce } = useMotionPrefs();
@@ -61,14 +62,14 @@ function DemoRing({
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg className="absolute inset-0 -rotate-90" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={RING_STROKE} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-focus-raised" strokeWidth={RING_STROKE} />
         <motion.circle
           key={runKey}
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={color}
+          className={strokeClass}
           strokeWidth={RING_STROKE}
           strokeLinecap="round"
           initial={{ pathLength: sweep ? 0 : to }}
@@ -95,27 +96,65 @@ const RingPet = ({ activity, reaction, reactionKey }: { activity?: PetActivity; 
 );
 
 const Bubble = ({ children }: { children: ReactNode }) => (
-  <div className="rounded-2xl border border-iris-300/30 bg-ink-800/95 px-3 py-1.5 text-12 font-medium leading-snug text-fog-50 shadow-lg whitespace-nowrap">
+  <div className="rounded-[14px] border border-focus-raised bg-focus-sheet px-3 py-1.5 text-12 font-medium leading-snug text-focus-text shadow-lg whitespace-nowrap">
     {children}
   </div>
 );
 
 /* ── 1. Time moves ─────────────────────────────────────────────────────── */
 
-const DAY: { name: string; activity?: PetActivity }[] = [
-  { name: "Breakfast", activity: "eating" },
-  { name: "Reading", activity: "reading" },
-  { name: "Soccer", activity: "sports" },
-  { name: "TV time", activity: "gaming" },
-  { name: "Brush teeth", activity: "brushing" },
+/**
+ * The parent's day schedule in miniature: the same rows as the real screen
+ * (time column, surface card, pink "Now" row, done rows ticked in mint).
+ */
+const DAY: { name: string; time: string; span: string; activity?: PetActivity }[] = [
+  { name: "Breakfast", time: "7:20", span: "7:20 – 7:50 · 30 min", activity: "eating" },
+  { name: "Reading", time: "7:50", span: "7:50 – 8:10 · 20 min", activity: "reading" },
+  { name: "Soccer", time: "8:10", span: "8:10 – 9:00 · 50 min", activity: "sports" },
+  { name: "TV Time", time: "9:00", span: "9:00 – 9:30 · 30 min", activity: "gaming" },
+  { name: "Brush Teeth", time: "9:30", span: "9:30 – 9:40 · 10 min", activity: "brushing" },
 ];
 const SLOT_MS = 4200;
-const PILL_W = 132;
 
-/** The ring fills, the next task rolls in, and Biscuit changes rooms — no pause button. */
+type RowState = "done" | "now" | "next";
+
+/** One schedule row: 50px time column + a radius-18 card. */
+const ScheduleRow = ({ name, time, span, state }: { name: string; time: string; span: string; state: RowState }) => (
+  <div className="flex items-stretch gap-2 text-left">
+    <div className="w-[50px] shrink-0 pt-2 pr-1 text-right leading-none">
+      <span className="block text-14 font-semibold text-focus-text tabular-nums">{time}</span>
+      <span className="block mt-1 text-12 text-focus-muted">am</span>
+    </div>
+    <div
+      className={cn(
+        "min-w-0 flex-1 rounded-[18px] border px-3 py-2 flex items-center gap-2 transition-colors duration-300",
+        state === "now" && "border-focus-pink bg-focus-raised",
+        state === "done" && "border-focus-raised bg-focus-surface",
+        state === "next" && "border-transparent bg-focus-sunken",
+      )}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-14 font-semibold text-focus-text">{name}</span>
+        <span className="block truncate mt-0.5 text-12 text-focus-muted tabular-nums">{span}</span>
+      </span>
+      {state === "done" && (
+        <span className="w-6 h-6 shrink-0 rounded-full bg-focus-mint/25 flex items-center justify-center">
+          <Check className="w-3.5 h-3.5 text-focus-mint" strokeWidth={3} />
+        </span>
+      )}
+      {state === "now" && (
+        <span className="shrink-0 h-6 px-2 rounded-pill bg-focus-pink/25 text-12 font-semibold text-focus-pink flex items-center">
+          Now
+        </span>
+      )}
+    </div>
+  </div>
+);
+
+/** Biscuit's ring fills, "Now" moves down the schedule, done rows tick off — no pause button. */
 export function TimeMovesVisual() {
   const { reduce, t } = useMotionPrefs();
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(1);
   useEffect(() => {
     if (reduce) return;
     const id = window.setInterval(() => setNow((n) => n + 1), SLOT_MS);
@@ -125,39 +164,34 @@ export function TimeMovesVisual() {
 
   return (
     <div aria-hidden className="w-full flex flex-col items-center gap-sp-3">
-      <DemoRing size={132} seconds={SLOT_MS / 1000} runKey={now} to={reduce ? 0.6 : 1}>
+      <DemoRing size={104} seconds={SLOT_MS / 1000} runKey={now} to={reduce ? 0.6 : 1}>
         <RingPet activity={at(now).activity} />
       </DemoRing>
-      {/* The day as a conveyor: what's done slides off left, what's next waits right. */}
-      <div
-        className="relative w-full h-8 overflow-hidden"
-        style={{ maskImage: "linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent)" }}
-      >
-        {[-2, -1, 0, 1, 2].map((d) => {
-          const k = now + d;
-          const { name } = at(k);
-          const Icon = getTaskIconComponent(name);
-          return (
-            <motion.div
-              key={k}
-              className="absolute top-0 left-1/2"
-              style={{ width: PILL_W, marginLeft: -PILL_W / 2 }}
-              initial={false}
-              animate={{ x: d * PILL_W, opacity: Math.abs(d) >= 2 ? 0 : d === 0 ? 1 : 0.55 }}
-              transition={t(springs.gentle)}
-            >
-              <div
-                className={cn(
-                  "mx-auto w-fit h-8 px-3 rounded-pill flex items-center gap-1.5 text-12 whitespace-nowrap transition-colors duration-300",
-                  d === 0 ? "bg-fog-50/10 border border-fog-50/20 text-fog-50" : "border border-transparent text-fog-300",
-                )}
-              >
-                {d < 0 ? <Check className="w-3.5 h-3.5 text-mint-400" /> : <Icon className="w-3.5 h-3.5" />}
-                {name}
-              </div>
-            </motion.div>
-          );
-        })}
+      <div className="w-full max-w-[320px] rounded-[24px] bg-focus-surface/50 p-sp-3">
+        <div className="mb-2 flex items-center gap-2 px-0.5">
+          <span className="text-12 font-semibold uppercase tracking-[0.06em] text-focus-muted">Morning</span>
+          <span className="h-px flex-1 bg-focus-raised" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {[-1, 0, 1].map((d) => {
+              const k = now + d;
+              const row = at(k);
+              return (
+                <motion.div
+                  key={k}
+                  layout={!reduce}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={t(springs.gentle)}
+                >
+                  <ScheduleRow {...row} state={d < 0 ? "done" : d === 0 ? "now" : "next"} />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -179,15 +213,15 @@ const KindCard = ({ tint, border, Icon, title, sub, tilt, lift, children }: {
   children: ReactNode;
 }) => (
   <div
-    className={cn("w-[31%] max-w-[112px] rounded-[18px] border bg-ink-900/40 p-2.5 flex flex-col gap-2 text-left", border)}
+    className={cn("w-[31%] max-w-[112px] rounded-[18px] border bg-focus-surface p-2.5 flex flex-col gap-2 text-left", border)}
     style={{ transform: `translateY(${lift}px) rotate(${tilt}deg)` }}
   >
     <span className={cn("w-7 h-7 rounded-[10px] border flex items-center justify-center", tint)}>
       <Icon className="w-3.5 h-3.5" />
     </span>
     <span>
-      <span className="block text-12 font-medium text-fog-50 leading-tight">{title}</span>
-      <span className="block text-[10px] text-fog-300 leading-tight mt-0.5">{sub}</span>
+      <span className="block text-12 font-medium text-focus-text leading-tight">{title}</span>
+      <span className="block text-12 text-focus-muted leading-tight mt-0.5">{sub}</span>
     </span>
     <div className="h-6 flex items-center">{children}</div>
   </div>
@@ -200,11 +234,11 @@ export function TaskKindsVisual() {
   const slotted = step >= 1;
   return (
     <div aria-hidden className="w-full flex items-start justify-center gap-2 pt-1 pb-3">
-      <KindCard tint="text-iris-200 bg-iris-400/20 border-iris-400/30" border="border-iris-400/25" Icon={Clock}
+      <KindCard tint="text-focus-iris bg-focus-iris/20 border-focus-iris/30" border="border-focus-raised" Icon={Clock}
         title="Fixed time" sub="Soccer at 4:00" tilt={-4} lift={8}>
-        <div className="w-full h-1.5 rounded-pill bg-fog-50/10 overflow-hidden">
+        <div className="w-full h-1.5 rounded-pill bg-focus-raised overflow-hidden">
           <motion.div
-            className="h-full bg-iris-400 rounded-pill"
+            className="h-full bg-focus-lavender rounded-pill"
             style={{ originX: 0 }}
             initial={{ scaleX: reduce ? 0.6 : 0 }}
             animate={{ scaleX: reduce ? 0.6 : 1 }}
@@ -214,23 +248,25 @@ export function TaskKindsVisual() {
       </KindCard>
 
       {/* Reading has no clock time: it slides into the gap right after Bath. */}
-      <KindCard tint="text-lilac-300 bg-lilac-400/20 border-lilac-400/30" border="border-lilac-400/30" Icon={Puzzle}
+      <KindCard tint="text-focus-lavender bg-focus-lavender/20 border-focus-lavender/30" border="border-focus-lavender/30" Icon={Puzzle}
         title="Flexible" sub="Reading after bath" tilt={0} lift={0}>
-        <span className="relative w-full h-4 flex items-center gap-1">
-          <span className="h-4 flex-1 rounded-[6px] bg-fog-50/15 text-[8px] leading-4 text-fog-200 text-center">Bath</span>
-          <span className="h-4 w-[54%] shrink-0 rounded-[6px] border border-dashed border-lilac-400/40" />
+        <span className="relative w-full h-5 flex items-center gap-1">
+          <span className="h-5 flex-1 rounded-[6px] bg-focus-raised text-focus-muted flex items-center justify-center">
+            <Bath className="w-3 h-3" />
+          </span>
+          <span className="h-5 w-[54%] shrink-0 rounded-[6px] border border-dashed border-focus-lavender/50" />
           <motion.span
-            className="absolute right-0 h-4 w-[54%] rounded-[6px] bg-lilac-400 text-[8px] leading-4 font-semibold text-ink-900 text-center"
+            className="absolute right-0 h-5 w-[54%] rounded-[6px] bg-focus-lavender text-focus-bg flex items-center justify-center"
             initial={false}
             animate={slotted ? { x: 0, y: 0, opacity: 1 } : { x: 10, y: -10, opacity: 0.55 }}
             transition={t(springs.bouncy)}
           >
-            Reading
+            <BookOpen className="w-3 h-3" strokeWidth={2.5} />
           </motion.span>
         </span>
       </KindCard>
 
-      <KindCard tint="text-mint-300 bg-mint-500/20 border-mint-500/30" border="border-mint-500/25" Icon={ListChecks}
+      <KindCard tint="text-focus-mint bg-focus-mint/20 border-focus-mint/30" border="border-focus-mint/25" Icon={ListChecks}
         title="Anytime chore" sub="No set time" tilt={4} lift={8}>
         <span className="flex gap-1">
           {CHORES.map((Icon, i) => {
@@ -240,7 +276,7 @@ export function TaskKindsVisual() {
                 key={`${i}-${done}`}
                 className={cn(
                   "w-6 h-6 rounded-[7px] flex items-center justify-center",
-                  done ? "bg-mint-500 text-ink-900" : "bg-fog-50/10 text-mint-300",
+                  done ? "bg-focus-mint text-focus-bg" : "bg-focus-raised text-focus-mint",
                 )}
                 initial={done ? { scale: 0.5 } : false}
                 animate={{ scale: 1 }}
@@ -270,15 +306,15 @@ export function WormVisual() {
     <div aria-hidden className="w-full flex flex-col items-center gap-sp-3">
       <div className="flex items-center gap-sp-3">
         {/* Amber, full ring: the child's timer once a must-finish runs out. */}
-        <DemoRing size={84} color="#fab047">
+        <DemoRing size={84} strokeClass="stroke-focus-amber">
           <RingPet activity="reading" />
         </DemoRing>
-        <div className="rounded-[16px] border border-amber-500/30 bg-ink-900/40 px-3 py-2 text-left">
-          <div className="flex items-center gap-1.5 text-14 font-medium text-fog-50">
-            <Star className="w-4 h-4 text-amber-400 fill-amber-400" strokeWidth={0} />
+        <div className="rounded-[18px] border border-focus-amber/40 bg-focus-surface px-3 py-2 text-left">
+          <div className="flex items-center gap-1.5 text-14 font-medium text-focus-text">
+            <Star className="w-4 h-4 text-focus-amber fill-focus-amber" strokeWidth={0} />
             Homework
           </div>
-          <div className="mt-1 flex items-center gap-1 text-12 text-amber-400">
+          <div className="mt-1 flex items-center gap-1 text-12 text-focus-amber">
             <Clock className="w-3.5 h-3.5" />
             <motion.span
               key={late}
@@ -302,8 +338,8 @@ export function WormVisual() {
         <div className="w-full">
           <WormTimer progress={late / FUN_MIN} />
         </div>
-        <p className="text-12 text-fog-200">
-          <span className="font-medium text-fog-50">Gaming</span> — {FUN_MIN - late}m left
+        <p className="text-12 text-focus-muted">
+          <span className="font-medium text-focus-text">Gaming</span> — {FUN_MIN - late}m left
         </p>
       </motion.div>
     </div>
@@ -344,7 +380,7 @@ export function WheelVisual() {
         type="button"
         onClick={spin}
         aria-label="Spin the wheel"
-        className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-iris-300"
+        className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-lavender"
       >
         <SpinningWheel options={WHEEL_IDEAS} sizePx={148} bare spinSignal={signal} onWinner={onWinner} />
       </button>
@@ -382,14 +418,14 @@ export function RewardsVisual() {
   let status: ReactNode;
   if (step < 3) {
     status = (
-      <span className="text-12 text-fog-300">
+      <span className="text-12 text-focus-muted">
         {GOAL - stars} more star{GOAL - stars === 1 ? "" : "s"} to go
       </span>
     );
   } else if (step === 3) {
     status = (
       <motion.span
-        className="h-6 px-3 rounded-pill bg-iris-500 text-white text-12 font-semibold flex items-center"
+        className="h-6 px-3 rounded-pill bg-focus-lavender text-focus-bg text-12 font-semibold flex items-center"
         animate={{ scale: [1, 1.06, 1] }}
         transition={t({ duration: 0.9, repeat: Infinity })}
       >
@@ -398,14 +434,14 @@ export function RewardsVisual() {
     );
   } else if (step === 4) {
     status = (
-      <span className="flex items-center gap-1 text-12 font-medium text-iris-300">
+      <span className="flex items-center gap-1 text-12 font-medium text-focus-lavender">
         <Clock className="w-3.5 h-3.5" /> Asked! Waiting for you
       </span>
     );
   } else {
     status = (
       <motion.span
-        className="flex items-center gap-1 text-12 font-semibold text-mint-300"
+        className="flex items-center gap-1 text-12 font-semibold text-focus-mint"
         initial={{ scale: 0.7, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={t(springs.bouncy)}
@@ -421,18 +457,18 @@ export function RewardsVisual() {
       <div className="flex flex-col items-center gap-sp-3 w-[196px] shrink-0">
         <motion.div
           key={loop}
-          className="w-full rounded-[18px] bg-[rgba(8,1,26,0.4)] border border-fog-50/10 p-sp-3 text-left"
+          className="w-full rounded-[18px] bg-focus-surface p-sp-3 text-left"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={t({ duration: 0.35 })}
         >
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-[10px] bg-mint-500/20 border border-mint-500/30 flex items-center justify-center">
-              <Trees className="w-4 h-4 text-mint-300" />
+            <span className="w-7 h-7 rounded-[10px] bg-focus-mint/20 border border-focus-mint/30 flex items-center justify-center">
+              <Trees className="w-4 h-4 text-focus-mint" />
             </span>
-            <span className="flex-1 text-14 font-medium text-fog-50">Park trip</span>
-            <span className="flex items-center gap-0.5 text-13 font-bold text-fog-50">
-              <Star className="w-3.5 h-3.5 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
+            <span className="flex-1 text-14 font-medium text-focus-text">Park trip</span>
+            <span className="flex items-center gap-0.5 text-13 font-bold text-focus-text">
+              <Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} />
               {GOAL}
             </span>
           </div>
@@ -447,7 +483,7 @@ export function RewardsVisual() {
                   transition={t(springs.bouncy)}
                 >
                   <Star
-                    className={cn("w-[15px] h-[15px]", filled ? "text-[#FFD66B] fill-[#FFD66B]" : "text-fog-50/25")}
+                    className={cn("w-[15px] h-[15px]", filled ? "text-focus-lime fill-focus-lime" : "text-focus-text/25")}
                     strokeWidth={filled ? 0 : 1.5}
                   />
                 </motion.span>
@@ -462,8 +498,8 @@ export function RewardsVisual() {
           <motion.span
             key={giving ? step : "rest"}
             className={cn(
-              "inline-flex px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors",
-              giving ? "bg-iris-400/30 border-iris-400 text-fog-50" : "bg-iris-400/15 border-iris-400/50 text-fog-200",
+              "inline-flex h-8 items-center px-3 rounded-[12px] text-12 font-semibold transition-colors",
+              giving ? "bg-focus-lavender text-focus-bg" : "bg-focus-raised text-focus-muted",
             )}
             initial={giving ? { scale: 0.88 } : false}
             animate={{ scale: 1 }}
@@ -475,7 +511,7 @@ export function RewardsVisual() {
             {giving && (
               <motion.span
                 key={step}
-                className="absolute left-1/2 -top-2 -ml-1.5 text-[#FFD66B] text-14"
+                className="absolute left-1/2 -top-2 -ml-1.5 text-focus-lime text-14"
                 initial={{ y: 0, opacity: 1, scale: 0.8 }}
                 animate={{ y: -30, opacity: 0, scale: 1.3 }}
                 exit={{ opacity: 0 }}
@@ -496,82 +532,91 @@ export function RewardsVisual() {
 const CAL_STEPS = [700, 1200, 1200, 1200, 2000] as const;
 const FIRST_WEEKDAY = 4; // October 2026 starts on a Thursday
 const DAYS_IN_MONTH = 31;
+const TODAY = 5;
 
-type MarkKind = "birthday" | "noschool" | "note";
-const MARKS: { day: number; kind: MarkKind; label: string; row: string }[] = [
-  { day: 9, kind: "birthday", label: "Birthday", row: "bg-coral-400/20 border-coral-400/60" },
-  { day: 16, kind: "noschool", label: "No school", row: "bg-mint-500/20 border-mint-500/60" },
-  { day: 22, kind: "note", label: "Pickup 1pm", row: "bg-amber-500/20 border-amber-500/60" },
+/** Same legend as the real month view: Event pink, Rest mint, Note amber. */
+type MarkKind = "event" | "rest" | "note";
+const MARK_DOT: Record<MarkKind, string> = {
+  event: "bg-focus-pink",
+  rest: "bg-focus-mint",
+  note: "bg-focus-amber",
+};
+const MARKS: { day: number; kind: MarkKind; label: string }[] = [
+  { day: 9, kind: "event", label: "Birthday" },
+  { day: 16, kind: "rest", label: "No school" },
+  { day: 22, kind: "note", label: "Pickup 1pm" },
 ];
 const CONFETTI = [
-  { x: -16, y: -14, c: "#fab047" },
-  { x: 14, y: -16, c: "#38b2a4" },
-  { x: -18, y: 6, c: "#879bff" },
-  { x: 18, y: 4, c: "#ff6666" },
-  { x: -6, y: -20, c: "#ffe07a" },
-  { x: 6, y: 16, c: "#c9a3ff" },
+  { x: -16, y: -14, c: "bg-focus-amber" },
+  { x: 14, y: -16, c: "bg-focus-mint" },
+  { x: -18, y: 6, c: "bg-focus-iris" },
+  { x: 18, y: 4, c: "bg-focus-coral" },
+  { x: -6, y: -20, c: "bg-focus-lime" },
+  { x: 6, y: 16, c: "bg-focus-lavender" },
 ];
 
-/** Special days land on the calendar one by one and sync over to your phone. */
+/** Special days land on the month one by one and sync over to your phone. */
 export function CalendarVisual() {
   const { step, loop, reduce } = useStoryboard(CAL_STEPS, 4);
   const { t } = useMotionPrefs();
   const shown = Math.min(step, MARKS.length);
   const syncing = step >= 1 && step <= MARKS.length;
+  // The day just added is the selected (lavender) one, like tapping it.
+  const selected = shown > 0 ? MARKS[shown - 1].day : null;
   const markFor = (day: number) => {
     const i = MARKS.findIndex((m) => m.day === day);
     return i >= 0 && i < shown ? MARKS[i] : null;
   };
 
   return (
-    <div aria-hidden className="flex items-center justify-center gap-sp-4">
+    <div aria-hidden className="flex items-center justify-center gap-sp-3">
       <motion.div
         key={loop}
-        className="w-[192px] rounded-[18px] bg-ink-900/40 border border-fog-50/10 px-3 pt-2.5 pb-3 text-left"
-        style={{ rotate: -2 }}
+        className="w-[204px] rounded-[18px] bg-focus-surface px-2.5 pt-3 pb-2.5 text-left"
         initial={{ opacity: 0.4 }}
         animate={{ opacity: 1 }}
         transition={t({ duration: 0.35 })}
       >
-        <p className="text-12 font-semibold text-fog-50 mb-1.5">October</p>
-        <div className="grid grid-cols-7 gap-y-0.5 text-center">
+        <p className="mb-2 text-center text-14 font-semibold text-focus-text">October</p>
+        <div className="grid grid-cols-7 text-center">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <span key={i} className="text-[9px] text-fog-400 leading-4">{d}</span>
+            <span key={i} className="mb-1 text-12 text-focus-muted leading-4">{d}</span>
           ))}
           {Array.from({ length: FIRST_WEEKDAY }, (_, i) => <span key={`pad${i}`} />)}
           {Array.from({ length: DAYS_IN_MONTH }, (_, i) => {
             const day = i + 1;
             const mark = markFor(day);
+            const isSelected = day === selected;
             return (
-              <span key={day} className="relative h-5 flex items-center justify-center">
-                {mark ? (
-                  <motion.span
-                    className={cn(
-                      "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold tabular-nums",
-                      mark.kind === "birthday" && "bg-coral-400 text-ink-900",
-                      mark.kind === "noschool" && "bg-mint-500 text-ink-900",
-                      mark.kind === "note" && "text-fog-50 ring-1 ring-amber-400",
-                    )}
-                    initial={{ scale: 0.3 }}
-                    animate={{ scale: 1 }}
-                    transition={t(springs.bouncy)}
-                  >
-                    {mark.kind === "birthday" ? <Cake className="w-3 h-3" /> : day}
-                  </motion.span>
-                ) : (
-                  <span className="text-[10px] text-fog-300 tabular-nums">{day}</span>
+              <span key={day} className="relative h-7 flex items-center justify-center">
+                <motion.span
+                  key={isSelected ? `sel-${loop}` : "day"}
+                  className={cn(
+                    "relative w-6 h-6 rounded-[8px] flex items-center justify-center text-12 tabular-nums",
+                    isSelected
+                      ? "bg-focus-lavender font-semibold text-focus-bg"
+                      : day === TODAY
+                        ? "ring-1 ring-focus-lavender text-focus-text"
+                        : "text-focus-text/85",
+                  )}
+                  initial={isSelected ? { scale: 0.6 } : false}
+                  animate={{ scale: 1 }}
+                  transition={t(springs.bouncy)}
+                >
+                  {day}
+                </motion.span>
+                {mark && (
+                  <span className={cn("absolute bottom-0 w-1 h-1 rounded-full", MARK_DOT[mark.kind])} />
                 )}
-                {mark?.kind === "birthday" && !reduce && CONFETTI.map((c, j) => (
+                {mark?.kind === "event" && isSelected && !reduce && CONFETTI.map((c, j) => (
                   <motion.span
                     key={j}
-                    className="absolute w-1 h-1"
-                    style={{ background: c.c }}
+                    className={cn("absolute w-1 h-1 rounded-[1px]", c.c)}
                     initial={{ x: 0, y: 0, opacity: 1 }}
                     animate={{ x: c.x, y: c.y, opacity: 0 }}
                     transition={{ duration: 0.9, ease: "easeOut" }}
                   />
                 ))}
-                {mark?.kind === "note" && <span className="absolute bottom-[-2px] w-1 h-1 rounded-full bg-amber-400" />}
               </span>
             );
           })}
@@ -579,17 +624,17 @@ export function CalendarVisual() {
       </motion.div>
 
       {/* Your phone: each new day arrives there too. */}
-      <div className="relative w-[92px] h-[164px] rounded-[18px] border-[3px] border-fog-50/15 bg-ink-900/70 px-1.5 pt-4 pb-2" style={{ rotate: "3deg" }}>
-        <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-7 h-1 rounded-pill bg-fog-50/20" />
-        <div className="flex items-center justify-between px-0.5 mb-1.5">
-          <span className="text-[10px] font-semibold text-fog-200">Oct</span>
+      <div className="relative w-[104px] h-[180px] shrink-0 rounded-[20px] border-[3px] border-focus-raised bg-focus-sunken px-1.5 pt-4 pb-2">
+        <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-7 h-1 rounded-pill bg-focus-raised" />
+        <div className="flex items-center justify-between px-1 mb-1.5">
+          <span className="text-12 font-semibold text-focus-muted">Oct</span>
           <motion.span
             key={syncing ? step : "idle"}
             initial={{ rotate: 0 }}
             animate={{ rotate: syncing && !reduce ? 360 : 0 }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
           >
-            <RefreshCw className={cn("w-3 h-3", syncing ? "text-mint-300" : "text-fog-400")} />
+            <RefreshCw className={cn("w-3 h-3", syncing ? "text-focus-mint" : "text-focus-muted")} />
           </motion.span>
         </div>
         <div className="flex flex-col gap-1">
@@ -597,14 +642,17 @@ export function CalendarVisual() {
             {MARKS.slice(0, shown).map((m) => (
               <motion.div
                 key={`${loop}-${m.day}`}
-                className={cn("rounded-[6px] border-l-2 px-1.5 py-1 text-left", m.row)}
+                className="rounded-[10px] bg-focus-surface px-1.5 py-1 text-left"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
                 transition={t({ ...springs.snappy, delay: 0.35 })}
               >
-                <span className="block text-[9px] text-fog-300 leading-none tabular-nums">Oct {m.day}</span>
-                <span className="block text-[10px] font-medium text-fog-50 leading-tight mt-0.5">{m.label}</span>
+                <span className="flex items-center gap-1 text-12 text-focus-muted leading-none tabular-nums">
+                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", MARK_DOT[m.kind])} />
+                  Oct {m.day}
+                </span>
+                <span className="block truncate text-12 font-medium text-focus-text leading-tight mt-0.5">{m.label}</span>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -617,14 +665,13 @@ export function CalendarVisual() {
 /* ── 7. Their own screen ───────────────────────────────────────────────── */
 
 const SCREEN_TASKS: { name: string; next: string; activity?: PetActivity }[] = [
-  { name: "Breakfast", next: "Get dressed", activity: "eating" },
-  { name: "Get dressed", next: "Reading" },
-  { name: "Reading", next: "Brush teeth", activity: "reading" },
+  { name: "Breakfast", next: "Get Dressed", activity: "eating" },
+  { name: "Get Dressed", next: "Reading" },
+  { name: "Reading", next: "Brush Teeth", activity: "reading" },
 ];
 const SCREEN_STEPS = [2800, 2400] as const;
-const SCREEN_BG = "radial-gradient(218% 145% at -22% -13%, #515AAD 13%, #452774 41%, #271447 65%, #08011A 100%)";
 
-/** A tablet running the child's view: they tap "I'm done" and Biscuit cheers. */
+/** A tablet running the child's focus screen: they tap "Mark as Done" and Biscuit cheers. */
 export function OwnScreenVisual() {
   const { step, loop, reduce } = useStoryboard(SCREEN_STEPS, 0);
   const { t } = useMotionPrefs();
@@ -633,47 +680,50 @@ export function OwnScreenVisual() {
   const Icon = getTaskIconComponent(task.name);
 
   return (
-    <div aria-hidden className="relative w-[288px] max-w-full rounded-[26px] p-[7px] bg-[#0d0620] ring-1 ring-fog-50/15 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]">
-      <span className="absolute left-[2px] top-1/2 -translate-y-1/2 w-[3px] h-[3px] rounded-full bg-fog-50/30" />
-      <div className="relative h-[150px] rounded-[19px] overflow-hidden flex items-center gap-sp-4 px-sp-4" style={{ background: SCREEN_BG }}>
-        <DemoRing size={104} seconds={SCREEN_STEPS[0] / 1000} to={reduce ? 0.6 : 0.8} runKey={loop}>
-          <RingPet activity={done ? undefined : task.activity} reaction={done ? "Celebrate" : undefined} reactionKey={loop} />
-        </DemoRing>
-        <div className="min-w-0 flex-1 flex flex-col items-start text-left">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={loop}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={t({ duration: 0.25 })}
-            >
-              <div className="flex items-center gap-1.5 text-16 font-semibold text-fog-50 leading-tight">
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{task.name}</span>
-              </div>
-              <p className="mt-0.5 text-11 text-fog-300">Next: {task.next}</p>
-            </motion.div>
-          </AnimatePresence>
-          <span
-            className={cn(
-              "relative mt-sp-3 h-8 px-3 rounded-full text-12 font-semibold flex items-center gap-1 transition-colors",
-              done ? "bg-mint-400 text-ink-900" : "bg-mint-500 text-ink-900",
-            )}
-          >
-            <Check className="w-3.5 h-3.5" strokeWidth={3} />
-            {done ? "Done!" : "I’m done"}
-            {/* The child's tap. */}
-            {done && !reduce && (
-              <motion.span
+    <div aria-hidden className="relative w-[296px] max-w-full rounded-[28px] p-[7px] bg-focus-sunken ring-1 ring-focus-raised shadow-[0_18px_40px_-12px_rgba(10,12,22,0.7)]">
+      <span className="absolute left-[2px] top-1/2 -translate-y-1/2 w-[3px] h-[3px] rounded-full bg-focus-muted/40" />
+      <div className="relative rounded-[21px] overflow-hidden bg-focus-bg p-2.5">
+        <div className="rounded-[18px] bg-focus-surface flex items-center gap-sp-3 p-sp-3">
+          <DemoRing size={100} seconds={SCREEN_STEPS[0] / 1000} to={reduce ? 0.6 : 0.8} runKey={loop}>
+            <RingPet activity={done ? undefined : task.activity} reaction={done ? "Celebrate" : undefined} reactionKey={loop} />
+          </DemoRing>
+          <div className="min-w-0 flex-1 flex flex-col items-start text-left">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
                 key={loop}
-                className="absolute inset-0 rounded-full border-2 border-white"
-                initial={{ scale: 0.7, opacity: 0.9 }}
-                animate={{ scale: 1.5, opacity: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
-            )}
-          </span>
+                className="w-full"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={t({ duration: 0.25 })}
+              >
+                <div className="flex items-center gap-1.5 text-16 font-semibold text-focus-text leading-tight">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{task.name}</span>
+                </div>
+                <p className="mt-1 text-12 text-focus-muted truncate">Next: {task.next}</p>
+              </motion.div>
+            </AnimatePresence>
+            <span
+              className={cn(
+                "relative mt-sp-3 h-9 px-3 rounded-[12px] text-12 font-semibold flex items-center gap-1 transition-colors",
+                done ? "bg-focus-mint text-focus-bg" : "bg-focus-lime text-focus-bg",
+              )}
+            >
+              <Check className="w-3.5 h-3.5" strokeWidth={3} />
+              {done ? "Done!" : "Mark as Done"}
+              {/* The child's tap. */}
+              {done && !reduce && (
+                <motion.span
+                  key={loop}
+                  className="absolute inset-0 rounded-[12px] border-2 border-focus-text"
+                  initial={{ scale: 0.7, opacity: 0.9 }}
+                  animate={{ scale: 1.4, opacity: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+              )}
+            </span>
+          </div>
         </div>
       </div>
     </div>

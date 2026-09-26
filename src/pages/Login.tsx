@@ -59,20 +59,20 @@ const Login = () => {
     <div className="min-h-dvh flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center glow-purple mx-auto">
-            <Sparkles className="w-6 h-6 text-primary-light" />
+          <div className="w-12 h-12 rounded-[14px] bg-focus-surface flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6 text-focus-lavender" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground text-glow">
-            {inviteToken ? 'Join your family' : mode === 'reset' ? 'Reset password' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
+          <h1 className="text-24 font-bold text-focus-text">
+            {inviteToken ? 'Join Your Family' : mode === 'reset' ? 'Reset Password' : mode === 'signin' ? 'Welcome Back' : 'Create Your Account'}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-14 text-focus-muted">
             {inviteToken
               ? 'Sign in to accept the invite.'
               : 'Sign in to manage your family routines.'}
           </p>
         </div>
 
-        <div className="glass-card rounded-3xl p-6 space-y-4">
+        <div className="bg-focus-surface rounded-[24px] p-6 space-y-4">
           {mode !== 'reset' && (
             <>
               <Button
@@ -87,10 +87,10 @@ const Login = () => {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10" />
+                  <div className="w-full border-t border-focus-raised" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">or</span>
+                <div className="relative flex justify-center text-12 uppercase">
+                  <span className="bg-focus-surface px-2 text-focus-muted">or</span>
                 </div>
               </div>
             </>
@@ -129,20 +129,20 @@ const Login = () => {
             <Button type="submit" disabled={busy} className="w-full">
               {busy
                 ? mode === 'reset' ? 'Sending…' : mode === 'signin' ? 'Signing in…' : 'Creating account…'
-                : mode === 'reset' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create account'}
+                : mode === 'reset' ? 'Send Reset Link' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </Button>
           </form>
 
-          <div className="pt-3 border-t border-white/10 space-y-3">
+          <div className="pt-3 border-t border-focus-raised space-y-3">
             {mode === 'signin' && (
               <button
                 type="button"
                 onClick={() => setMode('reset')}
-                className="w-full text-xs text-center"
+                className="w-full min-h-11 text-13 text-center"
               >
-                <span className="text-muted-foreground">Forgot password?</span>{' '}
-                <span className="text-primary-light hover:underline">Set one</span>
-                <span className="block text-[11px] text-muted-foreground/70 mt-0.5">
+                <span className="text-focus-muted">Forgot password?</span>{' '}
+                <span className="text-focus-lavender font-semibold hover:underline">Set One</span>
+                <span className="block text-12 text-focus-muted mt-0.5">
                   Set one to enable email sign-in.
                 </span>
               </button>
@@ -151,19 +151,19 @@ const Login = () => {
             <button
               type="button"
               onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-              className="w-full text-xs text-center"
+              className="w-full min-h-11 text-13 text-center"
             >
               {mode === 'reset' ? (
-                <span className="text-primary-light hover:underline">Back to sign in</span>
+                <span className="text-focus-lavender font-semibold hover:underline">Back to Sign In</span>
               ) : mode === 'signin' ? (
                 <>
-                  <span className="text-muted-foreground">Don't have an account?</span>{' '}
-                  <span className="text-primary-light hover:underline">Sign up</span>
+                  <span className="text-focus-muted">Don't have an account?</span>{' '}
+                  <span className="text-focus-lavender font-semibold hover:underline">Sign Up</span>
                 </>
               ) : (
                 <>
-                  <span className="text-muted-foreground">Already have an account?</span>{' '}
-                  <span className="text-primary-light hover:underline">Sign in</span>
+                  <span className="text-focus-muted">Already have an account?</span>{' '}
+                  <span className="text-focus-lavender font-semibold hover:underline">Sign In</span>
                 </>
               )}
             </button>

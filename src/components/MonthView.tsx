@@ -1,7 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { useState, useEffect, type ReactNode } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,9 +9,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ChevronLeft, ChevronRight, Calendar, CalendarClock, Clock, Moon, Plus, Edit, Trash2, PartyPopper, Star, StickyNote, RotateCcw } from 'lucide-react';
+import { EditButton, DeleteButton } from '@/components/IconActionButtons';
+import { ChevronLeft, ChevronRight, RotateCcw, Star } from 'lucide-react';
 import { formatTime12 } from '@/utils/formatTime';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay, isBefore, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, getDay } from 'date-fns';
 import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
 import { useHolidays, Holiday } from '@/hooks/useHolidays';
@@ -23,6 +21,7 @@ import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
 import { isRestDate } from '@/utils/restDays';
 import { useParentEvents, ParentEvent } from '@/hooks/useParentEvents';
+import { cn } from '@/lib/utils';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
 import DayNoteDialog from './DayNoteDialog';
 import ParentEventDialog, { ParentEventFormData } from './ParentEventDialog';
@@ -39,6 +38,12 @@ interface MonthViewProps {
   /** Set or clear the child's rest day for a given yyyy-MM-dd. */
   onToggleRestDay?: (dateStr: string, isRestDay: boolean) => void | Promise<void>;
   getTasksWithCompletionStatus: () => Task[];
+  /** Day the grid opens on (and selects). Defaults to today. */
+  initialDate?: Date;
+  /** Rendered at the top of the calendar card — the Day/Month switch. */
+  viewSwitch?: ReactNode;
+  /** Open the full day schedule (the Day tab) for a date. */
+  onOpenDay?: (date: Date) => void;
 }
 
 interface DayData {
@@ -51,18 +56,75 @@ interface DayData {
   isRestDay: boolean;
 }
 
-const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestoreTask, onSelectedDateChange, onToggleRestDay }: MonthViewProps) => {
-  const [currentMonth, setCurrentMonth] = useState(getPSTDate());
+type Kind = 'event' | 'note' | 'rest' | 'holiday' | 'task';
+
+/** Day-type colours: Figma 347:559 legend (Event pink, Note amber, Rest mint, Holiday lime). */
+const KIND_DOT: Record<Exclude<Kind, 'task'>, string> = {
+  event: 'bg-focus-pink',
+  note: 'bg-focus-amber',
+  rest: 'bg-focus-mint',
+  holiday: 'bg-focus-lime',
+};
+const KIND_CHIP: Record<Kind, string> = {
+  event: 'bg-focus-pink/20 text-focus-pink',
+  note: 'bg-focus-amber/20 text-focus-amber',
+  rest: 'bg-focus-mint/20 text-focus-mint',
+  holiday: 'bg-focus-lime/20 text-focus-lime',
+  task: 'bg-focus-lime/20 text-focus-lime',
+};
+const KIND_LABEL: Record<Kind, string> = {
+  event: 'Event', note: 'Note', rest: 'Rest', holiday: 'Holiday', task: 'Task',
+};
+const LEGEND: Exclude<Kind, 'task'>[] = ['event', 'note', 'rest', 'holiday'];
+
+interface DayItem {
+  key: string;
+  kind: Kind;
+  title: string;
+  meta: string;
+  detail?: string;
+  important?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  deleteLabel?: string;
+}
+
+const navButton =
+  'shrink-0 h-11 w-11 inline-flex items-center justify-center rounded-[16px] bg-focus-bg text-focus-iris hover:bg-focus-raised transition-colors ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender';
+
+const secondaryButton =
+  'flex-1 min-w-0 h-11 inline-flex items-center justify-center px-2 rounded-[14px] bg-focus-surface border border-focus-bg ' +
+  'text-[13px] font-semibold text-focus-muted whitespace-nowrap hover:bg-focus-raised transition-colors ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender';
+
+const formatDuration = (minutes: number) => {
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+  }
+  return `${minutes} min`;
+};
+
+const MonthView = ({
+  child, tasks, onAddTask, onEditTask, onDeleteTask, onRestoreTask, onSelectedDateChange, onToggleRestDay,
+  initialDate, viewSwitch, onOpenDay,
+}: MonthViewProps) => {
+  const [currentMonth, setCurrentMonth] = useState(() => initialDate ?? getPSTDate());
   // The task a parent asked to delete, waiting for them to pick which days.
   const [pendingDelete, setPendingDelete] = useState<{ task: Task; date: Date } | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Holiday / event / note deletes confirm in the app's own card (the
+  // browser's confirm() box was off-design and blocked in some browsers).
+  const [pendingRemove, setPendingRemove] = useState<{ title: string; description: string; run: () => void } | null>(null);
+  // A day is always selected: its drawer sits under the grid.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => initialDate ?? getPSTDate());
 
-  // Whenever the parent opens the day sheet, push the selected date up so
-  // any edit/delete prompt that reads the parent's `currentDate` stays in
-  // sync (otherwise the prompt would show today's date instead of the day
-  // the parent actually clicked on in the calendar).
+  // Push the selected date up so the page header, the rest-day toggle and
+  // any edit/delete prompt that reads the parent's `currentDate` all follow
+  // the day the parent picked in the calendar.
   useEffect(() => {
-    if (selectedDate) onSelectedDateChange?.(selectedDate);
+    onSelectedDateChange?.(selectedDate);
   }, [selectedDate, onSelectedDateChange]);
   const [monthData, setMonthData] = useState<DayData[]>([]);
   const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
@@ -117,8 +179,11 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
 
     const tasksForDate = (tasks || []).filter(task => {
       if (!task.is_active) return false;
-      // Chores are always tied to a single date — never recurring.
+      // Chores repeat on their weekdays, or pin to a single date.
       if (task.type === 'floating') {
+        if (task.is_recurring && task.recurring_days?.length) {
+          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString);
+        }
         if (task.task_date) return task.task_date === dateString;
         if (task.created_at) {
           const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
@@ -201,9 +266,11 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
   };
 
   const handleDeleteHoliday = (holidayId: string) => {
-    if (confirm('Delete this holiday?')) {
-      deleteHoliday(holidayId);
-    }
+    setPendingRemove({
+      title: 'Delete This Holiday?',
+      description: `It will be removed from ${format(selectedDate, 'EEE, MMM d')}.`,
+      run: () => deleteHoliday(holidayId),
+    });
   };
 
   // Note handlers
@@ -241,9 +308,11 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
   };
 
   const handleDeleteEvent = (eventId: string) => {
-    if (confirm('Delete this event?')) {
-      deleteEvent(eventId);
-    }
+    setPendingRemove({
+      title: 'Delete This Event?',
+      description: `It will be removed from ${format(selectedDate, 'EEE, MMM d')}.`,
+      run: () => deleteEvent(eventId),
+    });
   };
 
   const handleEventSubmit = (data: ParentEventFormData) => {
@@ -266,432 +335,358 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
     setEditingHoliday(undefined);
   };
 
-  const getDotColor = (task: Task) => {
-    const name = task.name.toLowerCase();
-    if (name === 'school') return 'bg-blue-400';
-    if (task.type === 'floating') return 'bg-purple-400';
-    return 'bg-cyan-400';
+  const handleDeleteNote = (note: DayNote) => {
+    setPendingRemove({
+      title: 'Delete This Note?',
+      description: `“${note.text.length > 60 ? note.text.slice(0, 60) + '…' : note.text}” will be removed.`,
+      run: () => deleteNote(note.id),
+    });
   };
 
-  /**
-   * A day cell names only what the parent has marked the day as — holiday,
-   * note, rest day. Tasks (fixed, flexible, important, chores, fun) are the
-   * child's routine and repeat across the month, so listing them here would
-   * bury the handful of days that actually differ. They stay in the day sheet.
-   */
-  const getCellEvents = (dayData: DayData) => {
-    const events: { key: string; label: string; color?: string; kind: 'holiday' | 'note' | 'rest' | 'parent' }[] = [];
-    if (dayData.holiday) {
-      events.push({ key: `h-${dayData.holiday.id}`, label: dayData.holiday.name, color: dayData.holiday.color, kind: 'holiday' });
-    }
-    if (dayData.isRestDay) {
-      events.push({ key: `r-${format(dayData.date, 'yyyy-MM-dd')}`, label: 'Rest day', kind: 'rest' });
-    }
-    for (const ev of dayData.parentEvents) {
-      events.push({ key: `p-${ev.id}`, label: ev.title, kind: 'parent' });
-    }
-    if (dayData.note) {
-      events.push({ key: `n-${dayData.note.id}`, label: dayData.note.text.split('\n')[0], kind: 'note' });
-    }
-    return events;
+  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
+  const pstToday = getPSTDate();
+  const isThisMonth = isSameMonth(currentMonth, pstToday);
+
+  /** Which day types a cell carries, in legend order. */
+  const kindsFor = (dayData: DayData): Exclude<Kind, 'task'>[] => {
+    const kinds: Exclude<Kind, 'task'>[] = [];
+    if (dayData.parentEvents.length) kinds.push('event');
+    if (dayData.note) kinds.push('note');
+    if (dayData.isRestDay) kinds.push('rest');
+    if (dayData.holiday) kinds.push('holiday');
+    return kinds;
   };
 
-  const MAX_CELL_EVENTS = 3;
+  // The drawer lists what makes this day different: the parent's own marks
+  // and one-off tasks. The repeating routine lives on the Day tab.
+  const dayItems: DayItem[] = [];
+  const routineTaskCount = selectedDayData?.tasksForDay.filter(t => t.is_recurring).length ?? 0;
+  if (selectedDayData) {
+    for (const event of selectedDayData.parentEvents) {
+      dayItems.push({
+        key: `e-${event.id}`,
+        kind: 'event',
+        title: event.title,
+        meta: `${event.time ? formatTime(event.time.slice(0, 5)) : 'All day'} · Parent appointment`,
+        detail: event.notes || undefined,
+        onEdit: () => handleEditEvent(event),
+        onDelete: () => handleDeleteEvent(event.id),
+      });
+    }
+    if (selectedDayData.note) {
+      const note = selectedDayData.note;
+      dayItems.push({
+        key: `n-${note.id}`,
+        kind: 'note',
+        title: note.text,
+        meta: 'Day note',
+        onEdit: () => handleAddOrEditNote(selectedDate),
+        onDelete: () => handleDeleteNote(note),
+      });
+    }
+    if (selectedDayData.isRestDay) {
+      dayItems.push({
+        key: `r-${selectedKey}`,
+        kind: 'rest',
+        title: 'Rest Day',
+        meta: 'No tasks this day',
+        onDelete: onToggleRestDay ? () => onToggleRestDay(selectedKey, false) : undefined,
+        deleteLabel: 'Remove Rest Day',
+      });
+    }
+    if (selectedDayData.holiday) {
+      const holiday = selectedDayData.holiday;
+      const range = holiday.end_date && holiday.end_date !== holiday.date
+        ? `${format(new Date(`${holiday.date}T00:00:00`), 'MMM d')} – ${format(new Date(`${holiday.end_date}T00:00:00`), 'MMM d')}`
+        : 'All day';
+      dayItems.push({
+        key: `h-${holiday.id}`,
+        kind: 'holiday',
+        title: holiday.name,
+        meta: holiday.is_no_school ? `${range} · No school` : range,
+        detail: holiday.description || undefined,
+        onEdit: () => handleEditHoliday(holiday),
+        onDelete: () => handleDeleteHoliday(holiday.id),
+      });
+    }
+    for (const task of selectedDayData.tasksForDay.filter(t => !t.is_recurring)) {
+      const when = task.scheduled_time
+        ? formatTime(task.scheduled_time)
+        : task.type === 'floating' && task.window_start && task.window_end
+        ? `${formatTime(task.window_start)} – ${formatTime(task.window_end)}`
+        : 'Anytime';
+      const parts = [when];
+      if (task.duration && task.duration > 0) parts.push(formatDuration(task.duration));
+      parts.push('this day only');
+      if (task.coins > 0) parts.push(`${task.coins}★`);
+      dayItems.push({
+        key: `t-${task.id}`,
+        kind: 'task',
+        title: task.name,
+        meta: parts.join(' · '),
+        important: task.is_important,
+        onEdit: onEditTask ? () => onEditTask(task) : undefined,
+        onDelete: onDeleteTask ? () => setPendingDelete({ task, date: selectedDate }) : undefined,
+      });
+    }
+  }
+
+  const skippedTasks = (() => {
+    const dayName = format(selectedDate, 'EEEE').toLowerCase();
+    return (tasks || []).filter(t =>
+      t.is_active && t.is_recurring && t.recurring_days?.includes(dayName) && t.excluded_dates?.includes(selectedKey));
+  })();
 
   return (
-    <div className="space-y-4">
-      {/* Calendar */}
-      <Card className="p-4 glass-card rounded-2xl border-0">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            {format(currentMonth, 'MMMM yyyy')}
-          </h3>
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => subMonths(prev, 1))} className="tap-target h-8 w-8 rounded-xl">
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentMonth(new Date())}
-              className="text-xs rounded-xl px-3 h-8"
+    <div className="flex flex-col gap-5 flex-1">
+      {/* Calendar card — Figma 358:2366 */}
+      <div className="flex flex-col gap-sp-4 rounded-[24px] bg-focus-surface px-3 pt-[14px] pb-3">
+        {viewSwitch}
+
+        {/* Month navigation */}
+        <div className="flex items-center gap-sp-2">
+          <div className="flex flex-1 min-w-0 items-center gap-sp-2">
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
+              aria-label="Previous month"
+              className={navButton}
+            >
+              <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+            </button>
+            <span className="flex-1 min-w-0 truncate text-center text-[15px] leading-[21px] font-semibold text-focus-text">
+              {format(currentMonth, 'MMMM yyyy')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
+              aria-label="Next month"
+              className={navButton}
+            >
+              <ChevronRight className="w-5 h-5" strokeWidth={2} />
+            </button>
+          </div>
+          {!isThisMonth && (
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMonth(pstToday);
+                setSelectedDate(pstToday);
+              }}
+              className="shrink-0 h-11 px-sp-4 rounded-[14px] border border-focus-lavender text-[14px] font-semibold text-focus-lavender hover:bg-focus-lavender/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
             >
               Today
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))} className="tap-target h-8 w-8 rounded-xl">
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+            </button>
+          )}
+        </div>
+
+        {/* Month grid — 7 columns, no gaps between cells */}
+        <div className="flex flex-col gap-[6px]">
+          <div className="grid grid-cols-7" aria-hidden>
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+              <span key={i} className="text-center text-[12px] leading-[17px] text-focus-muted">
+                {day}
+              </span>
+            ))}
           </div>
-        </div>
-
-        {/* Day headers */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider py-1.5">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-1">
-          {monthData.map((dayData) => {
-            const isToday = isSameDay(dayData.date, getPSTDate());
-            const events = getCellEvents(dayData);
-            const shown = events.slice(0, MAX_CELL_EVENTS);
-            const overflow = events.length - shown.length;
-
-            return (
-              <button
-                key={format(dayData.date, 'yyyy-MM-dd')}
-                onClick={() => {
-                  // Any day is tappable. Tapping into a neighbouring month
-                  // brings that month into view so the sheet has context.
-                  if (!dayData.isCurrentMonth) setCurrentMonth(dayData.date);
-                  setSelectedDate(dayData.date);
-                }}
-                aria-label={`${format(dayData.date, 'EEEE, MMMM d')}${events.length ? `, ${events.map(e => e.label).join(', ')}` : ''}`}
-                className={`
-                  relative flex flex-col items-stretch gap-0.5 p-1 min-h-[64px] rounded-xl text-left transition-all
-                  hover:bg-white/5 cursor-pointer
-                  ${dayData.isCurrentMonth ? '' : 'opacity-40'}
-                  ${isToday ? 'ring-2 ring-primary bg-primary/10' : ''}
-                  ${selectedDate && isSameDay(dayData.date, selectedDate) ? 'ring-2 ring-primary/60' : ''}
-                `}
-                style={dayData.holiday ? { backgroundColor: `${dayData.holiday.color}12` } : {}}
-              >
-                <div className="flex items-center justify-between gap-0.5">
-                  <span className={`text-xs font-semibold leading-none ${
-                    isToday ? 'text-primary' :
-                    dayData.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                  }`}>
+          <div className="grid grid-cols-7 gap-y-[6px]">
+            {monthData.map((dayData) => {
+              const key = format(dayData.date, 'yyyy-MM-dd');
+              const isToday = isSameDay(dayData.date, pstToday);
+              const isSelected = key === selectedKey;
+              const kinds = kindsFor(dayData);
+              const labels = [
+                ...dayData.parentEvents.map(e => e.title),
+                ...(dayData.note ? ['Note'] : []),
+                ...(dayData.isRestDay ? ['Rest day'] : []),
+                ...(dayData.holiday ? [dayData.holiday.name] : []),
+              ];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    // Tapping into a neighbouring month brings it into view.
+                    if (!dayData.isCurrentMonth) setCurrentMonth(dayData.date);
+                    setSelectedDate(dayData.date);
+                  }}
+                  aria-pressed={isSelected}
+                  aria-label={`${format(dayData.date, 'EEEE, MMMM d')}${labels.length ? `, ${labels.join(', ')}` : ''}`}
+                  className={cn(
+                    'min-w-0 h-[54px] flex flex-col items-center gap-[5px] py-2 rounded-[14px] transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender',
+                    isSelected
+                      ? 'bg-focus-lavender'
+                      : cn('hover:bg-focus-raised/60', isToday && 'ring-[1.5px] ring-inset ring-focus-lavender'),
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-[16px] leading-[22px] tabular-nums',
+                      isSelected
+                        ? 'font-semibold text-focus-bg'
+                        : dayData.isCurrentMonth ? 'text-focus-text' : 'text-focus-muted',
+                    )}
+                  >
                     {format(dayData.date, 'd')}
                   </span>
-                </div>
-
-                {/* Only the parent's own marks on the day. */}
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  {shown.map(ev => (
-                    <span
-                      key={ev.key}
-                      className={`block w-full truncate rounded px-1 py-[1px] text-[10px] leading-[1.25] ${
-                        ev.kind === 'holiday'
-                          ? 'font-semibold'
-                          : ev.kind === 'note'
-                          ? 'bg-amber-400/15 text-amber-200'
-                          : ev.kind === 'parent'
-                          ? 'bg-sky-400/15 text-sky-200'
-                          : 'bg-emerald-400/15 text-emerald-200'
-                      }`}
-                      style={ev.kind === 'holiday' ? { backgroundColor: `${ev.color}26`, color: ev.color } : undefined}
-                      title={ev.label}
-                    >
-                      {ev.label}
+                  {kinds.length > 0 && (
+                    <span className="flex items-center gap-[3px]" aria-hidden>
+                      {kinds.map(kind => (
+                        <span
+                          key={kind}
+                          className={cn(
+                            'block w-1.5 h-1.5 rounded-full',
+                            KIND_DOT[kind],
+                            isSelected && 'shadow-[0_0_0_1.5px_rgb(var(--focus-bg-rgb))]',
+                          )}
+                        />
+                      ))}
                     </span>
-                  ))}
-                  {overflow > 0 && (
-                    <span className="px-1 text-[10px] leading-[1.25] text-muted-foreground">+{overflow} more</span>
                   )}
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border/20">
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="w-3 h-2 rounded-sm bg-emerald-400/40" />
-            Rest day
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="w-3 h-2 rounded-sm bg-amber-400/40" />
-            Note
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="w-3 h-2 rounded-sm bg-sky-400/40" />
-            Event
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <PartyPopper className="w-3 h-3 text-muted-foreground" />
-            Holiday
-          </div>
+        <div className="flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 py-1">
+          {LEGEND.map(kind => (
+            <span key={kind} className="inline-flex items-center gap-1.5 text-[12px] leading-4 font-medium text-focus-muted">
+              <span className={cn('w-2 h-2 rounded-full', KIND_DOT[kind])} aria-hidden />
+              {KIND_LABEL[kind]}
+            </span>
+          ))}
         </div>
-      </Card>
+      </div>
 
-      {/* Day Detail Dialog */}
-      {selectedDate && (
-        <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-          <DialogContent className="sm:max-w-md max-h-[85dvh] overflow-y-auto">
-            <div className="mb-3">
-              <h3 className="text-lg font-semibold">
-                {format(selectedDate, 'EEEE, MMMM d')}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {selectedDayData?.tasksForDay.length || 0} item{(selectedDayData?.tasksForDay.length || 0) !== 1 ? 's' : ''} scheduled
-              </p>
-            </div>
+      {/* Selected-day drawer — Figma 347:733 */}
+      <section
+        aria-label={format(selectedDate, 'EEEE, MMMM d')}
+        className="-mx-5 flex-1 flex flex-col gap-[18px] rounded-t-[22px] bg-focus-sheet px-4 pt-4 pb-8"
+      >
+        <span className="mx-auto h-0.5 w-14 rounded-full bg-focus-lavender" aria-hidden />
 
-            {/* What's already on the day renders as cards; everything addable
-                lives behind one "Add to this day" menu so an empty day shows a
-                single button instead of five. */}
+        <div className="flex items-center gap-sp-2">
+          <h3 className="flex-1 min-w-0 truncate text-[18px] leading-[25px] font-semibold text-focus-text">
+            {format(selectedDate, 'EEE, MMMM d')}
+          </h3>
+          <span className="shrink-0 text-[12px] leading-4 text-focus-muted">
+            {dayItems.length} item{dayItems.length === 1 ? '' : 's'}
+          </span>
+        </div>
 
-            {/* Parent events — appointments only the parent sees */}
-            {selectedDayData?.parentEvents.map(event => (
-              <div key={event.id} className="rounded-xl p-3 mb-2 border border-sky-400/40 bg-sky-400/10">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <CalendarClock className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <span className="text-sm font-semibold text-sky-100 break-words">
-                        {event.title}
+        {dayItems.length > 0 ? (
+          <ul className="flex flex-col gap-sp-2">
+            {dayItems.map(item => (
+              <li key={item.key} className="rounded-[16px] bg-focus-surface px-[14px] py-3">
+                <div className="flex items-start gap-[10px]">
+                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5 text-[15px] leading-5 font-semibold text-focus-text">
+                      <span className={cn('min-w-0', item.kind === 'note' ? 'line-clamp-2 break-words' : 'truncate')}>
+                        {item.title}
                       </span>
-                      <div className="text-[11px] text-sky-200/70 mt-0.5">
-                        {event.time ? formatTime(event.time.slice(0, 5)) : 'All day'}
-                      </div>
-                      {event.notes && (
-                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
-                          {event.notes}
-                        </p>
+                      {item.important && (
+                        <Star className="w-3.5 h-3.5 shrink-0 text-focus-amber fill-focus-amber" strokeWidth={0} aria-label="Important" />
+                      )}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span
+                        className={cn(
+                          'shrink-0 h-[22px] inline-flex items-center px-2 rounded-full text-[12px] leading-4 font-semibold',
+                          KIND_CHIP[item.kind],
+                        )}
+                      >
+                        {KIND_LABEL[item.kind]}
+                      </span>
+                      <span className="text-[12px] leading-4 text-focus-muted">{item.meta}</span>
+                    </span>
+                    {item.detail && (
+                      <span className="mt-1 text-[12px] leading-4 text-focus-muted whitespace-pre-wrap break-words">
+                        {item.detail}
+                      </span>
+                    )}
+                  </div>
+                  {/* Edit / delete as icon buttons (Figma 369:392); page-colour
+                      fill so they read on the surface-coloured card. */}
+                  {(item.onEdit || item.onDelete) && (
+                    <div className="flex items-start gap-2 shrink-0">
+                      {item.onEdit && <EditButton onClick={item.onEdit} label={`Edit ${item.title}`} className="bg-focus-bg" />}
+                      {item.onDelete && (
+                        <DeleteButton onClick={item.onDelete} label={`${item.deleteLabel ?? 'Delete'} ${item.title}`} className="bg-focus-bg" />
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditEvent(event)} className="tap-target h-6 w-6 p-0">
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEvent(event.id)} className="tap-target h-6 w-6 p-0 text-destructive hover:text-destructive">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  )}
                 </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[13px] leading-[18px] text-focus-muted">Nothing special on this day.</p>
+        )}
+
+        {routineTaskCount > 0 && onOpenDay && (
+          <button
+            type="button"
+            onClick={() => onOpenDay(selectedDate)}
+            className="-mt-2 self-start min-h-11 inline-flex items-center gap-1 rounded-[14px] px-1 text-[13px] font-semibold text-focus-lavender hover:text-focus-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            {routineTaskCount} routine task{routineTaskCount === 1 ? '' : 's'} · See Day
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Repeating tasks skipped on this day ("Only on this day"), so a
+            skip can be undone instead of being gone for good. */}
+        {onRestoreTask && skippedTasks.length > 0 && (
+          <div className="flex flex-col gap-sp-2">
+            <p className="text-[12px] leading-4 font-semibold text-focus-muted">Skipped This Day</p>
+            {skippedTasks.map(task => (
+              <div key={task.id} className="flex items-center gap-3 rounded-[16px] border border-dashed border-focus-muted/40 pl-[14px] pr-1 py-1">
+                <span className="flex-1 min-w-0 truncate text-[14px] text-focus-muted line-through">{task.name}</span>
+                <button
+                  type="button"
+                  onClick={() => onRestoreTask(task.id, selectedKey)}
+                  className="shrink-0 h-11 inline-flex items-center gap-1.5 rounded-[14px] px-3 text-[13px] font-semibold text-focus-lavender hover:bg-focus-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Restore
+                </button>
               </div>
             ))}
+          </div>
+        )}
 
-            {/* Note */}
-            {selectedDayData?.note ? (
-              <div className="rounded-xl p-3 mb-3 border border-amber-400/40 bg-amber-400/10">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <StickyNote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <span className="text-sm text-amber-100 whitespace-pre-wrap break-words">
-                      {selectedDayData.note.text}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleAddOrEditNote(selectedDate)}
-                    className="tap-target h-6 w-6 p-0 shrink-0"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            ) : null}
+        <div className="h-px w-full bg-focus-bg" aria-hidden />
 
-            {/* Holiday */}
-            {selectedDayData?.holiday ? (
-              <div
-                className="rounded-xl p-3 mb-3 border"
-                style={{ backgroundColor: `${selectedDayData.holiday.color}12`, borderColor: `${selectedDayData.holiday.color}40` }}
+        <div className="flex flex-col gap-sp-2">
+          <p className="text-[16px] leading-[22px] font-semibold text-focus-text">Add to This Day</p>
+          <div className="flex gap-sp-2">
+            <button type="button" onClick={() => handleAddEvent(selectedDate)} className={secondaryButton}>
+              + Event
+            </button>
+            <button type="button" onClick={() => handleAddOrEditNote(selectedDate)} className={secondaryButton}>
+              + Note
+            </button>
+            <button
+              type="button"
+              onClick={() => (selectedDayData?.holiday ? handleEditHoliday(selectedDayData.holiday) : handleAddHoliday(selectedDate))}
+              className={secondaryButton}
+            >
+              + Holiday
+            </button>
+            {onAddTask && (
+              <button
+                type="button"
+                onClick={() => onAddTask(selectedDate)}
+                className="flex-1 min-w-0 h-11 inline-flex items-center justify-center px-2 rounded-[14px] bg-focus-lime text-[13px] font-semibold text-focus-bg whitespace-nowrap hover:bg-focus-lime/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <PartyPopper className="w-4 h-4" style={{ color: selectedDayData.holiday.color }} />
-                    <span className="text-sm font-semibold" style={{ color: selectedDayData.holiday.color }}>
-                      {selectedDayData.holiday.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditHoliday(selectedDayData.holiday!)} className="tap-target h-6 w-6 p-0">
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteHoliday(selectedDayData.holiday!.id)} className="tap-target h-6 w-6 p-0 text-destructive hover:text-destructive">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-                {selectedDayData.holiday.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{selectedDayData.holiday.description}</p>
-                )}
-                {selectedDayData.holiday.is_no_school && (
-                  <span className="inline-block text-[10px] mt-1.5 px-2 py-0.5 rounded-full bg-background/50 font-medium">No School</span>
-                )}
-              </div>
-            ) : null}
-
-            {/* Rest day — set here, on the day it applies to, rather than
-                from a header toggle that gave no clue which day it meant. */}
-            {onToggleRestDay && selectedDayData?.isRestDay && (
-              <div className="rounded-xl px-3 py-2 mb-3 border border-emerald-400/40 bg-emerald-400/10 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Moon className="w-4 h-4 text-emerald-300 shrink-0" />
-                  <span className="text-sm font-semibold text-emerald-200">Rest day</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), false)}
-                  className="h-6 px-2 text-xs shrink-0"
-                >
-                  Clear
-                </Button>
-              </div>
+                + Task
+              </button>
             )}
-
-            {/* Add actions as a compact tile grid — everything visible, one
-                tap each. Tiles for one-per-day things (note, holiday, rest
-                day) disappear once the day has one. */}
-            {(() => {
-              const tileBase =
-                'flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 min-h-[52px] transition-colors';
-              return (
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => handleAddEvent(selectedDate)}
-                    className={`${tileBase} border-sky-400/30 text-sky-200 hover:bg-sky-400/10`}
-                  >
-                    <CalendarClock className="w-4 h-4" />
-                    <span className="text-[11px] font-medium leading-none">Event</span>
-                  </button>
-                  {!selectedDayData?.note && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddOrEditNote(selectedDate)}
-                      className={`${tileBase} border-amber-400/30 text-amber-200 hover:bg-amber-400/10`}
-                    >
-                      <StickyNote className="w-4 h-4" />
-                      <span className="text-[11px] font-medium leading-none">Note</span>
-                    </button>
-                  )}
-                  {onAddTask && (
-                    <button
-                      type="button"
-                      onClick={() => onAddTask(selectedDate)}
-                      className={`${tileBase} border-iris-400/40 text-iris-200 hover:bg-iris-400/10`}
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="text-[11px] font-medium leading-none">Task</span>
-                    </button>
-                  )}
-                  {!selectedDayData?.holiday && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddHoliday(selectedDate)}
-                      className={`${tileBase} border-pink-400/30 text-pink-200 hover:bg-pink-400/10`}
-                    >
-                      <PartyPopper className="w-4 h-4" />
-                      <span className="text-[11px] font-medium leading-none">Holiday</span>
-                    </button>
-                  )}
-                  {onToggleRestDay && !selectedDayData?.isRestDay && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleRestDay(format(selectedDate, 'yyyy-MM-dd'), true)}
-                      className={`${tileBase} border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10`}
-                    >
-                      <Moon className="w-4 h-4" />
-                      <span className="text-[11px] font-medium leading-none">Rest day</span>
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Schedule for this day */}
-            <div className="space-y-1.5">
-              {selectedDayData?.tasksForDay.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="w-7 h-7 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Nothing scheduled</p>
-                </div>
-              ) : (
-                selectedDayData?.tasksForDay.map((task) => {
-                  const isSystem = systemTaskNames.includes(task.name);
-                  return (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 p-2.5 rounded-xl border border-border/30 hover:border-border/50 transition-colors group"
-                    >
-                      <div className={`w-1.5 h-full min-h-[32px] rounded-full shrink-0 ${getDotColor(task)}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-medium truncate ${isSystem ? 'text-muted-foreground' : 'text-foreground'}`}>
-                            {task.name}
-                          </span>
-                          {task.is_important && <Star className="w-3 h-3 text-yellow-400 shrink-0" />}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                          {task.scheduled_time && (
-                            <span>{formatTime(task.scheduled_time)}</span>
-                          )}
-                          {task.type === 'floating' && task.window_start && task.window_end && (
-                            <span>{formatTime(task.window_start)} – {formatTime(task.window_end)}</span>
-                          )}
-                          {task.type === 'floating' && !task.window_start && (
-                            <span>Anytime</span>
-                          )}
-                          {task.duration && task.duration > 0 && (
-                            <span className="text-muted-foreground/70">
-                              {task.duration >= 60 ? `${Math.floor(task.duration / 60)}h ` : ''}{task.duration % 60 > 0 ? `${task.duration % 60}m` : ''}
-                            </span>
-                          )}
-                          {task.coins > 0 && (
-                            <span className="text-warning font-medium">{task.coins}★</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                        {onEditTask && (
-                          <Button variant="ghost" size="sm" onClick={() => onEditTask(task)} className="h-7 w-7 p-0 rounded-lg">
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                        {onDeleteTask && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => selectedDate && setPendingDelete({ task, date: selectedDate })}
-                            aria-label={`Delete ${task.name}`}
-                            className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-red-400"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Repeating tasks skipped on this day ("Only on this day"), so a
-                skip can be undone instead of being gone for good. */}
-            {onRestoreTask && selectedDate && (() => {
-              const dateString = format(selectedDate, 'yyyy-MM-dd');
-              const dayName = format(selectedDate, 'EEEE').toLowerCase();
-              const skipped = (tasks || []).filter(t =>
-                t.is_active && t.is_recurring && t.recurring_days?.includes(dayName) && t.excluded_dates?.includes(dateString));
-              if (skipped.length === 0) return null;
-              return (
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Skipped this day</p>
-                  {skipped.map(task => (
-                    <div key={task.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border/40">
-                      <span className="flex-1 min-w-0 text-sm text-muted-foreground line-through truncate">{task.name}</span>
-                      <Button variant="ghost" size="sm" onClick={() => onRestoreTask(task.id, dateString)} className="h-8 rounded-lg gap-1.5">
-                        <RotateCcw className="w-3.5 h-3.5" /> Restore
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
-      )}
+          </div>
+        </div>
+      </section>
 
       {/* Delete: pick the days. Repeating tasks offer this day or every day;
           built-in rows (Lunch, School…) can only be skipped for a day, since
@@ -725,7 +720,7 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
                   {!builtIn && (
                     <AlertDialogAction
                       onClick={() => onDeleteTask?.(task.id, 'all')}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="bg-focus-coral text-focus-bg hover:bg-focus-coral/90"
                     >
                       {task.is_recurring ? 'Every day' : 'Delete'}
                     </AlertDialogAction>
@@ -734,6 +729,24 @@ const MonthView = ({ child, tasks, onAddTask, onEditTask, onDeleteTask, onRestor
               </>
             );
           })()}
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingRemove} onOpenChange={(open) => { if (!open) setPendingRemove(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingRemove?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingRemove?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingRemove?.run()}
+              className="bg-focus-coral text-focus-bg hover:bg-focus-coral/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

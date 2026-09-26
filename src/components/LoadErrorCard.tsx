@@ -15,12 +15,12 @@ const LoadErrorCard = ({ onRetry }: { onRetry: () => void }) => {
   return (
     <div className="min-h-dvh flex items-center justify-center p-sp-6">
       <div className="max-w-xs flex flex-col items-center gap-sp-4 text-center" role="status">
-        <span className="w-12 h-12 rounded-[16px] bg-iris-400/20 border border-iris-400/30 flex items-center justify-center">
-          <WifiOff className="w-5 h-5 text-iris-200" />
+        <span className="w-12 h-12 rounded-[16px] bg-focus-surface flex items-center justify-center">
+          <WifiOff className="w-5 h-5 text-focus-muted" />
         </span>
-        <h1 className="text-20 font-semibold text-fog-50">We couldn't load your family</h1>
-        <p className="text-14 text-fog-200">Check the connection. We'll keep trying.</p>
-        <Button variant="secondary" size="md" onClick={onRetry}>Try again</Button>
+        <h1 className="text-20 font-bold text-focus-text">We Couldn't Load Your Family</h1>
+        <p className="text-14 text-focus-muted">Check the connection. We'll keep trying.</p>
+        <Button variant="secondary" size="md" onClick={onRetry}>Try Again</Button>
       </div>
     </div>
   );

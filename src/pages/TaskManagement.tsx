@@ -93,19 +93,19 @@ const TaskManagement = () => {
       <div className="flex flex-col md:flex-row gap-4">
         {/* Left Column - Calendar and Child Selection */}
         <div className="w-full md:w-1/3 space-y-4">
-          <div className="glass-card rounded-[20px] p-4">
+          <div className="bg-focus-surface rounded-[24px] p-4">
             <Calendar
               mode="single"
               selected={currentDate}
               onSelect={(date) => date && setCurrentDate(date)}
-              className="rounded-md border"
+              className="mx-auto"
             />
           </div>
 
-          <div className="glass-card rounded-[20px] p-4">
-            <h2 className="text-lg font-semibold mb-2">Select Child</h2>
+          <div className="bg-focus-surface rounded-[24px] p-4">
+            <h2 className="text-16 font-semibold text-focus-text mb-2">Select Child</h2>
             {children.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-14 text-focus-muted">
                 No children yet — set one up first.
               </p>
             ) : (
@@ -113,8 +113,9 @@ const TaskManagement = () => {
                 {children.map((child) => (
                   <Button
                     key={child.id}
-                    variant={selectedChild?.id === child.id ? "default" : "outline"}
-                    className="w-full"
+                    variant="secondary"
+                    aria-pressed={selectedChild?.id === child.id}
+                    className={selectedChild?.id === child.id ? "w-full bg-focus-lavender text-focus-bg hover:bg-focus-lavender hover:text-focus-bg" : "w-full"}
                     onClick={() => setSelectedChild(child)}
                   >
                     {child.name}
@@ -128,7 +129,7 @@ const TaskManagement = () => {
         {/* Right Column - Tasks */}
         <div className="w-full md:w-2/3 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-20 font-bold text-focus-text">
               Tasks for {format(currentDate, 'EEEE, MMMM d, yyyy')}
             </h2>
             <Button
@@ -150,7 +151,7 @@ const TaskManagement = () => {
           )}
 
           {tasksLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-focus-muted">
               Loading tasks…
             </div>
           ) : (

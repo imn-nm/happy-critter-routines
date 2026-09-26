@@ -25,7 +25,7 @@ const LoadingScreen = ({ label = "One moment…", fullScreen = true, className }
     aria-live="polite"
   >
     <SpritePet mood="idle" size={96} label="Loading" />
-    <p className="text-14 text-fog-200">{label}</p>
+    <p className="text-14 text-focus-muted">{label}</p>
   </div>
 );
 

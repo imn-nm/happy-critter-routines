@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
 import { WHEEL_COLORS } from "@/lib/spinningWheel";
@@ -99,8 +99,8 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
     return (
       <div className={cn("flex flex-col items-center gap-2 text-center px-4", className)}>
         <span className="text-5xl">🎡</span>
-        <p className="text-15 text-fog-50 font-medium">Spinning wheel not set up yet</p>
-        <p className="text-13 text-fog-400 leading-snug">
+        <p className="text-15 text-focus-text font-medium">Spinning Wheel Not Set Up Yet</p>
+        <p className="text-13 text-focus-muted leading-snug">
           Ask a grown-up to add some fun activities!
         </p>
       </div>
@@ -116,14 +116,14 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
           style={{
             borderLeft: "11px solid transparent",
             borderRight: "11px solid transparent",
-            borderTop: "18px solid #f0b542",
+            borderTop: "18px solid #A89AF0", // focus-lavender
             filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
           }}
         />
       </div>
 
       <motion.div
-        className="w-full h-full rounded-full overflow-hidden shadow-[0_0_0_4px_rgba(255,255,255,0.08)]"
+        className="w-full h-full rounded-full overflow-hidden shadow-[0_0_0_4px_rgba(168,154,240,0.25)]"
         animate={{ rotate: rotation }}
         transition={{
           duration: spinning ? 4 : 0,
@@ -161,7 +161,7 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
 
             return (
               <g key={i}>
-                <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="#1a0a2e" strokeWidth={1.25} />
+                <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="#181E36" strokeWidth={1.25} />
                 <text
                   x={labelX}
                   y={labelY}
@@ -184,8 +184,8 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
             );
           })}
           {/* Hub */}
-          <circle cx={100} cy={100} r={15} fill="#1a0a2e" />
-          <circle cx={100} cy={100} r={10} fill="#271447" />
+          <circle cx={100} cy={100} r={15} fill="#181E36" />
+          <circle cx={100} cy={100} r={10} fill="#2C3558" />
         </svg>
       </motion.div>
     </div>
@@ -210,7 +210,7 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
               exit={{ opacity: 0, scale: 0.8 }}
               transition={tMotion(springs.bouncy)}
             >
-              <span className="text-20 font-bold text-fog-50">🎉 {winner}!</span>
+              <span className="text-20 font-semibold text-focus-text">🎉 {winner}!</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -222,10 +222,10 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
         onClick={spin}
         disabled={spinning}
         className={cn(
-          "px-8 py-2.5 rounded-full text-15 font-semibold transition-all",
+          "min-h-12 px-8 rounded-[16px] text-15 font-semibold transition-all",
           spinning
-            ? "bg-iris-500/40 text-fog-300 cursor-not-allowed"
-            : "bg-iris-500 text-white hover:bg-iris-400 active:scale-95",
+            ? "bg-focus-lavender/40 text-focus-sheet cursor-not-allowed"
+            : "bg-focus-lavender text-focus-sheet hover:bg-focus-lavender/90 active:scale-95",
         )}
       >
         {spinning ? "Spinning…" : "Spin!"}

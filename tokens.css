@@ -4,13 +4,13 @@
 
 :root {
   /* ── Core surface (deep space radial) ───────────────────── */
-  --ink-900: #08011a;          /* abyss */
-  --ink-800: #0e0724;          /* deep void */
-  --ink-700: #1a0f3a;          /* nebula */
-  --ink-600: #271447;          /* dusk */
-  --ink-500: #452774;          /* amethyst */
-  --ink-400: #515aad;          /* cosmic blue */
-  --ink-300: #6c6bbf;          /* periwinkle mist */
+  --ink-900: #0e1221;          /* abyss */
+  --ink-800: #181e36;          /* deep void */
+  --ink-700: #20294a;          /* nebula */
+  --ink-600: #2c3558;          /* dusk */
+  --ink-500: #3c4770;          /* amethyst */
+  --ink-400: #4a5688;          /* cosmic blue */
+  --ink-300: #6c78a8;          /* periwinkle mist */
 
   /* ── Primary — periwinkle ──────────────────────────────── */
   --iris-50:  #f3f4ff;
@@ -47,12 +47,49 @@
 
   /* ── Neutrals on dark ──────────────────────────────────── */
   --paper:   #ffffff;
-  --fog-50:  #f0f0f7;     /* default body on dark */
-  --fog-100: #d8d8e6;
-  --fog-200: #9ea0c4;
-  --fog-300: #6c6f95;
-  --fog-400: #4a4d6f;
-  --fog-500: #343c4c;     /* subtle stroke */
+  --fog-50:  #f5f3ff;     /* default body on dark */
+  --fog-100: #dcd7fa;
+  --fog-200: #bdb5f5;
+  --fog-300: #8c86b8;
+  --fog-400: #3c4770;
+  --fog-500: #2c3558;     /* subtle stroke */
+
+
+  /* ── Focus — Navy & Play (Figma "Focus — Navy & Play") ───
+     The parent hub redesign palette. Selected = lavender,
+     the one primary action = lime. */
+  --focus-bg: #20294a;
+  --focus-surface: #2c3558;
+  --focus-raised: #3c4770;
+  --focus-sunken: #0e1221;
+  --focus-sheet: #181e36;
+  --focus-text: #f5f3ff;
+  --focus-muted: #bdb5f5;
+  --focus-lavender: #a89af0;
+  --focus-mint: #65cdaa;
+  --focus-lime: #dcef70;
+  --focus-pink: #eab5de;
+  --focus-amber: #fab047;
+  --focus-coral: #ff8f91;
+  --focus-alert: #ff6ad5;
+  --focus-iris: #879bff;
+  --focus-scrim: #0a0c16;   /* backdrop behind every popup (85% + blur) */
+  --focus-bg-rgb: 32 41 74;
+  --focus-surface-rgb: 44 53 88;
+  --focus-raised-rgb: 60 71 112;
+  --focus-sunken-rgb: 14 18 33;
+  --focus-sheet-rgb: 24 30 54;
+  --focus-text-rgb: 245 243 255;
+  --focus-muted-rgb: 189 181 245;
+  --focus-lavender-rgb: 168 154 240;
+  --focus-mint-rgb: 101 205 170;
+  --focus-lime-rgb: 220 239 112;
+  --focus-pink-rgb: 234 181 222;
+  --focus-amber-rgb: 250 176 71;
+  --focus-coral-rgb: 255 143 145;
+  --focus-alert-rgb: 255 106 213;
+  --focus-iris-rgb: 135 155 255;
+  --focus-scrim-rgb: 10 12 22;
 
   /* ── Glass tokens ──────────────────────────────────────── */
   --glass-fill-lo:    rgba(255,255,255,0.04);
@@ -63,24 +100,15 @@
   --glass-stroke-hi:  rgba(255,255,255,0.22);
 
   /* ── Signature radial ground ───────────────────────────── */
-  --ground-cosmic:
-    radial-gradient(218.43% 145.04% at -22.27% -13.24%,
-      #515AAD 13.46%,
-      #452774 41%,
-      #271447 65.02%,
-      #08011A 100%);
-  --ground-dusk:
-    radial-gradient(ellipse at 50% 100%,
-      #3b49a8 0%,
-      #271447 42%,
-      #0e0724 80%);
-  --ground-night: #08011a;
+  --ground-cosmic: #20294a;   /* Focus/bg — flat navy (parent hub redesign) */
+  --ground-dusk: #181e36;    /* Focus/sheet */
+  --ground-night: #0e1221;
 
   /* ── Type ──────────────────────────────────────────────── */
   --ff-sans: "Inter", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
   --ff-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --fs-11: 11px;
+  --fs-11: 12px;  /* floor is 12px (accessibility audit) */
   --fs-12: 12px;   /* caption / meta */
   --fs-13: 13px;   /* small body */
   --fs-14: 14px;   /* body */
@@ -123,9 +151,9 @@
   --r-pill: 999px; /* buttons, tabs, chips */
 
   /* ── Shadow — soft bloom only (night UI) ───────────────── */
-  --sh-sm: 0 2px 6px rgba(44,34,75,0.45);
-  --sh-md: 0 4px 12px rgba(44,34,75,0.52);
-  --sh-lg: 0 12px 32px rgba(8,1,26,0.55);
+  --sh-sm: 0 2px 6px rgba(14,18,33,0.45);
+  --sh-md: 0 4px 12px rgba(14,18,33,0.52);
+  --sh-lg: 0 12px 32px rgba(14,18,33,0.55);
   --sh-glow-iris: 0 0 0 1px rgba(135,155,255,0.35), 0 8px 28px rgba(135,155,255,0.35);
   --sh-glow-mint: 0 0 0 1px rgba(77,197,183,0.35), 0 8px 28px rgba(77,197,183,0.25);
   --sh-glow-coral: 0 0 0 1px rgba(255,92,95,0.35), 0 8px 28px rgba(255,92,95,0.25);
@@ -135,13 +163,13 @@
      space-separated triplets so Tailwind's `<alpha-value>` modifier
      can compose opacity at the utility level (bg-iris-400/20, etc).
      The hex vars stay so non-Tailwind CSS can still use them directly. */
-  --ink-900-rgb: 8 1 26;
-  --ink-800-rgb: 14 7 36;
-  --ink-700-rgb: 26 15 58;
-  --ink-600-rgb: 39 20 71;
-  --ink-500-rgb: 69 39 116;
-  --ink-400-rgb: 81 90 173;
-  --ink-300-rgb: 108 107 191;
+  --ink-900-rgb: 14 18 33;
+  --ink-800-rgb: 24 30 54;
+  --ink-700-rgb: 32 41 74;
+  --ink-600-rgb: 44 53 88;
+  --ink-500-rgb: 60 71 112;
+  --ink-400-rgb: 74 86 136;
+  --ink-300-rgb: 108 120 168;
 
   --iris-50-rgb:  243 244 255;
   --iris-100-rgb: 228 230 255;
@@ -173,12 +201,12 @@
 
   --paper-rgb: 255 255 255;
 
-  --fog-50-rgb:  240 240 247;
-  --fog-100-rgb: 216 216 230;
-  --fog-200-rgb: 158 160 196;
-  --fog-300-rgb: 108 111 149;
-  --fog-400-rgb: 74 77 111;
-  --fog-500-rgb: 52 60 76;
+  --fog-50-rgb:  245 243 255;
+  --fog-100-rgb: 220 215 250;
+  --fog-200-rgb: 189 181 245;
+  --fog-300-rgb: 140 134 184;
+  --fog-400-rgb: 60 71 112;
+  --fog-500-rgb: 44 53 88;
 
   /* ── Motion ────────────────────────────────────────────── */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

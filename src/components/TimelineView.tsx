@@ -208,8 +208,11 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
       .filter(task => {
         if (!task.is_active) return false;
 
-        // Chores are always tied to a single date — never recurring.
+        // Chores repeat on their weekdays, or pin to a single date.
         if (task.type === 'floating') {
+          if (task.is_recurring && task.recurring_days?.length) {
+            return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(today);
+          }
           if (task.task_date) return task.task_date === today;
           if (task.created_at) {
             const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');

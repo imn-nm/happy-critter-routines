@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,11 @@ interface ChildProfileEditProps {
   child: Child;
   onUpdateChild?: (id: string, updates: Partial<Child>) => Promise<any>;
   onDeleteChild?: (id: string) => Promise<void>;
+  /** Open the editor from outside (e.g. Quick Access → Edit Schedule). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in gear trigger when another control opens the editor. */
+  showTrigger?: boolean;
 }
 
 /** The editable fields as the form holds them (strings, like the inputs). */
@@ -53,7 +58,7 @@ const formFromChild = (child: Child) => ({
   bedtime_duration: child.bedtime_duration?.toString() || "60",
 });
 
-const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileEditProps) => {
+const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenChange, showTrigger = true }: ChildProfileEditProps) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -72,6 +77,19 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
     }
     setIsOpen(open);
   };
+
+  // Controlled opening: go through openEditor so the form starts fresh.
+  useEffect(() => {
+    if (open === undefined) return;
+    if (open && !isOpen) openEditor(true);
+    if (!open && isOpen) setIsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  // Report every close (Cancel, Save, overlay, Esc) back to the owner.
+  useEffect(() => {
+    if (open !== undefined && open !== isOpen) onOpenChange?.(isOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Same order rule as setup: wake-up, meals, bedtime, all before midnight.
   const timesProblem = (() => {
@@ -172,7 +190,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
   // One row per routine anchor. School has its own manager because it
   // varies by weekday.
   const routine: { key: "wake" | "breakfast" | "lunch" | "dinner" | "bedtime"; label: string; time: keyof typeof formData; duration: keyof typeof formData }[] = [
-    { key: "wake", label: "Wake up", time: "wake_time", duration: "wake_duration" },
+    { key: "wake", label: "Wake Up", time: "wake_time", duration: "wake_duration" },
     { key: "breakfast", label: "Breakfast", time: "breakfast_time", duration: "breakfast_duration" },
     { key: "lunch", label: "Lunch", time: "lunch_time", duration: "lunch_duration" },
     { key: "dinner", label: "Dinner", time: "dinner_time", duration: "dinner_duration" },
@@ -181,32 +199,34 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
   return (
     <Dialog open={isOpen} onOpenChange={openEditor}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="icon-sm" aria-label={`Edit ${child.name}'s profile`}>
-          <Settings className="w-4 h-4" />
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="secondary" size="icon-sm" aria-label={`Edit ${child.name}'s profile`}>
+            <Settings className="w-4 h-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-20">{child.name}'s profile</DialogTitle>
+          <DialogTitle className="text-20">{child.name}'s Profile</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-sp-5 w-full min-w-0">
           {/* Pet — one companion today, so this is a row, not a picker. */}
-          <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.35)]">
-            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-[#3A2D6C] flex items-center justify-center">
+          <div className="flex items-center gap-sp-3 p-sp-3 rounded-[24px] bg-focus-surface">
+            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-sunken flex items-center justify-center">
               <PetAvatar petType={formData.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
             </div>
             <div className="min-w-0">
-              <p className="text-14 text-fog-50">{getPet(formData.petType).name}</p>
-              <p className="text-12 text-fog-300">{child.name}'s buddy. More pets are coming.</p>
+              <p className="text-14 font-semibold text-focus-text">{getPet(formData.petType).name}</p>
+              <p className="text-12 text-focus-muted">{child.name}'s buddy. More pets are coming.</p>
             </div>
           </div>
 
           {/* Name + age */}
           <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-sp-3">
             <div>
-              <Label htmlFor="name" className="text-12 text-fog-200 mb-1.5 block">Name</Label>
+              <Label htmlFor="name" className="text-12 text-focus-muted mb-1.5 block">Name</Label>
               <Input
                 id="name"
                 value={formData.name}
@@ -216,7 +236,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
               />
             </div>
             <div>
-              <Label htmlFor="age" className="text-12 text-fog-200 mb-1.5 block">Age</Label>
+              <Label htmlFor="age" className="text-12 text-focus-muted mb-1.5 block">Age</Label>
               <Input
                 id="age"
                 type="number"
@@ -232,7 +252,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
           {/* What the child's screen looks like */}
           <div className="flex flex-col gap-sp-2">
-            <h4 className="text-14 font-medium text-fog-50">What {formData.name.trim() || child.name} sees</h4>
+            <h4 className="text-14 font-semibold text-focus-text">What {formData.name.trim() || child.name} Sees</h4>
             <DisplayModePicker
               value={formData.display_mode}
               onChange={(display_mode) => setFormData({ ...formData, display_mode })}
@@ -244,12 +264,12 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           {/* Daily routine */}
           <div className="flex flex-col gap-sp-2">
             <div className="flex items-baseline justify-between">
-              <h4 className="text-14 font-medium text-fog-50">Daily routine</h4>
-              <span className="text-12 text-fog-300">start · how long</span>
+              <h4 className="text-14 font-semibold text-focus-text">Daily Routine</h4>
+              <span className="text-12 text-focus-muted">start · how long</span>
             </div>
             {routine.map(row => (
               <div key={row.key} className="grid grid-cols-[72px_minmax(0,1fr)_96px] items-center gap-sp-2">
-                <Label htmlFor={`${row.key}_time`} className="text-13 text-fog-200">{row.label}</Label>
+                <Label htmlFor={`${row.key}_time`} className="text-13 text-focus-muted">{row.label}</Label>
                 <Input
                   id={`${row.key}_time`}
                   type="time"
@@ -258,7 +278,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
                   className="min-w-0 w-full px-3"
                 />
                 <Select value={formData[row.duration]} onValueChange={(v) => setFormData({ ...formData, [row.duration]: v })}>
-                  <SelectTrigger className="h-11 rounded-pill text-13 min-w-0" aria-label={`${row.label} length`}>
+                  <SelectTrigger className="text-13 min-w-0" aria-label={`${row.label} length`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -272,7 +292,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
 
             {/* School varies by weekday, so it has its own editor. */}
             <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-sp-2 pt-sp-1">
-              <Label className="text-13 text-fog-200">School</Label>
+              <Label className="text-13 text-focus-muted">School</Label>
               <SchoolScheduleManager
                 childId={child.id}
                 currentSchedule={{
@@ -310,7 +330,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
           </div>
 
           {timesProblem && (
-            <p className="text-12 text-coral-300 -mt-sp-2" role="alert">{timesProblem}</p>
+            <p className="text-12 text-focus-coral -mt-sp-2" role="alert">{timesProblem}</p>
           )}
 
           {/* Actions */}
@@ -328,25 +348,25 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild }: ChildProfileE
             <AlertDialogTrigger asChild>
               <button
                 type="button"
-                className="tap-target self-center min-h-11 text-13 text-coral-300 hover:text-coral-400 transition-colors"
+                className="tap-target self-center min-h-11 text-13 text-focus-coral hover:text-focus-coral transition-colors"
               >
-                Remove {child.name}'s profile
+                Remove {child.name}'s Profile
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
               <AlertDialogHeader>
-                <AlertDialogTitle>Remove {child.name}'s profile?</AlertDialogTitle>
+                <AlertDialogTitle>Remove {child.name}'s Profile?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This permanently deletes {child.name}'s profile, including all tasks, progress, and rewards.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
                 <AlertDialogCancel asChild>
-                  <Button type="button" variant="secondary" size="md">Keep it</Button>
+                  <Button type="button" variant="secondary" size="md">Keep It</Button>
                 </AlertDialogCancel>
                 <AlertDialogAction asChild>
                   <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
-                    Yes, remove
+                    Yes, Remove
                   </Button>
                 </AlertDialogAction>
               </AlertDialogFooter>

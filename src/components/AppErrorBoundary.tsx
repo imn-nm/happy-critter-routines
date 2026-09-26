@@ -30,19 +30,19 @@ class AppErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     return (
       <div className="min-h-dvh flex items-center justify-center px-6">
-        <div className="w-full max-w-[420px] rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-5 text-fog-50">
-          <h1 className="text-20 font-medium mb-2">Something went wrong</h1>
-          <p className="text-14 text-fog-200 mb-4">
+        <div className="w-full max-w-[420px] rounded-[24px] bg-focus-surface p-5 text-focus-text">
+          <h1 className="text-20 font-bold mb-2">Something Went Wrong</h1>
+          <p className="text-14 text-focus-muted mb-4">
             The page hit an error and stopped. Reloading usually fixes it. If it keeps happening, send the text below.
           </p>
-          <pre className="text-12 whitespace-pre-wrap break-words rounded-2xl bg-black/30 p-3 mb-4 text-coral-300 max-h-48 overflow-auto">
+          <pre className="text-12 whitespace-pre-wrap break-words rounded-[14px] bg-focus-sunken p-3 mb-4 text-focus-coral max-h-48 overflow-auto">
             {error.name}: {error.message}
             {error.stack ? `\n\n${error.stack.split("\n").slice(1, 4).join("\n")}` : ""}
           </pre>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="w-full h-11 rounded-pill bg-iris-500 text-white text-16"
+            className="w-full h-11 rounded-[14px] bg-focus-lime text-focus-bg text-14 font-semibold"
           >
             Reload
           </button>

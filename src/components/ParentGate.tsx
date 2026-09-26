@@ -70,16 +70,15 @@ const ParentGate = () => {
 
   return (
     <div
-      className="min-h-dvh flex items-center justify-center p-sp-6"
-      style={{ background: "radial-gradient(218% 145% at -22% -13%, #515AAD 13%, #452774 41%, #271447 65%, #08011A 100%)" }}
+      className="min-h-dvh flex items-center justify-center p-sp-6 bg-focus-bg"
     >
       <form onSubmit={submit} className="w-full max-w-xs flex flex-col items-center gap-sp-4 text-center">
-        <span className="w-12 h-12 rounded-[16px] bg-iris-400/20 border border-iris-400/30 flex items-center justify-center">
-          <Lock className="w-5 h-5 text-iris-200" />
+        <span className="w-12 h-12 rounded-[16px] bg-focus-surface flex items-center justify-center">
+          <Lock className="w-5 h-5 text-focus-muted" />
         </span>
         <div>
-          <h1 className="text-20 font-semibold text-fog-50">Grown-ups only</h1>
-          <p className="mt-1 text-14 text-fog-200">
+          <h1 className="text-20 font-bold text-focus-text">Grown-Ups Only</h1>
+          <p className="mt-1 text-14 text-focus-muted">
             {unknown ? "Couldn't check the PIN. Check the connection and try again." : "Enter the parent PIN to continue."}
           </p>
         </div>
@@ -92,18 +91,18 @@ const ParentGate = () => {
           onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
           maxLength={6}
           autoFocus
-          className="text-center text-2xl font-mono tracking-[0.4em]"
+          className="text-center text-24 font-mono tracking-[0.4em]"
         />}
-        <p className="min-h-5 text-12 text-coral-300" role="alert">{error}</p>
+        <p className="min-h-5 text-12 text-focus-coral" role="alert">{error}</p>
         <Button type="submit" variant="primary" size="md" className="w-full" disabled={!unknown && (pin.length < 4 || paused || checking)}>
-          {unknown ? "Try again" : "Unlock"}
+          {unknown ? "Try Again" : "Unlock"}
         </Button>
         <button
           type="button"
           onClick={() => navigate("/")}
-          className="tap-target min-h-11 text-14 text-fog-300 hover:text-fog-50"
+          className="tap-target min-h-11 text-14 text-focus-muted hover:text-focus-text"
         >
-          Back to the kids' screen
+          Back to the Kids' Screen
         </button>
       </form>
     </div>

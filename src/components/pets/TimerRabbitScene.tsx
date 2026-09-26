@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "motion/react";
 import SpritePet from "./SpritePet";
 import type { PetOutfit } from "./pixel/accessories";
 

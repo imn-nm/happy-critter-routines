@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
-import { AnimatePresence, motion, type PanInfo } from "framer-motion";
+import { AnimatePresence, motion, type PanInfo } from "motion/react";
 import { Clock, ListChecks, type LucideIcon, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,7 @@ import {
   WormVisual,
 } from "@/components/onboarding/OnboardingVisuals";
 import { cn } from "@/lib/utils";
-import { useMotionPrefs, springs, durations } from "@/lib/motion";
+import { useMotionPrefs, springs } from "@/lib/motion";
 
 interface Bullet {
   Icon: LucideIcon;
@@ -34,31 +34,31 @@ const SLIDES: Slide[] = [
   {
     key: "welcome",
     Visual: TimeMovesVisual,
-    title: "Help them learn how time moves.",
+    title: "Help Them Learn How Time Moves.",
     body: "Biscuit follows the day in real time, helping your child see time passing and learn when to move on. There’s no play or pause—the day keeps moving.",
   },
   {
     key: "task-types",
     Visual: TaskKindsVisual,
-    title: "Three kinds of tasks",
+    title: "Three Kinds of Tasks",
     body: "Must finish, fun time and repeating days are set separately, on any of them.",
     bullets: [
       {
         Icon: Clock,
-        tint: "text-iris-200 bg-iris-400/20 border-iris-400/30",
-        term: "Fixed time",
+        tint: "text-focus-iris bg-focus-iris/20 border-focus-iris/30",
+        term: "Fixed Time",
         text: "Starts at a specific time, like school or soccer practice.",
       },
       {
         Icon: Puzzle,
-        tint: "text-lilac-300 bg-lilac-400/20 border-lilac-400/30",
+        tint: "text-focus-lavender bg-focus-lavender/20 border-focus-lavender/30",
         term: "Flexible",
         text: "Fits between the fixed activities, or right after one, like reading after bath. No clock time needed.",
       },
       {
         Icon: ListChecks,
-        tint: "text-mint-300 bg-mint-500/20 border-mint-500/30",
-        term: "Anytime chore",
+        tint: "text-focus-mint bg-focus-mint/20 border-focus-mint/30",
+        term: "Anytime Chore",
         text: "A separate to-do that doesn’t take up schedule time, like feeding the dog.",
       },
     ],
@@ -66,31 +66,31 @@ const SLIDES: Slide[] = [
   {
     key: "worm",
     Visual: WormVisual,
-    title: "The worm eats into fun time",
+    title: "The Worm Eats Into Fun Time",
     body: "You choose which activities are nice to have, like TV or gaming. When a must-finish task runs late, the worm eats into that fun time.\n\nThis helps children see that there’s only so much time in a day—spending longer on one thing leaves less time for another.",
   },
   {
     key: "wheel",
     Visual: WheelVisual,
-    title: "Ideas for free time",
+    title: "Ideas for Free Time",
     body: "You fill the activity wheel with ideas like drawing, Lego, or playing outside. When your child has free time, they can spin the wheel to pick something to do—helping them make choices on their own.",
   },
   {
     key: "stars",
     Visual: RewardsVisual,
-    title: "Stars and rewards",
+    title: "Stars and Rewards",
     body: "Set up the rewards shop together with your child. Give them stars to recognize their effort, and when they’ve saved enough, they can purchase a reward with your approval.",
   },
   {
     key: "calendar",
     Visual: CalendarVisual,
-    title: "Make room for special days",
+    title: "Make Room for Special Days",
     body: "Add birthdays, holidays, and notes to the calendar. Mark a day as a no-school day, and school automatically comes off your child’s schedule. Connect your Google Calendar to keep these events handy on your phone, too.",
   },
   {
     key: "child-device",
     Visual: OwnScreenVisual,
-    title: "Their day, on their own screen",
+    title: "Their Day, on Their Own Screen",
     body: "Open your child’s view on a phone or tablet so they can see what’s happening now and what’s next. With Biscuit beside them, they can practice following their routine on their own.",
   },
 ];
@@ -105,7 +105,15 @@ interface OnboardingSlidesProps {
   onFinish?: () => void;
 }
 
-const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish }: OnboardingSlidesProps) => {
+/** Direction-aware page turn: +1 comes in from the right, -1 from the left. */
+const SLIDE_OFFSET = 40;
+const slideVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir * SLIDE_OFFSET }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -SLIDE_OFFSET }),
+};
+
+const OnboardingSlides = ({ open, onDone, finishLabel = "Get Started", onFinish }: OnboardingSlidesProps) => {
   const { t, reduce } = useMotionPrefs();
   const [index, setIndex] = useState(0);
   // +1 when moving forward, -1 back — drives which way slides fly.
@@ -140,7 +148,10 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
 
   // Reset to the first slide whenever it reopens.
   useEffect(() => {
-    if (open) setIndex(0);
+    if (open) {
+      setIndex(0);
+      setDirection(1);
+    }
   }, [open]);
 
   if (!open) return null;
@@ -160,18 +171,14 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
       role="dialog"
       aria-modal="true"
       aria-label="Welcome to PetPals"
-      className="fixed inset-0 z-[80] flex flex-col"
-      style={{
-        background:
-          "radial-gradient(218% 145% at -22% -13%, #515AAD 13%, #452774 41%, #271447 65%, #08011A 100%)",
-      }}
+      className="fixed inset-0 z-[80] flex flex-col bg-focus-bg font-sans"
     >
       {/* Skip — always reachable, top-right. */}
       <div className="flex justify-end p-sp-4 shrink-0">
         <button
           type="button"
           onClick={onDone}
-          className="tap-target px-3 h-9 rounded-pill text-13 text-fog-300 hover:text-fog-50 hover:bg-white/[0.06] transition-colors"
+          className="h-11 px-5 rounded-[14px] bg-focus-surface text-14 font-semibold text-focus-muted transition-colors hover:bg-focus-raised hover:text-focus-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
         >
           Skip
         </button>
@@ -190,9 +197,10 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.18}
             onDragEnd={handleDragEnd}
-            initial={{ opacity: 0, x: direction * 48 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction * -48 }}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
             // Snappy, not gentle: mode="wait" holds the outgoing slide until
             // its exit finishes, so a slow spring makes paging feel stuck.
             transition={t(springs.snappy)}
@@ -204,26 +212,26 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
             </div>
 
             <div className="flex flex-col items-center gap-sp-3 w-full">
-              <h2 className="text-24 text-fog-50 leading-tight tracking-[-0.02em]">{slide.title}</h2>
+              <h2 className="text-24 font-semibold text-focus-text leading-tight tracking-[-0.01em]">{slide.title}</h2>
               {slide.body && (
-                <p className="text-14 text-fog-200 leading-relaxed max-w-[19rem] whitespace-pre-line">{slide.body}</p>
+                <p className="text-[15px] text-focus-muted leading-relaxed max-w-[20rem] whitespace-pre-line">{slide.body}</p>
               )}
 
               {slide.bullets && (
                 <ul className="w-full flex flex-col gap-sp-3 mt-sp-1">
                   {slide.bullets.map(({ Icon, tint, term, text }) => (
-                    <li key={term} className="flex items-start gap-sp-3 text-left">
+                    <li key={term} className="flex items-start gap-sp-3 rounded-[18px] bg-focus-surface p-sp-3 text-left">
                       <span
                         className={cn(
-                          "shrink-0 w-9 h-9 rounded-[12px] border flex items-center justify-center",
+                          "shrink-0 w-10 h-10 rounded-[12px] border flex items-center justify-center",
                           tint,
                         )}
                       >
                         <Icon className="w-4 h-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-14 font-medium text-fog-50">{term}</span>
-                        <span className="block text-12 text-fog-200 leading-snug">{text}</span>
+                        <span className="block text-14 font-semibold text-focus-text">{term}</span>
+                        <span className="mt-0.5 block text-13 text-focus-muted leading-snug">{text}</span>
                       </span>
                     </li>
                   ))}
@@ -245,23 +253,31 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
               aria-selected={i === index}
               aria-label={`Slide ${i + 1}: ${s.title}`}
               onClick={() => go(i)}
-              className="tap-target h-8 px-0.5 flex items-center"
+              className="tap-target h-11 px-0.5 flex items-center"
             >
-              <motion.span
+              {/* The raised dot always sits underneath; the lavender pill
+                  glides between dots via its shared layoutId. */}
+              <span
                 className={cn(
-                  "block h-2 rounded-pill transition-colors",
-                  i === index ? "bg-fog-50" : "bg-fog-50/25 hover:bg-fog-50/45",
+                  "relative block h-2 rounded-pill bg-focus-raised transition-colors",
+                  i === index ? "w-[22px]" : "w-2 hover:bg-focus-muted/50",
                 )}
-                animate={{ width: i === index ? 22 : 8 }}
-                transition={t({ duration: durations.base })}
-              />
+              >
+                {i === index && (
+                  <motion.span
+                    layoutId="onboarding-active-dot"
+                    className="absolute inset-0 rounded-pill bg-focus-lavender"
+                    transition={t(springs.snappy)}
+                  />
+                )}
+              </span>
             </button>
           ))}
         </div>
 
         <div className="flex items-center gap-sp-3">
           {index > 0 && (
-            <Button variant="secondary" size="md" onClick={() => go(index - 1)} className="flex-1">
+            <Button variant="secondary" size="md" onClick={() => go(index - 1)} className="h-12 flex-1">
               Back
             </Button>
           )}
@@ -269,7 +285,7 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get started", onFinish 
             variant="primary"
             size="md"
             onClick={() => (isLast ? finish() : go(index + 1))}
-            className="flex-1"
+            className="h-12 flex-1"
           >
             {isLast ? finishLabel : "Next"}
           </Button>

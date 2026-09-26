@@ -29,19 +29,19 @@ const DisplayModePicker = ({ value, onChange, age, childName }: {
             onClick={() => onChange(mode)}
             className={cn(
               "text-left rounded-[20px] border p-sp-3 flex flex-col gap-1.5 transition-colors",
-              on ? "border-iris-400/70 bg-iris-400/15" : "border-white/10 hover:border-iris-400/40 bg-white/[0.03]",
+              on ? "border-focus-lavender bg-focus-lavender/15" : "border-transparent hover:border-focus-raised bg-focus-surface",
             )}
           >
             <span className="flex items-center gap-2">
-              <Icon className={cn("w-4 h-4 shrink-0", on ? "text-iris-200" : "text-fog-300")} aria-hidden />
-              <span className="text-14 font-medium text-fog-50">{label}</span>
+              <Icon className={cn("w-4 h-4 shrink-0", on ? "text-focus-lavender" : "text-focus-muted")} aria-hidden />
+              <span className="text-14 font-semibold text-focus-text">{label}</span>
               {mode === suggested && age != null && (
-                <span className="ml-auto shrink-0 px-2 h-5 rounded-pill bg-mint-500/20 text-mint-300 text-[10px] font-semibold flex items-center">
+                <span className="ml-auto shrink-0 px-2 h-6 rounded-pill bg-focus-mint/20 text-focus-mint text-12 font-semibold flex items-center">
                   Age {age}
                 </span>
               )}
             </span>
-            <span className="text-12 text-fog-300 leading-snug">{caption}</span>
+            <span className="text-12 text-focus-muted leading-snug">{caption}</span>
           </button>
         );
       })}

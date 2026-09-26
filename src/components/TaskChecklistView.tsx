@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, ChevronDown, List } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   useMotionPrefs,
@@ -49,7 +49,7 @@ const TaskChecklistView = ({
             {picture ? (
               <span className="sr-only">{current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}</span>
             ) : (
-              <span className="text-13 text-iris-300">
+              <span className="text-13 text-focus-muted">
                 {current ? `Step ${currentIndex + 1} of ${subtasks.length}` : "All steps done!"}
               </span>
             )}
@@ -61,7 +61,7 @@ const TaskChecklistView = ({
                   className={cn(
                     "rounded-full",
                     picture ? "w-3.5 h-3.5" : "w-2 h-2",
-                    checkedIds.includes(s.id) ? "bg-mint-500" : "bg-white/20",
+                    checkedIds.includes(s.id) ? "bg-focus-lavender" : "bg-focus-raised",
                   )}
                 />
               ))}
@@ -74,24 +74,24 @@ const TaskChecklistView = ({
                 type="button"
                 onClick={() => onToggle(current.id)}
                 aria-label={`${current.text}. Tap when it's done.`}
-                className="tap-target w-full flex items-center gap-sp-3 rounded-[24px] px-sp-4 py-sp-4 text-left border bg-white/[0.06] border-white/15 hover:bg-white/[0.1] text-fog-50"
+                className="tap-target w-full flex items-center gap-sp-3 rounded-[24px] px-sp-4 py-sp-4 text-left bg-focus-raised hover:bg-focus-raised/80 text-focus-text"
                 initial={reduce ? { opacity: 0 } : { opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={reduce ? { opacity: 0 } : { opacity: 0, x: -24 }}
                 transition={t(springs.gentle)}
               >
-                <span className="shrink-0 w-11 h-11 rounded-full border-2 border-iris-400/60 text-iris-200 inline-flex items-center justify-center text-16 font-semibold">
+                <span className="shrink-0 w-11 h-11 rounded-full border-2 border-focus-lavender/60 text-focus-lavender inline-flex items-center justify-center text-16 font-semibold">
                   {currentIndex + 1}
                 </span>
                 <span className="text-20 flex-1 leading-snug">{current.text}</span>
-                <span className="shrink-0 w-11 h-11 rounded-full bg-mint-500 text-ink-900 inline-flex items-center justify-center" aria-hidden>
+                <span className="shrink-0 w-11 h-11 rounded-full bg-focus-lavender text-focus-sheet inline-flex items-center justify-center" aria-hidden>
                   <Check className="w-6 h-6" strokeWidth={3} />
                 </span>
               </motion.button>
             ) : (
               <motion.div
                 key="all-done"
-                className="w-full flex items-center justify-center gap-sp-2 rounded-[24px] px-sp-4 py-sp-4 bg-mint-500/15 border border-mint-500/40 text-mint-300 text-16 font-medium"
+                className="w-full flex items-center justify-center gap-sp-2 rounded-[24px] px-sp-4 py-sp-4 bg-focus-lavender/15 border border-focus-lavender/40 text-focus-lavender text-16 font-medium"
                 initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={t(springs.bouncy)}
@@ -125,14 +125,14 @@ const TaskChecklistView = ({
                   className={cn(
                     "tap-target w-full flex items-center gap-sp-3 rounded-[20px] px-sp-3 py-sp-3 text-left transition-all border",
                     isChecked
-                      ? "bg-mint-500/10 border-mint-500/40 text-fog-200"
-                      : "bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-fog-50",
+                      ? "bg-focus-lavender/15 border-focus-lavender/40 text-focus-muted"
+                      : "bg-focus-raised border-transparent hover:bg-focus-raised/80 text-focus-text",
                   )}
                 >
                   <span
                     className={cn(
                       "shrink-0 w-9 h-9 rounded-full border-2 inline-flex items-center justify-center text-14 font-semibold",
-                      isChecked ? "bg-mint-500 border-mint-500 text-ink-900" : "border-iris-400/50 text-iris-300",
+                      isChecked ? "bg-focus-lavender border-focus-lavender text-focus-sheet" : "border-focus-lavender/50 text-focus-lavender",
                     )}
                   >
                     {isChecked ? <Check className="w-5 h-5" strokeWidth={3} /> : idx + 1}
@@ -151,10 +151,10 @@ const TaskChecklistView = ({
         type="button"
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
-        aria-label={picture ? (expanded ? "Show one step at a time" : "See all steps") : undefined}
+        aria-label={picture ? (expanded ? "Show One Step at a Time" : "See All Steps") : undefined}
         className={cn(
-          "self-center flex items-center gap-1.5 min-h-11 px-4 text-13 text-fog-300 hover:text-fog-50",
-          picture && "w-12 h-12 justify-center rounded-full bg-white/[0.06] px-0",
+          "self-center flex items-center gap-1.5 min-h-11 px-4 text-13 text-focus-muted hover:text-focus-text",
+          picture && "w-12 h-12 justify-center rounded-full bg-focus-raised px-0",
         )}
       >
         {picture ? (
@@ -162,7 +162,7 @@ const TaskChecklistView = ({
         ) : (
           <>
             <ChevronDown className={cn("w-4 h-4 transition-transform", expanded && "rotate-180")} aria-hidden />
-            {expanded ? "Show one step at a time" : `See all steps (${doneCount}/${subtasks.length})`}
+            {expanded ? "Show One Step at a Time" : `See All Steps (${doneCount}/${subtasks.length})`}
           </>
         )}
       </button>

@@ -1,9 +1,9 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isToday, parse, addMinutes, isBefore, isAfter, isPast } from 'date-fns';
-import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, AlertTriangle, Trash2, Star, ListChecks, Gamepad2, RotateCcw } from 'lucide-react';
+import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, CheckCircle2, AlertCircle, AlertTriangle, Trash2, Star, ListChecks, Gamepad2, RotateCcw, Check } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
@@ -34,6 +34,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
+import { motion } from "motion/react";
+import { springs } from "@/lib/motion";
 
 interface TimelineScheduleViewProps {
   child: Child;
@@ -45,6 +47,12 @@ interface TimelineScheduleViewProps {
   onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
   onDateChange?: (date: Date) => void;
+  /**
+   * Accepted for callers that pass it (ChildDashboard). Mark done / undo on
+   * the rows goes through this view's own useCompletions toggle, which also
+   * takes back given stars, so this prop is not used.
+   */
+  onToggleCompletion?: (taskId: string) => void;
   /**
    * When true, the date navigation row, holiday banner and week strip are
    * skipped. Use this when the parent renders its own `<TimelineHeader>`
@@ -99,18 +107,18 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
   const inWin = inWindow || isOver;
 
   return (
-    <div ref={setNodeRef} className="flex h-7">
-      {/* Time label */}
-      <div className="w-16 flex-shrink-0 flex items-center justify-end pr-2">
+    <div ref={setNodeRef} className="flex gap-[10px] h-7">
+      {/* Time label — same 50px column as the row start times */}
+      <div className="w-[50px] flex-shrink-0 flex items-center justify-end">
         <span className={cn(
-          "text-[10px] tabular-nums transition-all duration-100",
+          "text-[12px] leading-4 tabular-nums transition-all duration-100",
           highlighted
-            ? "text-primary font-bold text-xs"
+            ? "text-focus-lavender font-semibold"
             : inWin
-              ? "text-primary/70 font-medium"
+              ? "text-focus-lavender/80 font-medium"
               : isHour
-                ? "text-muted-foreground/60 font-medium"
-                : "text-muted-foreground/30"
+                ? "text-focus-muted font-medium"
+                : "text-focus-muted/50"
         )}>
           {label}
         </span>
@@ -119,42 +127,83 @@ const DroppableTickSlot = ({ tickTime, label, isHour, isHovered, inWindow, isSta
       <div className={cn(
         "flex-1 border-b flex items-center px-3 transition-all duration-100",
         highlighted
-          ? "bg-primary/15 border-primary/30"
+          ? "bg-focus-lavender/20 border-focus-lavender/40"
           : inWin
-            ? "bg-primary/8 border-primary/15"
+            ? "bg-focus-lavender/10 border-focus-lavender/20"
             : isHour
-              ? "border-muted-foreground/15"
-              : "border-muted-foreground/6",
-        isStart && "border-t-2 border-t-primary",
-        isEnd && "border-b-2 border-b-primary"
+              ? "border-focus-muted/20"
+              : "border-focus-muted/[0.08]",
+        isStart && "border-t-2 border-t-focus-lavender",
+        isEnd && "border-b-2 border-b-focus-lavender"
       )}>
         {highlighted && (
-          <span className="text-[10px] text-primary font-semibold">← drop here</span>
+          <span className="text-[12px] leading-4 text-focus-lavender font-semibold">← Drop Here</span>
         )}
       </div>
     </div>
   );
 };
 
-/** Horizontal marker for the current time, sitting between timeline rows. */
+/**
+ * Current-time marker: a pink pill with the clock time and a 2px pink rule.
+ * Between rows the pill leads. Across a running card (overCard) the dot and
+ * line come first and the time sits at the far end, so it never covers the
+ * card's own start time.
+ */
 const NowLine = ({ label, overCard = false }: { label: string; overCard?: boolean }) =>
   overCard ? (
-    // Across a running card: dot and line first, the time at the far end so
-    // it never covers the card's own start time.
     <div className="flex items-center pointer-events-none" aria-label={`Now, ${label}`}>
-      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
-      <span className="flex-1 h-[2px] bg-rose-400/80" />
-      <span className="text-xs font-semibold text-rose-400 tabular-nums px-1.5 py-0.5 rounded-pill bg-ink-900/90 border border-rose-400/40">{label}</span>
+      <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-focus-pink" />
+      <span className="flex-1 h-[2px] bg-focus-pink" />
+      <span className="shrink-0 px-2 py-0.5 rounded-pill bg-focus-pink text-focus-bg text-[12px] leading-4 font-semibold tabular-nums whitespace-nowrap">
+        {label}
+      </span>
     </div>
   ) : (
     <div className="flex items-center gap-2 pointer-events-none" aria-label={`Now, ${label}`}>
-      <div className="text-xs font-semibold text-rose-400 w-16 text-right flex-shrink-0 tabular-nums">{label}</div>
-      <div className="flex-1 flex items-center">
-        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
-        <span className="flex-1 h-[2px] bg-rose-400/80" />
-      </div>
+      <span className="shrink-0 px-2 py-0.5 rounded-pill bg-focus-pink text-focus-bg text-[12px] leading-4 font-semibold tabular-nums whitespace-nowrap">
+        {label}
+      </span>
+      <span className="flex-1 h-[2px] bg-focus-pink" />
     </div>
   );
+
+/** Minute-of-day → "7:00" + "am"/"pm". */
+const splitClock = (minutesOfDay: number) => {
+  const m = ((minutesOfDay % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return { clock: `${dh}:${mm.toString().padStart(2, '0')}`, ampm: h >= 12 ? 'pm' : 'am' };
+};
+
+const toMinutes = (timeStr: string) => {
+  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+};
+
+/** "10:35 am" — Figma writes clock times with a space. */
+const formatTimeSpaced = (timeStr: string) => {
+  const { clock, ampm } = splitClock(toMinutes(timeStr));
+  return `${clock} ${ampm}`;
+};
+
+/**
+ * "7:00 – 7:15" (task meta) or, with `withSuffix`, "3:00 – 7:00 pm"
+ * (free-time gaps). When a suffixed range crosses noon/midnight both ends
+ * get their am/pm so it never reads ambiguously.
+ */
+const formatRange = (timeStr: string, duration: number, withSuffix = false) => {
+  const start = toMinutes(timeStr);
+  const a = splitClock(start);
+  const b = splitClock(start + duration);
+  if (withSuffix) {
+    return a.ampm === b.ampm
+      ? `${a.clock} – ${b.clock} ${b.ampm}`
+      : `${a.clock} ${a.ampm} – ${b.clock} ${b.ampm}`;
+  }
+  return `${a.clock} – ${b.clock}`;
+};
 
 const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -271,7 +320,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
 
     const Icon = config.icon;
     return (
-      <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium", config.bg, config.color)}>
+      <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium", config.bg, config.color)}>
         <Icon className="w-3 h-3" />
         <span>{config.label}</span>
       </div>
@@ -284,12 +333,12 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
       style={style} 
       className={cn(
         "group transition-all duration-200 ease-out",
-        isDragging && "shadow-2xl ring-2 ring-primary/50"
+        isDragging && "shadow-2xl ring-2 ring-focus-lavender/60 rounded-[18px]"
       )}
     >
       {/* Gap (Free Time) */}
       {isGap ? (
-        <div className="py-1">
+        <div>
           {isDraggingAny ? (() => {
             // Show 15-min grid lines only during drag
             const [gapH, gapM] = event.time.split(':').map(Number);
@@ -309,7 +358,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             const hlEnd = hlStart + highlightDuration;
 
             return (
-              <div className="animate-in fade-in duration-200 rounded-lg border border-dashed border-muted-foreground/10 overflow-hidden">
+              <motion.div className="rounded-[12px] border border-dashed border-focus-lavender/30 overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
                 {ticks.map((tick, tickIdx) => {
                   // The resolved landing time can sit off the 15-min tick grid
                   // (edge snap / 5-min grid), so mark the first and last tick
@@ -332,41 +381,41 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                     />
                   );
                 })}
-              </div>
+              </motion.div>
             );
           })() : (
-            /* Default compact view when not dragging — tappable to add task */
-            <div
-              className="flex items-center gap-2 py-1 group/gap cursor-pointer"
-              onClick={() => onAddTask?.(event.time)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAddTask?.(event.time); } }}
-            >
-              <div className="text-xs text-muted-foreground/40 w-16 text-right flex flex-col flex-shrink-0">
-                <span>{formatTime(event.time)}</span>
-                <span className="text-[10px]">{calculateEndTime(event.time, event.duration)}</span>
-              </div>
-              <div className="flex-1 bg-muted/20 rounded-xl p-2.5 sm:p-3 border border-dashed border-muted-foreground/15 transition-all duration-150 group-hover/gap:border-primary/40 group-hover/gap:bg-primary/5 group-active/gap:scale-[0.98] active:bg-primary/10 min-h-[44px] flex items-center">
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-xs text-muted-foreground/50 font-medium group-hover/gap:text-primary/70 transition-colors">Free Time</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground/40">{formatDuration(event.duration)}</span>
-                    <span className="text-xs text-primary/0 group-hover/gap:text-primary/60 transition-all duration-150">
-                      <Plus className="w-4 h-4" />
-                    </span>
-                  </div>
+            /* Default compact view when not dragging (Figma "Focus / Free
+               Time Gap") — the whole dashed box is the tap target and adds a
+               task starting at the gap's start time. */
+            <div className="flex items-stretch gap-[10px]">
+              <div className="w-[50px] shrink-0" aria-hidden />
+              <div
+                className="flex-1 min-w-0 min-h-[48px] flex items-center gap-2 pl-3 pr-2 py-2 rounded-[12px] border border-dashed border-focus-lavender/45 cursor-pointer transition-colors hover:bg-focus-lavender/[0.06] active:bg-focus-lavender/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                onClick={() => onAddTask?.(event.time)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Add a task at ${formatTimeSpaced(event.time)}`}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAddTask?.(event.time); } }}
+              >
+                <div className="flex-1 min-w-0 flex flex-col gap-px text-[12px] leading-4 text-focus-muted">
+                  <span className="font-medium">Free Time</span>
+                  <span className="truncate">
+                    {formatDuration(event.duration)} · {formatRange(event.time, event.duration, true)}
+                  </span>
                 </div>
+                <span className="shrink-0 px-2 py-[3px] rounded-pill bg-focus-bg text-focus-lime text-[12px] leading-4 font-semibold whitespace-nowrap">
+                  + Add
+                </span>
               </div>
             </div>
           )}
         </div>
       ) : (
-        /* Regular Task — Figma ScheduleRow variants:
-           Default = iris @ 4% bg
-           Current = iris @ 20% bg
-           Done    = mint @ 40% stroke + dimmed text + amber/mint badge
-           Overdue = coral @ 22% stroke + coral badge */
+        /* Regular Task — Figma "Focus / Schedule Row" (383:1687):
+           Done     = no fill, 1px focus-surface outline, muted text, mint check
+           Current  = focus-surface fill, 1.5px pink outline, "Now" chip
+           Upcoming = focus-surface fill
+           Overdue (important only, no Figma variant) = surface + coral outline */
         (() => {
           const [hourPart, ampmPart] = (() => {
             const [hh, mm] = event.time.split(':').map(Number);
@@ -377,85 +426,77 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
 
           const isOverdueImportant = event.status === 'overdue' && event.task?.is_important;
           const isDoneLate = event.isCompleted && event.status === 'late';
+          const showNowChip = isCurrent && !event.isCompleted;
 
-          // Pick the row tint/stroke per Figma ScheduleRow variant (107:92):
-          //   Default → bg iris-400 @ 20%, no stroke
-          //   Current → bg iris-400 @ 20% + lilac-400 1px stroke
-          //   Done    → no bg + mint-500 @ 40% 1px stroke (dimmed text)
-          //   Overdue → no bg + coral-400 @ 22% 1px stroke
-          const rowTone = event.isCompleted
-            ? "border border-mint-500/40 bg-transparent hover:bg-mint-500/[0.04]"
+          const cardTone = event.isCompleted
+            ? "border border-focus-surface bg-transparent hover:bg-focus-surface/40"
             : isOverdueImportant
-              ? "border border-coral-400/[0.22] bg-transparent hover:bg-coral-500/[0.05]"
+              ? "border border-focus-coral/50 bg-focus-surface hover:bg-focus-raised/70"
               : isCurrent
-                ? "bg-iris-400/20 border border-lilac-400 hover:bg-iris-400/[0.24]"
-                : "bg-iris-400/20 hover:bg-iris-400/[0.24]";
+                ? "border-[1.5px] border-focus-pink bg-focus-surface hover:bg-focus-raised/70"
+                : "border border-transparent bg-focus-surface hover:bg-focus-raised/70";
 
-          // Split status (a small read-only pill rendered next to the task
-          // title) from the primary action (a taller filled button at the
-          // row's action edge). The two used to share a single slot.
-          const markDoneBtnClass =
-            "self-stretch px-3 inline-flex items-center rounded-[20px] " +
-            "bg-iris-400/20 border border-iris-400 text-13 font-semibold " +
-            "text-fog-50 hover:bg-iris-400/30 transition-colors";
+          // Meta line: "7:00 – 7:15 · 15 min" (+ stars). Bedtime has no
+          // length, so it reads "Lights Out" as in the Figma.
+          const metaParts: string[] = [];
+          if (event.name === 'Bedtime') {
+            metaParts.push('Lights Out');
+          } else {
+            metaParts.push(formatRange(event.time, event.duration));
+            metaParts.push(formatDuration(event.duration));
+          }
+          if (event.starsGiven) metaParts.push(`★ ${event.starsGiven} given`);
+          else if (event.coins != null && event.coins > 0) metaParts.push(`${event.coins} star${event.coins === 1 ? '' : 's'}`);
+          if (isDoneLate) metaParts.push('Done Late');
 
-          const statusPill = (() => {
-            if (event.isCompleted) {
-              const stroke = isDoneLate ? "border-amber-500" : "border-mint-500";
-              const statusLabel = event.starsGiven ? `★ ${event.starsGiven} given` : "Done";
-              return (
-                <span
-                  className={cn(
-                    "shrink-0 h-7 px-3 inline-flex items-center rounded-pill border font-medium text-fog-50",
-                    stroke,
-                  )}
-                  style={{ fontSize: 12, lineHeight: 1 }}
-                >
-                  {statusLabel}
-                </span>
-              );
-            }
-            if (isOverdueImportant) {
-              return (
-                <span
-                  className="shrink-0 h-7 px-3 inline-flex items-center rounded-pill border border-coral-500 font-medium text-fog-50"
-                  style={{ fontSize: 12, lineHeight: 1 }}
-                >
-                  Overdue
-                </span>
-              );
-            }
-            return null;
-          })();
+          const chipClass = "shrink-0 px-2 py-[3px] rounded-pill text-[12px] leading-4 font-semibold whitespace-nowrap";
+          const rowActionClass =
+            "tap-target shrink-0 h-8 px-3 inline-flex items-center rounded-pill bg-focus-raised " +
+            "text-[12px] leading-4 font-semibold text-focus-text hover:bg-focus-raised/80 transition-colors";
+
+          const statusChip = showNowChip ? (
+            <span className={cn(chipClass, "bg-focus-pink/20 text-focus-pink")}>Now</span>
+          ) : isOverdueImportant && !event.isCompleted ? (
+            <span className={cn(chipClass, "bg-focus-coral/20 text-focus-coral")}>Overdue</span>
+          ) : null;
 
           const actionButton = (() => {
             if (event.isCompleted) {
-              if (!onToggleCompletion) return null;
               // Children never earn stars on their own — the parent gives a
               // task's stars here once it's done.
               const stars = event.coins ?? 0;
-              const canGive = !!onGiveStars && stars > 0 && !event.starsGiven;
+              const canGive = !!onToggleCompletion && !!onGiveStars && stars > 0 && !event.starsGiven;
+              const checkTone = isDoneLate
+                ? "bg-focus-amber/25 text-focus-amber"
+                : "bg-focus-mint/25 text-focus-mint";
               return (
                 <>
                 {canGive && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onGiveStars!(event.task!.id, stars); }}
-                    className={cn("shrink-0", markDoneBtnClass)}
+                    className={rowActionClass}
                     aria-label={`Give ${stars} star${stars === 1 ? '' : 's'}`}
                   >
                     Give ★{stars}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
-                  className="tap-target shrink-0 self-stretch w-9 inline-flex items-center justify-center rounded-[20px] border border-iris-400/30 text-iris-300 hover:bg-iris-400/[0.08] hover:text-iris-200 transition-colors"
-                  aria-label="Undo task completion"
-                  title="Undo"
-                >
-                  <RotateCcw className="w-4 h-4" strokeWidth={2} />
-                </button>
+                {/* Done check (mint circle). Tapping it undoes the completion. */}
+                {onToggleCompletion ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
+                    className={cn("tap-target shrink-0 size-6 rounded-full inline-flex items-center justify-center transition-opacity hover:opacity-80", checkTone)}
+                    aria-label="Undo task completion"
+                    title="Undo"
+                  >
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                  </button>
+                ) : (
+                  <span className={cn("shrink-0 size-6 rounded-full inline-flex items-center justify-center", checkTone)} aria-label="Done">
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                  </span>
+                )}
                 </>
               );
             }
@@ -473,9 +514,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onToggleCompletion(event.task!.id); }}
-                  className={cn("shrink-0", markDoneBtnClass)}
+                  className={rowActionClass}
                 >
-                  Mark done
+                  Mark Done
                 </button>
               );
             }
@@ -483,7 +524,18 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           })();
 
           return (
-            <div className={cn("flex items-stretch gap-0", isCurrent && "animate-in fade-in slide-in-from-left-2")}>
+            <motion.div className="flex items-center gap-[10px]" initial={isCurrent ? { opacity: 0, x: -8 } : false} animate={{ opacity: 1, x: 0 }} transition={springs.gentle}>
+              {/* Start time — 50px column outside the card */}
+              <div className="w-[50px] shrink-0 flex flex-col items-end whitespace-nowrap">
+                <span className={cn(
+                  "text-[15px] leading-5 font-semibold tabular-nums",
+                  event.isCompleted ? "text-focus-muted" : "text-focus-text"
+                )}>
+                  {hourPart}
+                </span>
+                <span className="text-[12px] leading-4 text-focus-muted">{ampmPart}</span>
+              </div>
+
               <div
                 onClick={() => {
                   if (isDragging) return;
@@ -509,57 +561,31 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                   }
                 }}
                 className={cn(
-                  "flex-1 min-w-0 flex items-center gap-3 px-4 py-3 rounded-[28px] cursor-pointer transition-colors",
-                  rowTone,
+                  "flex-1 min-w-0 min-h-[44px] flex items-center gap-[10px] px-[14px] py-3 rounded-[18px] cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+                  cardTone,
                   isDragging && "cursor-grabbing"
                 )}
               >
-                {/* Time column */}
-                <div className={cn(
-                  "shrink-0 flex flex-col items-end leading-none gap-1",
-                  event.isCompleted ? "text-fog-200" : "text-fog-50"
-                )}>
-                  <span className="text-16">{hourPart}</span>
-                  <span className="text-14">{ampmPart}</span>
-                </div>
-
-                {/* Vertical divider */}
-                <div className="shrink-0 w-px h-9 bg-white/30" />
-
-                {/* Info */}
-                {/* Title owns the first line. The status pill used to sit
-                    beside it, which — next to a Mark done button — squeezed
-                    the name down to a few characters, so it rides with the
-                    duration instead. */}
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  {/* Wraps rather than truncates — a long name next to a
-                      Mark done button lost most of its characters. Capped at
-                      two lines so one long title can't stretch the row. */}
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  {/* Wraps rather than truncates, capped at two lines so one
+                      long title can't stretch the row. */}
                   <span className={cn(
-                    "text-16 line-clamp-2 break-words",
-                    event.isCompleted ? "text-fog-200" : "text-fog-50"
+                    "text-[15px] leading-5 font-semibold line-clamp-2 break-words",
+                    event.isCompleted ? "text-focus-muted" : "text-focus-text"
                   )}>
                     {event.name}
                   </span>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={cn(
-                      "text-14 truncate",
-                      event.isCompleted ? "text-fog-300" : "text-[#9EBEFF]"
-                    )}>
-                      {event.name !== 'Bedtime' && formatDuration(event.duration)}
-                      {event.coins != null && event.coins > 0 && (
-                        <> · {event.coins} stars</>
-                      )}
-                    </span>
-                    {statusPill}
-                  </div>
+                  <span className="text-[12px] leading-4 text-focus-muted truncate">
+                    {metaParts.join(' · ')}
+                  </span>
                 </div>
 
-                {/* Primary action — Mark done / Undo */}
+                {statusChip}
+
+                {/* Action edge — Give ★ / done check (undo) / Mark Done */}
                 {actionButton}
 
-                {/* Drag handle — always rightmost so the badge/button anchors
-                    the action edge and the grip lives at the row's edge. */}
+                {/* Drag handle — always rightmost. */}
                 {isDraggable && !event.isCompleted && (
                   <div
                     {...dragBindings}
@@ -571,13 +597,13 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                       WebkitUserSelect: 'none',
                       userSelect: 'none',
                     }}
-                    className="tap-target shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-fog-300 hover:text-fog-50"
+                    className="tap-target shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-focus-muted hover:text-focus-text"
                   >
                     <GripVertical className="w-4 h-4" />
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           );
         })()
       )}
@@ -742,8 +768,11 @@ const TimelineScheduleView = ({
     
     return tasksWithCompletion.filter(task => {
 
-      // Chores (floating) are always tied to a single date — never recurring.
+      // Chores (floating) repeat on their weekdays, or pin to a single date.
       if (task.type === 'floating') {
+        if (task.is_recurring && task.recurring_days?.length) {
+          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString);
+        }
         if (task.task_date) return task.task_date === dateString;
         if (task.created_at) {
           const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
@@ -1160,11 +1189,11 @@ const TimelineScheduleView = ({
     return lastBottom;
   };
 
-  // Where the current-time line sits (today only). Inside a row that's
+  // Where the current-time marker sits (today only). Inside a row that's
   // running now (8:58 during an 8:00–3:00 School) it's drawn across that
-  // card, part way down; otherwise above the first row that starts later,
-  // or after the last row (-1). Drawing it only between rows put 8:58 after
-  // School, as if school were over.
+  // card, part way down; otherwise right after the row that most recently
+  // started, or before the first row (-1). Drawing it only between rows put
+  // 8:58 after School, as if school were over.
   const showNowLine = isPSTToday(selectedDay) && allEvents.length > 0 && !activeId;
   const startOfEvent = (e: TimelineEvent) => {
     const [h, m] = e.time.split(':').map(Number);
@@ -1174,7 +1203,44 @@ const TimelineScheduleView = ({
     const start = startOfEvent(e);
     return nowMinutes >= start && nowMinutes < start + e.duration;
   });
-  const nowLineIndex = nowInsideIndex >= 0 ? null : allEvents.findIndex(e => startOfEvent(e) > nowMinutes);
+  const nowAfterIndex = (() => {
+    if (nowInsideIndex >= 0) return null;
+    let idx = -1;
+    allEvents.forEach((e, i) => { if (startOfEvent(e) <= nowMinutes) idx = i; });
+    return idx;
+  })();
+  const nowLabel = formatTimeSpaced(minutesToTimeStr(nowMinutes));
+
+  // Morning / Afternoon / Evening sections, by start time (before 12:00,
+  // 12:00–17:00, from 17:00).
+  type SectionKey = 'morning' | 'afternoon' | 'evening';
+  const sectionOf = (e: TimelineEvent): SectionKey => {
+    const start = startOfEvent(e);
+    return start < 12 * 60 ? 'morning' : start < 17 * 60 ? 'afternoon' : 'evening';
+  };
+  const sectionLabels: Record<SectionKey, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+  const sectionSummary = (key: SectionKey) => {
+    const tasks = allEvents.filter(e => e.type !== 'gap' && sectionOf(e) === key);
+    if (tasks.length === 0) return 'Free';
+    const done = tasks.filter(e => e.isCompleted).length;
+    if (done > 0) return `${done} of ${tasks.length} done`;
+    return `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
+  };
+
+  // On first load for today, bring the current-time marker into view once.
+  // Other dates start at the top, and later date changes or the minute tick
+  // never pull the parent back while they're browsing.
+  const nowMarkerRef = useRef<HTMLDivElement>(null);
+  const didAutoScrollRef = useRef(false);
+  useEffect(() => {
+    if (didAutoScrollRef.current || allEvents.length === 0) return;
+    didAutoScrollRef.current = true;
+    if (!isPSTToday(selectedDay)) return;
+    requestAnimationFrame(() => {
+      nowMarkerRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allEvents.length, selectedDayString]);
 
   // Overlaps the parent should fix: a task whose duration runs past the next
   // event's start (e.g. a 15-min task with the next event 10 minutes later).
@@ -1333,7 +1399,7 @@ const TimelineScheduleView = ({
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <span className="text-16 text-[#9EBEFF] truncate">
+              <span className="text-16 text-focus-text truncate">
                 {formatWeekRange(weekStart)}
               </span>
               <Button
@@ -1389,23 +1455,23 @@ const TimelineScheduleView = ({
                   className={cn(
                     "flex flex-col items-center gap-2 px-2 py-1 rounded-[20px] transition-colors",
                     isSelected
-                      ? "bg-iris-400/15"
-                      : "hover:bg-white/[0.04]"
+                      ? "bg-focus-lavender/20"
+                      : "hover:bg-focus-surface"
                   )}
                 >
                   <span className={cn(
                     "text-14 leading-none",
-                    isSelected ? "text-fog-50 font-medium" : "text-fog-300"
+                    isSelected ? "text-focus-text font-medium" : "text-focus-muted"
                   )}>
                     {['Su','Mo','Tu','We','Th','Fr','Sa'][index]}
                   </span>
                   <span className={cn(
                     "text-18 leading-none tabular-nums",
                     isSelected
-                      ? "text-fog-50 font-semibold"
+                      ? "text-focus-text font-semibold"
                       : isTodayDay
-                      ? "text-iris-300"
-                      : "text-fog-200"
+                      ? "text-focus-lavender"
+                      : "text-focus-muted"
                   )}>
                     {format(day, 'd')}
                   </span>
@@ -1419,15 +1485,15 @@ const TimelineScheduleView = ({
       {/* Schedule conflicts — tasks that run into the next one. The child
           view auto-shortens them, but the parent should fix the times. */}
       {scheduleConflicts.length > 0 && (
-        <div className="rounded-[20px] border border-amber-500/40 bg-amber-500/10 px-sp-3 py-sp-2 space-y-1">
+        <div className="rounded-[18px] border border-focus-amber/40 bg-focus-amber/10 px-[14px] py-3 space-y-1">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-13 font-medium text-amber-300">
+            <AlertTriangle className="w-4 h-4 text-focus-amber shrink-0" />
+            <span className="text-[13px] leading-4 font-semibold text-focus-amber">
               Schedule overlap{scheduleConflicts.length > 1 ? 's' : ''}
             </span>
           </div>
           {scheduleConflicts.map(conflict => (
-            <p key={conflict.taskId} className="text-12 text-amber-200/90 pl-6">
+            <p key={conflict.taskId} className="text-[12px] leading-4 text-focus-text/90 pl-6">
               <span className="font-medium">{conflict.taskName}</span> ({formatTimeShortLocal(conflict.taskStart)}) runs {conflict.overlapMinutes}m into{' '}
               <span className="font-medium">{conflict.nextTaskName}</span> ({formatTimeShortLocal(conflict.nextTaskStart)})
             </p>
@@ -1464,19 +1530,21 @@ const TimelineScheduleView = ({
                   items={allEvents.filter(e => e.type !== 'gap' && e.type !== 'system').map(e => e.id)}
                   strategy={() => null}
                 >
-                  <div className="space-y-2 sm:space-y-4">
+                  <div className="flex flex-col gap-2">
                     {allEvents.map((event, eventIdx) => {
                       const isActiveEvent = activeId === event.id;
-                      // "Now" line: drawn above the first row that starts after
-                      // the current time (today only), or below the last row
-                      // once the whole day has passed.
-                      const showNowAbove = showNowLine && nowLineIndex === eventIdx;
-                      const showNowBelow = showNowLine && nowLineIndex === -1 && eventIdx === allEvents.length - 1;
+                      // Current-time marker: before the first row when the
+                      // day hasn't started, otherwise right after the row
+                      // that most recently started.
+                      const showNowAbove = showNowLine && nowAfterIndex === -1 && eventIdx === 0;
+                      const showNowBelow = showNowLine && nowAfterIndex === eventIdx;
                       // Kept off the card's very edges so it never reads as
                       // "just starting" or "already over".
                       const nowOverAt = showNowLine && nowInsideIndex === eventIdx
                         ? Math.min(0.85, Math.max(0.15, (nowMinutes - startOfEvent(event)) / event.duration))
                         : null;
+                      const section = sectionOf(event);
+                      const showSectionHeader = eventIdx === 0 || sectionOf(allEvents[eventIdx - 1]) !== section;
                       const isBeingDraggedOver = overId === event.id && activeId !== event.id;
 
                       const shouldShowSpacingAbove = activeId && overId === event.id && dropPosition === 'before' && !isActiveEvent;
@@ -1532,32 +1600,49 @@ const TimelineScheduleView = ({
                       })();
 
                       return (
+                        <Fragment key={event.id}>
+                        {showNowAbove && (
+                          <div ref={nowMarkerRef}><NowLine label={nowLabel} /></div>
+                        )}
+                        {showSectionHeader && (
+                          <div className="flex items-center gap-2 pt-2 pb-0.5">
+                            <span className="text-[12px] leading-4 font-semibold uppercase text-focus-muted whitespace-nowrap">
+                              {sectionLabels[section]}
+                            </span>
+                            <span className="flex-1 h-px bg-focus-muted/25" />
+                            <span className="text-[12px] leading-4 text-focus-muted whitespace-nowrap">
+                              {sectionSummary(section)}
+                            </span>
+                          </div>
+                        )}
                         <div
-                          key={event.id}
                           ref={el => { rowRefs.current[event.id] = el; }}
                           className="relative touch-manipulation"
                         >
-                          {showNowAbove && <NowLine label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />}
                           {shouldShowSpacingAbove && (
-                            <div className="mb-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                              <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
+                            <motion.div className="mb-2" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+                              <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
                               <div className="text-center mt-1">
-                                <span className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold bg-primary/10 px-3 py-1 rounded-full">
-                                  {dropTimeLabel && <span className="text-primary/90">{dropTimeLabel}</span>}
-                                  <span>↑ Drop here</span>
+                                <span className="inline-flex items-center gap-1.5 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-1 rounded-full">
+                                  {dropTimeLabel && <span>{dropTimeLabel}</span>}
+                                  <span>↑ Drop Here</span>
                                 </span>
                               </div>
-                            </div>
+                            </motion.div>
                           )}
 
                           <div className={cn(
                             "relative transition-all duration-200 ease-out",
-                            isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-primary/30 ring-offset-2 rounded-lg",
+                            isBeingDraggedOver && event.type !== 'gap' && "ring-2 ring-focus-lavender/40 ring-offset-2 ring-offset-focus-bg rounded-[18px]",
                             (shouldShowSpacingAbove || shouldShowSpacingBelow) && "my-2"
                           )}>
                             {nowOverAt != null && (
-                              <div className="absolute inset-x-0 z-20 -translate-y-1/2" style={{ top: `${nowOverAt * 100}%` }}>
-                                <NowLine overCard label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />
+                              <div
+                                ref={nowMarkerRef}
+                                className="absolute inset-x-0 z-20 -translate-y-1/2"
+                                style={{ top: `${nowOverAt * 100}%` }}
+                              >
+                                <NowLine overCard label={nowLabel} />
                               </div>
                             )}
                             <SortableTimelineEvent
@@ -1577,32 +1662,35 @@ const TimelineScheduleView = ({
                           </div>
 
                           {shouldShowSpacingBelow && (
-                            <div className="mt-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <motion.div className="mt-2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
                               <div className="text-center mb-1">
-                                <span className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold bg-primary/10 px-3 py-1 rounded-full">
-                                  <span>↓ Drop here</span>
-                                  {dropTimeLabel && <span className="text-primary/90">{dropTimeLabel}</span>}
+                                <span className="inline-flex items-center gap-1.5 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-1 rounded-full">
+                                  <span>↓ Drop Here</span>
+                                  {dropTimeLabel && <span>{dropTimeLabel}</span>}
                                 </span>
                               </div>
-                              <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
-                            </div>
+                              <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
+                            </motion.div>
                           )}
-                          {showNowBelow && <NowLine label={formatTimeShortLocal(minutesToTimeStr(nowMinutes))} />}
                         </div>
+                        {showNowBelow && (
+                          <div ref={nowMarkerRef}><NowLine label={nowLabel} /></div>
+                        )}
+                        </Fragment>
                       );
                     })}
                   </div>
                 </SortableContext>
 
                 {activeId && (
-                  <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <motion.div className="mt-4" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={springs.gentle}>
                     <div className="text-center mb-2">
-                      <span className="inline-flex items-center gap-2 text-sm text-primary font-medium bg-primary/10 px-3 py-2 rounded-full">
-                        📍 Drop at end of timeline
+                      <span className="inline-flex items-center gap-2 text-[12px] leading-4 text-focus-lavender font-semibold bg-focus-lavender/15 px-3 py-2 rounded-full">
+                        📍 Drop At End Of Timeline
                       </span>
                     </div>
-                    <div className="h-1 bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-pulse" />
-                  </div>
+                    <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
+                  </motion.div>
                 )}
 
               </DndContext>
@@ -1684,45 +1772,45 @@ const TimelineScheduleView = ({
                     <div
                       key={task.id}
                       className={cn(
-                        "absolute left-0 right-0 rounded-2xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden backdrop-blur-sm",
+                        "absolute left-0 right-0 rounded-[12px] border border-dashed cursor-pointer transition-colors overflow-hidden",
                         task.isCompleted
-                          ? "border-green-500/40 bg-green-500/10"
-                          : "border-purple-400/50 bg-purple-500/15 hover:border-purple-400/70 hover:bg-purple-500/20"
+                          ? "border-focus-mint/40 bg-focus-mint/10"
+                          : "border-focus-lavender/45 bg-focus-surface hover:bg-focus-raised/70"
                       )}
                       style={position}
                       onClick={() => onEditTask?.(task)}
                     >
                       <div className="flex flex-col items-center justify-center h-full px-1.5 py-2.5 text-center gap-1.5">
                         {task.is_important && (
-                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
+                          <Star className="w-3.5 h-3.5 text-focus-amber fill-focus-amber shrink-0" />
                         )}
                         {task.is_fun_time && (
-                          <Gamepad2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <Gamepad2 className="w-3.5 h-3.5 text-focus-lavender shrink-0" />
                         )}
                         {task.isCompleted ? (
                           <button
                             type="button"
-                            className="shrink-0 hover:opacity-70 transition-opacity"
+                            className="tap-target shrink-0 size-6 rounded-full inline-flex items-center justify-center bg-focus-mint/25 text-focus-mint hover:opacity-80 transition-opacity"
                             aria-label="Undo chore completion"
                             onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
                           >
-                            <CheckCircle2 className="w-5 h-5 text-green-400" />
+                            <Check className="w-3.5 h-3.5" strokeWidth={3} />
                           </button>
                         ) : (
                           <button
                             type="button"
-                            className="shrink-0 hover:opacity-70 transition-opacity"
+                            className="tap-target shrink-0 hover:opacity-70 transition-opacity"
                             aria-label="Mark chore as done"
                             onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
                           >
-                            <div className="w-5 h-5 rounded-full border-2 border-purple-400/50" />
+                            <div className="size-6 rounded-full border-[1.5px] border-focus-lavender/60" />
                           </button>
                         )}
                         <span className={cn(
-                          "text-[11px] sm:text-xs font-bold leading-tight break-words",
+                          "text-[12px] leading-4 font-semibold break-words",
                           task.isCompleted
-                            ? "line-through text-green-400/70"
-                            : "text-purple-200"
+                            ? "line-through text-focus-muted"
+                            : "text-focus-text"
                         )}>
                           {task.name}
                         </span>
@@ -1731,24 +1819,24 @@ const TimelineScheduleView = ({
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); handleGiveStars(task.id, task.coins); }}
-                              className="shrink-0 px-2 py-1 rounded-full bg-iris-400/20 border border-iris-400 text-[11px] font-semibold text-fog-50 hover:bg-iris-400/30 transition-colors"
+                              className="tap-target shrink-0 px-2 py-1 rounded-pill bg-focus-raised text-[12px] leading-4 font-semibold text-focus-text hover:bg-focus-raised/80 transition-colors"
                               aria-label={`Give ${task.coins} star${task.coins === 1 ? '' : 's'}`}
                             >
                               Give ★{task.coins}
                             </button>
                           ) : (
-                            <span className="text-[10px] text-warning/80 font-semibold">
+                            <span className="text-[12px] leading-4 text-focus-amber font-semibold">
                               {task.starsGiven ? `★${task.starsGiven} given` : `${task.coins}★`}
                             </span>
                           )
                         )}
                         {task.window_start && task.window_end && (
-                          <span className="text-[10px] text-purple-400/60 font-medium mt-auto">
+                          <span className="text-[12px] leading-4 text-focus-muted mt-auto">
                             {formatTimeShort(task.window_start)}–{formatTimeShort(task.window_end)}
                           </span>
                         )}
                         {!task.window_start && (
-                          <span className="text-[10px] text-purple-400/40 mt-auto">Anytime</span>
+                          <span className="text-[12px] leading-4 text-focus-muted/70 mt-auto">Anytime</span>
                         )}
                       </div>
                     </div>

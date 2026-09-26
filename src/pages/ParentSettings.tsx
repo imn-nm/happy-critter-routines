@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, LogOut, Mail, Lock, User, Pencil, Check, X, PlayCircle } from "lucide-react";
+import { ArrowLeft, Plus, LogOut, Mail, Lock, User, Check, X, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { soundsEnabled, setSoundsEnabled } from "@/lib/sounds";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { EditButton } from "@/components/IconActionButtons";
 
 /**
  * Parent account settings.
@@ -54,20 +55,20 @@ const ParentSettings = () => {
             type="button"
             onClick={() => navigate("/parent")}
             aria-label="Back"
-            className="shrink-0 w-9 h-9 rounded-pill bg-iris-400/[0.04] border border-iris-400/30 flex items-center justify-center text-fog-50 hover:bg-iris-400/10 transition-colors"
+            className="shrink-0 w-11 h-11 rounded-[14px] bg-focus-surface flex items-center justify-center text-focus-muted hover:bg-focus-raised hover:text-focus-text transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-20 text-white leading-none">Settings</h1>
-          <div className="w-9 h-9" />
+          <h1 className="text-20 font-bold text-focus-text leading-none">Settings</h1>
+          <div className="w-11 h-11" />
         </header>
 
         {/* Account */}
-        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
-          <h2 className="text-14 font-medium text-iris-400">Account</h2>
+        <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
+          <h2 className="text-14 font-semibold text-focus-text">Account</h2>
 
           <EditableRow
-            icon={<User className="w-4 h-4 text-iris-400" />}
+            icon={<User className="w-4 h-4 text-focus-lavender" />}
             label="Name"
             value={fullName}
             placeholder="Your name"
@@ -77,7 +78,7 @@ const ParentSettings = () => {
             }}
           />
           <EditableRow
-            icon={<Mail className="w-4 h-4 text-iris-400" />}
+            icon={<Mail className="w-4 h-4 text-focus-lavender" />}
             label="Email"
             value={email}
             placeholder="you@example.com"
@@ -104,43 +105,43 @@ const ParentSettings = () => {
               }
               navigate("/parent");
             }}
-            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-iris-400 hover:underline"
+            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-focus-lavender hover:underline"
           >
             <PlayCircle className="w-4 h-4" />
-            Replay welcome tour
+            Replay Welcome Tour
           </button>
 
           <button
             type="button"
             onClick={() => setConfirmSignOut(true)}
-            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-coral-400 hover:underline"
+            className="tap-target self-start flex items-center gap-2 min-h-11 text-14 text-focus-coral hover:underline"
           >
             <LogOut className="w-4 h-4" />
-            Sign out
+            Sign Out
           </button>
         </section>
 
         <Dialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Sign out of this device?</DialogTitle>
+              <DialogTitle>Sign Out of This Device?</DialogTitle>
             </DialogHeader>
-            <p className="text-14 text-fog-200">
+            <p className="text-14 text-focus-muted">
               Your child's screen and your other devices stay signed in.
             </p>
             <DialogFooter className="gap-sp-2 pt-sp-2">
               <Button type="button" variant="secondary" onClick={() => setConfirmSignOut(false)}>Cancel</Button>
-              <Button type="button" onClick={async () => { await signOut(); navigate("/"); }}>Sign out</Button>
+              <Button type="button" variant="destructive" onClick={async () => { await signOut(); navigate("/"); }}>Sign Out</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Sounds — per device, so set it on the child's screen itself. */}
-        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-2">
+        <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-2">
           <div className="flex items-center justify-between gap-sp-3">
             <div>
-              <h2 className="text-14 font-medium text-iris-400">Sounds on this device</h2>
-              <p className="text-12 text-fog-200">Soft chimes when a task starts, is done, or a reward is approved. Saved on this device only.</p>
+              <h2 className="text-14 font-semibold text-focus-text">Sounds on This Device</h2>
+              <p className="text-12 text-focus-muted">Soft chimes when a task starts, is done, or a reward is approved. Saved on this device only.</p>
             </div>
             <Switch checked={soundsOn} onCheckedChange={(v) => { setSoundsOn(v); setSoundsEnabled(v); }} aria-label="Sounds on this device" />
           </div>
@@ -152,17 +153,17 @@ const ParentSettings = () => {
         <CalendarConnect />
 
         {/* Children */}
-        <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
+        <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-14 font-medium text-iris-400">Children</h2>
+            <h2 className="text-14 font-semibold text-focus-text">Children</h2>
             <Button size="sm" onClick={() => navigate("/setup")} className="gap-1.5">
               <Plus className="w-4 h-4" />
-              Add child
+              Add Child
             </Button>
           </div>
 
           {children.length === 0 ? (
-            <p className="text-14 text-fog-200">
+            <p className="text-14 text-focus-muted">
               No children yet. Add one to start tracking routines.
             </p>
           ) : (
@@ -170,24 +171,18 @@ const ParentSettings = () => {
               {children.map(child => (
                 <li
                   key={child.id}
-                  className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]"
+                  className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-focus-bg/60"
                 >
-                  <div className="shrink-0 w-12 h-12 rounded-[20px] bg-[#3A2D6C] flex items-center justify-center overflow-hidden">
+                  <div className="shrink-0 w-12 h-12 rounded-[20px] bg-focus-sunken flex items-center justify-center overflow-hidden">
                     <PetAvatar petType={child.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-16 text-fog-50 truncate">{child.name}</p>
-                    <p className="text-12 text-fog-200 truncate">
+                    <p className="text-16 font-semibold text-focus-text truncate">{child.name}</p>
+                    <p className="text-12 text-focus-muted truncate">
                       {child.age ? `Age ${child.age} · ` : ""}{getPet(child.petType).name}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingChild(child)}
-                    className="tap-target min-h-11 px-2 text-12 text-iris-400 hover:underline"
-                  >
-                    Edit
-                  </button>
+                  <EditButton onClick={() => setEditingChild(child)} label={`Edit ${child.name}`} />
                 </li>
               ))}
             </ul>
@@ -260,12 +255,12 @@ function EditableRow({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-[rgba(8,1,26,0.4)]">
-        <div className="shrink-0 w-8 h-8 rounded-pill bg-iris-400/10 flex items-center justify-center">
+      <div className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-focus-bg/60">
+        <div className="shrink-0 w-8 h-8 rounded-[10px] bg-focus-raised flex items-center justify-center">
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-12 text-iris-400">{label}</p>
+          <p className="text-12 text-focus-muted">{label}</p>
           {editing ? (
             <Input
               autoFocus
@@ -274,10 +269,10 @@ function EditableRow({
               placeholder={placeholder}
               onChange={e => setDraft(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
-              className="bg-transparent border-iris-400/30 text-fog-50 h-7 px-2 mt-1"
+              className="h-11 px-3 mt-1"
             />
           ) : (
-            <p className="text-14 text-fog-50 truncate">{value || "—"}</p>
+            <p className="text-14 text-focus-text truncate">{value || "—"}</p>
           )}
         </div>
         {editing ? (
@@ -288,8 +283,8 @@ function EditableRow({
               disabled={busy}
               aria-label="Save"
               className={cn(
-                "shrink-0 w-8 h-8 rounded-pill flex items-center justify-center",
-                "bg-mint-500/15 border border-mint-500/40 text-mint-500 hover:bg-mint-500/25",
+                "shrink-0 w-11 h-11 rounded-[14px] flex items-center justify-center",
+                "bg-focus-mint/15 text-focus-mint hover:bg-focus-mint/25",
               )}
             >
               <Check className="w-4 h-4" strokeWidth={3} />
@@ -299,25 +294,18 @@ function EditableRow({
               onClick={cancel}
               disabled={busy}
               aria-label="Cancel"
-              className="shrink-0 w-8 h-8 rounded-pill flex items-center justify-center bg-fog-50/5 border border-fog-50/20 text-fog-50 hover:bg-fog-50/10"
+              className="shrink-0 w-11 h-11 rounded-[14px] flex items-center justify-center bg-focus-raised text-focus-muted hover:text-focus-text"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label={`Edit ${label}`}
-            className="shrink-0 w-8 h-8 rounded-pill bg-iris-400/10 border border-iris-400/30 text-iris-400 hover:bg-iris-400/20 flex items-center justify-center"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
+          <EditButton onClick={() => setEditing(true)} label={`Edit ${label}`} />
         )}
       </div>
-      {editing && helper && <p className="text-11 text-fog-300 px-1">{helper}</p>}
+      {editing && helper && <p className="text-12 text-focus-muted px-1">{helper}</p>}
       {msg && (
-        <p className={cn("text-12 px-1", msg.kind === "ok" ? "text-mint-500" : "text-coral-400")}>
+        <p className={cn("text-12 px-1", msg.kind === "ok" ? "text-focus-mint" : "text-focus-coral")}>
           {msg.text}
         </p>
       )}
@@ -344,9 +332,9 @@ function PasswordChange() {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-sp-2 pt-sp-2 border-t border-iris-400/[0.18]">
-      <Label htmlFor="new-pw" className="text-12 text-iris-400 flex items-center gap-1.5">
-        <Lock className="w-3.5 h-3.5" /> Change password
+    <form onSubmit={submit} className="flex flex-col gap-sp-2 pt-sp-2 border-t border-focus-raised">
+      <Label htmlFor="new-pw" className="text-12 text-focus-muted flex items-center gap-1.5">
+        <Lock className="w-3.5 h-3.5" /> Change Password
       </Label>
       <div className="flex items-center gap-sp-2">
         <Input
@@ -355,14 +343,13 @@ function PasswordChange() {
           value={pw}
           onChange={e => setPw(e.target.value)}
           placeholder="New password (6+ chars)"
-          className="bg-black/30 border-iris-400/30 text-fog-50"
         />
-        <Button type="submit" size="sm" disabled={busy || pw.length < 6}>
+        <Button type="submit" size="sm" variant="secondary" disabled={busy || pw.length < 6}>
           {busy ? "Saving…" : "Update"}
         </Button>
       </div>
       {msg && (
-        <p className={cn("text-12", msg.kind === "ok" ? "text-mint-500" : "text-coral-400")}>
+        <p className={cn("text-12", msg.kind === "ok" ? "text-focus-mint" : "text-focus-coral")}>
           {msg.text}
         </p>
       )}
@@ -413,13 +400,13 @@ function EditChildDialog({
 
   return (
     <Dialog open={!!child} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Edit profile</DialogTitle>
+          <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-sp-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="child-name" className="text-12 text-iris-400">Name</Label>
+            <Label htmlFor="child-name" className="text-12 text-focus-muted">Name</Label>
             <Input
               id="child-name"
               value={name}
@@ -428,7 +415,7 @@ function EditChildDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="child-age" className="text-12 text-iris-400">Age</Label>
+            <Label htmlFor="child-age" className="text-12 text-focus-muted">Age</Label>
             <Input
               id="child-age"
               type="number"
@@ -439,10 +426,10 @@ function EditChildDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-12 text-iris-400">Pet</Label>
+            <Label className="text-12 text-focus-muted">Pet</Label>
             <CritterPicker value={petType} onChange={setPetType} />
           </div>
-          {err && <p className="text-12 text-coral-400">{err}</p>}
+          {err && <p className="text-12 text-focus-coral">{err}</p>}
           <DialogFooter className="gap-sp-2 pt-sp-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>

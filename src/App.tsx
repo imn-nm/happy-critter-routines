@@ -32,6 +32,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import TimeReservePreview from "./pages/TimeReservePreview";
+import { MotionConfig } from "motion/react";
 
 // Design/preview tool pages only exist in local dev builds. They are never
 // linked from the app and must not ship to the deployed site.
@@ -83,6 +84,9 @@ const ProtectedRoutes = () => (
 );
 
 const App = () => (
+  // Motion for React: every animation in the app follows the device's
+  // reduce-motion setting.
+  <MotionConfig reducedMotion="user">
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       {/* The one toast system. hooks/use-toast.ts is a thin shim over it. */}
@@ -117,6 +121,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </MotionConfig>
 );
 
 export default App;

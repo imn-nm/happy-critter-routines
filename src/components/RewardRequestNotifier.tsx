@@ -61,7 +61,7 @@ const RewardRequestNotifier = () => {
 
           toast({
             title: `🎁 ${child?.name ?? "Your child"} wants a reward!`,
-            description: `Requesting: ${reward?.name ?? "a reward"} (${purchase.coins_spent} stars). Go to their dashboard to approve or deny.`,
+            description: `Requesting: ${reward?.name ?? "a reward"} (${purchase.coins_spent} stars). Open their Rewards to approve or decline.`,
           });
         },
       )

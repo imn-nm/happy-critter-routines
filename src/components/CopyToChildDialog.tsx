@@ -203,13 +203,13 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[480px]">
         <div className="flex flex-col gap-sp-4">
           <div>
             <DialogTitle className="text-20 flex items-center gap-2">
-              <Copy className="w-5 h-5 text-iris-300" /> Copy {routine ? routine.name : copyable.length === 1 ? copyable[0].name : "tasks"}
+              <Copy className="w-5 h-5 text-focus-lavender" /> Copy {routine ? routine.name : copyable.length === 1 ? copyable[0].name : "tasks"}
             </DialogTitle>
-            <DialogDescription className="text-13 text-fog-300 mt-1">
+            <DialogDescription className="text-13 text-focus-muted mt-1">
               From {fromChild.name}. Change any time or length for the other child first.
             </DialogDescription>
           </div>
@@ -223,8 +223,8 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
                 aria-checked={c.id === targetId}
                 onClick={() => setTargetId(c.id)}
                 className={cn(
-                  "h-9 px-4 rounded-full text-13 font-medium",
-                  c.id === targetId ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+                  "h-11 px-4 rounded-full text-14 font-semibold",
+                  c.id === targetId ? "bg-focus-lavender text-focus-bg" : "bg-focus-surface text-focus-muted hover:text-focus-text",
                 )}
               >
                 {c.name}
@@ -233,9 +233,9 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
           </div>
 
           {copyable.length === 0 ? (
-            <p className="text-13 text-fog-300">Nothing to copy: built-in rows like Wake Up and School are set in each child's profile.</p>
+            <p className="text-13 text-focus-muted">Nothing to copy: built-in rows like Wake Up and School are set in each child's profile.</p>
           ) : isLoading ? (
-            <p className="text-13 text-fog-300">Loading {target?.name}'s schedule…</p>
+            <p className="text-13 text-focus-muted">Loading {target?.name}'s schedule…</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {copyable.map(t => {
@@ -246,28 +246,28 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
                 const setEdit = (next: Partial<Edit>) => setEdits({ ...edits, [t.id]: { ...edit, ...next } });
                 const durationOptions = DURATIONS.includes(edit.duration) ? DURATIONS : [...DURATIONS, edit.duration].sort((a, b) => a - b);
                 return (
-                  <li key={t.id} className={cn("rounded-[16px] border p-3 flex flex-col gap-2", clash ? "border-coral-500/50" : "border-white/10")}>
-                    <label className="flex items-center gap-3 cursor-pointer">
+                  <li key={t.id} className={cn("rounded-[20px] border bg-focus-surface p-3 flex flex-col gap-2", clash ? "border-focus-coral/50" : "border-transparent")}>
+                    <label className="flex items-center gap-3 min-h-11 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={on}
                         onChange={() => setTicks({ ...ticks, [t.id]: !on })}
-                        className="w-4 h-4 shrink-0 accent-[#879bff]"
+                        className="w-5 h-5 shrink-0 accent-[#A89AF0]"
                       />
-                      <span className="text-14 text-fog-50 min-w-0 truncate">{t.name}</span>
+                      <span className="text-14 text-focus-text min-w-0 truncate">{t.name}</span>
                     </label>
                     {on && (
-                      <div className="flex flex-wrap items-center gap-2 pl-7">
+                      <div className="flex flex-wrap items-center gap-2 pl-8">
                         {edit.time ? (
                           <TimeSelect value={edit.time} onChange={(time) => setEdit({ time })} className="shrink-0" />
                         ) : (
-                          <span className="text-12 text-fog-300">
-                            {link.name ? `After ${link.name}` : t.type === "floating" ? "Anytime chore" : "When there's room"}
+                          <span className="text-12 text-focus-muted">
+                            {link.name ? `After ${link.name}` : t.type === "floating" ? "Anytime Chore" : "When there's room"}
                           </span>
                         )}
                         {t.type !== "floating" && (
                           <Select value={String(edit.duration)} onValueChange={(v) => setEdit({ duration: parseInt(v) })}>
-                            <SelectTrigger className="w-[112px] shrink-0 rounded-pill px-3 gap-1 h-9" aria-label={`${t.name} length`}>
+                            <SelectTrigger className="w-[112px] shrink-0 px-3 gap-1 h-11" aria-label={`${t.name} length`}>
                               <SelectValue>{formatDuration(edit.duration)}</SelectValue>
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
@@ -280,9 +280,9 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
                       </div>
                     )}
                     {on && theirNames.has(t.name.trim().toLowerCase()) && (
-                      <p className="text-11 text-amber-300 pl-7">{target?.name} already has a {t.name}. Untick it if this would double up.</p>
+                      <p className="text-12 text-focus-amber pl-8">{target?.name} already has a {t.name}. Untick it if this would double up.</p>
                     )}
-                    {on && clash && <p className="text-11 text-coral-300 pl-7" role="alert">{clash}</p>}
+                    {on && clash && <p className="text-12 text-focus-coral pl-8" role="alert">{clash}</p>}
                   </li>
                 );
               })}

@@ -77,17 +77,18 @@ const ParentEventDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[440px] border-0 font-sans">
         <form onSubmit={handleSubmitGuarded}>
           <DialogHeader>
-            <DialogTitle>{event ? 'Edit Event' : 'Add Event'}</DialogTitle>
+            <DialogTitle className="text-[18px] font-semibold text-focus-text">{event ? 'Edit Event' : 'Add Event'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="event-title">Title *</Label>
+              <Label htmlFor="event-title" className="text-[13px] font-medium text-focus-muted">Title *</Label>
               <Input
                 id="event-title"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 placeholder="e.g. Parent-teacher conference, Dentist"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -96,9 +97,10 @@ const ParentEventDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="event-date">Date *</Label>
+              <Label htmlFor="event-date" className="text-[13px] font-medium text-focus-muted">Date *</Label>
               <Input
                 id="event-date"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -107,8 +109,8 @@ const ParentEventDialog = ({
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="event-has-time">Set a time</Label>
+              <div className="flex min-h-11 items-center justify-between">
+                <Label htmlFor="event-has-time" className="text-[13px] font-medium text-focus-muted">Set a Time</Label>
                 <Switch
                   id="event-has-time"
                   checked={hasTime}
@@ -123,14 +125,15 @@ const ParentEventDialog = ({
                   onChange={(v) => setFormData({ ...formData, time: v })}
                 />
               ) : (
-                <p className="text-xs text-muted-foreground">All day — no specific time.</p>
+                <p className="text-[12px] text-focus-muted">All day — no specific time.</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="event-notes">Notes (optional)</Label>
+              <Label htmlFor="event-notes" className="text-[13px] font-medium text-focus-muted">Notes (Optional)</Label>
               <Textarea
                 id="event-notes"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 placeholder="e.g. Room 12, bring the report card"
                 value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value || null })}
@@ -138,17 +141,17 @@ const ParentEventDialog = ({
               />
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[12px] text-focus-muted">
               Only you see this — it never shows up on your child's schedule.
             </p>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="ghost" onClick={handleClose} disabled={isLoading} className="h-11 px-5 rounded-[14px] bg-focus-surface text-[14px] font-semibold text-focus-muted hover:bg-focus-raised hover:text-focus-muted">
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : event ? 'Update' : 'Add Event'}
+            <Button type="submit" variant="ghost" disabled={isLoading} className="h-11 px-5 rounded-[14px] bg-focus-lime text-[14px] font-semibold text-focus-bg hover:bg-focus-lime/90">
+              {isLoading ? 'Saving…' : event ? 'Update Event' : 'Add Event'}
             </Button>
           </DialogFooter>
         </form>

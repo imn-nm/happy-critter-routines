@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,12 +12,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Gift, Calendar, Plus, Minus, CalendarDays, Coins, Moon, ArrowLeft, Star, Bell, Shuffle, BarChart3, Layers } from "lucide-react";
+import { ChevronLeft, Moon } from "lucide-react";
 import SpinningWheelEditor from "@/components/SpinningWheelEditor";
 import { normalizeWheelOptions } from "@/lib/spinningWheel";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
 import { format } from "date-fns";
-import { Switch } from "@/components/ui/switch";
 import LoadingScreen from "@/components/LoadingScreen";
 import { getPSTDate, getPSTDateString } from "@/utils/pstDate";
 import { useChildren, type Child } from "@/hooks/useChildren";
@@ -33,6 +31,10 @@ import RoutinesDialog from "@/components/RoutinesDialog";
 import CopyToChildDialog from "@/components/CopyToChildDialog";
 import { syncSchoolRoutines, useRoutines } from "@/hooks/useRoutines";
 import MonthView from "@/components/MonthView";
+import QuickAccessMenu from "@/components/QuickAccessMenu";
+import { motion } from "motion/react";
+import { springs } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
 import { updateAllSystemTaskInstances } from "@/utils/systemTasks";
@@ -76,6 +78,9 @@ const ChildDashboard = () => {
   const { toggleCompletion } = useCompletions(childId || '');
   const alertCount = useAlertCount(childId);
   const [showAlerts, setShowAlerts] = useState(false);
+  // "Edit Schedule" in the quick access sheet opens the profile/schedule editor.
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const openProfileEdit = () => setShowProfileEdit(true);
 
   // Parent-side toggle: insert a completion record (mark done) or delete
   // an existing one (undo). Refetch tasks afterwards so isCompleted updates
@@ -485,6 +490,89 @@ const ChildDashboard = () => {
     }
   };
 
+  const handleReorderTasks = async (reorderedTasks: Task[]) => {
+    try {
+      // Build occupied slots from system/fixed tasks (not being reordered)
+      const reorderedIds = new Set(reorderedTasks.map(t => t.id));
+      const fixedSlots = tasks
+        .filter(t => t.is_active && t.scheduled_time && !reorderedIds.has(t.id))
+        .map(t => {
+          const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
+          const start = h * 60 + m;
+          return { start, end: start + (t.duration || 30) };
+        })
+        .sort((a, b) => a.start - b.start);
+
+      // Place each reordered task sequentially, finding next available slot.
+      // Never earlier than the child's wake time — starting the scan at
+      // 00:00 dumped tasks at midnight when the earliest gap fit.
+      const [wakeH, wakeM] = (child?.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+      const dayStartMin = wakeH * 60 + wakeM;
+      const placedSlots = [...fixedSlots];
+      const updatePromises = reorderedTasks.map((task, index) => {
+        const duration = task.duration || 30;
+        // Find first gap that fits this task
+        let bestStart = dayStartMin;
+        const sorted = [...placedSlots].sort((a, b) => a.start - b.start);
+        for (const slot of sorted) {
+          if (bestStart + duration <= slot.start) break;
+          bestStart = Math.max(bestStart, slot.end);
+        }
+        placedSlots.push({ start: bestStart, end: bestStart + duration });
+        const h = Math.floor(bestStart / 60), m = bestStart % 60;
+        return updateTask(task.id, {
+          scheduled_time: `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:00`,
+          sort_order: index
+        });
+      });
+      await Promise.all(updatePromises); await refetch();
+    } catch { toast({ title: "Error", variant: "destructive" }); }
+  };
+
+  const handleTaskTimeUpdate = async (taskId: string, newTime: string, dayName?: string) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      // If the task had no fixed time before this drag, keep it
+      // unpinned — record the slot as window_start (a placement
+      // hint the timeline already respects) so the "Set Time"
+      // toggle in the edit form stays off.
+      const hadFixedTime = !!task.scheduled_time;
+      if (task.is_recurring) {
+        // A drag on one day's timeline moves it on that day only;
+        // it used to move every day without asking. The toast
+        // offers "Every day" for when that was the intent.
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        const dayKey = dayName || format(currentDate, 'EEEE').toLowerCase();
+        const duration = task.date_overrides?.[dateStr]?.duration
+          ?? task.schedule_overrides?.[dayKey]?.duration ?? task.duration;
+        await updateTask(taskId, {
+          date_overrides: { ...(task.date_overrides || {}), [dateStr]: { scheduled_time: newTime, duration } },
+        });
+        await refetch();
+        const everyDay = { ...(task.date_overrides || {}) };
+        delete everyDay[dateStr];
+        sonner(`Moved on ${format(currentDate, 'EEE, MMM d')} only`, {
+          action: {
+            label: 'Every day',
+            onClick: async () => {
+              await updateTask(taskId, hadFixedTime
+                ? { scheduled_time: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }
+                : { window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null });
+              await refetch();
+            },
+          },
+        });
+        return;
+      } else if (hadFixedTime) {
+        await updateTask(taskId, { scheduled_time: newTime });
+      } else {
+        await updateTask(taskId, { window_start: newTime });
+      }
+      await refetch();
+    } catch { toast({ title: "Error", variant: "destructive" }); }
+  };
+
   if (loading) return <LoadingScreen />;
 
   // Which "update which dates?" options can't be used, and why: one would
@@ -505,344 +593,259 @@ const ChildDashboard = () => {
 
   if (!child) {
     return (
-      <div className="min-h-dvh p-4">
-        <div className="max-w-md mx-auto text-center py-16">
-          <h1 className="text-xl font-bold text-foreground mb-3">Child not found</h1>
-          <Button onClick={() => navigate("/parent")} variant="outline" className="rounded-full">Back</Button>
+      <div className="min-h-dvh bg-focus-bg p-5">
+        <div className="max-w-[420px] mx-auto text-center py-16 flex flex-col items-center gap-3">
+          <h1 className="text-[22px] font-semibold text-focus-text">Child Not Found</h1>
+          <button
+            type="button"
+            onClick={() => navigate("/parent")}
+            className="h-11 px-5 rounded-[14px] bg-focus-surface text-[14px] font-semibold text-focus-muted hover:bg-focus-raised transition-colors"
+          >
+            Back
+          </button>
         </div>
       </div>
     );
   }
 
+  const isDayTab = scheduleTab === "timeline";
+  const isViewingToday = format(currentDate, 'yyyy-MM-dd') === getPSTDateString();
+
+  // Day / Month segmented switch (Figma 355:385). Sits at the top of the
+  // schedule card on both tabs.
+  const viewSwitch = (
+    <div role="tablist" aria-label="Schedule view" className="flex gap-1 p-1 rounded-[14px] border border-focus-bg bg-focus-surface">
+      {([["timeline", "Day"], ["month", "Month"]] as const).map(([value, label]) => {
+        const selected = scheduleTab === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => setScheduleTab(value)}
+            className={cn(
+              "relative flex-1 min-w-0 h-11 rounded-[12px] text-[14px] leading-[18px] font-semibold transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+              selected ? "text-focus-bg" : "text-focus-muted hover:text-focus-text",
+            )}
+          >
+            {/* One lavender pill that glides to the chosen tab (Motion layoutId). */}
+            {selected && (
+              <motion.span
+                layoutId="schedule-view-pill"
+                aria-hidden
+                className="absolute inset-0 rounded-[12px] bg-focus-lavender"
+                transition={springs.snappy}
+              />
+            )}
+            <span className="relative">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="min-h-dvh flex flex-col">
-      <Tabs value={scheduleTab} onValueChange={setScheduleTab} className="flex flex-col">
-        {/* Iris-tinted "cabinet" panel — header through schedule controls.
-            Full-width, rounds off at the bottom so the cosmic gradient
-            shows through behind the rows below. */}
-        <div className="bg-iris-400/[0.35] rounded-b-[28px]">
-          <div className="max-w-[420px] mx-auto px-sp-4 pt-sp-5 pb-sp-4 flex flex-col gap-sp-3">
-            {/* Header — back + name + settings gear (matches Figma 145:6964) */}
-            <div className="flex items-center justify-between gap-sp-2">
-              <div className="flex items-center gap-sp-2 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => navigate("/parent")}
-                  aria-label="Back to parent dashboard"
-                  className="tap-target shrink-0 h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5" strokeWidth={2} />
-                </button>
-                <h1
-                  className="text-fog-50 truncate"
-                  style={{ fontSize: 32, lineHeight: 1, letterSpacing: "-0.02em" }}
-                >
-                  {child.name}
-                </h1>
-              </div>
-              <div className="flex items-center gap-sp-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAlerts(true)}
-                  aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
-                  className="relative tap-target h-9 w-9 inline-flex items-center justify-center rounded-full text-fog-50 hover:bg-white/10 transition-colors"
-                >
-                  <Bell className="w-5 h-5" strokeWidth={2} />
-                  {alertCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral-400 text-[10px] font-bold text-white leading-none">
-                      {alertCount}
-                    </span>
-                  )}
-                </button>
-                <ChildProfileEdit child={child} onUpdateChild={updateChild} />
-              </div>
-            </div>
-
-            {/* Summary card — transparent with blue hairline (matches Figma
-                145:6970): rgba(102,153,255,0.25) border, 16px padding, 28 radius. */}
-            {/* Stepper + both CTAs stay on one line. Padding and gaps are
-                tightened so the row fits a 375px screen without wrapping. */}
-            <div className="flex flex-col gap-sp-3 px-sp-3 py-sp-4 rounded-[28px] border border-[rgba(102,153,255,0.25)]">
-              {/* Coin adjust group */}
-              <div className="flex items-center justify-center gap-sp-2">
-                <Button
-                  variant="secondary"
-                  size="icon-sm"
-                  className="shrink-0"
-                  onClick={async () => {
-                    if (child.currentCoins <= 0) return;
-                    await adjustChildCoins(child.id, -1);
-                  }}
-                  disabled={child.currentCoins <= 0}
-                  aria-label="Remove star"
-                >
-                  <Minus className="w-4 h-4" />
-                </Button>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border-2 border-iris-400/[0.32]">
-                  <Star className="w-4 h-4 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                  <span className="text-13 font-bold text-fog-50 leading-none tabular-nums">
-                    {child.currentCoins}
-                  </span>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="icon-sm"
-                  className="shrink-0"
-                  onClick={async () => {
-                    await adjustChildCoins(child.id, 1);
-                  }}
-                  aria-label="Add star"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Three equal actions so the row fits any phone without wrapping
-                  or overflowing (it used to push Report off a 375px screen). */}
-              <div className="grid grid-cols-3 gap-sp-1">
-                <button
-                  type="button"
-                  onClick={() => setShowWheelEditor(true)}
-                  aria-label="Set up spinning wheel"
-                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-                >
-                  <Shuffle className="w-4 h-4" />
-                  Wheel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowRewards(true)}
-                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-                >
-                  <Gift className="w-4 h-4" />
-                  Rewards
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/reports/${child.id}`)}
-                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Report
-                </button>
-              </div>
-            </div>
-
-            {/* Rest Day + Add Task row. Toggle styling matches Figma 145:6980:
-                61px wide pill, iris-300 hairline border, iris-tinted fill,
-                28×18 thumb in #aab4ff. Add Task is a transparent button with
-                no border (matches Figma 145:6982). */}
-            <div className="flex items-center justify-between gap-sp-3 px-sp-2">
-              {/* Day tab only — in the month grid this toggle gave no clue
-                  which day it applied to, so it lives in the day sheet there. */}
-              {scheduleTab === "timeline" ? (
-                <div className="flex items-center gap-sp-3">
-                  <span className="text-14 text-fog-50">Rest Day</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isRestDay}
-                    aria-label="Rest day toggle"
-                    onClick={async () => {
-                      await updateChild(child.id, restDayUpdate(child, selectedDayString, !isRestDay));
-                    }}
-                    className="tap-target relative w-[61px] h-[26px] rounded-pill border border-[rgba(135,155,255,0.3)] bg-[rgba(135,155,255,0.04)] transition-colors"
-                  >
-                    <span
-                      aria-hidden
-                      className="absolute top-[3px] h-[18px] w-[28px] rounded-pill bg-[#AAB4FF] transition-all"
-                      style={{ left: isRestDay ? "calc(100% - 28px - 3px)" : 3 }}
-                    />
-                  </button>
-                </div>
-              ) : (
-                <span />
-              )}
-
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setShowRoutines(true)}
-                  className="shrink-0 inline-flex items-center gap-2 h-11 px-3 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-                >
-                  <Layers className="w-4 h-4" />
-                  Routines
-                </button>
-                {(!isRestDay || scheduleTab !== "timeline") && (
-                  <button
-                    type="button"
-                    onClick={() => handleAddTask()}
-                    className="shrink-0 inline-flex items-center gap-2 h-11 px-3 rounded-pill text-14 text-fog-50 hover:bg-white/5 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Task
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Schedule card — solid blue hairline border (matches Figma 145:6983).
-                Tab pill bg #271447 @ 50%; active tab bg #1a0f3a + sh-md shadow. */}
-            <div className="flex flex-col gap-sp-4 rounded-[28px] p-sp-4 border border-[rgba(102,153,255,0.25)]">
-              <TabsList className="grid w-full grid-cols-2 h-11 bg-[rgba(39,20,71,0.5)] rounded-pill p-1 border-0">
-                <TabsTrigger
-                  value="timeline"
-                  className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
-                >
-                  Schedule
-                </TabsTrigger>
-                <TabsTrigger
-                  value="month"
-                  className="h-9 rounded-pill text-14 text-iris-300 data-[state=active]:bg-[#1A0F3A] data-[state=active]:text-fog-50 data-[state=active]:shadow-[0px_4px_12px_0px_rgba(44,34,75,0.52)] transition-colors"
-                >
-                  Planner
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Day-picker strip belongs to the Day tab only — the month
-                  grid has its own month navigation and day selection. */}
-              {scheduleTab === "timeline" && (
-                <TimelineHeader
+    <div className="min-h-dvh bg-focus-bg text-focus-text font-sans">
+      <div className={cn("max-w-[420px] mx-auto min-h-dvh flex flex-col px-5 pt-5", isDayTab ? "gap-4" : "gap-5")}>
+        {/* Header — back, stars, more (Figma 355:374) */}
+        <div className="flex items-center justify-between gap-sp-2">
+          <button
+            type="button"
+            onClick={() => navigate("/parent")}
+            aria-label="Back to parent dashboard"
+            className="shrink-0 h-11 w-11 inline-flex items-center justify-center rounded-[16px] bg-focus-surface text-focus-iris hover:bg-focus-raised transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+          </button>
+          <div className="flex items-center gap-sp-2">
+            <Popover open={showRewards} onOpenChange={setShowRewards}>
+              <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={`${child.currentCoins} stars — open rewards`}
+                className="h-11 inline-flex items-center gap-1.5 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 font-semibold text-focus-lime hover:bg-focus-lime/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+              >
+                <span className="text-[13px] leading-4" aria-hidden>★</span>
+                <span className="text-[14px] leading-4 tabular-nums">{child.currentCoins}</span>
+              </button>
+              </PopoverTrigger>
+              {/* Rewards open right under the stars badge, like the ••• menu.
+                  The panel keeps its Figma card design (364:2633). */}
+              <PopoverContent
+                align="end"
+                sideOffset={8}
+                collisionPadding={20}
+                aria-label={`${child.name}'s rewards`}
+                className="w-[calc(100vw-40px)] max-w-[335px] max-h-[calc(100dvh-96px)] overflow-y-auto overscroll-contain rounded-[24px] p-4"
+                // Rewards opens its own dialogs (add / edit / confirm). A tap
+                // inside one lands "outside" this popover; keep it open so
+                // the dialog isn't unmounted with it. The popover is itself a
+                // role="dialog", so look for a second one.
+                onInteractOutside={(e) => {
+                  if (document.querySelectorAll('[role="dialog"], [role="alertdialog"]').length > 1) e.preventDefault();
+                }}
+              >
+                <RewardsManagement
                   child={child}
-                  selectedDay={currentDate}
-                  onSelectedDayChange={setCurrentDate}
+                  onUpdateCoins={updateChildCoins}
+                  onAdjustCoins={(d) => adjustChildCoins(child.id, d)}
+                  onClose={() => setShowRewards(false)}
                 />
+              </PopoverContent>
+            </Popover>
+            <QuickAccessMenu
+              childName={child.name}
+              onEditSchedule={openProfileEdit}
+              onActivityWheel={() => setShowWheelEditor(true)}
+              onReports={() => navigate(`/reports/${child.id}`)}
+              onChildView={() => navigate(`/child/${child.id}`)}
+              alertCount={alertCount}
+              onAlerts={() => setShowAlerts(true)}
+            >
+            <button
+              type="button"
+              aria-label={`More for ${child.name}${alertCount > 0 ? ` (${alertCount} alerts)` : ''}`}
+              className="relative h-11 w-11 inline-flex items-center justify-center rounded-[14px] bg-focus-surface text-[12px] font-semibold leading-[14px] text-focus-muted hover:bg-focus-raised transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+            >
+              •••
+              {alertCount > 0 && (
+                <span aria-hidden className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-focus-alert" />
               )}
-            </div>
+            </button>
+            </QuickAccessMenu>
           </div>
         </div>
 
-        {/* Schedule rows live below the tinted panel on the cosmic gradient. */}
-        <div className="max-w-[420px] mx-auto w-full px-sp-2 pt-sp-3 pb-sp-5">
-          <TabsContent value="timeline" className="space-y-2 mt-0">
-            {isRestDay ? (
-              <div className="flex flex-col items-center justify-center text-center py-sp-6 px-sp-4 gap-sp-3 rounded-[28px] border border-iris-400/25 bg-iris-400/[0.06]">
-                <Moon className="w-8 h-8 text-iris-300" strokeWidth={1.5} />
-                <div className="flex flex-col gap-1">
-                  <span className="text-16 text-fog-50 font-medium">Rest day</span>
-                  <span className="text-13 text-fog-300">
-                    No tasks for {format(currentDate, 'EEEE')}. Toggle off to see the schedule.
-                  </span>
-                </div>
-              </div>
-            ) : (
-            <TimelineScheduleView
-              child={child} currentDate={currentDate}
-              hideHeader
-              getTasksWithCompletionStatus={getTasksWithCompletionStatus}
-              onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
-              onToggleCompletion={handleToggleCompletion}
-              onDateChange={setCurrentDate}
-              onReorderTasks={async (reorderedTasks) => {
-                try {
-                  // Build occupied slots from system/fixed tasks (not being reordered)
-                  const reorderedIds = new Set(reorderedTasks.map(t => t.id));
-                  const fixedSlots = tasks
-                    .filter(t => t.is_active && t.scheduled_time && !reorderedIds.has(t.id))
-                    .map(t => {
-                      const [h, m] = (t.scheduled_time || '09:00').split(':').map(Number);
-                      const start = h * 60 + m;
-                      return { start, end: start + (t.duration || 30) };
-                    })
-                    .sort((a, b) => a.start - b.start);
-
-                  // Place each reordered task sequentially, finding next available slot.
-                  // Never earlier than the child's wake time — starting the scan at
-                  // 00:00 dumped tasks at midnight when the earliest gap fit.
-                  const [wakeH, wakeM] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
-                  const dayStartMin = wakeH * 60 + wakeM;
-                  const placedSlots = [...fixedSlots];
-                  const updatePromises = reorderedTasks.map((task, index) => {
-                    const duration = task.duration || 30;
-                    // Find first gap that fits this task
-                    let bestStart = dayStartMin;
-                    const sorted = [...placedSlots].sort((a, b) => a.start - b.start);
-                    for (const slot of sorted) {
-                      if (bestStart + duration <= slot.start) break;
-                      bestStart = Math.max(bestStart, slot.end);
-                    }
-                    placedSlots.push({ start: bestStart, end: bestStart + duration });
-                    const h = Math.floor(bestStart / 60), m = bestStart % 60;
-                    return updateTask(task.id, {
-                      scheduled_time: `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:00`,
-                      sort_order: index
-                    });
-                  });
-                  await Promise.all(updatePromises); await refetch();
-                } catch { toast({ title: "Error", variant: "destructive" }); }
-              }}
-              onTaskTimeUpdate={async (taskId, newTime, dayName) => {
-                try {
-                  const task = tasks.find(t => t.id === taskId);
-                  if (!task) return;
-                  // If the task had no fixed time before this drag, keep it
-                  // unpinned — record the slot as window_start (a placement
-                  // hint the timeline already respects) so the "Set Time"
-                  // toggle in the edit form stays off.
-                  const hadFixedTime = !!task.scheduled_time;
-                  if (task.is_recurring) {
-                    // A drag on one day's timeline moves it on that day only;
-                    // it used to move every day without asking. The toast
-                    // offers "Every day" for when that was the intent.
-                    const dateStr = format(currentDate, 'yyyy-MM-dd');
-                    const dayKey = dayName || format(currentDate, 'EEEE').toLowerCase();
-                    const duration = task.date_overrides?.[dateStr]?.duration
-                      ?? task.schedule_overrides?.[dayKey]?.duration ?? task.duration;
-                    await updateTask(taskId, {
-                      date_overrides: { ...(task.date_overrides || {}), [dateStr]: { scheduled_time: newTime, duration } },
-                    });
-                    await refetch();
-                    const everyDay = { ...(task.date_overrides || {}) };
-                    delete everyDay[dateStr];
-                    sonner(`Moved on ${format(currentDate, 'EEE, MMM d')} only`, {
-                      action: {
-                        label: 'Every day',
-                        onClick: async () => {
-                          await updateTask(taskId, hadFixedTime
-                            ? { scheduled_time: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }
-                            : { window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null });
-                          await refetch();
-                        },
-                      },
-                    });
-                    return;
-                  } else if (hadFixedTime) {
-                    await updateTask(taskId, { scheduled_time: newTime });
-                  } else {
-                    await updateTask(taskId, { window_start: newTime });
-                  }
-                  await refetch();
-                } catch { toast({ title: "Error", variant: "destructive" }); }
-              }}
-            />
-            )}
-          </TabsContent>
-
-          <TabsContent value="month" className="mt-0">
-            <MonthView child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
-              onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
-              onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
-              onRestoreTask={async (taskId, dateStr) => {
-                const task = tasks.find(t => t.id === taskId);
-                if (!task) return;
-                await updateTask(taskId, { ...task, excluded_dates: (task.excluded_dates || []).filter(d => d !== dateStr) });
-              }}
-              onSelectedDateChange={setCurrentDate}
-              onToggleRestDay={async (dateStr, next) => {
-                await updateChild(child.id, restDayUpdate(child, dateStr, next));
-              }} />
-          </TabsContent>
+        {/* Child row — name, viewed day, Rest Day toggle (Figma 353:2356) */}
+        <div className="flex items-start gap-sp-4">
+          <div className="flex-1 min-w-0 flex flex-col">
+            <h1 className="truncate text-[22px] leading-[28px] font-semibold text-focus-text">{child.name}</h1>
+            <p className="truncate text-[13px] leading-[18px] text-focus-muted">
+              {format(currentDate, 'EEEE, MMM d')}{isViewingToday ? ' · Today' : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isRestDay}
+            aria-label={`Rest day on ${format(currentDate, 'EEEE, MMM d')}`}
+            onClick={async () => {
+              await updateChild(child.id, restDayUpdate(child, selectedDayString, !isRestDay));
+            }}
+            className="shrink-0 min-h-11 -my-2 inline-flex items-center gap-sp-2 rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            <span className="text-[16px] leading-[28px] text-focus-text">Rest Day</span>
+            <span
+              aria-hidden
+              className={cn(
+                "relative w-[54px] h-[30px] rounded-[14px] p-1 transition-colors",
+                isRestDay ? "bg-focus-lavender" : "bg-focus-surface",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 h-[22px] w-[22px] rounded-[12px] transition-all",
+                  isRestDay ? "left-[28px] bg-focus-bg" : "left-1 bg-focus-lavender",
+                )}
+              />
+            </span>
+          </button>
         </div>
-      </Tabs>
 
-      {/* Rewards dialog — opened via the prominent Rewards button */}
-      <Dialog open={showRewards} onOpenChange={setShowRewards}>
-        <DialogContent className="sm:max-w-[560px] max-h-[90dvh] overflow-y-auto">
-          <DialogTitle className="text-xl font-bold">Rewards</DialogTitle>
-          <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
-          <RewardsManagement child={child} onUpdateCoins={updateChildCoins} />
-        </DialogContent>
-      </Dialog>
+        {isDayTab ? (
+          <>
+            {/* Schedule card — switch, week navigation, day strip (Figma 355:390) */}
+            <div className="flex flex-col gap-sp-4 rounded-[24px] bg-focus-surface px-3 pt-[14px] pb-3">
+              {viewSwitch}
+              <TimelineHeader
+                child={child}
+                selectedDay={currentDate}
+                onSelectedDayChange={setCurrentDate}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {isRestDay ? (
+                <div className="flex flex-col items-center justify-center text-center py-sp-6 px-sp-4 gap-sp-3 rounded-[24px] bg-focus-surface">
+                  <Moon className="w-8 h-8 text-focus-mint" strokeWidth={1.5} />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[16px] font-semibold text-focus-text">Rest Day</span>
+                    <span className="text-[13px] text-focus-muted">
+                      No tasks for {format(currentDate, 'EEEE')}. Turn Rest Day off to see the schedule.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <TimelineScheduleView
+                  child={child} currentDate={currentDate}
+                  hideHeader
+                  getTasksWithCompletionStatus={getTasksWithCompletionStatus}
+                  onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+                  onToggleCompletion={handleToggleCompletion}
+                  onDateChange={setCurrentDate}
+                  onReorderTasks={handleReorderTasks}
+                  onTaskTimeUpdate={handleTaskTimeUpdate}
+                />
+              )}
+            </div>
+
+            {/* Sticky bottom bar (Figma 356:479) */}
+            <div className="sticky bottom-0 z-10 mt-auto flex items-center gap-[10px] border-t border-focus-surface bg-focus-bg pt-3 pb-6">
+              <button
+                type="button"
+                onClick={() => setShowRoutines(true)}
+                className={cn(
+                  "h-12 px-4 inline-flex items-center justify-center rounded-[14px] bg-focus-surface text-[14px] leading-[18px] font-semibold text-focus-muted hover:bg-focus-raised transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+                  isRestDay ? "flex-1" : "shrink-0",
+                )}
+              >
+                Add Routine
+              </button>
+              {!isRestDay && (
+                <button
+                  type="button"
+                  onClick={() => handleAddTask()}
+                  className="flex-1 min-w-0 h-12 inline-flex items-center justify-center gap-1.5 rounded-[14px] bg-focus-lime font-semibold leading-5 text-focus-bg hover:bg-focus-lime/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                >
+                  <span className="text-[18px]" aria-hidden>+</span>
+                  <span className="text-[15px]">Add Task</span>
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <MonthView
+            child={child} tasks={tasks} getTasksWithCompletionStatus={getTasksWithCompletionStatus}
+            initialDate={currentDate}
+            viewSwitch={viewSwitch}
+            onOpenDay={(date) => { setCurrentDate(date); setScheduleTab("timeline"); }}
+            onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
+            onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+            onRestoreTask={async (taskId, dateStr) => {
+              const task = tasks.find(t => t.id === taskId);
+              if (!task) return;
+              await updateTask(taskId, { ...task, excluded_dates: (task.excluded_dates || []).filter(d => d !== dateStr) });
+            }}
+            onSelectedDateChange={setCurrentDate}
+            onToggleRestDay={async (dateStr, next) => {
+              await updateChild(child.id, restDayUpdate(child, dateStr, next));
+            }} />
+        )}
+      </div>
+
+
+      <ChildProfileEdit
+        child={child}
+        onUpdateChild={updateChild}
+        open={showProfileEdit}
+        onOpenChange={setShowProfileEdit}
+        showTrigger={false}
+      />
+
+      {/* Rewards — opened by the stars badge */}
 
       {/* Spinning wheel setup dialog — parent sets the child-specific options */}
       <Dialog open={showWheelEditor} onOpenChange={setShowWheelEditor}>
@@ -883,10 +886,10 @@ const ChildDashboard = () => {
               )}
             </AlertDialogDescription>
             {scopeClash?.thisDate && (
-              <p className="text-sm text-coral-300">{scopeClash.thisDate}</p>
+              <p className="text-sm text-focus-coral">{scopeClash.thisDate}</p>
             )}
             {scopeClash?.allDays && (
-              <p className="text-sm text-coral-300">{scopeClash.allDays}</p>
+              <p className="text-sm text-focus-coral">{scopeClash.allDays}</p>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -940,8 +943,10 @@ const ChildDashboard = () => {
       </AlertDialog>
 
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
-        <DialogContent className="sm:max-w-[480px]" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
-          <DialogTitle className="text-xl font-bold text-center">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
+        {/* TaskForm draws its own sheet header (title + 44px close), so the
+            dialog's title is screen-reader only and its close button hidden. */}
+        <DialogContent className="sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+          <DialogTitle className="sr-only">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
           <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
           <TaskForm
             wakeTime={child?.wake_time}

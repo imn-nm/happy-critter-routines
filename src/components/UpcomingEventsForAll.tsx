@@ -172,24 +172,24 @@ const UpcomingEventsForAll = () => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'scheduled': return 'bg-blue-100 text-blue-800';
-      case 'regular': return 'bg-green-100 text-green-800';
-      case 'flexible': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'scheduled': return 'bg-focus-iris/20 text-focus-iris';
+      case 'regular': return 'bg-focus-mint/20 text-focus-mint';
+      case 'flexible': return 'bg-focus-amber/20 text-focus-amber';
+      default: return 'bg-focus-raised text-focus-muted';
     }
   };
 
   if (allUpcomingEvents.length === 0) {
     return (
-      <div className="glass-card rounded-2xl p-5">
+      <div className="bg-focus-surface rounded-[24px] p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Calendar className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold text-lg">Upcoming Events</h2>
+          <Calendar className="w-5 h-5 text-focus-muted" />
+          <h2 className="font-semibold text-18 text-focus-text">Upcoming Events</h2>
         </div>
         <div className="text-center py-6">
           <div className="text-4xl mb-2">📅</div>
-          <h3 className="text-base font-semibold mb-1">No Scheduled Tasks</h3>
-          <p className="text-muted-foreground text-sm">
+          <h3 className="text-16 font-semibold text-focus-text mb-1">No Scheduled Tasks</h3>
+          <p className="text-focus-muted text-14">
             No scheduled tasks found for the next two weeks.
           </p>
         </div>
@@ -198,24 +198,24 @@ const UpcomingEventsForAll = () => {
   }
 
   return (
-    <Card className="p-5 glass-card border-0">
+    <Card className="p-5 bg-focus-surface rounded-[24px] border-0">
       <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-5 h-5 text-primary" />
-        <h2 className="font-semibold text-lg">Upcoming Events</h2>
-        <span className="text-xs text-muted-foreground ml-auto">Next 2 weeks</span>
+        <Calendar className="w-5 h-5 text-focus-muted" />
+        <h2 className="font-semibold text-18 text-focus-text">Upcoming Events</h2>
+        <span className="text-12 text-focus-muted ml-auto">Next 2 weeks</span>
       </div>
       <div className="space-y-2">
         {allUpcomingEvents.map((event, index) => (
           <div
             key={event.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-              index === 0 ? 'border-primary/30 bg-primary/5' : 'border-border/50'
+            className={`flex items-center gap-3 p-3 rounded-[20px] border transition-colors ${
+              index === 0 ? 'border-focus-pink bg-focus-raised' : 'border-transparent bg-focus-bg/60'
             }`}
           >
             {/* Icon */}
             <div className={`p-2 rounded-full shrink-0 ${
-              event.type === 'scheduled' ? 'bg-blue-500/20 text-blue-400' :
-              event.type === 'regular' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+              event.type === 'scheduled' ? 'bg-focus-iris/20 text-focus-iris' :
+              event.type === 'regular' ? 'bg-focus-mint/20 text-focus-mint' : 'bg-focus-amber/20 text-focus-amber'
             }`}>
               {getIcon(event.name)}
             </div>
@@ -224,18 +224,18 @@ const UpcomingEventsForAll = () => {
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                  <h4 className="font-medium truncate text-sm">{event.name}</h4>
+                  <h4 className="font-semibold text-focus-text truncate text-14">{event.name}</h4>
                   {event.childNames.map((name) => (
-                    <Badge key={name} variant="secondary" className="text-xs shrink-0">
+                    <Badge key={name} variant="secondary" className="text-12 shrink-0">
                       {name}
                     </Badge>
                   ))}
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs">
-                  <span className="text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-12">
+                  <span className="text-focus-muted">
                     {formatDate(event.date)}
                   </span>
-                  <span className="font-medium text-primary">
+                  <span className="font-semibold text-focus-text">
                     {formatTime(event.time)}
                   </span>
                 </div>
@@ -243,12 +243,12 @@ const UpcomingEventsForAll = () => {
               
               <div className="flex items-center gap-2 flex-wrap">
                 {event.duration && event.duration > 0 && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-12 text-focus-muted">
                     {Math.floor(event.duration / 60)}h {event.duration % 60}m
                   </span>
                 )}
                 {typeof event.coins === 'number' && event.coins > 0 && (
-                  <span className="text-xs text-warning font-medium">
+                  <span className="text-12 text-focus-lime font-semibold">
                     {event.coins} stars
                   </span>
                 )}

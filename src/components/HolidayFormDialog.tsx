@@ -107,19 +107,20 @@ const HolidayFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] border-0 font-sans">
         <form onSubmit={handleSubmitGuarded}>
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-[18px] font-semibold text-focus-text">
               {holiday ? 'Edit Holiday' : 'Add Holiday'}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Holiday Name *</Label>
+              <Label htmlFor="name" className="text-[13px] font-medium text-focus-muted">Holiday Name *</Label>
               <Input
                 id="name"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 placeholder="e.g., Christmas, Birthday, Snow Day"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -128,9 +129,10 @@ const HolidayFormDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Date *</Label>
+              <Label htmlFor="date" className="text-[13px] font-medium text-focus-muted">Date *</Label>
               <Input
                 id="date"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -139,23 +141,25 @@ const HolidayFormDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="end_date">End date (optional)</Label>
+              <Label htmlFor="end_date" className="text-[13px] font-medium text-focus-muted">End Date (Optional)</Label>
               <Input
                 id="end_date"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 type="date"
                 value={formData.end_date || ''}
                 min={formData.date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value || null })}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[12px] text-focus-muted">
                 Leave blank for a single-day holiday. Use this to mark a window like a vacation week.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
+              <Label htmlFor="description" className="text-[13px] font-medium text-focus-muted">Description (Optional)</Label>
               <Textarea
                 id="description"
+                className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
                 placeholder="Add notes about this holiday..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -164,18 +168,20 @@ const HolidayFormDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Color</Label>
-              <div className="flex items-center gap-2">
+              <Label className="text-[13px] font-medium text-focus-muted">Color</Label>
+              <div className="flex items-start gap-2">
                 <div className="flex flex-wrap gap-2">
                   {popularColors.map((color) => (
                     <button
                       key={color.value}
                       type="button"
                       onClick={() => setFormData({ ...formData, color: color.value })}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      aria-label={color.name}
+                      aria-pressed={formData.color === color.value}
+                      className={`w-11 h-11 rounded-full border-2 transition-all ${
                         formData.color === color.value
-                          ? 'border-foreground scale-110'
-                          : 'border-gray-300 hover:scale-105'
+                          ? 'border-focus-text ring-2 ring-focus-lavender ring-offset-2 ring-offset-focus-sheet'
+                          : 'border-transparent hover:scale-105'
                       }`}
                       style={{ backgroundColor: color.value }}
                       title={color.name}
@@ -186,15 +192,16 @@ const HolidayFormDialog = ({
                   type="color"
                   value={formData.color}
                   onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                  className="w-16 h-10 cursor-pointer"
+                  aria-label="Custom colour"
+                  className="w-16 h-11 shrink-0 cursor-pointer rounded-[14px] border-0 bg-focus-surface p-1"
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-between py-2">
               <div className="space-y-0.5">
-                <Label htmlFor="no-school">No School Day</Label>
-                <p className="text-sm text-muted-foreground">
+                <Label htmlFor="no-school" className="text-[13px] font-medium text-focus-muted">No School Day</Label>
+                <p className="text-[12px] text-focus-muted">
                   Mark this as a day off from school
                 </p>
               </div>
@@ -206,17 +213,18 @@ const HolidayFormDialog = ({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
+              className="h-11 px-5 rounded-[14px] bg-focus-surface text-[14px] font-semibold text-focus-muted hover:bg-focus-raised hover:text-focus-muted"
               onClick={handleClose}
               disabled={isLoading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : holiday ? 'Update' : 'Add Holiday'}
+            <Button type="submit" variant="ghost" disabled={isLoading} className="h-11 px-5 rounded-[14px] bg-focus-lime text-[14px] font-semibold text-focus-bg hover:bg-focus-lime/90">
+              {isLoading ? 'Saving…' : holiday ? 'Update Holiday' : 'Add Holiday'}
             </Button>
           </DialogFooter>
         </form>

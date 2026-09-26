@@ -15,7 +15,7 @@ interface TaskListProps {
 const TaskList = ({ tasks, onToggleCompletion, onEditTask, onDeleteTask }: TaskListProps) => {
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="text-center py-8 text-focus-muted">
         No tasks for this day
       </div>
     );

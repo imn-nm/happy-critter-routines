@@ -3,10 +3,9 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * Input — design-system styled text field.
- *   Pill radius, glass surface (white @ 6%), iris-400 @ 30% solid stroke,
- *   fog-50 text. Focus ring uses --ring (iris-400). Mirrors the look of
- *   Secondary buttons so forms feel consistent with the rest of the UI.
+ * Input — Focus design system text field.
+ *   48px tall, radius 14, focus-surface fill, 1px focus-raised border,
+ *   15px text, lavender focus ring.
  */
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
@@ -14,10 +13,10 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
       <input
         type={type}
         className={cn(
-          "flex h-11 w-full rounded-pill border border-iris-400/30 bg-white/[0.04] px-4 text-[16px] sm:text-14 text-fog-50",
-          "ring-offset-background placeholder:text-fog-300",
+          "flex h-12 w-full rounded-[14px] border border-focus-raised bg-focus-surface px-4 text-[16px] sm:text-[15px] text-focus-text",
+          "ring-offset-focus-bg placeholder:text-focus-muted/70",
           "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "focus-visible:outline-none focus-visible:border-focus-lavender focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0",
           "disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}

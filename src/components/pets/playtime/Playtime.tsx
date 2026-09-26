@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Timer, X } from "lucide-react";
 import CritterPet from "@/components/critters/CritterPet";
 import { useMotionPrefs } from "@/lib/motion";

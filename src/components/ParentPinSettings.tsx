@@ -51,14 +51,14 @@ const ParentPinSettings = () => {
   const digits = (v: string) => v.replace(/\D/g, "");
 
   return (
-    <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
+    <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
       <div className="flex items-center justify-between gap-sp-3">
-        <h2 className="text-14 font-medium text-iris-400 flex items-center gap-2">
+        <h2 className="text-14 font-semibold text-focus-text flex items-center gap-2">
           <Lock className="w-4 h-4" /> Parent PIN
         </h2>
-        <span className="text-12 text-fog-200">{hasPin ? "On" : "Off"}</span>
+        <span className="text-12 text-focus-muted">{hasPin ? "On" : "Off"}</span>
       </div>
-      <p className="text-12 text-fog-200 leading-snug">
+      <p className="text-12 text-focus-muted leading-snug">
         After your child's screen has been open on a device, this PIN is needed to get back to the grown-up side there.
       </p>
 
@@ -85,7 +85,7 @@ const ParentPinSettings = () => {
             onChange={(e) => { setConfirm(digits(e.target.value)); setError(""); }}
             maxLength={6}
           />
-          {error && <p className="text-12 text-coral-300" role="alert">{error}</p>}
+          {error && <p className="text-12 text-focus-coral" role="alert">{error}</p>}
           <div className="flex gap-sp-2">
             <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={close}>Cancel</Button>
             <Button type="submit" size="sm" className="flex-1" disabled={isSettingPin}>Save PIN</Button>
@@ -93,12 +93,12 @@ const ParentPinSettings = () => {
         </form>
       ) : (
         <div className="flex gap-sp-2">
-          <Button type="button" size="sm" onClick={() => setEditing(true)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
             {hasPin ? "Change PIN" : "Set a PIN"}
           </Button>
           {hasPin && (
             <Button type="button" variant="secondary" size="sm" onClick={turnOff} disabled={isSettingPin}>
-              Turn off
+              Turn Off
             </Button>
           )}
         </div>

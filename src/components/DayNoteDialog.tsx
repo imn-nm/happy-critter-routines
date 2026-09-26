@@ -39,16 +39,17 @@ const DayNoteDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[440px] border-0 font-sans">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{initialText ? 'Edit Note' : 'Add Note'}</DialogTitle>
+            <DialogTitle className="text-[18px] font-semibold text-focus-text">{initialText ? 'Edit Note' : 'Add Note'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-4">
-            <Label htmlFor="day-note">{format(date, 'EEEE, MMMM d')}</Label>
+            <Label htmlFor="day-note" className="text-[13px] font-medium text-focus-muted">{format(date, 'EEEE, MMMM d')}</Label>
             <Textarea
               id="day-note"
+              className="min-h-11 rounded-[14px] border-0 bg-focus-surface text-[15px] text-focus-text placeholder:text-focus-muted/60 focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-0"
               placeholder="e.g. Early dismissal at 1pm, dentist appointment, half day"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -64,21 +65,22 @@ const DayNoteDialog = ({
                 variant="ghost"
                 onClick={onDelete}
                 disabled={isLoading}
-                className="text-destructive hover:text-destructive mr-auto"
+                className="h-11 px-4 rounded-[14px] bg-transparent text-[14px] font-semibold text-focus-coral hover:bg-focus-coral/10 hover:text-focus-coral sm:mr-auto"
               >
                 Delete
               </Button>
             )}
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
+              className="h-11 px-5 rounded-[14px] bg-focus-surface text-[14px] font-semibold text-focus-muted hover:bg-focus-raised hover:text-focus-muted"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !text.trim()}>
-              {isLoading ? 'Saving...' : initialText ? 'Update' : 'Save Note'}
+            <Button type="submit" variant="ghost" disabled={isLoading || !text.trim()} className="h-11 px-5 rounded-[14px] bg-focus-lime text-[14px] font-semibold text-focus-bg hover:bg-focus-lime/90">
+              {isLoading ? 'Saving…' : initialText ? 'Update Note' : 'Save Note'}
             </Button>
           </DialogFooter>
         </form>

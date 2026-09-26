@@ -26,90 +26,90 @@
     --overtime-red: 359 100% 68%;         /* coral-500 */
 
     /* Core surface */
-    --background: 253 93% 5%;             /* ink-900 */
-    --foreground: 240 32% 95%;            /* fog-50 */
+    --background: 228 40% 21%;             /* ink-900 */
+    --foreground: 252 100% 98%;            /* fog-50 */
 
-    --card: 262 56% 18%;                  /* ink-600 */
-    --card-foreground: 240 32% 95%;       /* fog-50 */
+    --card: 228 33% 26%;                  /* ink-600 */
+    --card-foreground: 252 100% 98%;       /* fog-50 */
 
-    --popover: 253 58% 14%;               /* ink-700 */
-    --popover-foreground: 240 32% 95%;    /* fog-50 */
+    --popover: 228 38% 15%;               /* ink-700 */
+    --popover-foreground: 252 100% 98%;    /* fog-50 */
 
     /* Primary — iris (periwinkle) */
-    --primary: 227 100% 76%;              /* iris-400 */
-    --primary-foreground: 253 93% 5%;     /* ink-900 */
-    --primary-light: 231 100% 83%;        /* iris-300 */
-    --primary-dark: 231 62% 58%;          /* iris-600 */
+    --primary: 69 80% 69%;              /* iris-400 */
+    --primary-foreground: 228 40% 21%;     /* ink-900 */
+    --primary-light: 69 80% 80%;        /* iris-300 */
+    --primary-dark: 69 60% 55%;          /* iris-600 */
 
     /* Secondary — neutral dark surface */
-    --secondary: 262 56% 18%;             /* ink-600 */
-    --secondary-foreground: 240 32% 95%;  /* fog-50 */
+    --secondary: 228 33% 26%;             /* ink-600 */
+    --secondary-foreground: 252 100% 98%;  /* fog-50 */
 
     /* Accent — lilac */
-    --accent: 259 100% 75%;               /* lilac-400 */
-    --accent-foreground: 253 93% 5%;
-    --accent-light: 259 74% 64%;          /* lilac-500 */
+    --accent: 250 74% 77%;               /* lilac-400 */
+    --accent-foreground: 228 40% 21%;
+    --accent-light: 250 74% 85%;          /* lilac-500 */
 
     /* Success — mint */
-    --success: 173 52% 54%;               /* mint-400 */
-    --success-foreground: 253 93% 5%;
+    --success: 160 52% 60%;               /* mint-400 */
+    --success-foreground: 228 40% 21%;
 
     /* Warning — amber */
-    --warning: 34 97% 53%;                /* amber-500 */
-    --warning-foreground: 253 93% 5%;
+    --warning: 35 95% 63%;                /* amber-500 */
+    --warning-foreground: 228 40% 21%;
 
     /* Muted + destructive */
-    --muted: 253 58% 14%;                 /* ink-700 */
-    --muted-foreground: 237 24% 70%;      /* fog-200 */
-    --destructive: 359 100% 68%;          /* coral-500 */
-    --destructive-foreground: 240 32% 95%;
+    --muted: 228 33% 26%;                 /* ink-700 */
+    --muted-foreground: 248 77% 83%;      /* fog-200 */
+    --destructive: 359 100% 78%;          /* coral-500 */
+    --destructive-foreground: 228 40% 21%;
 
     /* Borders / inputs / focus */
-    --border: 235 20% 37%;                /* fog-400 — visible on dark */
-    --input: 235 20% 37%;
-    --ring: 227 100% 76%;                 /* iris-400 */
+    --border: 227 30% 34%;                /* fog-400 — visible on dark */
+    --input: 227 30% 34%;
+    --ring: 250 74% 77%;                 /* iris-400 */
 
     --radius: 1.25rem;                    /* --r-md = 20px — tile-ish */
 
     /* Sidebar */
-    --sidebar-background: 253 58% 14%;    /* ink-700 */
-    --sidebar-foreground: 240 32% 95%;
-    --sidebar-primary: 227 100% 76%;      /* iris-400 */
-    --sidebar-primary-foreground: 253 93% 5%;
-    --sidebar-accent: 262 56% 18%;        /* ink-600 */
-    --sidebar-accent-foreground: 240 32% 95%;
-    --sidebar-border: 235 20% 37%;
-    --sidebar-ring: 227 100% 76%;
+    --sidebar-background: 228 38% 15%;    /* ink-700 */
+    --sidebar-foreground: 252 100% 98%;
+    --sidebar-primary: 250 74% 77%;      /* iris-400 */
+    --sidebar-primary-foreground: 228 40% 21%;
+    --sidebar-accent: 228 33% 26%;        /* ink-600 */
+    --sidebar-accent-foreground: 252 100% 98%;
+    --sidebar-border: 227 30% 34%;
+    --sidebar-ring: 250 74% 77%;
   }
 
   .dark {
-    --background: 253 93% 5%;
-    --foreground: 240 32% 95%;
-    --card: 262 56% 18%;
-    --card-foreground: 240 32% 95%;
-    --popover: 253 58% 14%;
-    --popover-foreground: 240 32% 95%;
-    --primary: 227 100% 76%;
-    --primary-foreground: 253 93% 5%;
-    --secondary: 262 56% 18%;
-    --secondary-foreground: 240 32% 95%;
-    --muted: 253 58% 14%;
-    --muted-foreground: 237 24% 70%;
-    --accent: 259 100% 75%;
-    --accent-foreground: 253 93% 5%;
-    --destructive: 359 100% 68%;
-    --destructive-foreground: 240 32% 95%;
-    --border: 235 20% 37%;
-    --input: 235 20% 37%;
-    --ring: 227 100% 76%;
-    --sidebar-background: 253 58% 14%;
-    --sidebar-foreground: 240 32% 95%;
-    --sidebar-primary: 227 100% 76%;
-    --sidebar-primary-foreground: 253 93% 5%;
-    --sidebar-accent: 262 56% 18%;
-    --sidebar-accent-foreground: 240 32% 95%;
-    --sidebar-border: 235 20% 37%;
-    --sidebar-ring: 227 100% 76%;
+    --background: 228 40% 21%;
+    --foreground: 252 100% 98%;
+    --card: 228 33% 26%;
+    --card-foreground: 252 100% 98%;
+    --popover: 228 38% 15%;
+    --popover-foreground: 252 100% 98%;
+    --primary: 69 80% 69%;
+    --primary-foreground: 228 40% 21%;
+    --secondary: 228 33% 26%;
+    --secondary-foreground: 252 100% 98%;
+    --muted: 228 33% 26%;
+    --muted-foreground: 248 77% 83%;
+    --accent: 250 74% 77%;
+    --accent-foreground: 228 40% 21%;
+    --destructive: 359 100% 78%;
+    --destructive-foreground: 228 40% 21%;
+    --border: 227 30% 34%;
+    --input: 227 30% 34%;
+    --ring: 250 74% 77%;
+    --sidebar-background: 228 38% 15%;
+    --sidebar-foreground: 252 100% 98%;
+    --sidebar-primary: 250 74% 77%;
+    --sidebar-primary-foreground: 228 40% 21%;
+    --sidebar-accent: 228 33% 26%;
+    --sidebar-accent-foreground: 252 100% 98%;
+    --sidebar-border: 227 30% 34%;
+    --sidebar-ring: 250 74% 77%;
   }
 }
 
@@ -265,18 +265,6 @@
     background-clip: text;
   }
 
-  /* Inside the iris-tinted popup surface (Dialog / AlertDialog) form
-     controls need a darker fill so text stays legible against the lilac
-     glass. Mirrors the Figma settings overlay's inset cards. */
-  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]),
-  [role="dialog"] textarea,
-  [role="dialog"] [role="combobox"],
-  [role="alertdialog"] input:not([type="checkbox"]):not([type="radio"]),
-  [role="alertdialog"] textarea,
-  [role="alertdialog"] [role="combobox"] {
-    background-color: rgba(8, 1, 26, 0.4);
-    border-color: rgba(135, 155, 255, 0.3);
-  }
 }
 
 /* Bottom sheets sit on the home indicator on notched phones; pad past it. */

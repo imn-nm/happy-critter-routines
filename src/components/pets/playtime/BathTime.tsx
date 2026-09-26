@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Heart, Pointer, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs } from "@/lib/motion";

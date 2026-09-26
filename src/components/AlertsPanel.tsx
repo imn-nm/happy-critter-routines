@@ -9,7 +9,8 @@ import { dismissMissed, fetchMissedImportantToday, onMissedDismissed } from "@/u
 import { formatTime12 } from "@/utils/formatTime";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
+import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
 
 interface PendingRewardAlert {
   type: "reward_request";
@@ -160,7 +161,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
         <>
           {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 z-[60] bg-black/40"
+            className="fixed inset-0 z-[60] bg-focus-scrim/85 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -168,8 +169,8 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
           />
           {/* Sheet */}
           <motion.div
-            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] px-sp-4 pt-sp-5 pb-sp-8 sheet-safe-bottom"
-            style={{ background: "#3D2B6B", maxHeight: "70dvh" }}
+            className="fixed left-0 right-0 bottom-0 z-[70] mx-auto max-w-[420px] rounded-t-[28px] bg-focus-sheet px-sp-4 pt-sp-5 pb-sp-8 sheet-safe-bottom"
+            style={{ maxHeight: "70dvh" }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -177,34 +178,34 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
           >
             {/* Handle */}
             <div className="flex justify-center mb-sp-3">
-              <div className="w-10 h-1 rounded-full bg-fog-50/20" />
+              <div className="w-10 h-1 rounded-full bg-focus-raised" />
             </div>
 
             {/* Header */}
             <div className="flex items-center justify-between mb-sp-4">
               <div className="flex items-center gap-sp-2">
-                <Bell className="w-5 h-5 text-iris-400" />
-                <h2 className="text-18 font-bold text-fog-50">Alerts</h2>
+                <Bell className="w-5 h-5 text-focus-muted" />
+                <h2 className="text-18 font-bold text-focus-text">Alerts</h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full hover:bg-fog-50/10 transition-colors"
+                className={closeButtonClass}
                 aria-label="Close alerts"
               >
-                <X className="w-5 h-5 text-fog-300" />
+                <X className={closeIconClass} />
               </button>
             </div>
 
             {/* Alerts list */}
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(70dvh - 120px)" }}>
               {loading ? (
-                <div className="text-center py-sp-6 text-fog-300 text-14">One moment…</div>
+                <div className="text-center py-sp-6 text-focus-muted text-14">One moment…</div>
               ) : alerts.length === 0 ? (
                 <div className="text-center py-sp-8 flex flex-col items-center gap-sp-2">
-                  <Bell className="w-10 h-10 text-iris-400/40" />
-                  <p className="text-fog-200 text-14">No alerts</p>
-                  <p className="text-fog-400 text-12">You're all caught up!</p>
+                  <Bell className="w-10 h-10 text-focus-muted/40" />
+                  <p className="text-focus-text font-semibold text-14">No Alerts</p>
+                  <p className="text-focus-muted text-12">You're all caught up!</p>
                 </div>
               ) : (
                 alerts.map(alert => {
@@ -215,20 +216,20 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                       <div
                         key={alert.id}
                         className={cn(
-                          "flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-iris-400/15 border border-iris-400/30 transition-opacity",
+                          "flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-focus-surface transition-opacity",
                           isProcessing && "opacity-50 pointer-events-none"
                         )}
                       >
-                        <div className="w-9 h-9 rounded-full bg-iris-400/20 flex items-center justify-center shrink-0">
-                          <Gift className="w-4 h-4 text-iris-400" />
+                        <div className="w-9 h-9 rounded-full bg-focus-pink/20 flex items-center justify-center shrink-0">
+                          <Gift className="w-4 h-4 text-focus-pink" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-14 font-medium text-fog-50 truncate">
+                          <p className="text-14 font-semibold text-focus-text truncate">
                             {alert.childName} wants {alert.rewardName}
                           </p>
                           <div className="flex items-center gap-1 mt-0.5">
-                            <Star className="w-3 h-3 text-[#FFD66B] fill-[#FFD66B]" strokeWidth={0} />
-                            <span className="text-12 text-fog-300">{alert.coins} stars</span>
+                            <Star className="w-3 h-3 text-focus-lime fill-focus-lime" strokeWidth={0} />
+                            <span className="text-12 text-focus-muted">{alert.coins} stars</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-sp-1 shrink-0">
@@ -244,7 +245,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                           <Button
                             variant="secondary"
                             size="icon-sm"
-                            className="text-coral-400 hover:bg-coral-500/10"
+                            className="text-focus-coral hover:bg-focus-coral/10 hover:text-focus-coral"
                             onClick={() => handleDeny(alert)}
                             disabled={isProcessing}
                             aria-label="Deny"
@@ -260,16 +261,16 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                     return (
                       <div
                         key={alert.id}
-                        className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-amber-400/10 border border-amber-400/30"
+                        className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-focus-amber/10 border border-focus-amber/30"
                       >
-                        <div className="w-9 h-9 rounded-full bg-amber-400/20 flex items-center justify-center shrink-0">
-                          <Clock className="w-4 h-4 text-amber-400" />
+                        <div className="w-9 h-9 rounded-full bg-focus-amber/20 flex items-center justify-center shrink-0">
+                          <Clock className="w-4 h-4 text-focus-amber" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-14 font-medium text-fog-50 truncate">
+                          <p className="text-14 font-semibold text-focus-text truncate">
                             {alert.childName} hasn't finished {alert.taskName}
                           </p>
-                          <p className="text-12 text-fog-300 mt-0.5">
+                          <p className="text-12 text-focus-muted mt-0.5">
                             Due by {formatTime12(alert.dueBy)}. Still doable today.
                           </p>
                         </div>
@@ -281,7 +282,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                             setAlerts(prev => prev.filter(a => a.id !== alert.id));
                           }}
                           aria-label={`Dismiss ${alert.taskName} for today`}
-                          className="shrink-0 text-fog-300 hover:text-fog-50"
+                          className="shrink-0 text-focus-muted hover:text-focus-text"
                         >
                           <X className="w-4 h-4" />
                         </Button>

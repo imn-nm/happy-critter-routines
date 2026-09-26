@@ -101,20 +101,20 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'system': return 'bg-muted text-muted-foreground';
-      case 'scheduled': return 'bg-blue-100 text-blue-800';
-      case 'regular': return 'bg-green-100 text-green-800';
-      case 'flexible': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'system': return 'bg-focus-raised text-focus-muted';
+      case 'scheduled': return 'bg-focus-iris/20 text-focus-iris';
+      case 'regular': return 'bg-focus-mint/20 text-focus-mint';
+      case 'flexible': return 'bg-focus-amber/20 text-focus-amber';
+      default: return 'bg-focus-raised text-focus-muted';
     }
   };
 
   if (upcomingEvents.length === 0) {
     return (
-      <Card className="p-6 text-center glass-card">
+      <Card className="p-6 text-center bg-focus-surface rounded-[24px]">
         <div className="text-4xl mb-2">🎉</div>
-        <h3 className="text-lg font-semibold mb-2">No More Events Today!</h3>
-        <p className="text-muted-foreground text-sm">
+        <h3 className="text-18 font-semibold text-focus-text mb-2">No More Events Today!</h3>
+        <p className="text-focus-muted text-14">
           Great job {child.name}! You're all caught up.
         </p>
       </Card>
@@ -122,8 +122,8 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
   }
 
   return (
-    <Card className="p-4 glass-card">
-      <h3 className="font-semibold mb-4 text-center flex items-center justify-center gap-2">
+    <Card className="p-4 bg-focus-surface rounded-[24px]">
+      <h3 className="text-16 font-semibold text-focus-text mb-4 text-center flex items-center justify-center gap-2">
         <Clock className="w-4 h-4" />
         Upcoming Events
       </h3>
@@ -131,20 +131,20 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
         {upcomingEvents.map((event, index) => (
           <div
             key={event.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border ${
-              index === 0 ? 'border-primary/30 bg-primary/5' : 'border-border/50'
+            className={`flex items-center gap-3 p-3 rounded-[20px] border ${
+              index === 0 ? 'border-focus-pink bg-focus-raised' : 'border-transparent bg-focus-bg/60'
             }`}
           >
             {/* Time */}
-            <div className="text-sm font-mono w-16 text-muted-foreground">
+            <div className="text-14 font-mono w-16 text-focus-muted">
               {formatTime(event.time)}
             </div>
             
             {/* Icon */}
             <div className={`p-2 rounded-full ${
-              event.type === 'system' ? 'bg-muted' : 
-              event.type === 'scheduled' ? 'bg-blue-100' :
-              event.type === 'regular' ? 'bg-green-100' : 'bg-yellow-100'
+              event.type === 'system' ? 'bg-focus-raised' : 
+              event.type === 'scheduled' ? 'bg-focus-iris/20' :
+              event.type === 'regular' ? 'bg-focus-mint/20' : 'bg-focus-amber/20'
             }`}>
               {getIcon(event.type, event.name)}
             </div>
@@ -152,18 +152,18 @@ const UpcomingEvents = ({ child, tasks }: UpcomingEventsProps) => {
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
-                <h4 className="font-medium truncate">{event.name}</h4>
+                <h4 className="font-semibold text-focus-text truncate">{event.name}</h4>
                 {event.coins && (
-                  <span className="text-sm text-warning font-medium">{event.coins} stars</span>
+                  <span className="text-14 text-focus-lime font-semibold">{event.coins} stars</span>
                 )}
               </div>
               
               <div className="flex items-center gap-2">
-                <Badge className={`text-xs ${getTypeColor(event.type)}`}>
+                <Badge className={`text-12 ${getTypeColor(event.type)}`}>
                   {event.type === 'system' ? 'Fixed' : event.type}
                 </Badge>
                 {event.duration && event.duration > 0 && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-12 text-focus-muted">
                     {Math.floor(event.duration / 60)}h {event.duration % 60}m
                   </span>
                 )}

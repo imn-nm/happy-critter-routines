@@ -86,11 +86,11 @@ const HouseholdSettings = () => {
 
   if (!household) {
     return (
-      <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
-        <h2 className="text-14 font-medium text-iris-400 flex items-center gap-2">
+      <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
+        <h2 className="text-14 font-semibold text-focus-text flex items-center gap-2">
           <Users className="w-4 h-4" /> Household
         </h2>
-        <p className="text-14 text-fog-200">
+        <p className="text-14 text-focus-muted">
           You're not in a household yet. Create one to share this account with a spouse or co-parent.
         </p>
         <Button
@@ -105,7 +105,7 @@ const HouseholdSettings = () => {
             }
           }}
         >
-          Create household
+          Create Household
         </Button>
       </section>
     );
@@ -158,31 +158,31 @@ const HouseholdSettings = () => {
   };
 
   return (
-    <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
+    <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-14 font-medium text-iris-400 flex items-center gap-2">
+        <h2 className="text-14 font-semibold text-focus-text flex items-center gap-2">
           <Users className="w-4 h-4" /> Household
         </h2>
-        <span className="text-12 text-fog-200">{household.name}</span>
+        <span className="text-12 text-focus-muted">{household.name}</span>
       </div>
 
       <div className="flex flex-col gap-sp-1">
-        <p className="text-12 text-fog-200">Members</p>
+        <p className="text-12 font-semibold text-focus-muted">Members</p>
         <ul className="flex flex-col gap-1">
           {(members ?? []).map(m => (
             <li
               key={m.user_id}
-              className="text-14 text-fog-50 px-sp-2 py-1 rounded-[12px] bg-[rgba(8,1,26,0.4)] flex justify-between"
+              className="min-h-11 text-14 text-focus-text px-sp-3 py-1 rounded-[14px] bg-focus-bg/60 flex items-center justify-between"
             >
               <span className="truncate">{memberLabel(m.user_id)}</span>
               <span className="flex items-center gap-2 shrink-0">
-                <span className="text-fog-200 text-12">{m.role}</span>
+                <span className="text-focus-muted text-12">{m.role}</span>
                 {m.user_id === user?.id
                   ? (members ?? []).length > 1 && (
                       <button
                         type="button"
                         onClick={() => setRemoving({ userId: m.user_id, label: 'yourself' })}
-                        className="tap-target text-12 text-coral-300 hover:text-coral-200"
+                        className="tap-target min-h-11 px-1 text-13 font-semibold text-focus-coral hover:text-focus-coral/80"
                       >
                         Leave
                       </button>
@@ -191,7 +191,7 @@ const HouseholdSettings = () => {
                       <button
                         type="button"
                         onClick={() => setRemoving({ userId: m.user_id, label: memberLabel(m.user_id) })}
-                        className="tap-target text-12 text-coral-300 hover:text-coral-200"
+                        className="tap-target min-h-11 px-1 text-13 font-semibold text-focus-coral hover:text-focus-coral/80"
                       >
                         Remove
                       </button>
@@ -203,7 +203,7 @@ const HouseholdSettings = () => {
       </div>
 
       <div className="flex flex-col gap-sp-2">
-        <p className="text-12 text-fog-200">Invite your spouse</p>
+        <p className="text-12 font-semibold text-focus-muted">Invite Your Spouse</p>
         <div className="flex gap-2">
           <Input
             type="email"
@@ -211,18 +211,18 @@ const HouseholdSettings = () => {
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
           />
-          <Button size="sm" onClick={generate} disabled={busy} className="gap-1.5">
+          <Button size="sm" variant="secondary" onClick={generate} disabled={busy} className="gap-1.5">
             <Mail className="w-4 h-4" /> Invite
           </Button>
         </div>
 
         {latestUrl && (
-          <div className="flex items-center gap-2 p-sp-2 rounded-[12px] bg-[rgba(8,1,26,0.4)]">
-            <code className="text-12 text-fog-50 flex-1 truncate">{latestUrl}</code>
+          <div className="flex items-center gap-2 p-sp-2 rounded-[14px] bg-focus-bg/60">
+            <code className="text-12 text-focus-text flex-1 truncate">{latestUrl}</code>
             <button
               type="button"
               onClick={() => copyLink(latestUrl)}
-              className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-iris-400 hover:text-iris-300"
+              className="shrink-0 w-11 h-11 rounded-[14px] flex items-center justify-center text-focus-muted hover:bg-focus-surface hover:text-focus-text"
               aria-label="Copy invite link"
             >
               <Copy className="w-4 h-4" />
@@ -232,17 +232,17 @@ const HouseholdSettings = () => {
 
         {(pendingInvites ?? []).length > 0 && (
           <div className="flex flex-col gap-1">
-            <p className="text-12 text-fog-200">Pending invites</p>
+            <p className="text-12 font-semibold text-focus-muted">Pending Invites</p>
             {pendingInvites!.map(inv => {
               const url = `${window.location.origin}/accept-invite?invite=${encodeURIComponent(inv.token)}`;
               return (
                 <div
                   key={inv.id}
-                  className="flex items-center gap-2 p-sp-2 rounded-[12px] bg-[rgba(8,1,26,0.4)]"
+                  className="flex items-center gap-2 p-sp-2 rounded-[14px] bg-focus-bg/60"
                 >
                   <div className="flex-1 min-w-0">
-                    <code className="text-12 text-fog-50 block truncate">{url}</code>
-                    <p className="text-12 text-fog-200">
+                    <code className="text-12 text-focus-text block truncate">{url}</code>
+                    <p className="text-12 text-focus-muted">
                       {inv.email ? `For ${inv.email} · ` : ''}
                       Expires {new Date(inv.expires_at).toLocaleDateString()}
                     </p>
@@ -250,7 +250,7 @@ const HouseholdSettings = () => {
                   <button
                     type="button"
                     onClick={() => copyLink(url)}
-                    className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-iris-400 hover:text-iris-300"
+                    className="shrink-0 w-11 h-11 rounded-[14px] flex items-center justify-center text-focus-muted hover:bg-focus-surface hover:text-focus-text"
                     aria-label="Copy invite link"
                   >
                     <Copy className="w-4 h-4" />
@@ -258,7 +258,7 @@ const HouseholdSettings = () => {
                   <button
                     type="button"
                     onClick={() => cancelInvite(inv.id)}
-                    className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-fog-300 hover:text-coral-300"
+                    className="tap-target shrink-0 w-11 h-11 flex items-center justify-center text-focus-muted hover:text-focus-coral"
                     aria-label="Cancel invite"
                   >
                     <X className="w-4 h-4" />
@@ -286,7 +286,7 @@ const HouseholdSettings = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => removing && removeMember(removing.userId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-focus-coral text-focus-bg hover:bg-focus-coral/90"
             >
               {removing?.userId === user?.id ? 'Leave' : 'Remove'}
             </AlertDialogAction>

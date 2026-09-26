@@ -85,56 +85,56 @@ const AcceptInvite = () => {
 
   let body: React.ReactNode;
   if (status === 'looking') {
-    body = <p className="text-foreground">Looking up your invite…</p>;
+    body = <p className="text-focus-text">Looking up your invite…</p>;
   } else if (status === 'joining') {
-    body = <p className="text-foreground">Joining {family}…</p>;
+    body = <p className="text-focus-text">Joining {family}…</p>;
   } else if (status === 'done') {
-    body = <p className="text-foreground">You're in! Taking you to the family…</p>;
+    body = <p className="text-focus-text">You're in! Taking you to the family…</p>;
   } else if (status === 'error') {
     body = (
       <>
-        <p className="text-foreground font-medium">Couldn't accept the invite</p>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <Button onClick={() => navigate('/parent')}>Go to the app</Button>
+        <p className="text-focus-text font-medium">Couldn't accept the invite</p>
+        <p className="text-14 text-focus-muted">{message}</p>
+        <Button onClick={() => navigate('/parent')}>Go to the App</Button>
       </>
     );
   } else if (!peek || peek.status === 'not_found') {
     body = (
       <>
-        <p className="text-foreground font-medium">This invite link doesn't work</p>
-        <p className="text-sm text-muted-foreground">Check you copied the whole link, or ask for a new one.</p>
-        <Button onClick={() => navigate('/parent')}>Go to the app</Button>
+        <p className="text-focus-text font-medium">This invite link doesn't work</p>
+        <p className="text-14 text-focus-muted">Check you copied the whole link, or ask for a new one.</p>
+        <Button onClick={() => navigate('/parent')}>Go to the App</Button>
       </>
     );
   } else if (peek.already_member) {
     body = (
       <>
-        <p className="text-foreground font-medium">You're already in {family}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-focus-text font-medium">You're already in {family}</p>
+        <p className="text-14 text-focus-muted">
           This link is for someone else to join. {peek.status === 'ok' ? "It hasn't been used, so you can still send it to them." : ''}
         </p>
-        <Button onClick={() => navigate('/parent')}>Back to the app</Button>
+        <Button onClick={() => navigate('/parent')}>Back to the App</Button>
       </>
     );
   } else if (peek.status !== 'ok') {
     body = (
       <>
-        <p className="text-foreground font-medium">
+        <p className="text-focus-text font-medium">
           {peek.status === 'expired' ? 'This invite has expired' : 'This invite was already used'}
         </p>
-        <p className="text-sm text-muted-foreground">Ask {peek.invited_by || 'the person who sent it'} for a new link.</p>
-        <Button onClick={() => navigate('/parent')}>Go to the app</Button>
+        <p className="text-14 text-focus-muted">Ask {peek.invited_by || 'the person who sent it'} for a new link.</p>
+        <Button onClick={() => navigate('/parent')}>Go to the App</Button>
       </>
     );
   } else if (wrongAccount) {
     body = (
       <>
-        <p className="text-foreground font-medium">This invite is for {peek.email}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-focus-text font-medium">This invite is for {peek.email}</p>
+        <p className="text-14 text-focus-muted">
           You're signed in as {user?.email}. Sign in with {peek.email} to join {family}.
         </p>
         <Button onClick={async () => { await signOut(); navigate(`/login?invite=${encodeURIComponent(token!)}`); }}>
-          Use a different account
+          Use a Different Account
         </Button>
       </>
     );
@@ -146,33 +146,33 @@ const AcceptInvite = () => {
     const them = mine.length === 1 ? mine[0] : 'them';
     body = (
       <>
-        <span className="mx-auto w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center">
-          <Users className="w-6 h-6 text-primary-light" />
+        <span className="mx-auto w-12 h-12 rounded-[14px] bg-focus-sunken flex items-center justify-center">
+          <Users className="w-6 h-6 text-focus-lavender" />
         </span>
-        <p className="text-lg text-foreground font-semibold">Join {family}?</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-18 text-focus-text font-semibold">Join {family}?</p>
+        <p className="text-14 text-focus-muted">
           {peek.invited_by ? `${peek.invited_by} invited you` : 'You were invited'} to share the children's
           schedules and rewards. You're signed in as {user?.email}.
         </p>
         {mine.length > 0 ? (
           <>
-            <p className="text-sm text-foreground">
+            <p className="text-14 text-focus-text">
               You already set up {names} here. Bring them into {family}, with their schedules, stars and
               rewards?
             </p>
             <div className="flex flex-col gap-2">
-              <Button onClick={() => join(true)}>Join and bring {names}</Button>
-              <Button variant="secondary" onClick={() => join(false)}>Join without {them}</Button>
-              <p className="text-xs text-muted-foreground">
+              <Button onClick={() => join(true)}>Join and Bring {names}</Button>
+              <Button variant="secondary" onClick={() => join(false)}>Join Without {them}</Button>
+              <p className="text-12 text-focus-muted">
                 Pick "without" if {names} {mine.length === 1 ? 'is' : 'are'} already in {family}, so nobody is added twice.
               </p>
-              <Button variant="ghost" onClick={() => navigate('/parent')}>Not now</Button>
+              <Button variant="ghost" onClick={() => navigate('/parent')}>Not Now</Button>
             </div>
           </>
         ) : (
           <div className="flex flex-col gap-2">
             <Button onClick={() => join(false)}>Join {family}</Button>
-            <Button variant="secondary" onClick={() => navigate('/parent')}>Not now</Button>
+            <Button variant="secondary" onClick={() => navigate('/parent')}>Not Now</Button>
           </div>
         )}
       </>
@@ -181,7 +181,7 @@ const AcceptInvite = () => {
 
   return (
     <div className="min-h-dvh flex items-center justify-center p-6">
-      <div className="glass-card rounded-3xl p-8 max-w-sm text-center space-y-4" role="status">
+      <div className="bg-focus-surface rounded-[24px] p-8 max-w-sm text-center space-y-4" role="status">
         {body}
       </div>
     </div>

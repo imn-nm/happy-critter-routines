@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, durations } from "@/lib/motion";
 
@@ -26,9 +26,11 @@ interface CircularTimerProps {
   frameContent?: boolean;
 }
 
-// Figma reference: 293 diameter, 3 px stroke (thin aurora-style ring).
+// Figma "Child / Focus — redesigned" (339:133): 220 diameter, 5px
+// focus-lavender ring around a focus-sunken disc.
 const DEFAULT_SIZE = 293;
-const STROKE_PX = 3;
+const STROKE_PX = 5;
+const SUNKEN = "#0E1221"; // focus-sunken
 
 const CircularTimer = ({
   totalSeconds,
@@ -72,12 +74,12 @@ const CircularTimer = ({
   // Hex literals (not CSS vars) so Motion can tween the color smoothly.
   const getProgressColor = () => {
     switch (status) {
-      case "on-track": return "#38b2a4"; // mint-500
-      case "ahead":    return "#879bff"; // iris-400
+      case "on-track": return "#A89AF0"; // focus-lavender
+      case "ahead":    return "#65CDAA"; // focus-mint: free time
       case "behind":
-      case "critical": return "#ff6666"; // coral-400
-      case "overtime": return "#fab047"; // amber-400: time ran out, not a failure
-      default:         return "#38b2a4";
+      case "critical": return "#EAB5DE"; // focus-pink: gentle, never alarming
+      case "overtime": return "#FAB047"; // focus-amber: time ran out, not a failure
+      default:         return "#A89AF0";
     }
   };
 
@@ -112,15 +114,17 @@ const CircularTimer = ({
         viewBox={`0 0 ${viewBox} ${viewBox}`}
         shapeRendering="geometricPrecision"
       >
-        {/* Track — white @ 10% (Figma idle/active). Hidden for overtime/critical
-            since those states show a full coloured ring instead. */}
+        {/* Disc — focus-sunken, the stage the pet sits on. */}
+        <circle cx={center} cy={center} r={radius} fill={SUNKEN} />
+        {/* Track — lavender @ 22%. Hidden for overtime since that state
+            shows a full coloured ring instead. */}
         {!isOvertime && (
           <circle
             cx={center}
             cy={center}
             r={radius}
-            stroke="#FFFFFF"
-            strokeOpacity={0.1}
+            stroke="#A89AF0"
+            strokeOpacity={0.22}
             strokeWidth={STROKE_PX}
             fill="transparent"
           />

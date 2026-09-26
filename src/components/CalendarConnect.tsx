@@ -21,41 +21,41 @@ const CalendarConnect = () => {
   }, [household]);
 
   return (
-    <section className="mx-sp-4 rounded-[28px] border border-[rgba(135,155,255,0.6)] bg-[rgba(135,155,255,0.2)] p-sp-4 flex flex-col gap-sp-3">
-      <h2 className="text-14 font-medium text-iris-400 flex items-center gap-2">
+    <section className="mx-sp-4 rounded-[24px] bg-focus-surface p-sp-4 flex flex-col gap-sp-3">
+      <h2 className="text-14 font-semibold text-focus-text flex items-center gap-2">
         <Calendar className="w-4 h-4" /> Google Calendar
       </h2>
 
       {isConnected ? (
         <>
-          <p className="text-14 text-fog-50">
-            Connected as <span className="text-iris-300">{status?.google_email ?? 'Google'}</span>
+          <p className="text-14 text-focus-text">
+            Connected as <span className="text-focus-lavender">{status?.google_email ?? 'Google'}</span>
           </p>
-          <p className="text-12 text-fog-200">
+          <p className="text-12 text-focus-muted">
             Holidays and day notes are pushed to a calendar this app owns. Your other Google
             calendars are untouched.
           </p>
           {lastSync && (lastSync.ok ? (
-            <p className="text-12 text-fog-300">
+            <p className="text-12 text-focus-muted">
               Last synced {formatDistanceToNow(new Date(lastSync.at), { addSuffix: true })}
             </p>
           ) : (
-            <div className="flex flex-col gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-sp-3" role="alert">
-              <p className="text-13 text-fog-50 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-2 rounded-[20px] border border-focus-amber/40 bg-focus-amber/10 p-sp-3" role="alert">
+              <p className="text-13 text-focus-text flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-focus-amber shrink-0 mt-0.5" />
                 <span>
                   The last sync didn't work ({formatDistanceToNow(new Date(lastSync.at), { addSuffix: true })}): {lastSync.message}
                 </span>
               </p>
-              <Button size="sm" onClick={() => connect()} className="self-start">
+              <Button size="sm" variant="secondary" onClick={() => connect()} className="self-start">
                 Reconnect
               </Button>
             </div>
           ))}
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => syncNow()} disabled={syncing} className="gap-1.5">
+            <Button size="sm" variant="secondary" onClick={() => syncNow()} disabled={syncing} className="gap-1.5">
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              Sync now
+              Sync Now
             </Button>
             <Button
               size="sm"
@@ -69,11 +69,11 @@ const CalendarConnect = () => {
         </>
       ) : (
         <>
-          <p className="text-14 text-fog-200">
+          <p className="text-14 text-focus-muted">
             Connect your Google Calendar to mirror holidays and day notes as calendar
             events. Each parent connects their own calendar.
           </p>
-          <Button size="sm" onClick={() => connect()} className="self-start">
+          <Button size="sm" variant="secondary" onClick={() => connect()} className="self-start">
             Connect Google Calendar
           </Button>
         </>
