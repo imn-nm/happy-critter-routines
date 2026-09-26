@@ -18,7 +18,7 @@ import { routineDays, routineDaysLabel, type Routine } from "@/hooks/useRoutines
 import { toast } from "sonner";
 import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
 import { motion } from "motion/react";
-import { springs, useMotionPrefs } from "@/lib/motion";
+import { useMotionPrefs } from "@/lib/motion";
 
 interface TaskFormProps {
   task?: Task;
@@ -146,7 +146,6 @@ const ChoiceButton = ({
   role = "radio",
   ariaLabel,
   title,
-  pillId,
 }: {
   selected: boolean;
   onClick?: () => void;
@@ -156,8 +155,6 @@ const ChoiceButton = ({
   role?: "radio" | "checkbox";
   ariaLabel?: string;
   title?: string;
-  /** Group id: the lavender pill glides between the group's options (Motion layoutId). */
-  pillId?: string;
 }) => {
   const { reduce } = useMotionPrefs();
   return (
@@ -170,17 +167,9 @@ const ChoiceButton = ({
       disabled={disabled}
       onClick={onClick}
       whileTap={disabled || reduce ? undefined : { scale: 0.97 }}
-      className={cn(choiceClass(selected, className), pillId && "relative", pillId && selected && "bg-focus-surface")}
+      className={cn(choiceClass(selected, className), "motion-reduce:transition-none")}
     >
-      {pillId && selected && (
-        <motion.span
-          layoutId={pillId}
-          aria-hidden
-          className={cn("absolute inset-0 bg-focus-lavender", className ?? "rounded-[12px]")}
-          transition={springs.snappy}
-        />
-      )}
-      <span className={cn(pillId && "relative")}>{children}</span>
+      {children}
     </motion.button>
   );
 };
@@ -933,10 +922,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         <section className="flex flex-col gap-2.5">
           <SectionHeading id="q-what">What Is It?</SectionHeading>
           <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-2 gap-2">
-            <ChoiceButton pillId="task-kind" selected={!isChore} onClick={() => setFormData({ ...formData, mode: 'task' })} className="min-h-12 rounded-[16px] text-14">
+            <ChoiceButton selected={!isChore} onClick={() => setFormData({ ...formData, mode: 'task' })} className="min-h-12 rounded-[16px] text-14">
               Task
             </ChoiceButton>
-            <ChoiceButton pillId="task-kind" selected={isChore} onClick={() => setFormData({ ...formData, mode: 'chore' })} className="min-h-12 rounded-[16px] text-14">
+            <ChoiceButton selected={isChore} onClick={() => setFormData({ ...formData, mode: 'chore' })} className="min-h-12 rounded-[16px] text-14">
               Chore
             </ChoiceButton>
           </div>
@@ -1087,7 +1076,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               return (
                 <ChoiceButton
                   key={option.value}
-                  pillId="late-policy"
                   selected={priority === option.value}
                   onClick={() => setPriority(option.value)}
                   disabled={blocked}

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -660,41 +659,16 @@ const ChildDashboard = () => {
             <ChevronLeft className="w-5 h-5" strokeWidth={2} />
           </button>
           <div className="flex items-center gap-sp-2">
-            <Popover open={showRewards} onOpenChange={setShowRewards}>
-              <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={`${child.currentCoins} stars — open rewards`}
-                className="h-11 inline-flex items-center gap-1.5 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 font-semibold text-focus-lime hover:bg-focus-lime/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
-              >
-                <span className="text-[13px] leading-4" aria-hidden>★</span>
-                <span className="text-[14px] leading-4 tabular-nums">{child.currentCoins}</span>
-              </button>
-              </PopoverTrigger>
-              {/* Rewards open right under the stars badge, like the ••• menu.
-                  The panel keeps its Figma card design (364:2633). */}
-              <PopoverContent
-                align="end"
-                sideOffset={8}
-                collisionPadding={20}
-                aria-label={`${child.name}'s rewards`}
-                className="w-[calc(100vw-40px)] max-w-[335px] max-h-[calc(100dvh-96px)] overflow-y-auto overscroll-contain rounded-[24px] p-4"
-                // Rewards opens its own dialogs (add / edit / confirm). A tap
-                // inside one lands "outside" this popover; keep it open so
-                // the dialog isn't unmounted with it. The popover is itself a
-                // role="dialog", so look for a second one.
-                onInteractOutside={(e) => {
-                  if (document.querySelectorAll('[role="dialog"], [role="alertdialog"]').length > 1) e.preventDefault();
-                }}
-              >
-                <RewardsManagement
-                  child={child}
-                  onUpdateCoins={updateChildCoins}
-                  onAdjustCoins={(d) => adjustChildCoins(child.id, d)}
-                  onClose={() => setShowRewards(false)}
-                />
-              </PopoverContent>
-            </Popover>
+            <button
+              type="button"
+              onClick={() => setShowRewards(true)}
+              aria-label={`${child.currentCoins} stars — open rewards`}
+              className="h-11 inline-flex items-center gap-1.5 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 font-semibold text-focus-lime hover:bg-focus-lime/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+            >
+              <span className="text-[13px] leading-4" aria-hidden>★</span>
+              <span className="text-[14px] leading-4 tabular-nums">{child.currentCoins}</span>
+            </button>
+            
             <QuickAccessMenu
               childName={child.name}
               onEditSchedule={openProfileEdit}
@@ -847,6 +821,21 @@ const ChildDashboard = () => {
 
       {/* Rewards — opened by the stars badge */}
 
+      {/* Rewards — a centred window over the blurred backdrop. The panel
+          keeps its Figma card design (364:2633) and draws its own close. */}
+      <Dialog open={showRewards} onOpenChange={setShowRewards}>
+        <DialogContent variant="center" className="max-w-[335px] [&>button]:hidden">
+          <DialogTitle className="sr-only">{child.name}'s Rewards</DialogTitle>
+          <DialogDescription className="sr-only">Manage rewards for {child.name}</DialogDescription>
+          <RewardsManagement
+            child={child}
+            onUpdateCoins={updateChildCoins}
+            onAdjustCoins={(d) => adjustChildCoins(child.id, d)}
+            onClose={() => setShowRewards(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Spinning wheel setup dialog — parent sets the child-specific options */}
       <Dialog open={showWheelEditor} onOpenChange={setShowWheelEditor}>
         <DialogContent className="sm:max-w-[480px]">
@@ -945,7 +934,7 @@ const ChildDashboard = () => {
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
         {/* TaskForm draws its own sheet header (title + 44px close), so the
             dialog's title is screen-reader only and its close button hidden. */}
-        <DialogContent className="sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+        <DialogContent className="h-[92vh] supports-[height:100dvh]:h-[92dvh] sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
           <DialogTitle className="sr-only">{editingTask ? "Edit Task" : "Add Task"}</DialogTitle>
           <DialogDescription className="sr-only">{editingTask ? "Edit task details" : "Create a new task"}</DialogDescription>
           <TaskForm

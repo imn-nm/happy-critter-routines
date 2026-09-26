@@ -19,11 +19,14 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
+  type SensorProps,
+  type TouchSensorOptions,
+  type MouseSensorOptions,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -36,6 +39,48 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { motion } from "motion/react";
 import { springs } from "@/lib/motion";
+
+// ── Drag sensors ──────────────────────────────────────────────
+// Mouse and touch get separate sensors: the old PointerSensor also caught
+// touches, so on a phone an 8px finger move started a drag and fought both
+// page scrolling and the long-press TouchSensor.
+//
+// Touch: grabbing the grip handle ([data-drag-handle]) lifts the card
+// straight away; anywhere else on the card needs a short hold, so a normal
+// swipe still scrolls the page. Taps on the card's own buttons (Mark Done,
+// ★, the done check) never start a drag.
+const DRAG_HANDLE = '[data-drag-handle]';
+const onInteractive = (target: EventTarget | null) => {
+  const el = target as Element | null;
+  if (!el?.closest) return false;
+  return !el.closest(DRAG_HANDLE) && !!el.closest('button, a, input, textarea, select, [role="button"]:not([data-drag-card])');
+};
+
+class TimelineTouchSensor extends TouchSensor {
+  constructor(props: SensorProps<TouchSensorOptions>) {
+    const onHandle = !!(props.event.target as Element | null)?.closest?.(DRAG_HANDLE);
+    super({
+      ...props,
+      options: {
+        ...props.options,
+        activationConstraint: onHandle ? { distance: 4 } : { delay: 180, tolerance: 8 },
+      },
+    });
+  }
+  static activators = TouchSensor.activators.map(a => ({
+    ...a,
+    handler: (event: React.TouchEvent, options: TouchSensorOptions) =>
+      onInteractive(event.nativeEvent.target) ? false : a.handler(event, options),
+  }));
+}
+
+class TimelineMouseSensor extends MouseSensor {
+  static activators = MouseSensor.activators.map(a => ({
+    ...a,
+    handler: (event: React.MouseEvent, options: MouseSensorOptions) =>
+      onInteractive(event.nativeEvent.target) ? false : a.handler(event, options),
+  }));
+}
 
 interface TimelineScheduleViewProps {
   child: Child;
@@ -245,8 +290,20 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
     WebkitTouchCallout: isDraggable ? 'none' : undefined,
   };
 
-  // iOS-style long-press drag: apply listeners to the whole tile when draggable.
-  const dragBindings = isDraggable ? { ...attributes, ...listeners } : {};
+  // A drag that ends over the card also fires a click; swallow that one so
+  // dropping a card doesn't open the editor.
+  const justDraggedRef = useRef(false);
+  useEffect(() => {
+    if (isDragging) { justDraggedRef.current = true; return; }
+    if (!justDraggedRef.current) return;
+    const t = window.setTimeout(() => { justDraggedRef.current = false; }, 300);
+    return () => window.clearTimeout(t);
+  }, [isDragging]);
+
+  // Drag starts from anywhere on the card (listeners); the grip carries the
+  // focusable role/attributes for keyboard dragging.
+  const cardDragListeners = isDraggable && !event.isCompleted ? listeners : {};
+  const handleAttributes = isDraggable ? attributes : {};
 
   const formatTime = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':');
@@ -537,8 +594,11 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
               </div>
 
               <div
+                {...cardDragListeners}
+                data-drag-card={isDraggable ? '' : undefined}
+                style={isDraggable ? { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' } : undefined}
                 onClick={() => {
-                  if (isDragging) return;
+                  if (isDragging || justDraggedRef.current) return;
                   onEditTask?.(event.task || {
                     id: event.id,
                     name: event.name,
@@ -588,7 +648,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 {/* Drag handle — always rightmost. */}
                 {isDraggable && !event.isCompleted && (
                   <div
-                    {...dragBindings}
+                    {...handleAttributes}
+                    data-drag-handle=""
                     onClick={(e) => e.stopPropagation()}
                     aria-label="Drag to reschedule"
                     style={{
@@ -597,9 +658,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                       WebkitUserSelect: 'none',
                       userSelect: 'none',
                     }}
-                    className="tap-target shrink-0 p-1 -mr-1 rounded-full cursor-grab active:cursor-grabbing text-focus-muted hover:text-focus-text"
+                    className="shrink-0 -my-2 -mr-2 h-11 w-11 flex items-center justify-center rounded-[12px] cursor-grab active:cursor-grabbing text-focus-muted hover:text-focus-text hover:bg-focus-raised/60 transition-colors"
                   >
-                    <GripVertical className="w-4 h-4" />
+                    <GripVertical className="w-5 h-5" />
                   </div>
                 )}
               </div>
@@ -739,17 +800,15 @@ const TimelineScheduleView = ({
 // calculateTimeWithBuffer function removed - no longer needed
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+    // Mouse: drag the card (or its grip) once it has moved 6px, so a plain
+    // click still opens the task.
+    useSensor(TimelineMouseSensor, {
+      activationConstraint: { distance: 6 },
     }),
-    useSensor(TouchSensor, {
-      // iOS-style long-press: ~250ms hold anywhere on the tile picks it up.
-      activationConstraint: {
-        delay: 250,
-        tolerance: 8,
-      },
+    // Touch: instant from the grip, short hold anywhere else (see
+    // TimelineTouchSensor). The constraint here is replaced per touch.
+    useSensor(TimelineTouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -1251,6 +1310,8 @@ const TimelineScheduleView = ({
 
   const handleDragStart = (event: any) => {
     setActiveId(event.active.id);
+    // A small tap on phones that support it, so the pick-up is felt.
+    try { navigator.vibrate?.(12); } catch { /* not supported */ }
   };
 
   const formatTimeShortLocal = (timeStr: string) => {
@@ -1310,11 +1371,14 @@ const TimelineScheduleView = ({
       return;
     }
 
-    if (newOverId && event.over?.rect && event.delta) {
+    // Before/after is decided by where the dragged card actually is (its
+    // translated rect), not by adding the drag distance to the target's top.
+    const draggedRect = event.active?.rect?.current?.translated;
+    if (newOverId && event.over?.rect && draggedRect) {
       const rect = event.over.rect;
-      const mouseY = rect.top + event.delta.y;
+      const draggedCenterY = draggedRect.top + draggedRect.height / 2;
       const elementCenterY = rect.top + rect.height / 2;
-      setDropPosition(mouseY < elementCenterY ? 'before' : 'after');
+      setDropPosition(draggedCenterY < elementCenterY ? 'before' : 'after');
     } else {
       setDropPosition(null);
     }
@@ -1524,6 +1588,10 @@ const TimelineScheduleView = ({
                 collisionDetection={closestCenter}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
+                // Keep before/after current while the card moves inside one
+                // row (onDragOver only fires when the target row changes).
+                onDragMove={handleDragOver}
+                onDragCancel={() => { setActiveId(null); setOverId(null); setDropPosition(null); }}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext

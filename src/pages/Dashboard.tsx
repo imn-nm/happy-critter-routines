@@ -13,13 +13,30 @@ import PetAvatar from "@/components/PetAvatar";
 import LoadErrorCard from "@/components/LoadErrorCard";
 import OnboardingSlides from "@/components/OnboardingSlides";
 import AlertsPanel, { useAlertCount } from "@/components/AlertsPanel";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { motion } from "motion/react";
 import { format, parse, addDays, startOfDay } from "date-fns";
 import { getPSTDate } from "@/utils/pstDate";
 import { isRestDate } from "@/utils/restDays";
 import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
 
-const BADGE_COLORS = ["bg-focus-mint", "bg-focus-lavender", "bg-focus-pink", "bg-focus-amber", "bg-focus-iris"] as const;
+// Per-child chip colours on event cards (Figma 390:3407: tinted fill, same-
+// colour text). Assigned by the child's position in the list.
+const CHILD_CHIPS = [
+  "bg-focus-pink/20 text-focus-pink",
+  "bg-focus-lime/10 text-focus-lime",
+  "bg-focus-mint/20 text-focus-mint",
+  "bg-focus-lavender/20 text-focus-lavender",
+  "bg-focus-amber/20 text-focus-amber",
+  "bg-focus-iris/20 text-focus-iris",
+] as const;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -67,7 +84,7 @@ const Dashboard = () => {
     return () => window.clearInterval(id);
   }, []);
   // "Wed, Sep 9": the long form truncated to "Wednesday, Se..." next to the header buttons.
-  const dateLabel = useMemo(() => format(now, "EEE, MMM d"), [now]);
+  const dateLabel = useMemo(() => format(now, "EEEE, MMM d"), [now]);
 
   useEffect(() => {
     if (children.length === 0) return;
@@ -282,79 +299,78 @@ const Dashboard = () => {
 
   const childIdToBadge: Record<string, string> = {};
   children.forEach((c, i) => {
-    childIdToBadge[c.id] = BADGE_COLORS[i % BADGE_COLORS.length];
+    childIdToBadge[c.id] = CHILD_CHIPS[i % CHILD_CHIPS.length];
   });
 
   return (
     <div className="min-h-dvh bg-focus-bg pb-sp-5">
       <OnboardingSlides open={showOnboarding} onDone={dismissOnboarding} />
-      <div className="max-w-[420px] mx-auto flex flex-col gap-sp-3">
-        {/* Header + children list on the flat page (Focus design system). */}
-        <div className="px-sp-4 pt-sp-5 flex flex-col gap-sp-3">
-          {/* Header row — greeting/date left, settings pill right */}
-          <header className="flex items-end justify-between gap-sp-3">
-            <div className="flex flex-col gap-1 min-w-0">
-              <p className="text-14 text-focus-muted">Hi, {firstName}</p>
-              <p className="text-24 font-bold text-focus-text leading-none truncate">{dateLabel}</p>
-            </div>
-            <div className="shrink-0 flex items-center gap-sp-2">
-              <button
-                type="button"
-                aria-label="Switch to the kids' screen"
-                onClick={() => navigate("/")}
-                className="h-11 px-sp-3 rounded-[14px] bg-focus-surface flex items-center gap-1.5 text-focus-muted text-14 font-semibold hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
-              >
-                <Users className="w-4 h-4" />
-                Kids
-              </button>
-              <button
-                type="button"
-                aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
-                onClick={() => setShowAlerts(true)}
-                className="relative w-11 h-11 rounded-[14px] bg-focus-surface flex items-center justify-center text-focus-muted hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
-              >
-                <Bell className="w-4 h-4" />
-                {alertCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-focus-alert text-12 font-bold text-focus-bg leading-none">
-                    {alertCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                aria-label="Settings"
-                onClick={() => navigate("/settings")}
-                className="w-11 h-11 rounded-[14px] bg-focus-surface flex items-center justify-center text-focus-muted hover:bg-focus-raised hover:text-focus-text transition-colors duration-sm"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-          </header>
+      <div className="max-w-[420px] mx-auto flex flex-col gap-3 px-5 pt-5">
+        {/* Header (Figma 390:3515) — alerts on the left, ••• on the right. */}
+        <header className="flex items-center justify-between">
+          <button
+            type="button"
+            aria-label={`Alerts${alertCount > 0 ? ` (${alertCount})` : ''}`}
+            onClick={() => setShowAlerts(true)}
+            className="relative h-11 w-11 inline-flex items-center justify-center rounded-[16px] bg-focus-surface text-focus-iris hover:bg-focus-raised transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            <Bell className="w-5 h-5" />
+            {alertCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-focus-alert text-12 font-bold text-focus-bg leading-none">
+                {alertCount}
+              </span>
+            )}
+          </button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              aria-label="More"
+              className="h-11 w-11 inline-flex items-center justify-center rounded-[14px] bg-focus-surface text-[12px] font-semibold leading-[14px] text-focus-muted hover:bg-focus-raised transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+            >
+              •••
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={8}>
+              <DropdownMenuItem onSelect={() => navigate("/")}>
+                <Users aria-hidden />
+                Kids&apos; Screen
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate("/setup")}>
+                <Plus aria-hidden />
+                Add Child
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate("/settings")}>
+                <Settings aria-hidden />
+                Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
 
-          {/* Children panel — surface card, child rows separated by a rule. */}
-          <section className="bg-focus-surface rounded-[24px] p-sp-2 flex flex-col gap-sp-1">
-            {children.map((child, idx) => (
-              <div key={child.id}>
-                {idx > 0 && <div className="h-px bg-focus-raised mx-sp-3 mb-sp-1" />}
-                <ChildRow
-                  child={child}
-                  now={childNowNext[child.id]?.now}
-                  next={childNowNext[child.id]?.next}
-                  pending={tasksPending}
-                  onOpen={() => navigate(`/child-dashboard/${child.id}`)}
-                />
-              </div>
-            ))}
-          </section>
+        {/* Greeting row (Figma 390:3523) */}
+        <div className="flex flex-col">
+          <h1 className="text-[22px] leading-[28px] font-semibold text-focus-text truncate">Hi, {firstName}</h1>
+          <p className="text-[13px] leading-[18px] text-focus-muted">{dateLabel} · Today</p>
         </div>
 
-        {/* Upcoming events header */}
-        <h2 className="text-12 font-semibold uppercase tracking-wide text-focus-muted px-sp-4 pt-sp-2">Upcoming Events</h2>
+        {/* Child cards (Figma 390:3599) */}
+        <section aria-label="Children" className="flex flex-col gap-2">
+          {children.map(child => (
+            <ChildRow
+              key={child.id}
+              child={child}
+              now={childNowNext[child.id]?.now}
+              next={childNowNext[child.id]?.next}
+              pending={tasksPending}
+              onOpen={() => navigate(`/child-dashboard/${child.id}`)}
+            />
+          ))}
+        </section>
 
-        {/* Events list */}
-        <section className="px-sp-4 flex flex-col gap-sp-2">
+        {/* Upcoming events (Figma 390:3629 / 390:3631) */}
+        <h2 className="pt-1 text-16 leading-[22px] font-semibold text-focus-text">Upcoming Events</h2>
+        <section className="flex flex-col gap-2 pb-sp-5">
           {upcomingEvents.length === 0 ? (
-            <div className="rounded-[24px] bg-focus-surface p-sp-4 text-center text-focus-muted text-14">
+            <div className="rounded-[16px] bg-focus-surface px-[14px] py-3 text-13 text-focus-muted">
               No upcoming events in the next two weeks.
             </div>
           ) : (
@@ -363,7 +379,7 @@ const Dashboard = () => {
                 key={event.id}
                 time={event.time}
                 title={event.name}
-                subtitle={formatDateLabel(event.date)}
+                dateLabel={formatDateLabel(event.date)}
                 badges={event.childIds.map((cid, i) => ({
                   name: event.childNames[i],
                   color: childIdToBadge[cid],
@@ -374,7 +390,6 @@ const Dashboard = () => {
             ))
           )}
         </section>
-
       </div>
 
       <AlertsPanel open={showAlerts} onClose={() => setShowAlerts(false)} />
@@ -396,85 +411,70 @@ function ChildRow({
   onOpen: () => void;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onOpen}
-      className="w-full min-h-11 flex items-center gap-sp-3 p-sp-3 rounded-[20px] text-left hover:bg-focus-raised transition-colors duration-sm"
+      whileTap={{ scale: 0.98 }}
+      className="w-full flex items-stretch gap-3 p-3 rounded-[18px] bg-focus-sheet text-left hover:bg-focus-sunken/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
     >
-      {/* Pet avatar */}
-      <div className="shrink-0 w-14 h-[62px] rounded-[20px] bg-focus-sunken flex items-center justify-center overflow-hidden">
+      {/* Pet */}
+      <div className="shrink-0 w-14 min-h-[62px] rounded-[28px] bg-focus-sunken flex items-center justify-center overflow-hidden">
         <PetAvatar petType={child.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <p className="text-18 font-semibold text-focus-text leading-none truncate">{child.name}</p>
-        <p className="text-12 font-medium text-focus-muted truncate">
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+        <p className="text-20 leading-tight text-focus-text truncate">{child.name}</p>
+        <p className="text-12 font-medium text-[#9ebeff] truncate">
           Now: {now || (pending ? "—" : "Nothing scheduled")}
         </p>
-        <p className="text-12 font-medium text-focus-muted truncate">
+        <p className="text-12 font-medium text-[#9ebeff] truncate">
           Next: {next || "—"}
         </p>
       </div>
 
-      {/* Star chip — same gold star + count used on the child interface */}
-      <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[12px] border border-focus-lime bg-focus-lime/10">
-        <Star className="w-4 h-4 text-focus-lime fill-focus-lime" strokeWidth={0} />
-        <span className="text-14 font-bold text-focus-lime leading-none">{child.currentCoins}</span>
+      {/* Stars */}
+      <div className="self-start shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-focus-iris/30 text-13 text-focus-text">
+        <Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} aria-hidden />
+        <span className="font-bold leading-none">{child.currentCoins}</span>
+        <span className="sr-only">stars</span>
       </div>
-    </button>
+    </motion.button>
   );
 }
 
 function EventCard({
   time,
   title,
-  subtitle,
+  dateLabel,
   badges,
   isParentEvent,
   allDay,
 }: {
   time: string;
   title: string;
-  subtitle: string;
+  dateLabel: string;
   badges: { name: string; color: string }[];
   isParentEvent?: boolean;
   allDay?: boolean;
 }) {
   const [hourMin, ampm] = splitTime(time);
+  const when = allDay ? `${dateLabel} · All day` : `${dateLabel} · ${hourMin} ${ampm}`;
   return (
-    <div className="flex items-center gap-sp-3 p-sp-4 rounded-[24px] bg-focus-surface">
-      {/* Time column — stacked hour + am/pm, both 12px (Figma 174:7504) */}
-      <div className="shrink-0 w-11 text-right text-focus-text font-semibold leading-tight flex flex-col">
-        {allDay ? (
-          <span className="text-12">All day</span>
-        ) : (
-          <>
-            <span className="text-12">{hourMin}</span>
-            <span className="text-12">{ampm}</span>
-          </>
-        )}
-      </div>
-
-      {/* Divider */}
-      <div className="shrink-0 w-px self-stretch bg-focus-raised" />
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-16 font-semibold text-focus-text truncate flex items-center gap-1.5">
-          {/* Sky calendar icon marks a parent-only appointment */}
-          {isParentEvent && <CalendarClock className="w-4 h-4 text-focus-iris shrink-0" />}
+    <div className="flex items-start gap-[10px] rounded-[16px] bg-focus-surface px-[14px] py-3">
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <p className="text-[15px] leading-5 font-semibold text-focus-text flex items-center gap-1.5 min-w-0">
+          {/* Calendar icon marks a parent-only appointment */}
+          {isParentEvent && <CalendarClock className="w-4 h-4 text-focus-iris shrink-0" aria-label="Parent appointment" />}
           <span className="truncate">{title}</span>
         </p>
-        <p className="text-12 text-focus-muted truncate">{subtitle}</p>
+        <p className="text-12 leading-4 text-focus-muted truncate">{when}</p>
       </div>
-
-      {/* Child badges — one solid pill per child sharing this slot */}
-      <div className="shrink-0 flex flex-wrap items-center justify-end gap-1">
+      <div className="shrink-0 flex flex-wrap items-center justify-end gap-1 max-w-[50%]">
         {badges.map(b => (
-          <div key={b.name} className={`px-3 py-1.5 rounded-pill ${b.color} flex items-center`}>
-            <span className="text-12 font-semibold text-focus-bg">{b.name}</span>
-          </div>
+          <span key={b.name} className={`h-[26px] inline-flex items-center px-2 rounded-full text-12 font-semibold leading-4 ${b.color}`}>
+            {b.name}
+          </span>
         ))}
       </div>
     </div>

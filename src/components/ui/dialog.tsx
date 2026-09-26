@@ -5,7 +5,7 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { closeButtonClass, closeIconClass, scrimClass } from "@/lib/focusStyles"
-import { overlayMotion, sheetMotion, useMotionPrefs } from "@/lib/motion"
+import { cardMotion, overlayMotion, sheetMotion, useMotionPrefs } from "@/lib/motion"
 
 /**
  * Dialogs render as the Figma bottom sheet, animated with Motion for React:
@@ -68,16 +68,60 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DISMISS_OFFSET = 120
 const DISMISS_VELOCITY = 600
 
+type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  /**
+   * "sheet" (default): the Figma bottom sheet.
+   * "center": a card in the middle of the screen (e.g. Rewards), scaling in.
+   */
+  variant?: "sheet" | "center"
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  DialogContentProps
+>(({ className, children, variant = "sheet", ...props }, ref) => {
   const { open, setOpen } = React.useContext(DialogStateContext)
   const { reduce, t } = useMotionPrefs()
   const dragControls = useDragControls()
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.y > DISMISS_OFFSET || info.velocity.y > DISMISS_VELOCITY) setOpen(false)
+  }
+
+  if (variant === "center") {
+    return (
+      <AnimatePresence>
+        {open && (
+          <DialogPortal forceMount>
+            <DialogOverlay />
+            <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
+              <motion.div
+                className={cn(
+                  // Centred card. Motion owns the transform, so the -50%
+                  // centring offset goes through `style`, not classes.
+                  "fixed left-1/2 top-1/2 z-50 flex flex-col w-[calc(100vw-40px)] max-w-lg rounded-[24px] bg-focus-sheet text-focus-text shadow-sh-lg overflow-hidden outline-none",
+                  "max-h-[calc(100vh-40px)] supports-[height:100dvh]:max-h-[calc(100dvh-40px)]",
+                  className
+                )}
+                style={{ x: "-50%", y: "-50%" }}
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={t(cardMotion.transition)}
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 grid content-start gap-4">
+                  {children}
+                </div>
+                <DialogPrimitive.Close className={cn("absolute right-4 top-4 z-10", closeButtonClass)}>
+                  <X className={closeIconClass} />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+              </motion.div>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        )}
+      </AnimatePresence>
+    )
   }
 
   return (
@@ -87,6 +131,7 @@ const DialogContent = React.forwardRef<
           <DialogOverlay />
           <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
             <motion.div
+              layoutRoot
               className={cn(
                 // Figma bottom sheet: full width on phones, pinned to the
                 // bottom, rounded top corners only. Outer is non-scrolling so
@@ -102,6 +147,7 @@ const DialogContent = React.forwardRef<
               drag={reduce ? false : "y"}
               dragControls={dragControls}
               dragListener={false}
+              dragMomentum={false}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.7 }}
               onDragEnd={onDragEnd}
@@ -115,9 +161,9 @@ const DialogContent = React.forwardRef<
               >
                 <span className="h-1 w-14 rounded-full bg-focus-lavender/70" />
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 grid gap-4">
+              <motion.div layoutScroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 grid content-start gap-4">
                 {children}
-              </div>
+              </motion.div>
               <DialogPrimitive.Close className={cn("absolute right-4 top-6 z-10", closeButtonClass)}>
                 <X className={closeIconClass} />
                 <span className="sr-only">Close</span>
