@@ -63,6 +63,7 @@ export const ICON_OPTIONS: { key: string; label: string; Icon: TaskIconComponent
   { key: "medicine", label: "Medicine", Icon: uicon("medicine") },
   { key: "heart", label: "Heart", Icon: uicon("heart") },
   { key: "sparkles", label: "Fun", Icon: uicon("sparkles") },
+  { key: "free", label: "Free time", Icon: uicon("kite") },
   { key: "star", label: "Star", Icon: uicon("star") },
 ];
 
@@ -119,7 +120,8 @@ const RULES: { keywords: string[]; key: string }[] = [
   { keywords: ["toy", "lego", "block", "puzzle", "build"], key: "toys" },
   { keywords: ["outside", "outdoor", "park", "playground", "nature"], key: "outside" },
   { keywords: ["friend", "playdate", "play date", "party", "visit", "family"], key: "friends" },
-  { keywords: ["fun", "free time", "free play", "playtime", "play time", "reward"], key: "sparkles" },
+  { keywords: ["free time", "free play"], key: "free" },
+  { keywords: ["fun", "playtime", "play time", "reward"], key: "sparkles" },
   { keywords: ["play"], key: "game" },
   { keywords: ["cat ", "cats ", "kitten"], key: "cat" },
   { keywords: ["pet", "dog", "puppy", "feed", "walk", "fish", "hamster", "rabbit", "bunny"], key: "pet" },

@@ -1,6 +1,9 @@
 import { LH, LW, makeScene } from "./stage";
 
-/** Backdrops for the three activities, drawn once. */
+/** Backdrops for the activities, drawn once. */
+
+/** A soap bubble: Bubble Pop's score and menu picture. */
+export const BUBBLE_ICON = [".ffff.", "fF...f", "fF...f", "f....f", "f....f", ".ffff."];
 
 const CARROT_PIC = [[16, 12], [17, 12], [15, 13], [16, 13], [14, 14], [15, 14], [13, 15], [14, 15], [13, 16]];
 

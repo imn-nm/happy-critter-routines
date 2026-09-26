@@ -203,6 +203,32 @@ function remote(p: Pix, dy: number, press: boolean) {
   paw(p, 0, dy + (press ? 1 : 0));
 }
 
+// Each crayon colour with its shade, for the lower row.
+const SHADE: Record<string, string> = { Y: "y", G: "g", P: "M", N: "n", X: "x", O: "o", T: "t" };
+
+// A crayon pointed at the easel on the left, in the colour being drawn, with
+// a white paper wrapper round its middle.
+function crayon(p: Pix, dy: number, c: string) {
+  const y = 28 + dy;
+  p.set(-8, y, c);
+  for (let x = -7; x <= -1; x++) {
+    const wrap = x === -4 || x === -3;
+    p.set(x, y, wrap ? "F" : c);
+    p.set(x, y + 1, wrap ? "q" : SHADE[c] ?? c);
+  }
+  paw(p, 0, dy);
+}
+
+// A bubble wand: a teal ring held up in front of the mouth, its handle down
+// to the paw. The ring holds a film of soap.
+const WAND_RING = [".TTT.", "Tf.fT", "T...T", "Tf.fT", ".TTT."];
+function wand(p: Pix, dy: number, film: boolean) {
+  const ring = film ? WAND_RING : WAND_RING.map(r => r.replace(/f/g, "."));
+  p.stamp(ring, -7, 18 + dy);
+  for (const [x, y] of [[-3, 23], [-2, 24], [-1, 25], [0, 26]]) p.set(x, y + dy, "t");
+  paw(p, 0, dy);
+}
+
 // The front foot kicked out, as chunky as the paw mitten.
 const KICK = [[34, 0, 3], [35, -1, 4], [36, -1, 4], [37, 0, 3]] as const;
 
@@ -230,6 +256,10 @@ export interface SideOpts {
   remote?: [number, boolean];
   /** Front foot kicked out (soccer). */
   kick?: boolean;
+  /** [dy, colour]: a crayon held out towards the easel. */
+  crayon?: [number, string];
+  /** [dy, soap film in the ring]: a bubble wand held up to the mouth. */
+  wand?: [number, boolean];
   outfit?: PetOutfit | null;
 }
 
@@ -260,6 +290,8 @@ export function side(o: SideOpts = {}) {
   if (o.book) book(p, o.book[0], o.book[1], o.book[2] ?? 1);
   if (o.remote) remote(p, ...o.remote);
   if (o.kick) for (const [y, a, b] of KICK) for (let x = a; x <= b; x++) p.set(x, y, "W");
+  if (o.crayon) crayon(p, ...o.crayon);
+  if (o.wand) wand(p, ...o.wand);
   return o.mirror ? p.flipX(SIDE_W) : p;
 }
 
@@ -480,6 +512,77 @@ export function goal(fx: Pix, left: number, top: number, floor: number, ripple =
   for (let x = left; x <= right; x++) fx.set(x, top, "F");
   for (let y = top + 1; y < floor; y++) {
     for (let x = left + 1; x < right; x++) if ((x + y + (ripple ? 1 : 0)) % 2 === 0) fx.set(x, y, "q");
+  }
+}
+
+// The picture drawn on the easel, stroke by stroke: a sun, a cloud, grass,
+// then two flowers. [x, y, colour] on the 14 x 12 paper, in drawing order.
+const PICTURE_STROKES: [number, number, string][] = [
+  [3, 2, "Y"], [2, 3, "Y"], [3, 3, "Y"], [4, 3, "Y"], [2, 2, "Y"], [4, 2, "Y"], [2, 4, "Y"], [3, 4, "Y"], [4, 4, "Y"],
+  [1, 1, "y"], [5, 1, "y"], [1, 5, "y"], [5, 5, "y"],
+  [9, 2, "N"], [10, 2, "N"], [11, 2, "N"], [8, 3, "N"], [9, 3, "N"], [10, 3, "N"], [11, 3, "N"], [12, 3, "N"],
+  ...Array.from({ length: 14 }, (_, x) => [x, 11, "G"] as [number, number, string]),
+  [1, 10, "G"], [7, 10, "G"], [12, 10, "G"],
+  [4, 10, "g"], [4, 9, "g"], [4, 7, "P"], [3, 8, "P"], [5, 8, "P"], [4, 8, "Y"],
+  [10, 10, "g"], [10, 9, "g"], [10, 8, "g"], [10, 5, "P"], [9, 6, "P"], [11, 6, "P"], [10, 7, "P"], [10, 6, "Y"],
+];
+export const PICTURE_CELLS = PICTURE_STROKES.length;
+/** The colour of the `n`th stroke, so the crayon matches what it's drawing. */
+export const strokeColour = (n: number) => PICTURE_STROKES[Math.max(0, Math.min(PICTURE_CELLS - 1, n))][2];
+
+/**
+ * A wooden easel with a sheet of paper, 18 x 24 cells: `x` is its left edge,
+ * `floor` the first row under its legs, `drawn` how many strokes of the
+ * picture are on the paper. `turning` curls the old page up and over.
+ */
+export function easel(fx: Pix, x: number, floor: number, drawn: number, turning = false) {
+  const top = floor - 24;
+  const at = (dx: number, dy: number, c: string) => fx.set(x + dx, top + dy, c);
+  for (let i = 0; i < 9; i++) {
+    at(3 - (i >> 2), 15 + i, "u");
+    at(14 + (i >> 2), 15 + i, "u");
+  }
+  for (let dx = 8; dx <= 9; dx++) at(dx, 0, "u");
+  for (let dy = 1; dy <= 14; dy++) for (let dx = 1; dx <= 16; dx++) {
+    const edge = dy === 1 || dy === 14 || dx === 1 || dx === 16;
+    at(dx, dy, edge ? "U" : "F");
+  }
+  for (let dx = 0; dx <= 17; dx++) at(dx, 15, "u");
+  // The paper is 14 x 12, at (2, 2).
+  for (let n = 0; n < Math.min(drawn, PICTURE_CELLS); n++) {
+    const [px, py, c] = PICTURE_STROKES[n];
+    at(2 + px, 2 + py, c);
+  }
+  if (turning) {
+    // The finished page folds up over the top of the board.
+    for (let dx = 2; dx <= 15; dx++) { at(dx, 2, "q"); at(dx, -1, "F"); at(dx, -2, "F"); }
+    for (let dx = 3; dx <= 14; dx++) at(dx, -3, "F");
+  }
+}
+
+// A soap bubble growing as it rises: a dot, then rings, then a big one with a shine.
+const BUBBLE = [
+  ["f"],
+  ["ff", "ff"],
+  [".f.", "f.f", ".f."],
+  [".ff.", "fF.f", "f..f", ".ff."],
+  [".fff.", "fF..f", "f...f", "f...f", ".fff."],
+];
+/**
+ * Bubbles blown from the wand, drifting up and left. Each is [born, size, sway]
+ * in frames of a loop; one that reaches `life` pops into four specks.
+ */
+export function floatingBubbles(fx: Pix, f: number, ox: number, oy: number, blown: readonly (readonly [number, number, number])[], life = 20) {
+  for (const [born, size, sway] of blown) {
+    const a = f - born;
+    if (a < 0 || a >= life) continue;
+    const x = Math.round(ox - a * 0.6 + 1.6 * Math.sin(a * 0.45 + sway));
+    const y = Math.round(oy - a * 0.95);
+    if (a === life - 1) {
+      for (const [dx, dy] of [[-1, -1], [2, -1], [-1, 2], [2, 2]]) fx.set(x + dx, y + dy, "f");
+      continue;
+    }
+    fx.stamp(BUBBLE[Math.min(size, a < 2 ? 0 : a < 4 ? 1 : a < 7 ? 2 : a < 10 ? 3 : 4)], x, y);
   }
 }
 

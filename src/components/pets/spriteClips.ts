@@ -26,14 +26,20 @@ export type ClipName =
   | "Reading"
   | "Gaming"
   | "BrushingTeeth"
-  | "Soccer";
+  | "Soccer"
+  | "Drawing"
+  | "Bubbles"
+  | "Outside";
 
 export type SpriteClip = PixelClip;
 
 export const CLIPS: Record<ClipName, SpriteClip> = PIXEL_CLIPS;
 
 /** What the pet is doing alongside the child. Overrides the mood's base clip. */
-export type PetActivity = "brushing" | "eating" | "reading" | "gaming" | "sleeping" | "sports";
+export type PetActivity =
+  | "brushing" | "eating" | "reading" | "gaming" | "sleeping" | "sports"
+  // Screen-free play for free time.
+  | "drawing" | "bubbles" | "outside";
 
 export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   brushing: "BrushingTeeth",
@@ -42,7 +48,13 @@ export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   gaming: "Gaming",
   sleeping: "Sleepy",
   sports: "Soccer",
+  drawing: "Drawing",
+  bubbles: "Bubbles",
+  outside: "Outside",
 };
+
+/** What the pet does in free time: never a screen. */
+export const FREE_TIME_ACTIVITIES: PetActivity[] = ["reading", "sports", "drawing", "bubbles", "outside"];
 
 /**
  * Moods kept from the pixel-critter era so call sites don't change, plus
@@ -122,6 +134,9 @@ export const activityForTask = (name?: string | null): PetActivity | undefined =
   // Before reading and gaming: "swim lesson", "PE class" and "play soccer" are sport.
   if (SPORTS_RE.test(n)) return "sports";
   if (/school|class|lesson|learn|read|book|homework|study|story/.test(n)) return "reading";
+  if (/draw|paint|colou?r|craft|\bart\b/.test(n)) return "drawing";
+  if (/bubble/.test(n)) return "bubbles";
+  if (/outside|outdoor|park|garden|nature/.test(n)) return "outside";
   if (/game|gaming|play|screen|tv|video|tablet/.test(n)) return "gaming";
   if (/bed|sleep|nap|night/.test(n)) return "sleeping";
   return undefined;

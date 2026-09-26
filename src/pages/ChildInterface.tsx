@@ -13,7 +13,8 @@ import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import Playtime from "@/components/pets/playtime/Playtime";
 import { petNick } from "@/components/pets/petCatalog";
-import { SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import { FREE_TIME_ACTIVITIES, SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import PetFace from "@/components/pets/PetFace";
 import AmbientClock from "@/components/AmbientClock";
 import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
@@ -26,7 +27,7 @@ import { resolveDropStart } from "@/utils/dragSnap";
 import { orderByAnchors } from "@/utils/afterAnchors";
 import { displayDuration, displayStart, eventPhase, getReadyLength, withGetReadyTime } from "@/utils/eventWindow";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Gamepad2, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Pointer, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -98,7 +99,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const [, setTick] = useState(0);
   const hiddenAtRef = useRef<number | null>(null);
   const greetingIdRef = useRef(0);
-  const freeTimeActivityRef = useRef<{ key: string; activity: PetActivity }>({ key: "", activity: "gaming" });
+  const freeTimeActivityRef = useRef<{ key: string; activity: PetActivity }>({ key: "", activity: "reading" });
 
   // Floating "+N" coin deltas. Each entry self-removes after its animation.
   const [coinDeltas, setCoinDeltas] = useState<{ id: number; amount: number }[]>([]);
@@ -857,7 +858,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const freeTimeKey = freeTimeCountdown?.nextTask.id ?? "after-tasks";
   const playKey = `${today}:${freeTimeKey}`;
   if (freeTimeActivityRef.current.key !== freeTimeKey) {
-    const choices: PetActivity[] = ["gaming", "reading"];
+    // Never a screen: reading, a ball, crayons, bubbles or a leaf outside.
+    const choices = FREE_TIME_ACTIVITIES;
     freeTimeActivityRef.current = {
       key: freeTimeKey,
       activity: choices[Math.floor(Math.random() * choices.length)],
@@ -1410,7 +1412,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <section className="w-full flex flex-col items-center gap-sp-3 p-4 rounded-[28px] bg-focus-surface" aria-label="Free Time">
             <div className="w-full min-h-9 flex items-center justify-between gap-sp-2">
               <h2 className="text-[26px] font-semibold leading-tight text-focus-text">
-                {picture ? <><Gamepad2 className="w-10 h-10 text-focus-mint" aria-hidden /><span className="sr-only">Free Time</span></> : "Free Time"}
+                {picture ? <>{getTaskIcon("Free time", "w-10 h-10 text-focus-mint", "free")}<span className="sr-only">Free Time</span></> : "Free Time"}
               </h2>
               <StatusBadge variant="time">{formatRemaining(freeTimeCountdown.remaining)}</StatusBadge>
             </div>
@@ -1438,9 +1440,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         type="button"
                         onClick={() => { setWheelFor(null); setPlayFor(playKey); }}
                         aria-label={picture ? `Play with ${petNick(child.petType)} instead` : undefined}
-                        className="mt-2 flex items-center gap-1.5 min-h-11 px-4 rounded-[16px] bg-focus-sheet text-14 text-focus-muted hover:text-focus-text transition-colors"
+                        className="mt-2 flex items-center gap-2 min-h-11 px-4 rounded-[16px] bg-focus-sheet text-14 text-focus-muted hover:text-focus-text transition-colors"
                       >
-                        {picture ? <Gamepad2 className="w-7 h-7" aria-hidden /> : <>Play With {petNick(child.petType)} Instead</>}
+                        {picture
+                          ? <><PetFace outfit={child.pet_outfit} scale={2} /><Play className="w-6 h-6 fill-current" aria-hidden /></>
+                          : <><PetFace outfit={child.pet_outfit} scale={1} />Play With {petNick(child.petType)} Instead</>}
                       </button>
                     </motion.div>
                   ) : (
@@ -1475,9 +1479,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                               ? say("Still sleepy…", "💤")
                               : petIsCheckingClock
                                 ? say(`Get ready for ${freeTimeCountdown.nextTask.name}!`, "⏰")
-                                : freeTimeActivityRef.current.activity === "reading"
-                                  ? say("A little quiet time!", "📖")
-                                  : say("Let’s have some fun!", "🎉"))
+                                : say(...FREE_TIME_PROMPTS[freeTimeActivityRef.current.activity] ?? ["Let’s have some fun!", "🎉"]))
                           }
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
@@ -1488,14 +1490,28 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       {/* What to do with the free time: play with Biscuit,
                           or (with over ten minutes left) spin the wheel. */}
                       <div className="w-full mt-sp-3 grid grid-cols-1 min-[360px]:grid-flow-col min-[360px]:auto-cols-fr gap-sp-2">
+                        {/* Biscuit's own face and a play sign say who and what
+                            without words; in picture view a finger taps on it. */}
                         <button
                           type="button"
                           onClick={() => setPlayFor(playKey)}
                           aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
-                          className={cn("flex items-center justify-center gap-1.5 rounded-[16px] bg-focus-lavender text-focus-sheet text-14 font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-14 px-7" : "min-h-12 px-4")}
+                          className={cn("relative flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet text-14 font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7" : "min-h-12 px-4")}
                         >
-                          <Gamepad2 className={picture ? "w-8 h-8" : "w-4 h-4"} aria-hidden />
-                          {!picture && <>Play With {petNick(child.petType)}</>}
+                          <PetFace outfit={child.pet_outfit} scale={picture ? 2 : 1} />
+                          {picture
+                            ? <Play className="w-8 h-8 fill-current" aria-hidden />
+                            : <>Play With {petNick(child.petType)}</>}
+                          {picture && (
+                            <motion.span
+                              aria-hidden
+                              className="pointer-events-none absolute -bottom-3 -right-2 flex text-focus-text drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
+                              animate={{ y: [0, -7, 0, -7, 0], rotate: [0, -8, 0, -8, 0] }}
+                              transition={tMotion({ duration: 1.1, repeat: Infinity, repeatDelay: 1.6 })}
+                            >
+                              <Pointer className="w-9 h-9 fill-focus-sheet" />
+                            </motion.span>
+                          )}
                         </button>
                         {canSpin && (
                           <button
@@ -2112,7 +2128,7 @@ function FreeTimeRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex items-center gap-sp-2">
-        {getTaskIcon("Free time", "w-5 h-5 text-focus-mint shrink-0", "game")}
+        {getTaskIcon("Free time", "w-5 h-5 text-focus-mint shrink-0", "free")}
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <p className="text-16 text-focus-text/80 truncate">Free Time</p>
           <p className="text-12 text-focus-muted truncate">{formatDuration(durationMin)} all yours</p>
@@ -2121,6 +2137,15 @@ function FreeTimeRow({
     </div>
   );
 }
+
+/** What Biscuit says (or, in picture view, the emoji) while playing in free time. */
+const FREE_TIME_PROMPTS: Partial<Record<PetActivity, [string, string]>> = {
+  reading: ["A little quiet time!", "📖"],
+  sports: ["Let’s get moving!", "⚽"],
+  drawing: ["Let’s draw a picture!", "🎨"],
+  bubbles: ["Bubbles!", "✨"],
+  outside: ["Let’s play outside!", "🍃"],
+};
 
 type PictureRow =
   | { kind: 'task'; task: { id: string; name: string; icon?: string | null; duration?: number; scheduled_time?: string | null; event_start?: string | null; window_start?: string | null; type?: string; isCompleted?: boolean } }
@@ -2178,7 +2203,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
               >
                 <span className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-raised flex items-center justify-center">
                   {row.kind === 'free'
-                    ? getTaskIcon('Free time', 'w-8 h-8 text-focus-mint', 'game')
+                    ? getTaskIcon('Free time', 'w-8 h-8 text-focus-mint', 'free')
                     : getTaskIcon(name, 'w-8 h-8 text-focus-text', row.task.icon)}
                 </span>
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">

@@ -2,7 +2,8 @@ import { Pix, squash } from "./pix";
 import type { PetOutfit } from "./accessories";
 import {
   bigStar, butterfly, crumbs, dust, fallingLeaves, front, heart, leaf, risingBubbles, side, sleeper,
-  sparkles, starBurst, winStars, zzz, ball, goal, tv, type FrontOpts, type SideOpts, type SleepOpts, type TvScreen,
+  sparkles, starBurst, winStars, zzz, ball, goal, tv, easel, floatingBubbles, strokeColour, PICTURE_CELLS,
+  type FrontOpts, type SideOpts, type SleepOpts, type TvScreen,
 } from "./sprites";
 import type { ClipName } from "../spriteClips";
 
@@ -405,6 +406,80 @@ const Soccer = build([
   [1, neutral],
 ], [SOCCER_INTRO, SOCCER_INTRO + SOCCER_LOOP]);
 
+// ---------- Drawing: a picture on the easel, stroke by stroke, then a fresh page ----------
+// Free time without a screen. Each 4-second loop draws a sun, a cloud, grass
+// and two flowers in matching crayon colours, admires them, and turns to a
+// blank page, which is how the loop's last frame matches its first.
+const DRAW = 48;
+const DRAW_STROKES = 34;
+const DRAW_INTRO = 4;
+const EASEL_X = 1;
+const BOB = [0, -1, -2, -1];
+const withEasel = (frame: PixelFrame, drawn: number, turning = false) =>
+  withFx(frame, fx => easel(fx, EASEL_X, FLOOR, drawn, turning));
+const drawing = (l: number, o: PetOutfit | null): PixelFrame => {
+  if (l < 36) {
+    const drawn = Math.min(PICTURE_CELLS, Math.floor((PICTURE_CELLS * l) / DRAW_STROKES));
+    const c = strokeColour(Math.max(0, drawn - 1));
+    return withEasel(S({ crayon: [BOB[l % 4], c], eyes: l === 20 || l === 21 ? "blink" : "open" }, o), drawn);
+  }
+  if (l < 46) {
+    return withFx(
+      withEasel(S({ crayon: [2, strokeColour(PICTURE_CELLS - 1)], eyes: "happy", blush: true, mouth: "smile" }, o), PICTURE_CELLS),
+      fx => sparkles(fx, l, EASEL_X + 13, FLOOR - 26),
+    );
+  }
+  return l === 46
+    ? withEasel(S({ crayon: [1, "Y"], perk: true }, o), PICTURE_CELLS, true)
+    : withEasel(S({ crayon: [1, "Y"] }, o), 0);
+};
+const Drawing = build([
+  [1, neutral],
+  [1, (_l, _i, o) => withEasel(S({ crayon: [3, "Y"] }, o), 0)],
+  [1, (_l, _i, o) => withEasel(S({ crayon: [2, "Y"] }, o), 0)],
+  [1, (_l, _i, o) => withEasel(S({ crayon: [1, "Y"] }, o), 0)],
+  [DRAW, (l, _i, o) => drawing(l, o)],
+  // Identical to the loop's first frame. Outro: put the crayon down.
+  [1, (_l, _i, o) => drawing(0, o)],
+  [1, (_l, _i, o) => withEasel(S({ crayon: [2, "Y"] }, o), 0)],
+  [1, (_l, _i, o) => withEasel(S({ crayon: [3, "Y"] }, o), 0)],
+  [3, neutral],
+  [1, neutral],
+], [DRAW_INTRO, DRAW_INTRO + DRAW]);
+
+// ---------- Bubbles: blows through the wand and watches the bubbles float off ----------
+// Free time without a screen, outside. Two breaths per loop, three bubbles
+// each; every bubble pops before the loop ends, so the loop restarts clean.
+const BLOW = 48;
+const BLOW_INTRO = 3;
+const BLOWN = [[4, 3, 0], [7, 4, 2], [10, 2, 4], [22, 4, 1], [25, 3, 3], [28, 4, 5]] as const;
+const WAND_X = SX - 5, WAND_Y = SY + 20;
+const blowing = (l: number, o: PetOutfit | null): PixelFrame => {
+  const breath = (l >= 0 && l < 4) || (l >= 18 && l < 22);
+  const blow = (l >= 4 && l < 12) || (l >= 22 && l < 30);
+  const opts: SideOpts = breath
+    ? { wand: [0, true], cheek: true }
+    : blow
+      ? { wand: [0, false], mouth: "o", eyes: "happy" }
+      : { wand: [0, true], eyes: l === 40 || l === 41 ? "blink" : "up", mouth: l >= 32 ? "smile" : undefined, blush: l >= 32, perk: l === 14 || l === 15 || l === 34 || l === 35 };
+  return withFx(S(opts, o), fx => floatingBubbles(fx, l, WAND_X, WAND_Y, BLOWN));
+};
+const Bubbles = build([
+  [1, neutral],
+  [1, (_l, _i, o) => S({ wand: [2, true] }, o)],
+  [1, (_l, _i, o) => S({ wand: [1, true] }, o)],
+  [BLOW, (l, _i, o) => blowing(l, o)],
+  // Identical to the loop's first frame. Outro: lower the wand.
+  [1, (_l, _i, o) => blowing(0, o)],
+  [1, (_l, _i, o) => S({ wand: [1, true] }, o)],
+  [1, (_l, _i, o) => S({ wand: [2, true] }, o)],
+  [3, neutral],
+  [1, neutral],
+], [BLOW_INTRO, BLOW_INTRO + BLOW]);
+
 export const PIXEL_CLIPS: Record<ClipName, PixelClip> = {
   Idle, LeafChase, Celebrate, Encourage, Wave, Curious, Sleepy, Eating, Reading, Gaming, BrushingTeeth, Soccer,
+  Drawing, Bubbles,
+  // The same leaf chase, as free-time play outdoors (its own room in the timer).
+  Outside: LeafChase,
 };

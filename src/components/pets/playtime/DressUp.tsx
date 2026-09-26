@@ -90,7 +90,9 @@ const DressUp = ({ outfit, onChange, nick, picture }: DressUpProps) => {
     const out = {} as Record<AccessoryId, Pix>;
     for (const id of ACCESSORY_IDS) {
       const p = new Pix();
-      ACCESSORIES[id].draw(p, "front");
+      const item = ACCESSORIES[id];
+      if (item.icon) p.stamp(item.icon);
+      else item.draw(p, "front");
       out[id] = p;
     }
     return out;

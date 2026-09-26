@@ -16,8 +16,12 @@ export type SceneName = "den" | "garden" | "bath" | "kitchen" | "study" | "playr
 /** Activities that have a room of their own. Everything else is in the den. */
 export const CLIP_SCENE: Partial<Record<ClipName, SceneName>> = {
   Soccer: "garden",
+  Bubbles: "garden",
+  // Chasing a leaf in free time is outdoors; the timer ring's quick leaf chase stays in the den.
+  Outside: "garden",
   Reading: "study",
   Gaming: "playroom",
+  Drawing: "playroom",
   Eating: "kitchen",
   BrushingTeeth: "bath",
   Sleepy: "bedroom",

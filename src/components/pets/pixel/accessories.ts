@@ -7,7 +7,10 @@ import type { Pix } from "./pix";
  */
 
 export type AccessorySlot = "head" | "face" | "neck";
-export type AccessoryId = "hat" | "straw" | "cap" | "crown" | "bow" | "specs" | "hearts" | "scarf" | "bowtie";
+export type AccessoryId =
+  | "hat" | "straw" | "cap" | "crown" | "bow" | "beanie" | "tiara" | "wizard"
+  | "specs" | "hearts" | "shades" | "stars" | "nose"
+  | "scarf" | "bowtie" | "lei" | "medal" | "cape";
 export type PetOutfit = Partial<Record<AccessorySlot, AccessoryId | null>>;
 export type PetView = "front" | "side" | "sleep";
 
@@ -16,6 +19,16 @@ const PARTY_HAT = ["...NN...", "...NN...", "..GGGG..", "..GGGG..", ".NNNNNN.", "
 const BOW = ["MM...MM", "MRM.MRM", "MPPMPPM", "MPM.MPM", "MM...MM"];
 const HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
 const BOWTIE = ["XX..XX", "XXxxXX", "XX..XX"];
+const STAR_LENS = ["...Y...", "..YYY..", "YYYFYYY", ".YYYYY.", ".YY.YY."];
+const CLOWN_NOSE = [".XX.", "XFXX", ".XX."];
+// A wizard's hat: a tall cone with a bent tip and stars, over a wide brim.
+const WIZARD = [
+  "......NN..", ".....NN...", "....NNN...", "....NNNN..", "...NNYNN..", "...NNNNN..",
+  "..NNNNNNN.", "..NNNNYNN.", ".NNYNNNNN.", ".NNNNNNNNN",
+];
+const MEDAL = [".yyy.", "yYYYy", "yYFYy", "yYYYy", ".yyy."];
+// Dress-up tile pictures for things that only make sense on the rabbit.
+const CAPE_ICON = ["XXYYXX", "XXXXXX", ".XXXXXX", ".XXXXXX", "XXXXXXX", "XXXXXXXX", "xXxXxXxX"];
 
 // Where each slot's item rests while the rabbit sleeps (sleeping-pose cells;
 // the head is at column 0, the floor is row 20).
@@ -30,7 +43,11 @@ interface Accessory {
   slot: AccessorySlot;
   name: string;
   draw: (p: Pix, view: PetView) => void;
+  /** The dress-up tile's picture, when the item drawn alone wouldn't read (a cape). */
+  icon?: readonly string[];
 }
+
+const row = (p: Pix, y: number, a: number, b: number, c: string) => { for (let x = a; x <= b; x++) p.set(x, y, c); };
 
 export const ACCESSORIES: Record<AccessoryId, Accessory> = {
   hat: {
@@ -112,6 +129,45 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     name: "Ear bow",
     draw(p, v) { p.stamp(BOW, v === "sleep" ? PILE.head + 1 : v === "front" ? 1 : 2, v === "sleep" ? 16 : 8); },
   },
+  // A knitted beanie with a pom-pom; the ears poke out above it.
+  beanie: {
+    slot: "head",
+    name: "Beanie",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp([".YY..", "NNNN.", "NnNnN", "nnnnn"], PILE.head + 1, 16); return; }
+      const [a, b, pom] = v === "front" ? [3, 18, 9] : [2, 20, 10];
+      p.stamp([".YY.", "YYYY", ".YY."], pom, 5);
+      row(p, 8, pom - 1, pom + 4, "N");
+      row(p, 9, a + 2, b - 2, "N");
+      for (let x = a + 1; x <= b - 1; x++) p.set(x, 10, x % 3 === 0 ? "n" : "N");
+      for (let x = a; x <= b; x++) p.set(x, 11, (x + 1) % 3 === 0 ? "n" : "N");
+      row(p, 12, a, b, "n");
+      for (let x = a; x <= b; x += 2) p.set(x, 13, "n");
+    },
+  },
+  tiara: {
+    slot: "head",
+    name: "Tiara",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["Y.B.Y", "YYYYY", "yyyyy"], PILE.head + 1, 18); return; }
+      const [a, b, peaks] = v === "front" ? [5, 16, [6, 10, 15]] : [5, 17, [6, 11, 16]];
+      row(p, 12, a, b, "y");
+      row(p, 11, a, b, "Y");
+      for (const x of peaks) { p.set(x, 10, "Y"); p.set(x, 9, x === peaks[1] ? "P" : "B"); }
+      p.set(peaks[1] + 1, 10, "Y"); p.set(peaks[1] + 1, 9, "P"); p.set(peaks[1], 8, "Y"); p.set(peaks[1] + 1, 8, "Y");
+    },
+  },
+  wizard: {
+    slot: "head",
+    name: "Wizard hat",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["..NN..", ".NYNN.", "NNNNNN", "nnnnnnn"], PILE.head, 17); return; }
+      const [x0, a, b] = v === "front" ? [6, 1, 20] : [7, 1, 22];
+      p.stamp(WIZARD, x0, 1);
+      row(p, 11, a + 1, b - 1, "n");
+      row(p, 12, a, b, "n");
+    },
+  },
   specs: {
     slot: "face",
     name: "Round specs",
@@ -138,6 +194,40 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
       if (v === "side") for (let x = r + 7; x <= 21; x++) p.set(x, 16, "M");
     },
   },
+  shades: {
+    slot: "face",
+    name: "Cool shades",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["kk.kk", "k...k"], PILE.face, 19); return; }
+      const [l, r] = v === "front" ? [3, 13] : [1, 10];
+      for (const c of [l, r]) {
+        for (let y = 15; y <= 19; y++) row(p, y, c, c + 5, y === 19 && (c === l || c === r) ? "k" : "k");
+        p.set(c + 1, 16, "L"); p.set(c + 2, 16, "L");
+      }
+      row(p, 16, l + 6, r - 1, "k");
+      if (v === "side") row(p, 16, r + 6, 21, "k");
+    },
+  },
+  stars: {
+    slot: "face",
+    name: "Star glasses",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp([".Y..Y.", "YYYYYY"], PILE.face - 1, 19); return; }
+      const [l, r] = v === "front" ? [2, 13] : [0, 10];
+      p.stamp(STAR_LENS, l, 14);
+      p.stamp(STAR_LENS, r, 14);
+      row(p, 16, l + 7, r - 1, "y");
+      if (v === "side") row(p, 16, r + 7, 21, "y");
+    },
+  },
+  nose: {
+    slot: "face",
+    name: "Clown nose",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp([".XX", "XFX"], PILE.face + 1, 19); return; }
+      p.stamp(CLOWN_NOSE, v === "front" ? 9 : 6, 19);
+    },
+  },
   scarf: {
     slot: "neck",
     name: "Cozy scarf",
@@ -159,6 +249,59 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     draw(p, v) {
       if (v === "sleep") p.stamp(BOWTIE, PILE.neck, 18);
       else p.stamp(BOWTIE, v === "front" ? 8 : 7, 26);
+    },
+  },
+  // A ring of flowers round the neck, dipping lower in front.
+  lei: {
+    slot: "neck",
+    name: "Flower lei",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["PGYGB", "GPGYG"], PILE.neck, 19); return; }
+      const [a, b] = v === "front" ? [4, 17] : [5, 20];
+      const cols = ["P", "Y", "B", "R"];
+      const mid = (a + b) / 2;
+      for (let x = a; x <= b; x++) {
+        const y = 26 + (Math.abs(x - mid) < 4 ? 1 : 0);
+        p.set(x, y, x % 2 ? cols[(x >> 1) % 4] : "G");
+        p.set(x, y + 1, x % 2 ? "G" : cols[((x + 1) >> 1) % 4]);
+      }
+    },
+  },
+  medal: {
+    slot: "neck",
+    name: "Gold medal",
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["X.X", ".y.", "yYy", ".y."], PILE.neck, 17); return; }
+      const cx = v === "front" ? 10 : 7;
+      for (let i = 0; i < 3; i++) { p.set(cx - 3 + i, 26 + i, "X"); p.set(cx + 4 - i, 26 + i, "N"); }
+      p.stamp(MEDAL, cx - 1, 29);
+    },
+  },
+  // A hero's cape: a clasp at the neck, and the cape itself only where there
+  // is no fur, so it hangs behind the rabbit.
+  cape: {
+    slot: "neck",
+    name: "Hero cape",
+    icon: CAPE_ICON,
+    draw(p, v) {
+      if (v === "sleep") { p.stamp(["XXXXXX", "xXXXXx"], PILE.neck - 1, 19); return; }
+      const behind = (x: number, y: number, c: string) => { if (!p.get(x, y)) p.set(x, y, c); };
+      if (v === "front") {
+        for (let y = 24; y <= 36; y++) {
+          const spread = Math.min(3, (y - 24) >> 2);
+          for (let x = 3 - spread; x <= 18 + spread; x++) behind(x, y, y === 36 && x % 2 ? "x" : "X");
+        }
+        row(p, 26, 6, 15, "X");
+        p.set(10, 26, "Y"); p.set(11, 26, "Y");
+        return;
+      }
+      // It flares out behind the back as it falls.
+      for (let y = 24; y <= 39; y++) {
+        const reach = 22 + Math.min(9, y - 24);
+        for (let x = 12; x <= reach; x++) behind(x, y, y === 39 && x % 2 ? "x" : "X");
+      }
+      row(p, 26, 7, 20, "X");
+      p.set(8, 26, "Y");
     },
   },
 };

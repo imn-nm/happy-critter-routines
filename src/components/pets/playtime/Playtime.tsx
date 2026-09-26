@@ -10,6 +10,9 @@ import PixelIcon from "./PixelIcon";
 import DressUp from "./DressUp";
 import BathTime from "./BathTime";
 import CarrotCatch from "./CarrotCatch";
+import BubblePop from "./BubblePop";
+import { BUBBLE_ICON } from "./scenes";
+import Peekaboo from "./Peekaboo";
 
 interface PlaytimeProps {
   childId: string;
@@ -23,12 +26,14 @@ interface PlaytimeProps {
   picture?: boolean;
 }
 
-type Mode = "menu" | "dress" | "bath" | "catch";
+type Mode = "menu" | "dress" | "bath" | "catch" | "bubbles" | "peek";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 const DUCK = [".YYY...", "YYkYOO.", ".YYY...", "YYYYYYY", "YYYYYYy", ".yyyyy."];
 const CARROT = ["G.g.G", ".GgG.", ".OOO.", ".OOo.", ".OOo.", "..Oo.", "..O.."];
+// Two ears peeking over a bush.
+const PEEK = [".W.....W..", "WOW...WOW.", "WOW...WOW.", "WOW...WOW.", ".GGGGGGGG.", "GGGGGGGgGG", "GgGGGGGGXG", ".gggggggg."];
 
 /**
  * Free-time play with the rabbit. Opens from the free-time pet and closes
@@ -59,16 +64,18 @@ const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChan
   const icons = useMemo(() => {
     const hat = new Pix();
     ACCESSORIES.hat.draw(hat, "front");
-    return { hat, duck: new Pix().stamp(DUCK), carrot: new Pix().stamp(CARROT) };
+    return { hat, duck: new Pix().stamp(DUCK), carrot: new Pix().stamp(CARROT), bubble: new Pix().stamp(BUBBLE_ICON), peek: new Pix().stamp(PEEK) };
   }, []);
 
   const activities: { id: Exclude<Mode, "menu">; label: string; pix: Pix }[] = [
     { id: "dress", label: "Dress up", pix: icons.hat },
     { id: "bath", label: "Bath time", pix: icons.duck },
     { id: "catch", label: "Carrot catch", pix: icons.carrot },
+    { id: "bubbles", label: "Bubble pop", pix: icons.bubble },
+    { id: "peek", label: "Peekaboo", pix: icons.peek },
   ];
-  const title = mode === "dress" ? "Dress up" : mode === "bath" ? "Bath time" : mode === "catch" ? "Carrot catch" : `Play with ${nick}`;
   const current = activities.find(a => a.id === mode);
+  const title = current ? current.label : `Play with ${nick}`;
 
   return (
     <motion.div
@@ -164,6 +171,8 @@ const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChan
             {mode === "dress" && <DressUp outfit={outfit} onChange={onOutfitChange} nick={nick} picture={picture} />}
             {mode === "bath" && <BathTime nick={nick} picture={picture} />}
             {mode === "catch" && <CarrotCatch childId={childId} outfit={outfit} nick={nick} picture={picture} />}
+            {mode === "bubbles" && <BubblePop outfit={outfit} nick={nick} picture={picture} />}
+            {mode === "peek" && <Peekaboo outfit={outfit} nick={nick} picture={picture} />}
           </motion.div>
         </AnimatePresence>
       </div>
