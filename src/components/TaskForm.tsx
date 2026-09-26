@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { format, isValid, parse } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Gamepad2, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -100,16 +100,9 @@ const KIND_OPTIONS: { value: Kind; label: string }[] = [
 
 type LatePolicy = 'keep' | 'shorten' | 'skip';
 
-// One question for what gives when time is tight. "Must finish" is the other
-// side of the same coin (the task that may run over), so it's an answer here
-// rather than a separate "how it works" setting that said much the same.
+// What gives when the day runs late. Parents only choose "Must Get Done";
+// otherwise a task keeps its time and fun time is the first to go.
 type Priority = 'must' | LatePolicy;
-const PRIORITY_OPTIONS: { value: Priority; label: string; caption: (min: number) => string }[] = [
-  { value: 'must', label: 'Must Get Done', caption: () => "It stays on their screen until it's done, even if that runs over. You get an alert." },
-  { value: 'keep', label: 'Keep Its Full Time', caption: () => 'It always gets all of its time, even on a busy day.' },
-  { value: 'shorten', label: 'Can Be Shortened', caption: (min) => `It can shrink to make room, but never below ${min} min.` },
-  { value: 'skip', label: 'Can Be Skipped', caption: () => "It's the first thing dropped when the day runs out of time." },
-];
 const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
 /** A sensible ceiling for one task's stars; rewards are priced against these. */
@@ -162,6 +155,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // once they pick a length or icon, the name stops changing it.
   const [durationTouched, setDurationTouched] = useState(isEdit);
   const [iconTouched, setIconTouched] = useState(isEdit || !!task?.icon);
+  const [funTouched, setFunTouched] = useState(isEdit);
   const { saved: savedChecklists, saveChecklist, saving: savingChecklist } = useChecklistTemplates();
 
   // Time to restore when the task is switched back to a fixed time. A flexible
@@ -254,7 +248,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // button (is_fun_time), so it shares the task questions below.
   const isFun = !isChore && formData.isFunTime;
   type WhatKind = 'task' | 'fun' | 'chore';
-  const what: WhatKind = isChore ? 'chore' : isFun ? 'fun' : 'task';
   const setWhat = (next: WhatKind) => {
     if (next === 'chore') return setFormData({ ...formData, mode: 'chore', isFunTime: false });
     const on = next === 'fun';
@@ -291,6 +284,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     }
     if (t && !iconTouched) next.icon = t.icon;
     if (!t && !iconTouched) next.icon = '';
+    // TV, games, playtime… become Fun Time on their own (no done button,
+    // first to go on a busy day) until the parent flips it themselves.
+    if (!funTouched && next.mode === 'task') {
+      const fun = !!t?.fun;
+      if (fun !== next.isFunTime) {
+        next.isFunTime = fun;
+        next.isImportant = fun ? false : next.isImportant;
+        next.latePolicy = fun ? 'skip' : 'keep';
+      }
+    }
     setFormData(next);
   };
   const existingSteps = new Set(formData.subtasks.map(s => s.text.trim().toLowerCase()));
@@ -511,7 +514,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       }}
     />
   );
-  const chosenPriority = PRIORITY_OPTIONS.find(o => o.value === priority)!;
 
   const noun = isChore ? 'Chore' : isFun ? 'Fun Time' : 'Task';
   const sheetTitle = `${isEdit ? 'Edit' : 'New'} ${noun}`;
@@ -607,6 +609,27 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </Caption>
           </div>
         )}
+        {!isChore && !isSystemEvent && (
+          <div className="flex items-center gap-2 px-1">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isFun}
+              onClick={() => { setFunTouched(true); setWhat(isFun ? 'task' : 'fun'); }}
+              className={cn(
+                "shrink-0 min-h-11 -my-1.5 inline-flex items-center gap-1.5 rounded-full px-3 text-12 font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+                isFun ? "bg-focus-lavender text-focus-bg" : "bg-focus-surface text-focus-muted hover:text-focus-text",
+              )}
+            >
+              <Gamepad2 className="w-4 h-4" aria-hidden />
+              Fun Time
+            </button>
+            <Caption>
+              {isFun ? 'No done button. The first thing to go on a busy day.' : 'For TV, games or playtime.'}
+            </Caption>
+          </div>
+        )}
         {nameClash && (
           <Caption tone="error" id="taskNameClash">
             {nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "{nameClash} at Grandma's".
@@ -618,23 +641,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {!isSystemEvent && (
         <section className="flex flex-col gap-2.5">
           <SectionHeading id="q-what">What Is It?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-3 gap-2">
-            <ChoiceButton selected={what === 'task'} onClick={() => setWhat('task')} className="min-h-12 rounded-[16px] text-14">
+          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-2 gap-2">
+            <ChoiceButton selected={!isChore} onClick={() => setWhat(isFun ? 'fun' : 'task')} className="min-h-12 rounded-[16px] text-14">
               Task
             </ChoiceButton>
-            <ChoiceButton selected={what === 'fun'} onClick={() => setWhat('fun')} className="min-h-12 rounded-[16px] text-14">
-              Fun Time
-            </ChoiceButton>
-            <ChoiceButton selected={what === 'chore'} onClick={() => setWhat('chore')} className="min-h-12 rounded-[16px] text-14">
+            <ChoiceButton selected={isChore} onClick={() => setWhat('chore')} className="min-h-12 rounded-[16px] text-14">
               Chore
             </ChoiceButton>
           </div>
           <Caption>
-            {what === 'task'
-              ? 'Something to do, like homework or brushing teeth.'
-              : what === 'fun'
-                ? 'TV, games or playtime. It has no done button.'
-                : "A to-do that doesn't take up schedule time."}
+            {isChore
+              ? "A to-do that doesn't take up schedule time."
+              : 'Something on their schedule, like homework, brushing teeth or TV.'}
           </Caption>
         </section>
       )}
@@ -772,46 +790,21 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </section>
       )}
 
-      {/* === WHEN TIME IS TIGHT === tasks and fun time. One question for
-          what gives when the day falls behind; only the chosen answer
-          explains itself. */}
-      {!isChore && !isSystemEvent && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeading id="q-late">When Time Is Tight</SectionHeading>
-          <Caption>If the day falls behind, what should happen to this {isFun ? 'fun time' : 'task'}?</Caption>
-          <div role="radiogroup" aria-labelledby="q-late" className="flex flex-col gap-2">
-            {PRIORITY_OPTIONS
-              // Fun time has no done button, so it can't be must-finish.
-              .filter(option => !(isFun && option.value === 'must'))
-              .map(option => {
-                const selected = priority === option.value;
-                return (
-                  <OptionCard
-                    key={option.value}
-                    selected={selected}
-                    label={option.label}
-                    onSelect={() => setPriority(option.value)}
-                    caption={
-                      option.value === 'shorten' && effectiveMin === 0
-                        ? "It's too short to keep part of it, so it gives up its time."
-                        : option.caption(effectiveMin)
-                    }
-                  >
-                    {option.value === 'shorten' && minOptions.length > 0 && (
-                      <div className="flex">
-                        <SelectTile
-                          label="Keep at Least"
-                          value={String(effectiveMin)}
-                          display={fmtLen(effectiveMin)}
-                          onChange={(v) => setFormData({ ...formData, minDuration: parseInt(v) })}
-                          options={minOptions.map(m => ({ value: String(m), label: fmtLen(m) }))}
-                        />
-                      </div>
-                    )}
-                  </OptionCard>
-                );
-              })}
-          </div>
+      {/* === MUST GET DONE === the one timing choice that needs a person.
+          Everything else is automatic: a task keeps its full time, fun time
+          is the first to go on a busy day. (Older tasks keep whatever they
+          were set to.) */}
+      {!isChore && !isFun && !isSystemEvent && (
+        <section className="flex flex-col gap-1 rounded-[14px] bg-focus-surface px-3.5 py-1.5">
+          <SwitchRow
+            id="mustGetDone"
+            label="Must Get Done"
+            caption="It stays on their screen until it's finished, even if it runs over. You get an alert."
+            checked={priority === 'must'}
+            onCheckedChange={(on) => on
+              ? setPriority('must')
+              : setFormData({ ...formData, isImportant: false, latePolicy: formData.latePolicy })}
+          />
         </section>
       )}
 

@@ -14,6 +14,8 @@ export interface TaskTemplate {
   icon: string;
   /** Suggested length in minutes (always one of the form's options). */
   duration: number;
+  /** Play / screen time: set up as Fun Time (no done button) automatically. */
+  fun?: boolean;
   steps: { young: string[]; older: string[] };
 }
 
@@ -199,8 +201,9 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
     },
   },
   {
-    keys: ['tv', 'screen time', 'gaming', 'video games', 'tablet time', 'roblox'],
+    keys: ['tv', 'screen time', 'gaming', 'video games', 'games', 'tablet time', 'tablet', 'ipad', 'movie', 'youtube', 'minecraft', 'roblox'],
     icon: 'game',
+    fun: true,
     duration: 30,
     steps: { young: [], older: [] },
   },
@@ -234,6 +237,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
   {
     keys: ['play time', 'playtime', 'free play', 'play outside'],
     icon: 'sparkles',
+    fun: true,
     duration: 30,
     steps: { young: [], older: [] },
   },
