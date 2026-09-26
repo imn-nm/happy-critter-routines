@@ -1,9 +1,9 @@
 // import { Card } from "@/components/ui/card";
 import PetAvatar from "./PetAvatar";
-import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Child } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
+import StarBadge from "@/components/StarBadge";
 
 interface ChildCardProps {
   child: Child;
@@ -89,10 +89,7 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
           <p className="text-12 text-focus-muted">{completed}/{total} tasks today</p>
         </div>
 
-        <div className="flex items-center gap-1.5 rounded-[12px] border border-focus-lime bg-focus-lime/10 px-2.5 py-1">
-          <Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} />
-          <span className="text-14 font-bold text-focus-lime">{child.currentCoins}</span>
-        </div>
+        <StarBadge count={child.currentCoins} aria-label={`${child.currentCoins} stars`} />
       </div>
     </div>
   );

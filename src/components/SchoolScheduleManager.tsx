@@ -1,7 +1,22 @@
 import { useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Calendar } from 'lucide-react';
 import DaySpecificTaskEditor from './DaySpecificTaskEditor';
+import { TileText } from '@/components/sheet/SheetParts';
+import { fmtTime, tileClass } from '@/components/sheet/sheetStyles';
+
+const WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const SHORT: Record<string, string> = {
+  sunday: 'Sun', monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat',
+};
+
+/** ["monday", …, "friday"] → "Mon–Fri"; gaps are listed ("Mon, Wed, Fri"). */
+const daysSummary = (days: string[]) => {
+  const idx = WEEK.map((d, i) => (days.includes(d) ? i : -1)).filter(i => i >= 0);
+  if (idx.length === 0) return 'No school days';
+  if (idx.length === 7) return 'Every day';
+  const consecutive = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
+  if (consecutive && idx.length >= 3) return `${SHORT[WEEK[idx[0]]]}–${SHORT[WEEK[idx[idx.length - 1]]]}`;
+  return idx.map(i => SHORT[WEEK[i]]).join(', ');
+};
 
 interface SchoolScheduleManagerProps {
   childId: string;
@@ -29,7 +44,7 @@ const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolSched
   // Use useMemo to prevent re-creating this object on every render
   const builtSchedule = useMemo(() => {
     const overrides = currentSchedule?.school_schedule_overrides || {};
-    const defaultTime = currentSchedule?.school_start_time || '08:00';
+    const defaultTime = currentSchedule?.school_start_time || '08:30'; // same default as the School row (systemTasks)
     const defaultDuration = currentSchedule?.school_duration || 420;
     const schoolDays = currentSchedule?.school_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
@@ -73,15 +88,20 @@ const SchoolScheduleManager = ({ childId, currentSchedule, onSave }: SchoolSched
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => setOpen(true)}
-        className="w-full"
-      >
-        <Calendar className="w-4 h-4 mr-2" />
-        Manage School Schedule
-      </Button>
+      {/* A tile like the routine rows' Starts / Lasts: what's set, tap to change. */}
+      <button type="button" onClick={() => setOpen(true)} className={tileClass} aria-label="Change school days and times">
+        <TileText
+          label="Days & Times"
+          value={(() => {
+            const days = Object.keys(builtSchedule);
+            // Same start time the school editor opens with.
+            const start = currentSchedule?.school_start_time || Object.values(builtSchedule)[0]?.time;
+            const varies = Object.keys(currentSchedule?.school_schedule_overrides ?? {}).length > 0;
+            const when = start ? (varies ? `${fmtTime(start)}, varies` : fmtTime(start)) : '';
+            return [daysSummary(days), when].filter(Boolean).join(' · ');
+          })()}
+        />
+      </button>
 
       <DaySpecificTaskEditor
         taskName="School"

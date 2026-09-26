@@ -41,6 +41,7 @@ import { isRestDate, restDayUpdate } from "@/utils/restDays";
 import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
 import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
+import StarBadge from "@/components/StarBadge";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -659,15 +660,11 @@ const ChildDashboard = () => {
             <ChevronLeft className="w-5 h-5" strokeWidth={2} />
           </button>
           <div className="flex items-center gap-sp-2">
-            <button
-              type="button"
+            <StarBadge
+              count={child.currentCoins}
               onClick={() => setShowRewards(true)}
               aria-label={`${child.currentCoins} stars — open rewards`}
-              className="h-11 inline-flex items-center gap-1.5 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 font-semibold text-focus-lime hover:bg-focus-lime/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
-            >
-              <span className="text-[13px] leading-4" aria-hidden>★</span>
-              <span className="text-[14px] leading-4 tabular-nums">{child.currentCoins}</span>
-            </button>
+            />
             
             <QuickAccessMenu
               childName={child.name}

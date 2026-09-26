@@ -1,13 +1,10 @@
 import { useRef, useState } from "react";
 import { format, isValid, parse } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, Circle, Copy, Minus, Plus, Sparkles, Star, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import TimeSelect from "@/components/TimeSelect";
 import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
@@ -16,9 +13,18 @@ import { templateForName, suggestedSteps } from "@/data/taskTemplates";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
 import { routineDays, routineDaysLabel, type Routine } from "@/hooks/useRoutines";
 import { toast } from "sonner";
-import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
-import { motion } from "motion/react";
-import { useMotionPrefs } from "@/lib/motion";
+import {
+  Caption,
+  ChoiceButton,
+  OptionCard,
+  SectionHeading,
+  SelectTile,
+  SheetHeader,
+  StarStepper,
+  SwitchRow,
+  TimeTile,
+} from "@/components/sheet/SheetParts";
+import { choiceClass, fmtLen, fmtRange, fmtTime, sheetFooterClass } from "@/components/sheet/sheetStyles";
 
 interface TaskFormProps {
   task?: Task;
@@ -53,29 +59,6 @@ interface TaskFormProps {
 // Formatting
 // ---------------------------------------------------------------------------
 
-/** "15:00" → "3:00 pm" */
-const fmtTime = (hhmm?: string) => {
-  if (!hhmm) return "";
-  const [h, m] = hhmm.slice(0, 5).split(":").map(Number);
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "pm" : "am"}`;
-};
-
-/** "15:00"–"19:00" → "3:00–7:00 pm"; mixed halves keep both ("11:00 am–1:00 pm"). */
-const fmtRange = (a: string, b: string) => {
-  const sameHalf = (Number(a.slice(0, 2)) >= 12) === (Number(b.slice(0, 2)) >= 12);
-  return sameHalf ? `${fmtTime(a).slice(0, -3)}–${fmtTime(b)}` : `${fmtTime(a)}–${fmtTime(b)}`;
-};
-
-/** 30 → "30 min", 90 → "1 hr 30 min", 120 → "2 hr" */
-const fmtLen = (minutes: number) => {
-  if (!minutes || minutes <= 0) return "";
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h} hr ${m} min` : `${h} hr`;
-};
-
 const DAYS_OF_WEEK = [
   { id: "sunday", label: "S", short: "Sun", name: "Sunday" },
   { id: "monday", label: "M", short: "Mon", name: "Monday" },
@@ -97,249 +80,6 @@ const daysPhrase = (days: string[]) => {
   return `Every ${DAYS_OF_WEEK.filter(d => set.has(d.id)).map(d => d.short).join(", ")}`;
 };
 
-// ---------------------------------------------------------------------------
-// Pieces of the sheet — defined outside TaskForm so they don't remount on
-// every keystroke.
-// ---------------------------------------------------------------------------
-
-const SectionHeading = ({ children, aside, id }: { children: React.ReactNode; aside?: React.ReactNode; id?: string }) => (
-  <div className="flex items-center gap-2 min-w-0">
-    <h3 id={id} className="text-16 font-semibold leading-[22px] text-focus-text">{children}</h3>
-    {aside && <span className="text-12 leading-[17px] text-focus-muted">{aside}</span>}
-  </div>
-);
-
-const Caption = ({ children, tone = "muted", role, id }: { children: React.ReactNode; tone?: "muted" | "error" | "warn"; role?: string; id?: string }) => (
-  <p
-    id={id}
-    role={role}
-    className={cn(
-      "text-12 leading-[17px]",
-      tone === "muted" && "text-focus-muted",
-      tone === "error" && "text-focus-coral",
-      tone === "warn" && "text-focus-amber",
-    )}
-  >
-    {children}
-  </p>
-);
-
-/** Lavender when chosen, surface otherwise. Lime is kept for the save button. */
-const choiceClass = (selected: boolean, className?: string) =>
-  cn(
-    "min-h-11 min-w-0 flex items-center justify-center px-2.5 text-13 font-semibold leading-[18px] text-center transition-colors",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender focus-visible:ring-offset-2 focus-visible:ring-offset-focus-sheet",
-    "disabled:cursor-not-allowed disabled:opacity-40",
-    selected
-      ? "bg-focus-lavender text-focus-bg"
-      : "bg-focus-surface text-focus-muted hover:enabled:bg-focus-raised hover:enabled:text-focus-text",
-    className ?? "rounded-[12px]",
-  );
-
-/** Lavender-when-chosen pill for the sheet's either/or choices. */
-const ChoiceButton = ({
-  selected,
-  onClick,
-  children,
-  disabled,
-  className,
-  role = "radio",
-  ariaLabel,
-  title,
-}: {
-  selected: boolean;
-  onClick?: () => void;
-  children: React.ReactNode;
-  disabled?: boolean;
-  className?: string;
-  role?: "radio" | "checkbox";
-  ariaLabel?: string;
-  title?: string;
-}) => {
-  const { reduce } = useMotionPrefs();
-  return (
-    <motion.button
-      type="button"
-      role={role}
-      aria-checked={selected}
-      aria-label={ariaLabel}
-      title={title}
-      disabled={disabled}
-      onClick={onClick}
-      whileTap={disabled || reduce ? undefined : { scale: 0.97 }}
-      className={cn(choiceClass(selected, className), "motion-reduce:transition-none")}
-    >
-      {children}
-    </motion.button>
-  );
-};
-
-/** One answer to "When does it happen?": a radio card that opens to show its pickers. */
-const OptionCard = ({
-  selected,
-  label,
-  onSelect,
-  caption,
-  children,
-}: {
-  selected: boolean;
-  label: string;
-  onSelect: () => void;
-  caption?: React.ReactNode;
-  children?: React.ReactNode;
-}) => (
-  <div
-    className={cn(
-      "w-full rounded-[14px] border-[1.5px] bg-focus-surface transition-colors",
-      selected ? "border-focus-lavender" : "border-transparent hover:bg-focus-raised",
-    )}
-  >
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className="w-full min-h-11 flex items-center gap-2.5 px-3.5 py-3 text-left rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "shrink-0 w-[18px] h-[18px] rounded-full border-[1.5px]",
-          selected
-            ? "border-focus-lavender bg-focus-lavender shadow-[inset_0_0_0_3px_rgb(var(--focus-surface-rgb))]"
-            : "border-focus-muted/70",
-        )}
-      />
-      <span
-        className={cn(
-          "flex-1 min-w-0 text-14 leading-[18px]",
-          selected ? "font-semibold text-focus-text" : "font-normal text-focus-muted",
-        )}
-      >
-        {label}
-      </span>
-    </button>
-    {selected && (caption || children) && (
-      <div className="px-3.5 pb-3 -mt-0.5 flex flex-col gap-2.5">
-        {caption && <Caption>{caption}</Caption>}
-        {children}
-      </div>
-    )}
-  </div>
-);
-
-const tileClass =
-  "flex-1 min-w-0 min-h-11 flex flex-col items-start justify-center gap-0.5 rounded-[12px] bg-focus-bg px-3 py-2 text-left transition-colors hover:bg-focus-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
-
-const TileText = ({ label, value }: { label: string; value: React.ReactNode }) => (
-  <>
-    <span className="text-12 font-medium leading-4 text-focus-muted">{label}</span>
-    <span className="block w-full truncate text-[15px] font-semibold leading-5 text-focus-text">{value}</span>
-  </>
-);
-
-/** A "Starts 3:00 pm" tile that opens the hour / minute / am-pm picker. */
-const TimeTile = ({
-  label,
-  value,
-  onChange,
-  stepMinutes = 5,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  stepMinutes?: number;
-}) => (
-  <Popover>
-    <PopoverTrigger asChild>
-      <button type="button" className={tileClass} aria-label={`${label}: ${fmtTime(value) || "not set"}`}>
-        <TileText label={label} value={fmtTime(value) || "Pick a time"} />
-      </button>
-    </PopoverTrigger>
-    <PopoverContent align="start" className="w-auto p-3 bg-focus-sheet border-focus-raised">
-      <p className="text-12 font-medium text-focus-muted mb-2">{label}</p>
-      <TimeSelect value={value} onChange={onChange} stepMinutes={stepMinutes} />
-    </PopoverContent>
-  </Popover>
-);
-
-/** A tile-shaped select ("Lasts 30 min", "Starts After Lunch"). */
-const SelectTile = ({
-  label,
-  value,
-  display,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  display: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) => (
-  <Select value={value} onValueChange={onChange}>
-    <SelectTrigger
-      aria-label={label}
-      className={cn(
-        tileClass,
-        "h-auto w-auto border-0 text-left ring-offset-0 focus:ring-2 focus:ring-focus-lavender focus:ring-offset-0 [&>svg]:hidden [&>span]:line-clamp-none",
-      )}
-    >
-      <TileText label={label} value={<SelectValue>{display}</SelectValue>} />
-    </SelectTrigger>
-    <SelectContent className="max-h-60">
-      {options.map(o => (
-        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-);
-
-const stepperButton =
-  "h-11 w-12 shrink-0 rounded-[14px] bg-focus-bg text-focus-muted flex items-center justify-center transition-colors hover:enabled:text-focus-text disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
-
-/** −  ★ 3  + */
-const StarStepper = ({ value, onChange, max }: { value: number; onChange: (value: number) => void; max: number }) => (
-  <div className="w-full rounded-[20px] border border-focus-iris p-1">
-    <div className="flex h-12 items-center justify-between">
-      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0} aria-label="Remove star" className={stepperButton}>
-        <Minus className="w-4 h-4" />
-      </button>
-      <div className="flex flex-1 min-w-0 items-center justify-center gap-2" aria-live="polite">
-        <Star className="w-4 h-4 text-focus-lime fill-focus-lime" strokeWidth={0} aria-hidden />
-        <span className="text-20 font-semibold leading-9 text-focus-lime tabular-nums">{value}</span>
-        <span className="sr-only">{value === 1 ? "star" : "stars"}</span>
-      </div>
-      <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label="Add star" className={stepperButton}>
-        <Plus className="w-4 h-4" />
-      </button>
-    </div>
-  </div>
-);
-
-/** A switch row for the "More Options" settings. */
-const SwitchRow = ({
-  id,
-  label,
-  caption,
-  checked,
-  onCheckedChange,
-}: {
-  id: string;
-  label: string;
-  caption?: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) => (
-  <div className="flex flex-col gap-1">
-    <div className="flex min-h-11 items-center justify-between gap-3">
-      <label htmlFor={id} className="text-14 font-semibold text-focus-text">{label}</label>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-    {caption && <Caption>{caption}</Caption>}
-  </div>
-);
-
 // One curated duration list instead of separate hour + minute dropdowns —
 // picking "45 min" directly beats composing it from two controls. Fine steps
 // where tasks actually live (5–60min), coarser above; 8h covers School's 7h.
@@ -350,14 +90,12 @@ const DURATION_OPTIONS = [
 /** Every task has a length; this is what a new one starts at. */
 const DEFAULT_DURATION_MINUTES = 30;
 
-// The three kinds of task, named for what they do to the day. "Anytime
-// To-Do" is saved as an anytime chore: a separate to-do that doesn't take up
-// schedule time.
+// How a task (or fun time) sits in the day. Anytime to-dos are chores, so
+// they're asked under Chore, not here.
 type Kind = 'fixed' | 'flexible' | 'chore';
 const KIND_OPTIONS: { value: Kind; label: string }[] = [
   { value: 'fixed', label: 'At a Set Time' },
   { value: 'flexible', label: 'Whenever There Is Room' },
-  { value: 'chore', label: 'Anytime To-Do' },
 ];
 
 type LatePolicy = 'keep' | 'shorten' | 'skip';
@@ -367,10 +105,10 @@ type LatePolicy = 'keep' | 'shorten' | 'skip';
 // rather than a separate "how it works" setting that said much the same.
 type Priority = 'must' | LatePolicy;
 const PRIORITY_OPTIONS: { value: Priority; label: string; caption: (min: number) => string }[] = [
-  { value: 'must', label: 'Must Finish', caption: () => "Stays on screen until done, even if it runs over. You get an alert." },
-  { value: 'keep', label: 'Keep Its Time', caption: () => 'Never cut short.' },
-  { value: 'shorten', label: 'Can Be Shortened', caption: (min) => `Gives up time, but keeps at least ${min} min.` },
-  { value: 'skip', label: 'Can Be Skipped', caption: () => "Dropped first when there isn't time." },
+  { value: 'must', label: 'Must Get Done', caption: () => "It stays on their screen until it's done, even if that runs over. You get an alert." },
+  { value: 'keep', label: 'Keep Its Full Time', caption: () => 'It always gets all of its time, even on a busy day.' },
+  { value: 'shorten', label: 'Can Be Shortened', caption: (min) => `It can shrink to make room, but never below ${min} min.` },
+  { value: 'skip', label: 'Can Be Skipped', caption: () => "It's the first thing dropped when the day runs out of time." },
 ];
 const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
@@ -433,17 +171,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     toHHMM(task?.scheduled_time) || toHHMM(task?.window_start) || toHHMM(prefillTime) || "09:00",
   );
 
-  // "More Options" holds what has no place in the main sheet (routine, fun
-  // time, a task's stars, other children). It starts collapsed — except when
-  // editing a task that already uses any of it, which must never open with
-  // its own settings hidden.
-  const [showMore, setShowMore] = useState(
-    !!(isEdit && (
-      (task?.type !== 'floating' && (task?.coins ?? 0) > 0) ||
-      task?.is_fun_time ||
-      task?.routine_id
-    )),
-  );
   // The checklist editor opens on "+ Add a Checklist" (or when there already is one).
   const [checklistOpen, setChecklistOpen] = useState((task?.subtasks?.length ?? 0) > 0);
   const [dateOpen, setDateOpen] = useState(false);
@@ -516,22 +243,31 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // A must-finish task never gives up its own time.
       latePolicy: next === 'must' ? 'keep' : next,
     });
-  // Fun time (TV, games) has no done button, so it can't be must-finish; it's
-  // the first thing to give way on a late day unless the parent says otherwise.
-  const setFunTime = (on: boolean) =>
-    setFormData({
-      ...formData,
-      isFunTime: on,
-      isImportant: on ? false : formData.isImportant,
-      latePolicy: on && (formData.isImportant || formData.latePolicy === 'keep') ? 'skip' : formData.latePolicy,
-    });
-
   // "Keep at least" must be shorter than the task itself; a 5-minute task
   // has nothing to shorten to, so it simply gives up its time.
   const minOptions = MIN_DURATION_OPTIONS.filter(m => m < durationTotal);
   const effectiveMin = minOptions.includes(formData.minDuration)
     ? formData.minDuration
     : minOptions.filter(m => m <= formData.minDuration).pop() ?? minOptions[0] ?? 0;
+
+  // "What Is It?": Task, Fun Time or Chore. Fun time is a task with no done
+  // button (is_fun_time), so it shares the task questions below.
+  const isFun = !isChore && formData.isFunTime;
+  type WhatKind = 'task' | 'fun' | 'chore';
+  const what: WhatKind = isChore ? 'chore' : isFun ? 'fun' : 'task';
+  const setWhat = (next: WhatKind) => {
+    if (next === 'chore') return setFormData({ ...formData, mode: 'chore', isFunTime: false });
+    const on = next === 'fun';
+    setFormData({
+      ...formData,
+      mode: 'task',
+      isFunTime: on,
+      // Fun time has no done button, so it can't be must-finish; it's the
+      // first thing to give way on a late day unless the parent says otherwise.
+      isImportant: on ? false : formData.isImportant,
+      latePolicy: on && (formData.isImportant || formData.latePolicy === 'keep') ? 'skip' : formData.latePolicy,
+    });
+  };
 
   const kind: Kind = isChore ? 'chore' : atTime ? 'fixed' : 'flexible';
   const setKind = (next: Kind) => {
@@ -669,15 +405,6 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const coinCount = parseInt(formData.coins) || 0;
   const setCoins = (n: number) => setFormData({ ...formData, coins: String(n) });
 
-  // What's set inside "More Options", so collapsing never hides a decision.
-  const moreSummary = (() => {
-    const parts: string[] = [];
-    if (routine) parts.push(followsRoutine ? `${routine.name} (${routineDaysLabel(routine)})` : `${routine.name}, own days`);
-    if (!isChore && formData.isFunTime) parts.push('Fun time');
-    if (!isChore && !formData.isFunTime && coinCount > 0) parts.push(`${coinCount} star${coinCount === 1 ? '' : 's'}`);
-    if (!isEdit && additionalChildIds.length > 0) parts.push(`+${additionalChildIds.length} more`);
-    return parts.join(' · ');
-  })();
 
   // Switching to Chore drops task-only settings at save time — say so instead
   // of letting them vanish silently.
@@ -784,26 +511,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       }}
     />
   );
-  const anchorTile = anchors.length > 0 && !isSystemEvent ? (
-    <SelectTile
-      label="Starts"
-      value={anchor ? anchor.id : 'room'}
-      display={anchor ? `After ${anchor.name}` : "When there's room"}
-      onChange={(v) => setFormData({ ...formData, afterTaskId: v === 'room' ? '' : v })}
-      options={[
-        { value: 'room', label: "When there's room" },
-        ...anchors.map(o => ({ value: o.id, label: `After ${o.name}` })),
-      ]}
-    />
-  ) : null;
-
   const chosenPriority = PRIORITY_OPTIONS.find(o => o.value === priority)!;
-  const hasMore =
-    (!isChore && !isSystemEvent) ||
-    (isEdit && !!onCopy && !isSystemEvent && !!task?.id) ||
-    (!isEdit && otherChildren.length > 0);
 
-  const sheetTitle = isEdit ? (isChore ? 'Edit Chore' : 'Edit Task') : (isChore ? 'New Chore' : 'New Task');
+  const noun = isChore ? 'Chore' : isFun ? 'Fun Time' : 'Task';
+  const sheetTitle = `${isEdit ? 'Edit' : 'New'} ${noun}`;
   const stepInputClass =
     "h-11 flex-1 min-w-0 rounded-[12px] border-0 bg-focus-surface px-3 text-14 text-focus-text placeholder:text-focus-muted/70 focus:outline-none focus:ring-2 focus:ring-focus-lavender";
   const iconButtonClass =
@@ -812,21 +523,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full min-w-0">
       {/* === HEADER === title, 44px close (the sheet draws the grabber) */}
-      {showHeader && (
-        <div className="flex flex-col items-center">
-          <div className="w-full flex items-center justify-between gap-3">
-            <h2 className="text-16 font-semibold leading-9 text-focus-text">{sheetTitle}</h2>
-            <button
-              type="button"
-              onClick={onCancel}
-              aria-label="Close"
-              className={closeButtonClass}
-            >
-              <X className={closeIconClass} />
-            </button>
-          </div>
-        </div>
-      )}
+      {showHeader && <SheetHeader title={sheetTitle} onClose={onCancel} />}
 
       {/* === SUMMARY === the name is typed here; the line under it writes
           itself from the answers below. */}
@@ -921,14 +618,24 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {!isSystemEvent && (
         <section className="flex flex-col gap-2.5">
           <SectionHeading id="q-what">What Is It?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-2 gap-2">
-            <ChoiceButton selected={!isChore} onClick={() => setFormData({ ...formData, mode: 'task' })} className="min-h-12 rounded-[16px] text-14">
+          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-3 gap-2">
+            <ChoiceButton selected={what === 'task'} onClick={() => setWhat('task')} className="min-h-12 rounded-[16px] text-14">
               Task
             </ChoiceButton>
-            <ChoiceButton selected={isChore} onClick={() => setFormData({ ...formData, mode: 'chore' })} className="min-h-12 rounded-[16px] text-14">
+            <ChoiceButton selected={what === 'fun'} onClick={() => setWhat('fun')} className="min-h-12 rounded-[16px] text-14">
+              Fun Time
+            </ChoiceButton>
+            <ChoiceButton selected={what === 'chore'} onClick={() => setWhat('chore')} className="min-h-12 rounded-[16px] text-14">
               Chore
             </ChoiceButton>
           </div>
+          <Caption>
+            {what === 'task'
+              ? 'Something to do, like homework or brushing teeth.'
+              : what === 'fun'
+                ? 'TV, games or playtime. It has no done button.'
+                : "A to-do that doesn't take up schedule time."}
+          </Caption>
         </section>
       )}
 
@@ -955,8 +662,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                       ? `Starts at ${fmtTime(formData.scheduledTime)} and lasts ${fmtLen(durationTotal)}.`
                       : option.value === 'flexible'
                         ? (anchor
-                            ? `Starts as soon as ${anchor.name} ends, whenever that is. No clock time needed.`
-                            : 'Goes in the next free gap in the day.')
+                            ? `Follows ${anchor.name}. Drag it on the schedule to move it.`
+                            : "We'll fit it into the first free gap. Drag it on the schedule to move it.")
                         : undefined
                   }
                 >
@@ -964,7 +671,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                     <div className="flex gap-2">{startsTimeTile}{lastsTile}</div>
                   )}
                   {option.value === 'flexible' && (
-                    <div className="flex gap-2">{anchorTile}{lastsTile}</div>
+                    <div className="flex gap-2">{lastsTile}</div>
                   )}
                 </OptionCard>
               );
@@ -1065,51 +772,52 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </section>
       )}
 
-      {/* === IF THE DAY RUNS LATE? === tasks only */}
+      {/* === WHEN TIME IS TIGHT === tasks and fun time. One question for
+          what gives when the day falls behind; only the chosen answer
+          explains itself. */}
       {!isChore && !isSystemEvent && (
         <section className="flex flex-col gap-2.5">
-          <SectionHeading id="q-late">If the Day Runs Late?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-late" className="grid grid-cols-2 gap-2">
-            {PRIORITY_OPTIONS.map(option => {
+          <SectionHeading id="q-late">When Time Is Tight</SectionHeading>
+          <Caption>If the day falls behind, what should happen to this {isFun ? 'fun time' : 'task'}?</Caption>
+          <div role="radiogroup" aria-labelledby="q-late" className="flex flex-col gap-2">
+            {PRIORITY_OPTIONS
               // Fun time has no done button, so it can't be must-finish.
-              const blocked = formData.isFunTime && option.value === 'must';
-              return (
-                <ChoiceButton
-                  key={option.value}
-                  selected={priority === option.value}
-                  onClick={() => setPriority(option.value)}
-                  disabled={blocked}
-                  title={blocked ? "Fun time has no done button, so it can't be must-finish." : undefined}
-                  className="min-h-12 rounded-[12px]"
-                >
-                  {option.label}
-                </ChoiceButton>
-              );
-            })}
+              .filter(option => !(isFun && option.value === 'must'))
+              .map(option => {
+                const selected = priority === option.value;
+                return (
+                  <OptionCard
+                    key={option.value}
+                    selected={selected}
+                    label={option.label}
+                    onSelect={() => setPriority(option.value)}
+                    caption={
+                      option.value === 'shorten' && effectiveMin === 0
+                        ? "It's too short to keep part of it, so it gives up its time."
+                        : option.caption(effectiveMin)
+                    }
+                  >
+                    {option.value === 'shorten' && minOptions.length > 0 && (
+                      <div className="flex">
+                        <SelectTile
+                          label="Keep at Least"
+                          value={String(effectiveMin)}
+                          display={fmtLen(effectiveMin)}
+                          onChange={(v) => setFormData({ ...formData, minDuration: parseInt(v) })}
+                          options={minOptions.map(m => ({ value: String(m), label: fmtLen(m) }))}
+                        />
+                      </div>
+                    )}
+                  </OptionCard>
+                );
+              })}
           </div>
-          {/* Only the chosen answer explains itself. */}
-          <Caption>
-            {priority === 'shorten' && effectiveMin === 0
-              ? "Too short to keep part of it, so it gives up its time."
-              : chosenPriority.caption(effectiveMin)}
-          </Caption>
-          {priority === 'shorten' && minOptions.length > 0 && (
-            <div className="flex">
-              <SelectTile
-                label="Keep at Least"
-                value={String(effectiveMin)}
-                display={fmtLen(effectiveMin)}
-                onChange={(v) => setFormData({ ...formData, minDuration: parseInt(v) })}
-                options={minOptions.map(m => ({ value: String(m), label: fmtLen(m) }))}
-              />
-            </div>
-          )}
         </section>
       )}
 
-      {/* === STARS === chores ask here; a task's stars live in More Options.
+      {/* === STARS === tasks and chores (fun time has no done button).
           Never earned automatically: the parent gives them once it's done. */}
-      {isChore && !isSystemEvent && (
+      {!isFun && !isSystemEvent && (
         <section className="flex flex-col gap-2.5">
           <SectionHeading>Stars for Completing It</SectionHeading>
           <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
@@ -1117,24 +825,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </section>
       )}
 
-      {/* === STEPS === */}
-      {!isSystemEvent && (
+      {/* === STEPS === tasks and fun time; chores don't have steps. */}
+      {!isSystemEvent && !isChore && (
         <section id="checklist-section" className="flex flex-col gap-2">
           <SectionHeading
-            aside={formData.subtasks.length > 0 && !isChore
+            aside={formData.subtasks.length > 0
               ? `Optional · ${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}`
               : 'Optional'}
           >
             Steps
           </SectionHeading>
-          {isChore ? (
-            <>
-              <button type="button" disabled className={choiceClass(false, "w-full rounded-[12px]")}>
-                + Add a Checklist
-              </button>
-              <Caption>Checklists are for tasks for now.</Caption>
-            </>
-          ) : (
+          {(
             <>
               {formData.subtasks.length > 0 && (
                 <ol className="flex flex-col gap-1.5">
@@ -1300,127 +1001,88 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </section>
       )}
 
-      {/* === MORE OPTIONS === what has no place above */}
-      {hasMore && (
-        <Collapsible open={showMore} onOpenChange={setShowMore} className="border-t border-focus-raised pt-2">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="w-full min-h-11 flex items-center gap-2 text-left rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+      {/* === ROUTINE === its tasks repeat together on the routine's days; one
+          task can still keep days of its own. */}
+      {!isChore && !isSystemEvent && routines.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <SectionHeading>Routine</SectionHeading>
+            <Select
+              value={routine ? routine.id : 'none'}
+              onValueChange={(v) => setFormData({ ...formData, routineId: v === 'none' ? '' : v, daysOverride: false })}
             >
-              <span className="shrink-0 text-16 font-semibold text-focus-text">More Options</span>
-              <span className="ml-auto min-w-0 truncate text-12 text-focus-muted">{!showMore ? moreSummary : ''}</span>
-              <ChevronDown className={cn("w-5 h-5 shrink-0 text-focus-muted transition-transform", showMore && "rotate-180")} />
-            </button>
-          </CollapsibleTrigger>
+              <SelectTrigger className="w-[184px] shrink-0 rounded-[12px] border-0 bg-focus-surface px-3 gap-1 text-focus-text" aria-label="Routine">
+                <SelectValue>{routine ? routine.name : 'None'}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {routines.map(r => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {routine && (
+            <Caption>
+              {followsRoutine
+                ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Change the whole routine's days in Routines.`
+                : `Part of ${routine.name}, on days of its own.`}
+            </Caption>
+          )}
+          {routine && (
+            <SwitchRow
+              id="daysOverride"
+              label="Own Days"
+              checked={formData.daysOverride}
+              onCheckedChange={(checked) => setFormData({
+                ...formData,
+                daysOverride: checked,
+                // Start from the routine's days, then change what differs.
+                isRecurring: checked ? true : formData.isRecurring,
+                recurringDays: checked ? routineDayList : formData.recurringDays,
+              })}
+            />
+          )}
+        </section>
+      )}
 
-          <CollapsibleContent className="flex flex-col gap-4 pt-2">
-            {/* Routine — its tasks repeat together on the routine's days; one
-                task can still keep days of its own. */}
-            {!isChore && !isSystemEvent && routines.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <div className="flex min-h-11 items-center justify-between gap-3">
-                  <span className="text-14 font-semibold text-focus-text">Routine</span>
-                  <Select
-                    value={routine ? routine.id : 'none'}
-                    onValueChange={(v) => setFormData({ ...formData, routineId: v === 'none' ? '' : v, daysOverride: false })}
-                  >
-                    <SelectTrigger className="w-[184px] shrink-0 rounded-[12px] border-0 bg-focus-surface px-3 gap-1 text-focus-text" aria-label="Routine">
-                      <SelectValue>{routine ? routine.name : 'None'}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {routines.map(r => (
-                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {routine && (
-                  <Caption>
-                    {followsRoutine
-                      ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Change the whole routine's days in Routines.`
-                      : `Part of ${routine.name}, on days of its own.`}
-                  </Caption>
+      {/* === OTHER CHILDREN === copy (edit) or also add (create) */}
+      {isEdit && onCopy && !isSystemEvent && task?.id && (
+        <section className="flex flex-col gap-2">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <SectionHeading>Copy</SectionHeading>
+            <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={onCopy}>
+              <Copy className="w-4 h-4" /> Copy to Another Child
+            </Button>
+          </div>
+          <Caption>Make the same {noun.toLowerCase()} for another child, with its own time and length.</Caption>
+        </section>
+      )}
+      {!isEdit && otherChildren.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <SectionHeading>Also Add To</SectionHeading>
+          <div className="flex flex-wrap gap-1.5">
+            {otherChildren.map(c => (
+              <ChoiceButton
+                key={c.id}
+                role="checkbox"
+                selected={additionalChildIds.includes(c.id)}
+                onClick={() => setAdditionalChildIds(prev =>
+                  prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]
                 )}
-              </div>
-            )}
-            {!isChore && !isSystemEvent && routine && (
-              <SwitchRow
-                id="daysOverride"
-                label="Own Days"
-                checked={formData.daysOverride}
-                onCheckedChange={(checked) => setFormData({
-                  ...formData,
-                  daysOverride: checked,
-                  // Start from the routine's days, then change what differs.
-                  isRecurring: checked ? true : formData.isRecurring,
-                  recurringDays: checked ? routineDayList : formData.recurringDays,
-                })}
-              />
-            )}
-
-            {/* Fun time changes what the child sees (no done button), so it's
-                its own switch rather than an answer to "runs late". */}
-            {!isChore && !isSystemEvent && (
-              <SwitchRow
-                id="isFunTime"
-                label="Fun Time"
-                caption="TV, games, playtime. No done button."
-                checked={formData.isFunTime}
-                onCheckedChange={setFunTime}
-              />
-            )}
-
-            {!isChore && !isSystemEvent && !formData.isFunTime && (
-              <div className="flex flex-col gap-2">
-                <span className="text-14 font-semibold text-focus-text">Stars for Completing It</span>
-                <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
-                <Caption>You give these once it's done: tap Give ★ on their Schedule. Spent in the Rewards shop.</Caption>
-              </div>
-            )}
-
-            {isEdit && onCopy && !isSystemEvent && task?.id && (
-              <div className="flex flex-col gap-1">
-                <div className="flex min-h-11 items-center justify-between gap-3">
-                  <span className="text-14 font-semibold text-focus-text">Copy</span>
-                  <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={onCopy}>
-                    <Copy className="w-4 h-4" /> Copy to Another Child
-                  </Button>
-                </div>
-                <Caption>Make the same {isChore ? 'chore' : 'task'} for another child, with its own time and length.</Caption>
-              </div>
-            )}
-
-            {/* Also add to other children — create mode only */}
-            {!isEdit && otherChildren.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <span className="text-14 font-semibold text-focus-text">Also Add To</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {otherChildren.map(c => (
-                    <ChoiceButton
-                      key={c.id}
-                      role="checkbox"
-                      selected={additionalChildIds.includes(c.id)}
-                      onClick={() => setAdditionalChildIds(prev =>
-                        prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]
-                      )}
-                      className="rounded-[12px] px-4"
-                    >
-                      {c.name}
-                    </ChoiceButton>
-                  ))}
-                </div>
-                <Caption>Create the same {isChore ? 'chore' : 'task'} for other kids at once.</Caption>
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
+                className="rounded-[12px] px-4"
+              >
+                {c.name}
+              </ChoiceButton>
+            ))}
+          </div>
+          <Caption>Create the same {noun.toLowerCase()} for other kids at once.</Caption>
+        </section>
       )}
 
       {/* Submit — pinned to the bottom of the sheet so the action is always
           reachable without scrolling the (often tall) form. */}
-      <div className="sticky -bottom-5 sm:-bottom-6 z-10 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 pt-3 pb-5 sm:pb-6 flex flex-col gap-2 backdrop-blur-xl bg-focus-sheet/90 border-t border-focus-raised">
+      <div className={sheetFooterClass}>
         <Button
           type="submit"
           variant="primary"
@@ -1441,7 +1103,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 onClick={() => setShowDeleteConfirm(true)}
                 className="w-full text-focus-coral hover:text-focus-coral hover:bg-focus-coral/10"
               >
-                Delete {isChore ? 'Chore' : 'Task'}
+                Delete {noun}
               </Button>
             ) : (
               <div className="rounded-[18px] border border-focus-coral/30 bg-focus-coral/5 p-3 flex flex-col gap-2">

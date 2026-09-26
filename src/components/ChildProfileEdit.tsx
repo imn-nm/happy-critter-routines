@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
@@ -17,16 +16,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { syncSchoolRoutines } from "@/hooks/useRoutines";
 import DisplayModePicker from "@/components/DisplayModePicker";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
+import { Caption, SectionHeading, SelectTile, SheetHeader, TimeTile } from "@/components/sheet/SheetParts";
+import { fmtLen, sheetFooterClass } from "@/components/sheet/sheetStyles";
 
-const DURATIONS = [
-  { value: "10", label: "10 min" },
-  { value: "15", label: "15 min" },
-  { value: "20", label: "20 min" },
-  { value: "30", label: "30 min" },
-  { value: "45", label: "45 min" },
-  { value: "60", label: "1 hour" },
-  { value: "90", label: "1.5 hours" },
-];
+// Lengths offered for the daily routine rows, worded like every other
+// duration in the app ("1 h 30 min").
+const DURATION_MINUTES = [5, 10, 15, 20, 25, 30, 45, 60, 75, 90, 120];
+/** The list plus the row's current value, so a saved length never shows blank. */
+const durationOptions = (current: string) => {
+  const cur = parseInt(current);
+  const list = Number.isFinite(cur) && cur > 0 && !DURATION_MINUTES.includes(cur)
+    ? [...DURATION_MINUTES, cur].sort((a, b) => a - b)
+    : DURATION_MINUTES;
+  return list.map(m => ({ value: String(m), label: fmtLen(m) }));
+};
 
 interface ChildProfileEditProps {
   child: Child;
@@ -206,37 +209,44 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-20">{child.name}'s Profile</DialogTitle>
-        </DialogHeader>
+      <DialogContent
+        className="sm:max-w-md [&>button]:hidden"
+        // Don't jump into the name field (and pop the keyboard) on open.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <DialogTitle className="sr-only">{child.name}'s Profile</DialogTitle>
+        <DialogDescription className="sr-only">Name, age, what they see, and their daily routine.</DialogDescription>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-sp-5 w-full min-w-0">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full min-w-0">
+          <SheetHeader title={`${child.name}'s Profile`} onClose={() => setIsOpen(false)} />
+
           {/* Pet — one companion today, so this is a row, not a picker. */}
-          <div className="flex items-center gap-sp-3 p-sp-3 rounded-[24px] bg-focus-surface">
-            <div className="shrink-0 w-14 h-14 rounded-[18px] bg-focus-sunken flex items-center justify-center">
+          <div className="flex items-center gap-3 rounded-[18px] bg-focus-surface p-3.5">
+            <div className="shrink-0 w-12 h-12 rounded-[14px] bg-focus-sunken flex items-center justify-center overflow-hidden">
               <PetAvatar petType={formData.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
             </div>
-            <div className="min-w-0">
-              <p className="text-14 font-semibold text-focus-text">{getPet(formData.petType).name}</p>
-              <p className="text-12 text-focus-muted">{child.name}'s buddy. More pets are coming.</p>
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <p className="text-16 font-semibold leading-[21px] text-focus-text">{getPet(formData.petType).name}</p>
+              <p className="text-12 leading-[17px] text-focus-muted">{child.name}'s buddy. More pets are coming.</p>
             </div>
           </div>
 
           {/* Name + age */}
-          <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-sp-3">
-            <div>
-              <Label htmlFor="name" className="text-12 text-focus-muted mb-1.5 block">Name</Label>
+          <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="name" className="text-12 font-medium text-focus-muted">Name</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Child's name"
+                autoComplete="off"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="age" className="text-12 text-focus-muted mb-1.5 block">Age</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="age" className="text-12 font-medium text-focus-muted">Age</Label>
               <Input
                 id="age"
                 type="number"
@@ -245,133 +255,134 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
                 max="18"
                 value={formData.age}
                 onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="—"
+                className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
             </div>
           </div>
 
           {/* What the child's screen looks like */}
-          <div className="flex flex-col gap-sp-2">
-            <h4 className="text-14 font-semibold text-focus-text">What {formData.name.trim() || child.name} Sees</h4>
+          <section className="flex flex-col gap-2.5">
+            <SectionHeading id="q-sees">What {formData.name.trim() || child.name} Sees</SectionHeading>
             <DisplayModePicker
               value={formData.display_mode}
               onChange={(display_mode) => setFormData({ ...formData, display_mode })}
               age={formData.age ? parseInt(formData.age) : child.age}
               childName={formData.name.trim() || child.name}
             />
-          </div>
+          </section>
 
-          {/* Daily routine */}
-          <div className="flex flex-col gap-sp-2">
-            <div className="flex items-baseline justify-between">
-              <h4 className="text-14 font-semibold text-focus-text">Daily Routine</h4>
-              <span className="text-12 text-focus-muted">start · how long</span>
-            </div>
-            {routine.map(row => (
-              <div key={row.key} className="grid grid-cols-[72px_minmax(0,1fr)_96px] items-center gap-sp-2">
-                <Label htmlFor={`${row.key}_time`} className="text-13 text-focus-muted">{row.label}</Label>
-                <Input
-                  id={`${row.key}_time`}
-                  type="time"
-                  value={formData[row.time]}
-                  onChange={(e) => setFormData({ ...formData, [row.time]: e.target.value })}
-                  className="min-w-0 w-full px-3"
-                />
-                <Select value={formData[row.duration]} onValueChange={(v) => setFormData({ ...formData, [row.duration]: v })}>
-                  <SelectTrigger className="text-13 min-w-0" aria-label={`${row.label} length`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATIONS.map(d => (
-                      <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Daily routine — each anchor starts at a time and lasts a while. */}
+          <section className="flex flex-col gap-2.5">
+            <SectionHeading>Daily Routine</SectionHeading>
+            <Caption>When each part of the day starts and how long it lasts.</Caption>
+            <div className="flex flex-col gap-2">
+              {routine.map(row => (
+                <div key={row.key} className="flex items-center gap-2.5 rounded-[14px] bg-focus-surface p-2 pl-3.5">
+                  <span className="w-[74px] shrink-0 text-14 font-semibold leading-[18px] text-focus-text">{row.label}</span>
+                  <div className="flex flex-1 min-w-0 gap-2">
+                    <TimeTile
+                      label="Starts"
+                      value={formData[row.time]}
+                      onChange={(value) => setFormData({ ...formData, [row.time]: value })}
+                    />
+                    <SelectTile
+                      label="Lasts"
+                      value={formData[row.duration]}
+                      display={fmtLen(parseInt(formData[row.duration]) || 0)}
+                      onChange={(v) => setFormData({ ...formData, [row.duration]: v })}
+                      options={durationOptions(formData[row.duration])}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {/* School varies by weekday, so it has its own editor. */}
+              <div className="flex items-center gap-2.5 rounded-[14px] bg-focus-surface p-2 pl-3.5">
+                <span className="w-[74px] shrink-0 text-14 font-semibold leading-[18px] text-focus-text">School</span>
+                <div className="flex flex-1 min-w-0">
+                  <SchoolScheduleManager
+                    childId={child.id}
+                    currentSchedule={{
+                      school_days: child.school_days,
+                      school_start_time: child.school_start_time,
+                      school_end_time: child.school_end_time,
+                      school_duration: child.school_duration,
+                      school_schedule_overrides: child.school_schedule_overrides,
+                    }}
+                    onSave={async (schedule) => {
+                      await updateChild(child.id, {
+                        school_days: schedule.school_days,
+                        school_start_time: schedule.school_start_time,
+                        school_end_time: schedule.school_end_time,
+                        school_duration: schedule.school_duration,
+                        school_schedule_overrides: schedule.school_schedule_overrides,
+                      });
+                      // Every schedule view decides which days have School from
+                      // the School row's own days: keep it in step, or unticking
+                      // Friday here changed nothing.
+                      await supabase
+                        .from('tasks')
+                        .update({
+                          recurring_days: schedule.school_days,
+                          ...(schedule.school_start_time ? { scheduled_time: schedule.school_start_time } : {}),
+                          ...(schedule.school_duration ? { duration: schedule.school_duration } : {}),
+                        })
+                        .eq('child_id', child.id)
+                        .eq('name', 'School');
+                      // "School days" routines follow along.
+                      await syncSchoolRoutines(child.id, schedule.school_days);
+                    }}
+                  />
+                </div>
               </div>
-            ))}
-
-            {/* School varies by weekday, so it has its own editor. */}
-            <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-sp-2 pt-sp-1">
-              <Label className="text-13 text-focus-muted">School</Label>
-              <SchoolScheduleManager
-                childId={child.id}
-                currentSchedule={{
-                  school_days: child.school_days,
-                  school_start_time: child.school_start_time,
-                  school_end_time: child.school_end_time,
-                  school_duration: child.school_duration,
-                  school_schedule_overrides: child.school_schedule_overrides,
-                }}
-                onSave={async (schedule) => {
-                  await updateChild(child.id, {
-                    school_days: schedule.school_days,
-                    school_start_time: schedule.school_start_time,
-                    school_end_time: schedule.school_end_time,
-                    school_duration: schedule.school_duration,
-                    school_schedule_overrides: schedule.school_schedule_overrides,
-                  });
-                  // Every schedule view decides which days have School from
-                  // the School row's own days: keep it in step, or unticking
-                  // Friday here changed nothing.
-                  await supabase
-                    .from('tasks')
-                    .update({
-                      recurring_days: schedule.school_days,
-                      ...(schedule.school_start_time ? { scheduled_time: schedule.school_start_time } : {}),
-                      ...(schedule.school_duration ? { duration: schedule.school_duration } : {}),
-                    })
-                    .eq('child_id', child.id)
-                    .eq('name', 'School');
-                  // "School days" routines follow along.
-                  await syncSchoolRoutines(child.id, schedule.school_days);
-                }}
-              />
             </div>
-          </div>
+            {timesProblem && <Caption tone="error" role="alert">{timesProblem}</Caption>}
+          </section>
 
-          {timesProblem && (
-            <p className="text-12 text-focus-coral -mt-sp-2" role="alert">{timesProblem}</p>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-sp-2 pt-sp-1">
-            <Button type="submit" variant="primary" size="md" className="flex-1" disabled={saving || !!timesProblem}>
-              {saving ? "Saving…" : "Save"}
+          {/* Save pinned to the bottom; removing the profile is the quiet,
+              destructive spot under it (like Delete Task). */}
+          <div className={sheetFooterClass}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={saving || !!timesProblem}
+              className="w-full h-[52px] rounded-[12px] text-13"
+            >
+              {saving ? "Saving…" : "Save Changes"}
             </Button>
-            <Button type="button" variant="secondary" size="md" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-focus-coral hover:text-focus-coral hover:bg-focus-coral/10"
+                >
+                  Remove {child.name}'s Profile
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove {child.name}'s Profile?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently deletes {child.name}'s profile, including all tasks, progress, and rewards.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel asChild>
+                    <Button type="button" variant="secondary" size="md">Keep It</Button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
+                      Yes, Remove
+                    </Button>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-
-          {/* Delete — rare and destructive, so it's a quiet link, not a button row. */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                type="button"
-                className="tap-target self-center min-h-11 text-13 text-focus-coral hover:text-focus-coral transition-colors"
-              >
-                Remove {child.name}'s Profile
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove {child.name}'s Profile?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This permanently deletes {child.name}'s profile, including all tasks, progress, and rewards.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex-col sm:flex-row gap-sp-2">
-                <AlertDialogCancel asChild>
-                  <Button type="button" variant="secondary" size="md">Keep It</Button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button type="button" variant="destructive" size="md" disabled={deleting} onClick={handleDelete}>
-                    Yes, Remove
-                  </Button>
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </form>
       </DialogContent>
     </Dialog>

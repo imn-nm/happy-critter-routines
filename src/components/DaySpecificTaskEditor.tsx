@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Clock, Save, Copy } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Copy } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Caption, SheetHeader, SwitchRow, TimeTile } from '@/components/sheet/SheetParts';
+import { fmtLen, fmtTime, sheetFooterClass } from '@/components/sheet/sheetStyles';
+import { cn } from '@/lib/utils';
 
 interface DaySpecificTaskEditorProps {
   taskName: string;
@@ -43,7 +42,7 @@ const DaySpecificTaskEditor = ({
       const existing = currentSchedule[day.id as keyof typeof currentSchedule];
       acc[day.id] = existing
         ? { ...existing, enabled: true }
-        : { time: '08:00', duration: 420, enabled: false };
+        : { time: '08:30', duration: 420, enabled: false };
       return acc;
     }, {} as Record<string, { time: string; duration: number; enabled: boolean }>);
   });
@@ -56,27 +55,12 @@ const DaySpecificTaskEditor = ({
         const existing = currentSchedule[day.id as keyof typeof currentSchedule];
         acc[day.id] = existing
           ? { ...existing, enabled: true }
-          : { time: '08:00', duration: 420, enabled: false };
+          : { time: '08:30', duration: 420, enabled: false };
         return acc;
       }, {} as Record<string, { time: string; duration: number; enabled: boolean }>);
       setSchedules(initialSchedules);
     }
   }, [open, currentSchedule]);
-
-  const formatTime = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
-
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (mins === 0) return `${hours}h`;
-    return `${hours}h ${mins}m`;
-  };
 
   const addMinutesToTime = (timeStr: string, minutesToAdd: number) => {
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -143,135 +127,97 @@ const DaySpecificTaskEditor = ({
 
   const currentDaySchedule = schedules[selectedDay];
 
+  const dayLabel = weekdays.find(d => d.id === selectedDay)?.label ?? '';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 flex-shrink-0">
-          <DialogTitle className="text-18">{taskName} Schedule</DialogTitle>
-          <DialogDescription className="text-12">
-            Tap a day to edit. Uncheck days with no {taskName.toLowerCase()}.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-md [&>button]:hidden" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogTitle className="sr-only">{taskName} Schedule</DialogTitle>
+        <DialogDescription className="sr-only">Set the {taskName.toLowerCase()} days and times.</DialogDescription>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 pb-4">
-          {/* Day selector - single row of tappable circles */}
-          <div className="flex justify-between gap-1">
-            {weekdays.map(day => {
-              const isSelected = selectedDay === day.id;
-              const isEnabled = schedules[day.id].enabled;
-              return (
-                <button
-                  key={day.id}
-                  type="button"
-                  onClick={() => setSelectedDay(day.id)}
-                  className={`
-                    flex flex-col items-center justify-center flex-1 min-w-0 max-w-14 h-14 rounded-[14px] text-14 font-semibold
-                    transition-all duration-150 active:scale-95
-                    ${isSelected
-                      ? 'bg-focus-lavender text-focus-bg'
-                      : isEnabled
-                        ? 'bg-focus-surface text-focus-text hover:bg-focus-raised'
-                        : 'bg-focus-surface/50 text-focus-muted/60'
-                    }
-                  `}
-                >
-                  <span className="text-16 font-bold">{day.short}</span>
-                  {isEnabled ? (
-                    <span className="text-12 mt-0.5 opacity-75">{formatTime(schedules[day.id].time).replace(' ', '')}</span>
-                  ) : (
-                    <span className="text-12 mt-0.5 opacity-50">Off</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex flex-col gap-6 w-full min-w-0">
+          <SheetHeader title={`${taskName} Schedule`} onClose={() => onOpenChange(false)} />
 
-          {/* Selected day editor */}
-          <Card className="p-4 bg-focus-surface">
-            <div className="space-y-4">
-              {/* Enable/Disable Toggle */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={currentDaySchedule.enabled}
-                    onChange={() => handleToggleDay(selectedDay)}
-                    className="w-5 h-5 rounded accent-[#A89AF0]"
-                    id={`enable-${selectedDay}`}
-                  />
-                  <Label htmlFor={`enable-${selectedDay}`} className="text-14 font-semibold text-focus-text mb-0">
-                    {weekdays.find(d => d.id === selectedDay)?.label}
-                  </Label>
-                </div>
-                {!currentDaySchedule.enabled && (
-                  <Badge variant="secondary" className="text-12">No {taskName}</Badge>
-                )}
-              </div>
-
-              {currentDaySchedule.enabled && (
-                <>
-                  {/* Start Time */}
-                  <div className="space-y-1.5">
-                    <Label className="text-12 text-focus-muted flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      Start Time
-                    </Label>
-                    <Input
-                      type="time"
-                      value={currentDaySchedule.time}
-                      onChange={(e) => handleTimeChange(selectedDay, e.target.value)}
-                      className="text-16 w-full"
-                    />
-                  </div>
-
-                  {/* End Time */}
-                  <div className="space-y-1.5">
-                    <Label className="text-12 text-focus-muted flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      End Time
-                    </Label>
-                    <Input
-                      type="time"
-                      value={addMinutesToTime(currentDaySchedule.time, currentDaySchedule.duration)}
-                      onChange={(e) => {
-                        const newEnd = e.target.value;
-                        if (!newEnd) return;
-                        const newDuration = diffInMinutes(currentDaySchedule.time, newEnd);
-                        handleDurationChange(selectedDay, newDuration);
-                      }}
-                      className="text-16 w-full"
-                    />
-                    <p className="text-12 text-focus-muted">
-                      Duration: {formatDuration(currentDaySchedule.duration)}
-                    </p>
-                  </div>
-
-                  {/* Copy to All Button */}
-                  <Button
+          {/* Days — tap one to edit it; days with no school read "Off". */}
+          <section className="flex flex-col gap-2.5">
+            <div role="radiogroup" aria-label="Day" className="grid grid-cols-5 gap-1.5">
+              {weekdays.map(day => {
+                const isSelected = selectedDay === day.id;
+                const isEnabled = schedules[day.id].enabled;
+                return (
+                  <button
+                    key={day.id}
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCopyToAll(selectedDay)}
-                    className="w-full"
+                    role="radio"
+                    aria-checked={isSelected}
+                    aria-label={`${day.label}${isEnabled ? `, ${fmtTime(schedules[day.id].time)}` : ', off'}`}
+                    onClick={() => setSelectedDay(day.id)}
+                    className={cn(
+                      "min-w-0 h-14 rounded-[14px] flex flex-col items-center justify-center gap-0.5 transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+                      isSelected
+                        ? "bg-focus-lavender text-focus-bg"
+                        : "bg-focus-surface hover:bg-focus-raised " + (isEnabled ? "text-focus-text" : "text-focus-muted/60"),
+                    )}
                   >
-                    <Copy className="w-3.5 h-3.5 mr-1.5" />
-                    Copy to All Active Days
-                  </Button>
-                </>
-              )}
+                    <span className="text-14 font-semibold leading-[18px]">{day.short}</span>
+                    <span className={cn("text-12 leading-4", isSelected ? "text-focus-bg/80" : "text-focus-muted")}>
+                      {isEnabled ? fmtTime(schedules[day.id].time).replace(' ', '') : 'Off'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </Card>
-        </div>
+            <Caption>Tap a day to change it. Turn a day off if there's no {taskName.toLowerCase()}.</Caption>
+          </section>
 
-        {/* Footer */}
-        <div className="flex gap-2 px-4 pb-4 sm:px-6 sm:pb-6 pt-2 border-t border-focus-raised flex-shrink-0">
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="flex-1">
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} className="flex-1">
-            <Save className="w-4 h-4 mr-1.5" />
-            Save
-          </Button>
+          {/* The selected day */}
+          <section className="flex flex-col gap-3 rounded-[14px] bg-focus-surface p-3.5">
+            <SwitchRow
+              id={`enable-${selectedDay}`}
+              label={`${taskName} on ${dayLabel}`}
+              checked={currentDaySchedule.enabled}
+              onCheckedChange={() => handleToggleDay(selectedDay)}
+            />
+            {currentDaySchedule.enabled ? (
+              <>
+                <div className="flex gap-2">
+                  <TimeTile
+                    label="Starts"
+                    value={currentDaySchedule.time}
+                    onChange={(value) => { if (value) handleTimeChange(selectedDay, value); }}
+                  />
+                  <TimeTile
+                    label="Ends"
+                    value={addMinutesToTime(currentDaySchedule.time, currentDaySchedule.duration)}
+                    onChange={(newEnd) => {
+                      if (!newEnd) return;
+                      handleDurationChange(selectedDay, diffInMinutes(currentDaySchedule.time, newEnd));
+                    }}
+                  />
+                </div>
+                <Caption>Lasts {fmtLen(currentDaySchedule.duration)}.</Caption>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopyToAll(selectedDay)}
+                  className="w-full gap-1.5"
+                >
+                  <Copy className="w-4 h-4" />
+                  Use These Times Every School Day
+                </Button>
+              </>
+            ) : (
+              <Caption>No {taskName.toLowerCase()} on {dayLabel}.</Caption>
+            )}
+          </section>
+
+          <div className={sheetFooterClass}>
+            <Button type="button" variant="primary" onClick={handleSave} className="w-full h-[52px] rounded-[12px] text-13">
+              Save {taskName} Schedule
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

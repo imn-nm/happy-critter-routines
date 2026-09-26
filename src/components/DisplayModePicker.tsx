@@ -5,8 +5,9 @@ import { DISPLAY_MODES, suggestedDisplayMode, type DisplayMode } from "@/utils/d
 const ICONS: Record<DisplayMode, typeof ImageIcon> = { picture: ImageIcon, detailed: ListOrdered };
 
 /**
- * How the child's screen looks. The one their age suggests is marked, but
- * it's the family's call.
+ * How the child's screen looks, as the same radio cards the task sheet uses.
+ * The one their age suggests is marked, but it's the family's call. Only the
+ * chosen view explains itself.
  */
 const DisplayModePicker = ({ value, onChange, age, childName }: {
   value: DisplayMode;
@@ -16,7 +17,7 @@ const DisplayModePicker = ({ value, onChange, age, childName }: {
 }) => {
   const suggested = suggestedDisplayMode(age);
   return (
-    <div role="radiogroup" aria-label={childName ? `What ${childName} sees` : "What your child sees"} className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-sp-2">
+    <div role="radiogroup" aria-label={childName ? `What ${childName} sees` : "What your child sees"} className="flex flex-col gap-2">
       {DISPLAY_MODES.map(({ value: mode, label, caption }) => {
         const on = value === mode;
         const Icon = ICONS[mode];
@@ -28,20 +29,32 @@ const DisplayModePicker = ({ value, onChange, age, childName }: {
             aria-checked={on}
             onClick={() => onChange(mode)}
             className={cn(
-              "text-left rounded-[20px] border p-sp-3 flex flex-col gap-1.5 transition-colors",
-              on ? "border-focus-lavender bg-focus-lavender/15" : "border-transparent hover:border-focus-raised bg-focus-surface",
+              "w-full text-left rounded-[14px] border-[1.5px] bg-focus-surface px-3.5 py-3 flex flex-col gap-1.5 transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+              on ? "border-focus-lavender" : "border-transparent hover:bg-focus-raised",
             )}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2.5 min-h-[20px]">
+              <span
+                aria-hidden
+                className={cn(
+                  "shrink-0 w-[18px] h-[18px] rounded-full border-[1.5px]",
+                  on
+                    ? "border-focus-lavender bg-focus-lavender shadow-[inset_0_0_0_3px_rgb(var(--focus-surface-rgb))]"
+                    : "border-focus-muted/70",
+                )}
+              />
               <Icon className={cn("w-4 h-4 shrink-0", on ? "text-focus-lavender" : "text-focus-muted")} aria-hidden />
-              <span className="text-14 font-semibold text-focus-text">{label}</span>
+              <span className={cn("flex-1 min-w-0 text-14 leading-[18px]", on ? "font-semibold text-focus-text" : "text-focus-muted")}>
+                {label}
+              </span>
               {mode === suggested && age != null && (
-                <span className="ml-auto shrink-0 px-2 h-6 rounded-pill bg-focus-mint/20 text-focus-mint text-12 font-semibold flex items-center">
+                <span className="shrink-0 px-2 h-6 rounded-full bg-focus-mint/20 text-focus-mint text-12 font-semibold flex items-center">
                   Age {age}
                 </span>
               )}
             </span>
-            <span className="text-12 text-focus-muted leading-snug">{caption}</span>
+            {on && <span className="pl-7 text-12 leading-[17px] text-focus-muted">{caption}</span>}
           </button>
         );
       })}

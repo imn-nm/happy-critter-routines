@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, CalendarClock, Plus, Settings, Sparkles, Star, Users } from "lucide-react";
+import { Bell, CalendarClock, Plus, Settings, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatTime12 } from "@/utils/formatTime";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -26,6 +26,7 @@ import { getPSTDate } from "@/utils/pstDate";
 import { isRestDate } from "@/utils/restDays";
 import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
+import StarBadge from "@/components/StarBadge";
 
 // Per-child chip colours on event cards (Figma 390:3407: tinted fill, same-
 // colour text). Assigned by the child's position in the list.
@@ -434,11 +435,7 @@ function ChildRow({
       </div>
 
       {/* Stars */}
-      <div className="self-start shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-focus-iris/30 text-13 text-focus-text">
-        <Star className="w-3.5 h-3.5 text-focus-lime fill-focus-lime" strokeWidth={0} aria-hidden />
-        <span className="font-bold leading-none">{child.currentCoins}</span>
-        <span className="sr-only">stars</span>
-      </div>
+      <StarBadge count={child.currentCoins} aria-label={`${child.currentCoins} stars`} className="self-start" />
     </motion.button>
   );
 }

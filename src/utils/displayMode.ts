@@ -15,6 +15,6 @@ export const displayModeFor = (child: { age?: number | null; display_mode?: Disp
   child?.display_mode ?? suggestedDisplayMode(child?.age);
 
 export const DISPLAY_MODES: { value: DisplayMode; label: string; caption: string }[] = [
-  { value: 'picture', label: 'Picture view', caption: 'Big pictures with the time beside them, the day in simple blocks, and spoken prompts. For children still learning to read.' },
-  { value: 'detailed', label: 'Detailed view', caption: 'Smaller icons, exact start and end times, and a line about what each task asks of them.' },
+  { value: 'picture', label: 'Picture View', caption: 'Big pictures with the time beside them, the day in simple blocks, and spoken prompts. For children still learning to read.' },
+  { value: 'detailed', label: 'Detailed View', caption: 'Smaller icons, exact start and end times, and a line about what each task asks of them.' },
 ];

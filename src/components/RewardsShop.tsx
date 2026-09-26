@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useMotionPrefs } from "@/lib/motion";
 import { getPSTDateString, toPSTDateString } from "@/utils/pstDate";
 import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
+import StarBadge from "@/components/StarBadge";
 
 interface RewardsShopProps {
   childId: string;
@@ -115,15 +116,11 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                 <h2 className={picture ? "sr-only" : "text-20 font-semibold text-focus-text"}>Rewards</h2>
               </div>
               <div className="flex items-center gap-sp-2">
-                <div className={picture
-                  ? "flex items-center gap-2 h-12 px-4 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime"
-                  : "flex items-center gap-1.5 h-11 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime"}>
-                  <Star className={picture ? "w-6 h-6 fill-current" : "w-3.5 h-3.5 fill-current"} strokeWidth={0} />
-                  <span className={picture ? "text-20 font-semibold leading-none tabular-nums" : "text-14 font-semibold leading-none tabular-nums"}>
-                    {currentCoins}
-                  </span>
-                  {picture && <span className="sr-only">stars</span>}
-                </div>
+                <StarBadge
+                  size={picture ? "lg" : "md"}
+                  count={currentCoins}
+                  aria-label={`${currentCoins} stars`}
+                />
                 <button
                   type="button"
                   onClick={onClose}

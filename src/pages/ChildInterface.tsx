@@ -46,6 +46,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerItemVariants, overlayMotion, sheetMotion } from "@/lib/motion";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { speak } from "@/lib/speech";
+import StarBadge from "@/components/StarBadge";
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -1136,22 +1137,22 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <div className="flex items-center gap-2 min-w-0">
               <p className="text-20 font-semibold text-focus-text leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
             </div>
-            <button
-              type="button"
+            <StarBadge
               onClick={() => setShowRewardsShop(true)}
-              className="relative shrink-0 flex items-center gap-1.5 h-11 px-3 rounded-[14px] border border-focus-lime bg-focus-lime/10 text-focus-lime hover:bg-focus-lime/20 transition-colors"
               aria-label="Open rewards shop"
+              className="relative"
+              count={
+                <motion.span
+                  key={child.currentCoins}
+                  className="inline-block"
+                  initial={{ scale: 1.25 }}
+                  animate={{ scale: 1 }}
+                  transition={tMotion(springs.bouncy)}
+                >
+                  {child.currentCoins}
+                </motion.span>
+              }
             >
-              <Star className="w-3.5 h-3.5 fill-current" strokeWidth={0} aria-hidden />
-              <motion.span
-                key={child.currentCoins}
-                className="text-14 font-semibold leading-4 tabular-nums"
-                initial={{ scale: 1.25 }}
-                animate={{ scale: 1 }}
-                transition={tMotion(springs.bouncy)}
-              >
-                {child.currentCoins}
-              </motion.span>
               <AnimatePresence>
                 {coinDeltas.map((d) => (
                   <motion.span
@@ -1167,7 +1168,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   </motion.span>
                 ))}
               </AnimatePresence>
-            </button>
+            </StarBadge>
           </div>
         )}
 
