@@ -153,7 +153,7 @@ const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, 
           >
             <CritterPet
               petType={petType}
-              outfit={outfit}
+              outfit={outfit} seed={childId}
               mood="happy"
               size={192}
               reaction="Wave"
@@ -215,7 +215,7 @@ const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, 
           >
             {mode === "menu" && (
               <div className="flex flex-1 flex-col items-center justify-center gap-sp-6">
-                <CritterPet petType={petType} outfit={outfit} mood="happy" size={192} interactive picture={picture} prompt={picture ? null : "Let's play!"} />
+                <CritterPet petType={petType} outfit={outfit} seed={childId} mood="happy" size={192} interactive picture={picture} prompt={picture ? null : "Let's play!"} />
                 <div className="grid w-full grid-cols-3 gap-sp-3">
                   {activities.map(a =>
                     picture ? (

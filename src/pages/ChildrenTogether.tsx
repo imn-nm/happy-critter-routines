@@ -42,7 +42,9 @@ const ChildrenTogether = () => {
           key={child.id}
           aria-label={`${child.name}'s screen`}
           className={cn(
-            "relative h-full shrink-0 snap-start overflow-hidden bg-focus-bg",
+            // clip, not hidden: a hidden box can still be scrolled (focus,
+            // scrollIntoView), which slid a child's whole screen out of place.
+            "relative h-full shrink-0 snap-start overflow-clip bg-focus-bg",
             i > 0 && "border-l border-focus-raised",
           )}
           style={{ width: columnWidth, minWidth: MIN_PANE_WIDTH, transform: "translateZ(0)" }}

@@ -13,7 +13,8 @@ import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import Playtime from "@/components/pets/playtime/Playtime";
 import { petNick } from "@/components/pets/petCatalog";
-import { FREE_TIME_ACTIVITIES, SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import { SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import { personalityFor, pickFreeTimeActivity } from "@/components/pets/personality";
 import PetFace from "@/components/pets/PetFace";
 import AmbientClock from "@/components/AmbientClock";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -27,7 +28,7 @@ import { resolveDropStart } from "@/utils/dragSnap";
 import { orderByAnchors } from "@/utils/afterAnchors";
 import { displayDuration, displayStart, eventPhase, getReadyLength, withGetReadyTime } from "@/utils/eventWindow";
 import RewardsShop from "@/components/RewardsShop";
-import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Pointer, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Coins, Star, Calendar, CalendarDays, Settings, ChevronRight, Check, CheckCircle2, ListChecks, AlertCircle, Shuffle, CloudOff, Undo2, Sunrise, Sun, Moon, Play, AlarmClock, Sofa, PartyPopper, Gift, Sparkles } from "lucide-react";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
@@ -886,10 +887,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const playKey = `${today}:${freeTimeKey}`;
   if (freeTimeActivityRef.current.key !== freeTimeKey) {
     // Never a screen: reading, a ball, crayons, bubbles or a leaf outside.
-    const choices = FREE_TIME_ACTIVITIES;
+    // Each child's rabbit has its favourites, so siblings side by side
+    // usually do different things.
     freeTimeActivityRef.current = {
       key: freeTimeKey,
-      activity: choices[Math.floor(Math.random() * choices.length)],
+      activity: pickFreeTimeActivity(personalityFor(child.id)),
     };
   }
 
@@ -1244,7 +1246,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
             {picture && <Sofa className="w-12 h-12 text-focus-lavender" aria-hidden />}
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>Cozy rest day</h2>
             <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
@@ -1279,7 +1281,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   Goodnight, {child.name}! 🌙
                 </h2>
                 {!picture && <StatusBadge variant="info">Time to Rest</StatusBadge>}
-                <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+                <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
                 <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
@@ -1350,7 +1352,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 // must-do task; on time, or on any other task, nothing is eaten.
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
                 overdue={!isFrozen && !!displayTask.is_important && isActiveTaskOverdue()}
-                companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} mood={petMood}
+                companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood={petMood}
                   activity={petCelebrating || phase === 'prep' ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive picture={picture}
                   prompt={greeting ?? petPrompt}
@@ -1520,26 +1522,15 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                           ready: Biscuit's bubble says what's next. */}
                       {canPlay && (
                       <div className="w-full mt-sp-3 grid grid-cols-1 min-[360px]:grid-flow-col min-[360px]:auto-cols-fr gap-sp-2">
-                        {/* Biscuit's own face and "Play"; in picture view a
-                            finger taps on it. */}
+                        {/* Biscuit's own face and "Play". */}
                         <button
                           type="button"
                           onClick={() => setPlayFor(playKey)}
                           aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
-                          className={cn("relative flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7 text-24" : "min-h-12 px-4 text-14")}
+                          className={cn("flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7 text-24" : "min-h-12 px-4 text-14")}
                         >
                           <PetFace outfit={child.pet_outfit} scale={picture ? 2 : 1} />
                           {picture ? "Play" : <>Play With {petNick(child.petType)}</>}
-                          {picture && (
-                            <motion.span
-                              aria-hidden
-                              className="pointer-events-none absolute -bottom-3 -right-2 flex text-focus-text drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
-                              animate={{ y: [0, -7, 0, -7, 0], rotate: [0, -8, 0, -8, 0] }}
-                              transition={tMotion({ duration: 1.1, repeat: Infinity, repeatDelay: 1.6 })}
-                            >
-                              <Pointer className="w-9 h-9 fill-focus-sheet" />
-                            </motion.span>
-                          )}
                         </button>
                         {canSpin && (
                           <button
@@ -1580,7 +1571,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <AmbientClock picture={picture} next={{ name: upcomingTasks[0].name, time: displayStart(upcomingTasks[0]), icon: upcomingTasks[0].icon }} />
             <CritterPet
               petType={child.petType}
-              outfit={child.pet_outfit}
+              outfit={child.pet_outfit} seed={child.id}
               mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"}
               size={168}
               interactive picture={picture}
@@ -1613,7 +1604,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Still sleepy time, {child.name}
             </h2>
@@ -1637,7 +1628,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             transition={tMotion(springs.gentle)}
           >
             {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
             {picture && <Moon className="w-12 h-12 text-focus-lavender" aria-hidden />}
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Goodnight, {child.name}! 🌙
@@ -1660,7 +1651,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <AmbientClock next={null} picture={picture} />
             <CritterPet
               petType={child.petType}
-              outfit={child.pet_outfit}
+              outfit={child.pet_outfit} seed={child.id}
               mood="excited"
               activity={freeTimeActivityRef.current.activity}
               size={168}
@@ -1890,7 +1881,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               animate={{ scale: 1 }}
               transition={tMotion(springs.bouncy)}
             >
-              <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="celebrate" size={192} />
+              <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="celebrate" size={192} />
             </motion.div>
             {picture && <Gift className="w-12 h-12 text-focus-lime" aria-hidden />}
             <p className={cn("text-24 font-semibold text-focus-text text-center", words)}>You got your reward!</p>

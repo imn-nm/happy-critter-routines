@@ -106,7 +106,7 @@ const ChildNameGate = () => {
                     <Check className="w-4 h-4" strokeWidth={3} />
                   </span>
                 )}
-                <CritterPet petType={child.petType} outfit={child.pet_outfit} mood="happy" size={96} />
+                <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="happy" size={96} />
                 <span className="text-18 font-semibold text-focus-text truncate w-full text-center">
                   {child.name}
                 </span>

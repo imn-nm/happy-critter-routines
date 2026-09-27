@@ -12,19 +12,20 @@ for (const [k, hex] of Object.entries(PAL)) {
   RGB[k] = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
 
-// One 1x scratch canvas per crop size; frames are built there and scaled up
-// with nearest-neighbour sampling.
-const scratch = new Map<string, { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData }>();
-function scratchFor(w: number, h: number) {
-  const key = `${w}x${h}`;
-  let s = scratch.get(key);
-  if (!s) {
+// Frames are built on a 1x scratch canvas and scaled up with nearest-neighbour
+// sampling. Each pet's canvas has its own scratch: every pet on the page paints
+// in the same tick, and Safari can copy a shared source canvas late, so two
+// children side by side both showed the last rabbit drawn, outfit and all.
+const scratch = new WeakMap<HTMLCanvasElement, { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData }>();
+function scratchFor(target: HTMLCanvasElement, w: number, h: number) {
+  let s = scratch.get(target);
+  if (!s || s.canvas.width !== w || s.canvas.height !== h) {
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d")!;
     s = { canvas, ctx, img: ctx.createImageData(w, h) };
-    scratch.set(key, s);
+    scratch.set(target, s);
   }
   return s;
 }
@@ -46,7 +47,7 @@ const colour = (c: string) => {
 export function paint(canvas: HTMLCanvasElement, layers: { p: Pix; x: number; y: number }[], crop: Crop, backdrop?: Uint8ClampedArray) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const s = scratchFor(crop.w, crop.h);
+  const s = scratchFor(canvas, crop.w, crop.h);
   const d = s.img.data;
   if (backdrop && backdrop.length === d.length) d.set(backdrop);
   else d.fill(0);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
@@ -6,6 +6,7 @@ import TimerRabbitScene, { RING_INSET } from "@/components/pets/TimerRabbitScene
 import { getPet } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
 import type { PetOutfit } from "@/components/pets/pixel/accessories";
+import { personalityFor } from "@/components/pets/personality";
 
 export type { PetMood as CritterMood };
 
@@ -29,6 +30,8 @@ interface CritterPetProps {
   timerFrame?: boolean;
   /** What the rabbit is wearing (dress-up). */
   outfit?: PetOutfit | null;
+  /** The child's id: gives this child's rabbit its own pace and habits. */
+  seed?: string | null;
 }
 
 /**
@@ -40,8 +43,9 @@ const TAP_HINT_KEY = "petpals:pet-tap-discovered";
 const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
 const PICTURE_TAP_MESSAGES = ["👋", "💜", "😊", "⭐"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit, picture = false }: CritterPetProps) => {
+const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit, picture = false, seed }: CritterPetProps) => {
   const reduced = useReducedMotion();
+  const personality = useMemo(() => personalityFor(seed), [seed]);
   // Now and then the rabbit chases a leaf around the timer ring.
   const [routine, setRoutine] = useState(false);
   const finishRoutine = useCallback(() => setRoutine(false), []);
@@ -121,6 +125,7 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
         reactionKey={reactionKey}
         outfit={outfit}
         paused={!!(routine && canPlay)}
+        personality={personality}
       />
       </div>
       {routine && canPlay && <>

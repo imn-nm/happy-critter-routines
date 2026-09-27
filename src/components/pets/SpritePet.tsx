@@ -12,6 +12,7 @@ import {
   type SpriteClip,
 } from "./spriteClips";
 import { outfitKey, type PetOutfit } from "./pixel/accessories";
+import type { Personality } from "./personality";
 import { paint } from "./pixel/render";
 import { CLIP_SCENE, backdrop, shadowUnder, type SceneName } from "./pixel/scenes";
 import { onTick } from "./pixel/ticker";
@@ -67,6 +68,8 @@ interface SpritePetProps {
   outfit?: PetOutfit | null;
   /** Hold the current frame, e.g. while a wrapper hides the pet. */
   paused?: boolean;
+  /** This child's rabbit's own pace and habits (see personality.ts). */
+  personality?: Personality | null;
   className?: string;
 }
 
@@ -84,11 +87,13 @@ interface Playing {
   phase: "full" | "intro" | "loop" | "outro";
 }
 
-const pick = (options: LifeBehaviour[]): ClipName => {
-  const total = options.reduce((s, o) => s + o.weight, 0);
+/** A weighted pick; the rabbit's personality makes the habits it likes more likely. */
+const pick = (options: LifeBehaviour[], likes?: Personality["likes"]): ClipName => {
+  const weight = (o: LifeBehaviour) => o.weight * (likes?.[o.clip] ?? 1);
+  const total = options.reduce((s, o) => s + weight(o), 0);
   let r = Math.random() * total;
   for (const o of options) {
-    r -= o.weight;
+    r -= weight(o);
     if (r <= 0) return o.clip;
   }
   return options[options.length - 1].clip;
@@ -96,10 +101,13 @@ const pick = (options: LifeBehaviour[]): ClipName => {
 
 const rand = ([min, max]: [number, number]) => min + Math.random() * (max - min);
 
-const pickClip = (clips: ClipName | ClipName[]): ClipName => {
+const pickClip = (clips: ClipName | ClipName[], likes?: Personality["likes"]): ClipName => {
   if (!Array.isArray(clips)) return clips;
-  return clips[Math.floor(Math.random() * clips.length)];
+  return pick(clips.map(clip => ({ clip, weight: 1 })), likes);
 };
+
+/** Up to this many frames of waiting before the first movement, so rabbits that appear together aren't in step. */
+const MAX_START_DELAY = 24;
 
 /**
  * The rabbit as a creature rather than a clip player.
@@ -131,6 +139,7 @@ const SpritePet = ({
   framing = "stage",
   outfit = null,
   paused = false,
+  personality = null,
   className,
 }: SpritePetProps) => {
   const CROP = framing === "avatar" ? AVATAR : framing === "ring" ? RING : CONTENT;
@@ -142,10 +151,11 @@ const SpritePet = ({
   // brushing, sleeping) it stays with it: no random habits, and taps or
   // reactions don't make it drop its props. The speech bubble still answers.
   const busy = !!(CLIPS[base] as SpriteClip).loop;
+  const pace = personality?.pace ?? 1;
   const habits = clip || activity || busy
     ? null
     : plan.life
-      ? { life: plan.life, pauseMs: plan.pauseMs ?? ([6000, 14000] as [number, number]) }
+      ? { life: plan.life, pauseMs: (plan.pauseMs ?? [6000, 14000]).map(ms => ms * pace) as [number, number] }
       : null;
   const tapClips: ClipName | ClipName[] | null = clip || busy ? null : plan.onTap ?? null;
   const still = reduced || (!!plan.still && !activity && !clip);
@@ -220,7 +230,7 @@ const SpritePet = ({
     let timer = 0;
     const arm = () => {
       timer = window.setTimeout(() => {
-        request(pick(habits.life));
+        request(pick(habits.life, personality?.likes));
         arm();
       }, rand(habits.pauseMs));
     };
@@ -231,7 +241,7 @@ const SpritePet = ({
 
   const handleTap = () => {
     if (!interactive) return;
-    if (!reduced && tapClips) request(pickClip(tapClips));
+    if (!reduced && tapClips) request(pickClip(tapClips, personality?.likes));
     onTap?.();
   };
 
@@ -334,10 +344,22 @@ const SpritePet = ({
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
+  // A random wait before the very first movement, and this rabbit's own pace
+  // after that: two rabbits side by side never move in step. A forced clip
+  // (the timed leaf chase, the preview bench) plays at once.
+  const startDelayRef = useRef(clip ? 0 : Math.floor(Math.random() * MAX_START_DELAY));
+  const tickRef = useRef(0);
+  const lagEvery = personality?.lagEvery ?? 0;
+
   useEffect(() => {
     if (still || paused || !inView || !pageVisible || to <= from) return;
     return onTick(() => {
       if (holdingRef.current) return;
+      if (startDelayRef.current > 0) {
+        startDelayRef.current--;
+        return;
+      }
+      if (lagEvery && ++tickRef.current % lagEvery === 0) return;
       const f = frameRef.current + 1;
       if (f < to) {
         frameRef.current = f;
@@ -355,7 +377,7 @@ const SpritePet = ({
       }
       atBoundary();
     });
-  }, [still, paused, inView, pageVisible, from, to, repeats, draw, atBoundary, playing.n]);
+  }, [still, paused, inView, pageVisible, from, to, repeats, draw, atBoundary, playing.n, lagEvery]);
 
   return (
     <div
