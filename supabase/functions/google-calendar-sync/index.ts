@@ -1,12 +1,13 @@
 // POST { household_id }
-// Pushes all current holidays + day_notes + parent_events (across the
-// household's children) to every connected parent's app-owned Google
-// Calendar. One-way (app → Google). Every event's title is tagged with the
-// child's name so a multi-child calendar stays readable.
+// Pushes all current holidays + day_notes + parent_events + children's events
+// (tasks with is_event) across the household's children to every connected
+// parent's app-owned Google Calendar. One-way (app → Google). Every event's
+// title is tagged with the child's name so a multi-child calendar stays
+// readable; children's events are built in childEvents.ts.
 //
 // Strategy:
-//   * Pull current holidays + day_notes + parent_events for every child in
-//     the household.
+//   * Pull current holidays + day_notes + parent_events + event tasks for
+//     every child in the household.
 //   * For each connected parent: refresh their token, upsert events on their
 //     calendar (per-parent event-id mappings), delete events whose source is gone.
 //   * One parent's stale token doesn't block the other's sync.
@@ -19,6 +20,7 @@ import {
   upsertEvent,
 } from '../_shared/google.ts';
 import { requireHouseholdMember } from '../_shared/auth.ts';
+import { childEventEntries, type CalendarEntry, type EventTaskRow } from './childEvents.ts';
 
 interface HolidayRow {
   id: string;
@@ -78,7 +80,7 @@ Deno.serve(async (req) => {
     );
 
     // 3. Pull current source rows once; they're shared across parents.
-    const [{ data: holidays }, { data: notes }, { data: events }] = await Promise.all([
+    const [{ data: holidays }, { data: notes }, { data: events }, { data: eventTasks, error: tErr }] = await Promise.all([
       admin
         .from('holidays')
         .select('id, child_id, name, description, date, end_date')
@@ -91,7 +93,16 @@ Deno.serve(async (req) => {
         .from('parent_events')
         .select('id, child_id, date, time, title, notes')
         .in('child_id', childIds),
+      admin
+        .from('tasks')
+        .select('id, child_id, name, scheduled_time, duration, prep_minutes, is_recurring, recurring_days, task_date, created_at, excluded_dates, date_overrides, schedule_overrides')
+        .in('child_id', childIds)
+        .eq('is_event', true)
+        .eq('is_active', true),
     ]);
+    // A failed read must not look like "every event was deleted".
+    if (tErr) throw tErr;
+    const childEvents = await childEventEntries((eventTasks ?? []) as EventTaskRow[], childNames, APP_TIME_ZONE);
 
     let callerSynced = 0;
     const errors: string[] = [];
@@ -102,6 +113,7 @@ Deno.serve(async (req) => {
           holidays: (holidays ?? []) as HolidayRow[],
           notes: (notes ?? []) as DayNoteRow[],
           events: (events ?? []) as ParentEventRow[],
+          childEvents,
           childNames,
         });
         if (conn.user_id === userId) callerSynced = synced;
@@ -132,6 +144,7 @@ async function syncConnection(
     holidays: HolidayRow[];
     notes: DayNoteRow[];
     events: ParentEventRow[];
+    childEvents: CalendarEntry[];
     childNames: Map<string, string>;
   },
 ): Promise<number> {
@@ -257,6 +270,33 @@ async function syncConnection(
       user_id: userId,
       source_table: 'parent_events',
       source_id: p.id,
+      google_event_id: ev.id,
+      last_synced_at: new Date().toISOString(),
+    });
+    synced++;
+  }
+
+  // Children's events: timed, and weekly when they repeat.
+  for (const e of sources.childEvents) {
+    const key = keyFor('tasks', e.key);
+    seen.add(key);
+    const existing = existingByKey.get(key);
+    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, {
+      summary: e.summary,
+      // Empty rather than left out: Google keeps a field a PATCH leaves out.
+      description: e.description ?? '',
+      startDate: e.date,
+      endDate: addOneDay(e.date),
+      startDateTime: `${e.date}T${e.start}:00`,
+      endDateTime: `${e.date}T${e.end}:00`,
+      timeZone: APP_TIME_ZONE,
+      recurrence: e.recurrence,
+    });
+    await admin.from('google_calendar_events').upsert({
+      household_id,
+      user_id: userId,
+      source_table: 'tasks',
+      source_id: e.key,
       google_event_id: ev.id,
       last_synced_at: new Date().toISOString(),
     });

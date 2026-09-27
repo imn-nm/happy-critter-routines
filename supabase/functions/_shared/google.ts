@@ -88,6 +88,9 @@ export interface CalendarEventInput {
   startDateTime?: string;
   endDateTime?: string;
   timeZone?: string;
+  // RFC 5545 lines ("RRULE:…", "EXDATE;TZID=…:…") for a repeating event. An
+  // empty list makes it a single event again; leave it out to not touch it.
+  recurrence?: string[];
 }
 
 export async function upsertEvent(
@@ -108,6 +111,7 @@ export async function upsertEvent(
     end: timed
       ? { dateTime: input.endDateTime, timeZone: input.timeZone ?? 'UTC', date: null }
       : { date: input.endDate, dateTime: null },
+    ...(input.recurrence ? { recurrence: input.recurrence } : {}),
   };
 
   if (eventId) {

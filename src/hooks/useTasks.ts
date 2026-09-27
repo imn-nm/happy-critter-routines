@@ -5,6 +5,7 @@ import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
 import { fetchCompletionFor } from '@/hooks/useCompletions';
 import { onResync, resyncOnReconnect } from '@/lib/resync';
+import { scheduleCalendarAutoSyncForMe } from '@/utils/calendarAutoSync';
 import { format } from 'date-fns';
 
 /**
@@ -259,6 +260,8 @@ export const useTasks = (childId?: string) => {
 
       // The realtime echo of this insert may already have added it.
       setTasks(prev => prev.some(task => task.id === data.id) ? prev : [...prev, data as Task]);
+      // A child's event goes on the family's Google Calendar too.
+      if (data.is_event) void scheduleCalendarAutoSyncForMe();
       toast({
         title: "Success",
         description: `Task "${taskData.name}" has been added!`,
@@ -324,6 +327,8 @@ export const useTasks = (childId?: string) => {
 
       // Update with server response
       setTasks(prev => prev.map(task => task.id === id ? data as Task : task));
+      // An event that moved, changed or stopped being one: update the calendar.
+      if (data.is_event || current?.is_event) void scheduleCalendarAutoSyncForMe();
       return data;
     } catch (error: any) {
       console.error('Error updating task:', error);
@@ -339,17 +344,20 @@ export const useTasks = (childId?: string) => {
   };
 
   const deleteTask = async (id: string) => {
+    const removed = tasks.find(task => task.id === id);
     try {
       // Optimistically update UI first
       setTasks(prev => prev.filter(task => task.id !== id));
-      
+
       const { error } = await supabase
         .from('tasks')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      
+      // Take a deleted event off the calendar.
+      if (removed?.is_event) void scheduleCalendarAutoSyncForMe();
+
       toast({
         title: "Success",
         description: "Task has been deleted",

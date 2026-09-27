@@ -1,12 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { calendarErrorMessage, recordCalendarSync } from '@/utils/calendarSyncStatus';
+import { getMyHouseholdId } from '@/utils/household';
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Debounced, best-effort push to Google Calendar after a calendar-relevant
- * edit (parent event, holiday, or day note). A burst of edits collapses into
- * one sync call a few seconds after the last change.
+ * edit (parent event, holiday, day note, or a child's event). A burst of edits
+ * collapses into one sync call a few seconds after the last change.
  *
  * No toast: when no calendar is connected the function returns "Calendar
  * not connected" and nothing should surface. The outcome is recorded, so
@@ -28,4 +29,14 @@ export const scheduleCalendarAutoSync = (householdId?: string | null) => {
       })
       .catch(async (e) => recordCalendarSync(householdId, false, await calendarErrorMessage(e)));
   }, 4000);
+};
+
+/** The same, from places that don't have the household at hand (saving a child's event). */
+export const scheduleCalendarAutoSyncForMe = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) scheduleCalendarAutoSync(await getMyHouseholdId(session.user.id));
+  } catch {
+    /* best-effort: the next edit or "Sync Now" catches up */
+  }
 };

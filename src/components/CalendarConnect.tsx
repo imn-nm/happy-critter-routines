@@ -70,8 +70,8 @@ const CalendarConnect = () => {
       ) : (
         <>
           <p className="text-14 text-focus-muted">
-            Connect your Google Calendar to mirror holidays and day notes as calendar
-            events. Each parent connects their own calendar.
+            Connect your Google Calendar to mirror the kids' events, your appointments,
+            holidays and day notes. Each parent connects their own calendar.
           </p>
           <Button size="sm" variant="secondary" onClick={() => connect()} className="self-start">
             Connect Google Calendar

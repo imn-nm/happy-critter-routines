@@ -13,6 +13,7 @@ import { isSystemTaskName } from "@/utils/systemTasks";
 import { orderByAnchors } from "@/utils/afterAnchors";
 import { describeClash, findStartClash, upcomingDates, type TaskLike } from "@/utils/startClash";
 import { getPSTDateString } from "@/utils/pstDate";
+import { scheduleCalendarAutoSyncForMe } from "@/utils/calendarAutoSync";
 import { routineDays, type Routine } from "@/hooks/useRoutines";
 import type { Child } from "@/hooks/useChildren";
 import type { Task } from "@/hooks/useTasks";
@@ -191,6 +192,8 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
       }
       qc.invalidateQueries({ queryKey: ["routines"] });
       qc.invalidateQueries({ queryKey: ["copy-target-tasks"] });
+      // A copied event joins the sibling's entry on Google Calendar.
+      if (planned.some(p => p.source.is_event)) void scheduleCalendarAutoSyncForMe();
       toast.success(`Copied ${planned.length} task${planned.length === 1 ? "" : "s"} to ${target.name}`);
       onCopied?.();
       onOpenChange(false);

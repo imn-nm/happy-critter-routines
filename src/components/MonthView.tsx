@@ -57,10 +57,10 @@ interface DayData {
   isRestDay: boolean;
 }
 
-type Kind = 'event' | 'note' | 'rest' | 'holiday' | 'task';
+type Kind = 'event' | 'note' | 'rest' | 'holiday' | 'task' | 'chore';
 
 /** Day-type colours: Figma 347:559 legend (Event pink, Note amber, Rest mint, Holiday lime). */
-const KIND_DOT: Record<Exclude<Kind, 'task'>, string> = {
+const KIND_DOT: Record<Exclude<Kind, 'task' | 'chore'>, string> = {
   event: 'bg-focus-pink',
   note: 'bg-focus-amber',
   rest: 'bg-focus-mint',
@@ -72,11 +72,12 @@ const KIND_CHIP: Record<Kind, string> = {
   rest: 'bg-focus-mint/20 text-focus-mint',
   holiday: 'bg-focus-lime/20 text-focus-lime',
   task: 'bg-focus-lime/20 text-focus-lime',
+  chore: 'bg-focus-lavender/20 text-focus-lavender',
 };
 const KIND_LABEL: Record<Kind, string> = {
-  event: 'Event', note: 'Note', rest: 'Rest', holiday: 'Holiday', task: 'Task',
+  event: 'Event', note: 'Note', rest: 'Rest', holiday: 'Holiday', task: 'Task', chore: 'Chore',
 };
-const LEGEND: Exclude<Kind, 'task'>[] = ['event', 'note', 'rest', 'holiday'];
+const LEGEND: Exclude<Kind, 'task' | 'chore'>[] = ['event', 'note', 'rest', 'holiday'];
 
 interface DayItem {
   key: string;
@@ -349,8 +350,8 @@ const MonthView = ({
   const isThisMonth = isSameMonth(currentMonth, pstToday);
 
   /** Which day types a cell carries, in legend order. */
-  const kindsFor = (dayData: DayData): Exclude<Kind, 'task'>[] => {
-    const kinds: Exclude<Kind, 'task'>[] = [];
+  const kindsFor = (dayData: DayData): Exclude<Kind, 'task' | 'chore'>[] => {
+    const kinds: Exclude<Kind, 'task' | 'chore'>[] = [];
     // Your appointments and the child's events (a game, a class) alike.
     if (dayData.parentEvents.length || dayData.tasksForDay.some(t => t.is_event)) kinds.push('event');
     if (dayData.note) kinds.push('note');
@@ -439,7 +440,7 @@ const MonthView = ({
       if (task.coins > 0) parts.push(`${task.coins}★`);
       dayItems.push({
         key: `t-${task.id}`,
-        kind: 'task',
+        kind: task.type === 'floating' ? 'chore' : 'task',
         title: task.name,
         meta: parts.join(' · '),
         important: task.is_important,
