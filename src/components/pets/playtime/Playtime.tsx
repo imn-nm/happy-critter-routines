@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Timer, X } from "lucide-react";
+import { AlarmClock, ArrowLeft, ArrowRight, Check, Timer, X } from "lucide-react";
 import CritterPet from "@/components/critters/CritterPet";
 import { useMotionPrefs } from "@/lib/motion";
+import { sounds } from "@/lib/sounds";
+import { speak } from "@/lib/speech";
+import { getTaskIcon } from "@/utils/taskIcon";
 import { petNick } from "../petCatalog";
 import { Pix } from "../pixel/pix";
 import { ACCESSORIES, type PetOutfit } from "../pixel/accessories";
@@ -17,8 +20,11 @@ import Peekaboo from "./Peekaboo";
 interface PlaytimeProps {
   childId: string;
   petType: string;
-  /** Seconds of free time left; Playtime closes on its own at zero. */
+  /** Seconds of play left. At zero the rabbit waves goodbye and Playtime closes. */
   secondsLeft: number;
+  /** What's next ("Soccer"), for the goodbye. */
+  nextName?: string;
+  nextIcon?: string | null;
   onClose: () => void;
   outfit: PetOutfit | null;
   onOutfitChange: (outfit: PetOutfit | null) => void;
@@ -35,31 +41,47 @@ const CARROT = ["G.g.G", ".GgG.", ".OOO.", ".OOo.", ".OOo.", "..Oo.", "..O.."];
 // Two ears peeking over a bush.
 const PEEK = [".W.....W..", "WOW...WOW.", "WOW...WOW.", "WOW...WOW.", ".GGGGGGGG.", "GGGGGGGgGG", "GgGGGGGGXG", ".gggggggg."];
 
+/** How long the rabbit's goodbye stays before Playtime closes by itself. */
+const GOODBYE_MS = 8000;
+
 /**
- * Free-time play with the rabbit. Opens from the free-time pet and closes
- * itself when free time ends. Nothing here pays stars and nothing can be
- * failed: it's just for fun, and the outfit picked in dress-up follows the
- * rabbit everywhere it appears.
+ * Free-time play with the rabbit. Opens from the free-time pet. When play
+ * time is up (five minutes before the next thing) the game stops, the rabbit
+ * waves "See you later!" and says what to get ready for, and Playtime closes
+ * itself. Nothing here pays stars and nothing can be failed: it's just for
+ * fun, and the outfit picked in dress-up follows the rabbit everywhere.
  */
-const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChange, picture }: PlaytimeProps) => {
+const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, outfit, onOutfitChange, picture }: PlaytimeProps) => {
   const { t } = useMotionPrefs();
   const nick = petNick(petType);
   const [mode, setMode] = useState<Mode>("menu");
+  const leaving = secondsLeft <= 0;
 
-  // Free time is over: leave so the next task takes the stage.
+  // Play time is up: a chime, the goodbye out loud in picture view, then
+  // back to the day.
   useEffect(() => {
-    if (secondsLeft <= 0) onClose();
-  }, [secondsLeft, onClose]);
+    if (!leaving) return;
+    sounds.soon();
+    const say = nextName ? `Time to get ready for ${nextName}. See you later!` : "See you later!";
+    const speech = picture ? window.setTimeout(() => speak(say), 700) : undefined;
+    const close = window.setTimeout(onClose, GOODBYE_MS);
+    return () => {
+      window.clearTimeout(speech);
+      window.clearTimeout(close);
+    };
+    // Once, when play time runs out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (mode === "menu") onClose();
+      if (mode === "menu" || leaving) onClose();
       else setMode("menu");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, onClose]);
+  }, [mode, leaving, onClose]);
 
   const icons = useMemo(() => {
     const hat = new Pix();
@@ -93,20 +115,20 @@ const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChan
       <div className="flex items-center justify-between px-sp-3 pt-sp-4">
         <button
           type="button"
-          onClick={() => (mode === "menu" ? onClose() : setMode("menu"))}
-          aria-label={mode === "menu" ? "Back to my day" : "Back to Playtime"}
+          onClick={() => (mode === "menu" || leaving ? onClose() : setMode("menu"))}
+          aria-label={mode === "menu" || leaving ? "Back to my day" : "Back to Playtime"}
           className={picture
             ? "flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.06] text-fog-50 hover:bg-white/10"
             : "flex h-11 w-11 items-center justify-center rounded-full text-fog-50 hover:bg-white/10"}
         >
           {/* Picture view: X leaves Playtime, the arrow goes back to the games. */}
           {picture ? (
-            mode === "menu" ? <X className="h-7 w-7" aria-hidden /> : <ArrowLeft className="h-7 w-7" aria-hidden />
+            mode === "menu" || leaving ? <X className="h-7 w-7" aria-hidden /> : <ArrowLeft className="h-7 w-7" aria-hidden />
           ) : (
             <ArrowLeft className="h-5 w-5" />
           )}
         </button>
-        {picture ? (
+        {leaving ? null : picture ? (
           <span className="flex items-center gap-2 text-18 tabular-nums text-fog-200">
             <Timer className="h-6 w-6" aria-hidden />
             <span className="sr-only">Free time</span>
@@ -119,6 +141,60 @@ const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChan
       </div>
 
       <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col px-sp-4 pb-[max(var(--sp-8),calc(env(safe-area-inset-bottom)+var(--sp-4)))] pt-sp-2">
+        {leaving ? (
+          // Play time is up: the game stops and the rabbit waves goodbye.
+          <motion.div
+            className="flex flex-1 flex-col items-center justify-center gap-sp-5 text-center"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={t({ duration: 0.25 })}
+            role="status"
+            aria-live="polite"
+          >
+            <CritterPet
+              petType={petType}
+              outfit={outfit}
+              mood="happy"
+              size={192}
+              reaction="Wave"
+              reactionKey="goodbye"
+              picture={picture}
+              prompt={picture ? "👋" : "See you later!"}
+            />
+            {picture ? (
+              <div
+                className="flex items-center gap-3"
+                aria-label={nextName ? `Time to get ready for ${nextName}. See you later!` : "See you later!"}
+              >
+                <AlarmClock className="h-10 w-10 text-iris-300" aria-hidden />
+                {nextName && (
+                  <>
+                    <ArrowRight className="h-6 w-6 text-fog-200" aria-hidden />
+                    <span className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-white/[0.08]" aria-hidden>
+                      {getTaskIcon(nextName, "h-9 w-9 text-fog-50", nextIcon)}
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <p className="text-24 font-semibold text-fog-50">
+                  {nextName ? `Time to get ready for ${nextName}!` : "Time to get ready!"}
+                </p>
+                <p className="text-14 text-fog-200">{nick} will be here next free time.</p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={picture ? "OK" : undefined}
+              className="min-h-12 rounded-[16px] bg-focus-lavender px-8 text-16 font-semibold text-focus-sheet hover:bg-focus-lavender/90"
+            >
+              {picture ? <Check className="h-7 w-7" strokeWidth={3} aria-hidden /> : "OK, See You!"}
+            </button>
+          </motion.div>
+        ) : (
+        <>
         {picture ? (
           // The game's own picture stands in for its name; the menu needs no heading.
           <h2 className={current ? "mb-sp-3 flex justify-center" : "flex justify-center"}>
@@ -175,6 +251,8 @@ const Playtime = ({ childId, petType, secondsLeft, onClose, outfit, onOutfitChan
             {mode === "peek" && <Peekaboo outfit={outfit} nick={nick} picture={picture} />}
           </motion.div>
         </AnimatePresence>
+        </>
+        )}
       </div>
     </motion.div>
   );

@@ -10,14 +10,14 @@ import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
 import { getPet } from "@/components/pets/petCatalog";
-import { ROUTINE_KEYS, overridesField, updateAllSystemTaskInstances, weekendTimeOf, withWeekendTime, type RoutineKey } from "@/utils/systemTasks";
+import { WEEKEND_KEYS, overridesField, updateAllSystemTaskInstances, weekendDaysLabel, weekendTimeOf, withWeekendTime, type RoutineKey, type WeekendKey } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
 import { syncSchoolRoutines } from "@/hooks/useRoutines";
 import DisplayModePicker from "@/components/DisplayModePicker";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { Caption, ChoiceButton, SectionHeading, SelectTile, SheetHeader, TimeTile } from "@/components/sheet/SheetParts";
-import { fmtLen, sheetFooterClass } from "@/components/sheet/sheetStyles";
+import { fmtLen, fmtTime, sheetFooterClass } from "@/components/sheet/sheetStyles";
 
 // Lengths offered for the daily routine rows, worded like every other
 // duration in the app ("1 h 30 min").
@@ -73,13 +73,20 @@ const ROUTINE_ROWS: RoutineRow[] = [
   { key: "bedtime", label: "Bedtime", time: "bedtime", duration: "bedtime_duration" },
 ];
 
-type WeekendTimes = Partial<Record<RoutineKey, { time: string; duration: number }>>;
-/** The rows that have their own Saturday and Sunday times. */
+type WeekendTimes = Partial<Record<WeekendKey, { time: string; duration: number }>>;
+/** The rows that have their own weekend times. */
 const weekendFromChild = (child: Child): WeekendTimes =>
-  Object.fromEntries(ROUTINE_KEYS.flatMap(key => {
+  Object.fromEntries(WEEKEND_KEYS.flatMap(key => {
     const own = weekendTimeOf(child, key);
     return own ? [[key, { time: own.time.slice(0, 5), duration: own.duration }]] : [];
   }));
+
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+};
+const toHHMM = (min: number) =>
+  `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenChange, showTrigger = true }: ChildProfileEditProps) => {
   const navigate = useNavigate();
@@ -124,18 +131,31 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
   }, [isOpen]);
 
   // What a row shows on the tab being edited: on weekends, a row without its
-  // own time shows (and follows) the weekday one.
+  // own time shows (and follows) the weekday one. Breakfast always follows
+  // wake-up, the same time after it as on weekdays.
   const onWeekends = routineDays === 'weekends';
   const weekdayTime = (row: RoutineRow) => formData[row.time].slice(0, 5);
-  const rowTime = (row: RoutineRow) => (onWeekends ? weekend[row.key]?.time ?? weekdayTime(row) : weekdayTime(row));
+  const weekendTime = (row: RoutineRow): string => {
+    if (row.key !== 'breakfast') return weekend[row.key]?.time ?? weekdayTime(row);
+    const gap = Math.max(0, toMin(formData.breakfast_time) - toMin(formData.wake_time));
+    return toHHMM(toMin(weekend.wake?.time ?? formData.wake_time) + gap);
+  };
+  const rowTime = (row: RoutineRow) => (onWeekends ? weekendTime(row) : weekdayTime(row));
   const rowDuration = (row: RoutineRow) =>
-    onWeekends ? String(weekend[row.key]?.duration ?? formData[row.duration]) : formData[row.duration];
+    onWeekends && row.key !== 'breakfast'
+      ? String(weekend[row.key]?.duration ?? formData[row.duration])
+      : formData[row.duration];
   const setRow = (row: RoutineRow, patch: { time?: string; duration?: string }) => {
-    if (!onWeekends) {
+    if (!onWeekends || row.key === 'breakfast') {
+      // Moving wake-up takes breakfast along.
+      const breakfastAlong = row.key === 'wake' && patch.time !== undefined
+        ? { breakfast_time: toHHMM(toMin(formData.breakfast_time) + toMin(patch.time) - toMin(formData.wake_time)) }
+        : {};
       setFormData({
         ...formData,
         ...(patch.time !== undefined ? { [row.time]: patch.time } : {}),
         ...(patch.duration !== undefined ? { [row.duration]: patch.duration } : {}),
+        ...breakfastAlong,
       });
       return;
     }
@@ -143,10 +163,11 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
     const duration = parseInt(patch.duration ?? rowDuration(row)) || 0;
     // Back to the weekday time: nothing of its own to keep.
     const sameAsWeekdays = time === weekdayTime(row) && duration === (parseInt(formData[row.duration]) || 0);
+    const key = row.key;
     setWeekend(prev => {
       const next = { ...prev };
-      if (sameAsWeekdays) delete next[row.key];
-      else next[row.key] = { time, duration };
+      if (sameAsWeekdays) delete next[key];
+      else next[key] = { time, duration };
       return next;
     });
   };
@@ -165,7 +186,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
       }
       return null;
     };
-    return check(weekdayTime, false) ?? check(row => weekend[row.key]?.time ?? weekdayTime(row), true);
+    return check(weekdayTime, false) ?? check(weekendTime, true);
   })();
   const childrenHook = useChildren();
   const updateChild = onUpdateChild || childrenHook.updateChild;
@@ -199,9 +220,9 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
           .filter(k => formData[k as keyof typeof formData] !== openedWith[k as keyof typeof openedWith])
           .map(k => [k, all[k]]),
       );
-      // Weekend times live in each row's per-weekday times, under Saturday
-      // and Sunday. Only rows whose weekend changed are written.
-      for (const key of ROUTINE_KEYS) {
+      // Weekend times live under `weekend` in each row's overrides. Only rows
+      // whose weekend changed are written.
+      for (const key of WEEKEND_KEYS) {
         if (JSON.stringify(weekend[key] ?? null) !== JSON.stringify(openedWeekend[key] ?? null)) {
           changed[overridesField(key)] = withWeekendTime(child[overridesField(key)], weekend[key] ?? null);
         }
@@ -344,23 +365,39 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
             </div>
             <Caption>
               {!onWeekends
-                ? 'When each part of the day starts and how long it lasts, Monday to Friday.'
+                ? 'When each part of the day starts and how long it lasts on school days.'
                 : weekendsDiffer
-                  ? 'Saturday and Sunday. What you change here is for weekends only.'
-                  : 'Saturday and Sunday use the weekday times. Change one here to make it different on weekends.'}
+                  ? `For days off school (${weekendDaysLabel(child, 'wake')}). What you change here is for those days only.`
+                  : `Days off school (${weekendDaysLabel(child, 'wake')}) use the weekday times. Change one here to make it different.`}
             </Caption>
             <div className="flex flex-col gap-2">
               {ROUTINE_ROWS.map(row => (
                 <div key={row.key} className="flex items-center gap-2.5 rounded-[14px] bg-focus-surface p-2 pl-3.5">
-                  <span className="w-[74px] shrink-0 text-14 font-semibold leading-[18px] text-focus-text">{row.label}</span>
+                  <span className="w-[74px] shrink-0 flex flex-col gap-0.5">
+                    <span className="text-14 font-semibold leading-[18px] text-focus-text">{row.label}</span>
+                    {/* A later bedtime is for the night before a day off, so
+                        Sunday stays an early night before school. */}
+                    {onWeekends && row.key === 'bedtime' && (
+                      <span className="text-12 leading-4 text-focus-muted">{weekendDaysLabel(child, 'bedtime', true)} nights</span>
+                    )}
+                  </span>
                   <div className="flex flex-1 min-w-0 gap-2">
+                    {/* Breakfast follows wake-up on days off: nothing to set here. */}
+                    {onWeekends && row.key === 'breakfast' ? (
+                      <span className="flex-1 min-w-0 px-3 py-2 text-12 leading-4 text-focus-muted">
+                        <span className="text-14 font-semibold text-focus-text">{fmtTime(rowTime(row))}</span>
+                        <br />
+                        Same time after wake-up as on school days
+                      </span>
+                    ) : (
                     <TimeTile
                       label="Starts"
                       value={rowTime(row)}
                       onChange={(value) => setRow(row, { time: value })}
                     />
+                    )}
                     {/* Bedtime runs until wake-up, so it has no length to set. */}
-                    {row.key === 'bedtime' ? (
+                    {onWeekends && row.key === 'breakfast' ? null : row.key === 'bedtime' ? (
                       <span className="flex-1 min-w-0 px-3 text-12 leading-4 text-focus-muted">Until wake-up</span>
                     ) : (
                       <SelectTile

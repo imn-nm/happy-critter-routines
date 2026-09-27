@@ -20,7 +20,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import ScheduleSoundCues from "@/components/ScheduleSoundCues";
 import { sounds, unlockSounds } from "@/lib/sounds";
 import SpinningWheel from "@/components/SpinningWheel";
-import { normalizeWheelOptions, hasWheelOptions } from "@/lib/spinningWheel";
+import { wheelOptionsFor } from "@/lib/spinningWheel";
 import { getTaskIcon } from "@/utils/taskIcon";
 import { formatDuration } from "@/utils/formatDuration";
 import { resolveDropStart } from "@/utils/dragSnap";
@@ -36,6 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { broadcastCoins } from "@/utils/coinSync";
 import { toast } from "sonner";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
+import { tieDay } from "@/utils/dayTies";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -85,10 +86,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const [recentChore, setRecentChore] = useState<{ id: string; name: string } | null>(null);
   const recentChoreTimer = useRef<number | null>(null);
   const choreSaving = useRef(new Set<string>());
-  // The free-time window in which the child chose the wheel. Free time opens
-  // on Biscuit; the wheel is the other choice, offered only with more than
-  // ten minutes left.
-  const [wheelFor, setWheelFor] = useState<string | null>(null);
+  // The free-time window in which the child chose Biscuit over the wheel.
+  // Free time opens on the wheel when there's one and the window is long
+  // enough for what it picks; Biscuit is the other choice.
+  const [petFor, setPetFor] = useState<string | null>(null);
   // Free-time windows whose "get ready" reminder already showed.
   const remindedFor = useRef(new Set<string>());
   // Snapshot of the just-completed task; while non-null, the active-task UI
@@ -399,10 +400,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     }
 
     const systemTaskNames = ['Wake Up', 'Breakfast', 'School', 'Lunch', 'Dinner', 'Bedtime'];
-    const resolvedTasks = todaysTasks.map(task => {
+    const dayTimes = todaysTasks.map(task => {
       // System tasks: pull per-day time/duration from the child record.
       if (child && systemTaskNames.includes(task.name)) {
-        const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr);
+        const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr, holidays);
         if (daySpecificSchedule) {
           return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration };
         }
@@ -431,6 +432,29 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       const isAnytime = task.type === 'flexible' || task.type === 'floating' || task.type === 'regular';
       return hasTime || isAnytime;
     });
+    // Wake-up and bedtime carry their routines along, an event takes the
+    // place of a meal it covers and pushes bedtime past its end.
+    const ties = tieDay(dayTimes.map(task => ({
+      id: task.id,
+      name: task.name,
+      type: task.type,
+      time: task.scheduled_time || null,
+      duration: task.duration ?? 0,
+      baseTime: todaysTasks.find(t => t.id === task.id)?.scheduled_time || task.window_start || null,
+      movedToday: !!(task.date_overrides?.[todayStr] || task.schedule_overrides?.[currentDay]),
+      isRecurring: task.is_recurring,
+      isEvent: task.is_event,
+      prepMinutes: task.prep_minutes,
+      afterTaskId: task.after_task_id,
+    })), child);
+    const resolvedTasks = dayTimes
+      .filter(task => !ties.hidden.has(task.id))
+      .map(task => {
+        const time = ties.times.get(task.id);
+        const anchor = ties.anchors.get(task.id);
+        if (!time && !anchor) return task;
+        return { ...task, ...(time ? { scheduled_time: time } : {}), ...(anchor ? { after_task_id: anchor } : {}) };
+      });
     // An event's block starts when getting ready does (never before wake-up),
     // so free time and overlaps count that time as taken. Its real start
     // stays in event_start for the labels.
@@ -799,8 +823,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
   // Pet context for the quiet spaces between tasks. It plays during longer
   // breaks, then looks up as the next scheduled activity gets close.
-  const minutesToNextTask = freeTimeCountdown ? freeTimeCountdown.remaining / 60 : null;
-  const petIsCheckingClock = minutesToNextTask !== null && minutesToNextTask <= 5;
+  // Games (and the wheel) stop five minutes before the next thing: that
+  // stretch is for getting ready. A child already playing is waved off.
+  const playSecondsLeft = freeTimeCountdown ? freeTimeCountdown.remaining - GET_READY_SECONDS : 0;
+  const canPlay = playSecondsLeft > 0;
+  const petIsCheckingClock = !!freeTimeCountdown && !canPlay;
   const nowMinutes = (() => {
     const [h, m] = getPSTTimeString().split(':').map(Number);
     return h * 60 + m;
@@ -1140,7 +1167,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   };
 
   return (
-    <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-focus-bg text-focus-text px-5 py-6 ${propChildId ? 'pt-sp-9' : ''}`}>
+    <div className={`${!propChildId ? 'min-h-dvh' : ''} bg-focus-bg text-focus-text px-5 py-6`}>
       <div className="max-w-[420px] min-[600px]:max-w-[660px] mx-auto">
         {!isRestDay && (
           <ScheduleSoundCues
@@ -1418,12 +1445,13 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             </div>
             {(() => {
               // The wheel is configured by a parent (stored on the child record).
-              // The child can only flip between the pet and the wheel — never
-              // edit it. Defaults to showing the wheel when one is set up.
-              const wheelOptions = normalizeWheelOptions(child.spinning_wheel_options);
-              // A spin only makes sense with time to do what it picks.
-              const canSpin = hasWheelOptions(wheelOptions) && freeTimeCountdown.remaining > WHEEL_MIN_SECONDS;
-              const showingWheel = canSpin && wheelFor === playKey;
+              // The child can only flip between the wheel and the pet — never
+              // edit it. Free time opens on the wheel when one is set up and
+              // the free time is long enough to do what it picks. The last
+              // few minutes are for getting ready: no wheel, no games.
+              const wheelOptions = wheelOptionsFor(child.spinning_wheel_options);
+              const canSpin = freeTimeCountdown.total > WHEEL_MIN_SECONDS && canPlay;
+              const showingWheel = canSpin && petFor !== playKey;
               return (
                 <AnimatePresence mode="wait">
                   {showingWheel ? (
@@ -1438,13 +1466,13 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       <SpinningWheel options={wheelOptions} sizePx={240} />
                       <button
                         type="button"
-                        onClick={() => { setWheelFor(null); setPlayFor(playKey); }}
-                        aria-label={picture ? `Play with ${petNick(child.petType)} instead` : undefined}
+                        onClick={() => setPetFor(playKey)}
+                        aria-label={picture ? `Show ${petNick(child.petType)}` : undefined}
                         className="mt-2 flex items-center gap-2 min-h-11 px-4 rounded-[16px] bg-focus-sheet text-14 text-focus-muted hover:text-focus-text transition-colors"
                       >
                         {picture
-                          ? <><PetFace outfit={child.pet_outfit} scale={2} /><Play className="w-6 h-6 fill-current" aria-hidden /></>
-                          : <><PetFace outfit={child.pet_outfit} scale={1} />Play With {petNick(child.petType)} Instead</>}
+                          ? <PetFace outfit={child.pet_outfit} scale={2} />
+                          : <><PetFace outfit={child.pet_outfit} scale={1} />Show {petNick(child.petType)}</>}
                       </button>
                     </motion.div>
                   ) : (
@@ -1483,25 +1511,25 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                           }
                           reaction={returnGreeting ? "Wave" : petIsCheckingClock ? "Curious" : undefined}
                           reactionKey={returnGreeting?.id ?? (petIsCheckingClock ? freeTimeCountdown.nextTask.id : freeTimeKey)}
-                          onTap={() => setPlayFor(playKey)}
+                          onTap={canPlay ? () => setPlayFor(playKey) : undefined}
                           className="w-full h-full"
                         />
                       </CircularTimer>
-                      {/* What to do with the free time: play with Biscuit,
-                          or (with over ten minutes left) spin the wheel. */}
+                      {/* What to do with the free time: play with Biscuit, or
+                          go back to the wheel. Nothing once it's time to get
+                          ready: Biscuit's bubble says what's next. */}
+                      {canPlay && (
                       <div className="w-full mt-sp-3 grid grid-cols-1 min-[360px]:grid-flow-col min-[360px]:auto-cols-fr gap-sp-2">
-                        {/* Biscuit's own face and a play sign say who and what
-                            without words; in picture view a finger taps on it. */}
+                        {/* Biscuit's own face and "Play"; in picture view a
+                            finger taps on it. */}
                         <button
                           type="button"
                           onClick={() => setPlayFor(playKey)}
                           aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
-                          className={cn("relative flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet text-14 font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7" : "min-h-12 px-4")}
+                          className={cn("relative flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7 text-24" : "min-h-12 px-4 text-14")}
                         >
                           <PetFace outfit={child.pet_outfit} scale={picture ? 2 : 1} />
-                          {picture
-                            ? <Play className="w-8 h-8 fill-current" aria-hidden />
-                            : <>Play With {petNick(child.petType)}</>}
+                          {picture ? "Play" : <>Play With {petNick(child.petType)}</>}
                           {picture && (
                             <motion.span
                               aria-hidden
@@ -1516,7 +1544,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         {canSpin && (
                           <button
                             type="button"
-                            onClick={() => setWheelFor(playKey)}
+                            onClick={() => setPetFor(null)}
                             aria-label={picture ? "Spin the wheel" : undefined}
                             className={cn("flex items-center justify-center gap-1.5 rounded-[16px] bg-focus-raised text-focus-text text-14 font-semibold hover:bg-focus-raised/80 transition-colors", picture ? "min-h-14 px-7" : "min-h-12 px-4")}
                           >
@@ -1525,6 +1553,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                           </button>
                         )}
                       </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1791,14 +1820,17 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         onClose={() => setShowRewardsShop(false)}
       />
 
-      {/* Free-time play: full screen, closes itself when free time ends */}
+      {/* Free-time play: full screen. Five minutes before the next thing
+          Biscuit waves goodbye and it closes, so there's time to get ready. */}
       <AnimatePresence>
         {playFor === playKey && freeTimeCountdown && !activeTask && (
           <Playtime
             picture={picture}
             childId={child.id}
             petType={child.petType}
-            secondsLeft={freeTimeCountdown.remaining}
+            secondsLeft={Math.max(0, playSecondsLeft)}
+            nextName={freeTimeCountdown.nextTask.name}
+            nextIcon={freeTimeCountdown.nextTask.icon}
             onClose={() => setPlayFor(null)}
             outfit={child.pet_outfit ?? null}
             onOutfitChange={(outfit) => { void updateChild(child.id, { pet_outfit: outfit }); }}
@@ -1806,10 +1838,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         )}
       </AnimatePresence>
 
-      {/* Five minutes before the next thing, wherever the child is (the
-          wheel, Playtime), Biscuit says it's time to get ready. */}
+      {/* Five minutes before the next thing, Biscuit says it's time to get
+          ready. In Playtime its goodbye says so instead. */}
       {!isRestDay && !sleepTime && !activeTask && freeTimeCountdown && (
         <GetReadyReminder
+          quiet={playFor === playKey}
           speakPrompt={picture}
           nextIcon={freeTimeCountdown.nextTask.icon}
           nextTime={displayStart(freeTimeCountdown.nextTask) ? formatTime(displayStart(freeTimeCountdown.nextTask)!) : undefined}
@@ -1872,19 +1905,21 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   );
 };
 
-/** Spinning the wheel is only offered with more than this much free time left. */
+/** The wheel is only offered in free time longer than this: a spin needs time to do what it picks. */
 const WHEEL_MIN_SECONDS = 10 * 60;
-/** Biscuit's "get ready" heads-up comes this long before the next task. */
+/** Biscuit's "get ready" heads-up comes this long before the next task; games end then too. */
 const GET_READY_SECONDS = 5 * 60;
 
 /**
  * "5 minutes until Soccer! Time to get ready." Shown once per free-time
- * window, on top of everything (the wheel, Playtime), with a gentle chime.
- * Closes itself after a while, when the child taps OK, or when free time ends.
+ * window, on top of the wheel, with a gentle chime. Closes itself after a
+ * while, when the child taps OK, or when free time ends.
  */
-function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, petType, outfit, reminded, speakPrompt }: {
+function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, petType, outfit, reminded, speakPrompt, quiet }: {
   /** Picture view: say it out loud, and show pictures instead of a sentence. */
   speakPrompt?: boolean;
+  /** The child is in Playtime, whose own goodbye says it: count it as said. */
+  quiet?: boolean;
   nextIcon?: string | null;
   /** "3:30pm": when the next thing starts. */
   nextTime?: string;
@@ -1901,10 +1936,11 @@ function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, 
   useEffect(() => {
     if (remaining <= 0 || remaining > GET_READY_SECONDS || reminded.has(windowKey)) return;
     reminded.add(windowKey);
+    if (quiet) return;
     setOpen(true);
     sounds.soon();
     if (speakPrompt) window.setTimeout(() => speak(`Get ready! ${nextName} is next.`), 700);
-  }, [remaining, windowKey, reminded, speakPrompt, nextName]);
+  }, [remaining, windowKey, reminded, speakPrompt, nextName, quiet]);
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => setOpen(false), 15_000);

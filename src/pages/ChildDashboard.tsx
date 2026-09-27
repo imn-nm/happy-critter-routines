@@ -36,7 +36,9 @@ import { springs } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
-import { getSystemTaskScheduleForDay, isRoutineKey, isWeekendDay, overridesField, updateAllSystemTaskInstances, weekendTimeOf, withWeekendTime } from "@/utils/systemTasks";
+import { everydayBreakfastFor, getSystemTaskScheduleForDay, isWeekendKey, overridesField, updateAllSystemTaskInstances, usesWeekendTime, weekendDaysLabel, weekendTimeOf, withWeekendTime } from "@/utils/systemTasks";
+import { minutesToTime, timeToMinutes } from "@/utils/scheduleOverlap";
+import { useHolidays } from "@/hooks/useHolidays";
 import { isRestDate, restDayUpdate } from "@/utils/restDays";
 import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
 import { toast as sonner } from "sonner";
@@ -59,6 +61,8 @@ const ChildDashboard = () => {
   const [showRoutines, setShowRoutines] = useState(false);
   const [copyingTask, setCopyingTask] = useState<Task | null>(null);
   const { routines } = useRoutines(childId);
+  // No-school holidays count as days off for weekend wake-up and bedtime.
+  const { holidays } = useHolidays(childId);
   // Rest day applies to whichever day the parent is currently viewing; a
   // child can have any number of them.
   const selectedDayString = child ? format(currentDate, 'yyyy-MM-dd') : '';
@@ -318,7 +322,19 @@ const ChildDashboard = () => {
    * and "all" from a weekday leaves weekends that have their own time alone.
    */
   const systemScopeUpdate = (systemKey: string, taskData: Partial<Task>, scope: 'all' | 'weekend') => {
-    if (!child || !isRoutineKey(systemKey)) return buildSystemUpdateData(systemKey, taskData);
+    if (!child) return buildSystemUpdateData(systemKey, taskData);
+    const day = format(currentDate, 'EEEE').toLowerCase();
+    const date = format(currentDate, 'yyyy-MM-dd');
+    // Breakfast follows wake-up: keep it as far after waking as the parent
+    // just put it on this day, on every day (a Saturday edit keeps weekdays
+    // in step).
+    if (systemKey === 'breakfast') {
+      const dayWake = getSystemTaskScheduleForDay(child, 'Wake Up', day, date, holidays)?.time;
+      return buildSystemUpdateData(systemKey, taskData.scheduled_time && dayWake
+        ? { ...taskData, scheduled_time: everydayBreakfastFor(child, taskData.scheduled_time, dayWake) }
+        : taskData);
+    }
+    if (!isWeekendKey(systemKey)) return buildSystemUpdateData(systemKey, taskData);
     const field = overridesField(systemKey);
     if (scope === 'weekend') {
       // A profile that never saved this time still has it on the row itself.
@@ -335,7 +351,14 @@ const ChildDashboard = () => {
       return { [field]: withWeekendTime(child[field], same ? null : weekendTime) };
     }
     const updateData = buildSystemUpdateData(systemKey, taskData);
-    if (isWeekendDay(format(currentDate, 'EEEE').toLowerCase()) && weekendTimeOf(child, systemKey)) {
+    // Breakfast stays the same distance after an everyday wake-up that moves.
+    const wakeWas = timeToMinutes(child.wake_time);
+    const wakeNow = timeToMinutes(updateData.wake_time);
+    const breakfastWas = timeToMinutes(child.breakfast_time);
+    if (systemKey === 'wake' && wakeWas != null && wakeNow != null && breakfastWas != null && wakeNow !== wakeWas) {
+      updateData.breakfast_time = minutesToTime(breakfastWas + wakeNow - wakeWas);
+    }
+    if (usesWeekendTime(child, systemKey, day, date, holidays) && weekendTimeOf(child, systemKey)) {
       updateData[field] = withWeekendTime(child[field], null);
     }
     return updateData;
@@ -364,10 +387,15 @@ const ChildDashboard = () => {
       // old time there makes them compute against a schedule that no longer
       // exists. Display already prefers the children record, so only the
       // time needs mirroring.
-      const timeField = { wake: 'wake_time', breakfast: 'breakfast_time', school: 'school_start_time', lunch: 'lunch_time', dinner: 'dinner_time', bedtime: 'bedtime' }[systemKey];
-      if (timeField && updateData[timeField]) {
+      // (Breakfast moves along when wake-up does.)
+      const mirrored = Object.fromEntries(
+        ['wake_time', 'breakfast_time', 'school_start_time', 'lunch_time', 'dinner_time', 'bedtime']
+          .filter(field => updateData[field])
+          .map(field => [field, updateData[field]]),
+      );
+      if (Object.keys(mirrored).length > 0) {
         try {
-          await updateAllSystemTaskInstances(child.id, { [timeField]: updateData[timeField] });
+          await updateAllSystemTaskInstances(child.id, mirrored);
         } catch (error) {
           console.error('Error syncing system task time:', error);
         }
@@ -627,12 +655,19 @@ const ChildDashboard = () => {
     : null;
   // Wake-up, meals and bedtime edited from a weekend day can apply to every
   // weekend; from a weekday, weekends with their own time keep it.
+  // Bedtime's weekend is Friday and Saturday night (see usesWeekendTime).
   const editDay = format(currentDate, 'EEEE').toLowerCase();
   const pendingRoutineKey = pendingRecurringEdit ? systemNameToKey[pendingRecurringEdit.editingTask.name] : undefined;
-  const routineRow = isRoutineKey(pendingRoutineKey) ? pendingRoutineKey : null;
-  const offerWeekend = !!routineRow && isWeekendDay(editDay);
+  const routineRow = isWeekendKey(pendingRoutineKey) ? pendingRoutineKey : null;
+  const offerWeekend = !!routineRow && !!child && usesWeekendTime(child, routineRow, editDay, format(currentDate, 'yyyy-MM-dd'), holidays);
   const weekendsOwn = !!routineRow && !!child && !!weekendTimeOf(child, routineRow);
-  const allDaysLabel = !routineRow ? 'All recurring' : !offerWeekend && weekendsOwn ? 'Every Weekday' : 'Every Day';
+  const nights = routineRow === 'bedtime' ? ' nights' : '';
+  const weekendDays = routineRow && child ? `${weekendDaysLabel(child, routineRow)}${nights}` : '';
+  const allDaysLabel = !routineRow
+    ? (pendingRoutineKey === 'breakfast' ? 'Every Day' : 'All recurring')
+    : !offerWeekend && weekendsOwn
+      ? (routineRow === 'bedtime' ? 'Every School Night' : 'Every Weekday')
+      : 'Every Day';
 
   if (!child) {
     return (
@@ -911,10 +946,12 @@ const ChildDashboard = () => {
                     {format(currentDate, 'EEE, MMM d')}
                   </span>
                   {offerWeekend
-                    ? ', every Saturday and Sunday, or every day?'
+                    ? `, every ${weekendDays.replace(/ nights$/, ' night')}, or every day?`
                     : routineRow && weekendsOwn
-                      ? ', or every weekday? Weekends keep their own time.'
-                      : ', or to all recurring days?'}
+                      ? `, or every ${routineRow === 'bedtime' ? 'school night' : 'weekday'}? ${weekendDays} keep their own time.`
+                      : pendingRoutineKey === 'breakfast'
+                        ? ', or every day? Breakfast stays this long after wake-up on weekends too.'
+                        : ', or to all recurring days?'}
                 </>
               )}
             </AlertDialogDescription>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, animate, useMotionValue, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
 import { WHEEL_COLORS } from "@/lib/spinningWheel";
@@ -45,6 +45,11 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
   const { t: tMotion } = useMotionPrefs();
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
+  // The wheel turns; each label turns back by the same amount around its own
+  // middle, so the words stay upright the whole time (like seats on a
+  // Ferris wheel). One motion value drives both, so they never drift apart.
+  const turn = useMotionValue(0);
+  const labelTurn = useTransform(turn, v => -v);
   const [winner, setWinner] = useState<string | null>(null);
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -79,6 +84,7 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
     const delta = ((finalMod - currentMod + 360) % 360) + extraSpins * 360;
     const nextRotation = rotation + delta;
     setRotation(nextRotation);
+    animate(turn, nextRotation, tMotion({ duration: 4, ease: [0.2, 0.85, 0.25, 1] }));
 
     spinTimeoutRef.current = setTimeout(() => {
       setWinner(options[targetSliceIdx]);
@@ -124,11 +130,7 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
 
       <motion.div
         className="w-full h-full rounded-full overflow-hidden shadow-[0_0_0_4px_rgba(168,154,240,0.25)]"
-        animate={{ rotate: rotation }}
-        transition={{
-          duration: spinning ? 4 : 0,
-          ease: [0.2, 0.85, 0.25, 1],
-        }}
+        style={{ rotate: turn }}
       >
         <svg viewBox="0 0 200 200" className="w-full h-full">
           {options.map((opt, i) => {
@@ -162,6 +164,8 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
             return (
               <g key={i}>
                 <path d={path} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="#181E36" strokeWidth={1.25} />
+                {/* Turns back as the wheel turns, around the label's middle. */}
+                <motion.g style={{ rotate: labelTurn }}>
                 <text
                   x={labelX}
                   y={labelY}
@@ -180,6 +184,7 @@ const SpinningWheel = ({ options, sizePx = 260, className, bare = false, spinSig
                     </tspan>
                   ))}
                 </text>
+                </motion.g>
               </g>
             );
           })}

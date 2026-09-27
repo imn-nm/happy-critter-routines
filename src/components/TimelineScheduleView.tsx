@@ -12,6 +12,7 @@ import { useCompletions } from '@/hooks/useCompletions';
 import { Child } from '@/hooks/useChildren';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { tieDay } from '@/utils/dayTies';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
@@ -904,7 +905,7 @@ const TimelineScheduleView = ({
     return systemTaskNames.includes(task.name);
   }).map(task => {
     // Get day-specific schedule if available, otherwise use task defaults
-    const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, dayOfWeek, selectedDayDateString);
+    const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, dayOfWeek, selectedDayDateString, holidays);
 
     return {
       id: task.id,
@@ -917,10 +918,38 @@ const TimelineScheduleView = ({
       recurring_days: task.recurring_days,
     };
   });
-  
+
+  // Wake-up and bedtime carry their routines along; an event takes the place
+  // of a meal it covers and pushes bedtime past its end. Same as the child's
+  // screen (utils/dayTies).
+  const dayTies = tieDay([
+    ...systemEvents.map(e => ({ id: e.id, name: e.name, time: e.time, duration: e.duration })),
+    ...dayTasks
+      .filter(t => t.type !== 'floating' && !systemTaskNames.includes(t.name))
+      .map(t => {
+        const override = t.date_overrides?.[selectedDayDateString] || t.schedule_overrides?.[dayOfWeek];
+        return {
+          id: t.id,
+          name: t.name,
+          type: t.type,
+          time: override?.scheduled_time || t.scheduled_time || t.window_start || null,
+          duration: override?.duration ?? t.duration ?? 30,
+          baseTime: t.scheduled_time || t.window_start || null,
+          movedToday: !!override,
+          isRecurring: t.is_recurring,
+          isEvent: t.is_event,
+          prepMinutes: t.prep_minutes,
+          afterTaskId: t.after_task_id,
+        };
+      }),
+  ], child);
+  const tiedSystemEvents = systemEvents
+    .filter(e => !dayTies.hidden.has(e.id))
+    .map(e => ({ ...e, time: dayTies.times.get(e.id) ?? e.time }));
+
   // Separate fixed events (system + scheduled) from draggable tasks
   // Filter out lunch when school is present (they overlap in time)
-  const systemEventsOnly: TimelineEvent[] = systemEvents
+  const systemEventsOnly: TimelineEvent[] = tiedSystemEvents
     .filter(event => {
       // Hide Lunch only when it falls inside the School window — matching the
       // child view (ChildInterface.getTodaysSchedule), which keeps a lunch
@@ -970,10 +999,12 @@ const TimelineScheduleView = ({
   // without these bounds the "nearest fitting gap" could be the empty
   // stretch before dawn or after lights-out.
   const dayBounds = (() => {
-    const [wh, wm] = (child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
-    // Bedtime start for this specific day (day-specific overrides included);
-    // fall back to the child's base bedtime.
-    const bedtimeEvent = systemEvents.find(e => e.name === 'Bedtime');
+    // This day's wake-up (a later weekend one included).
+    const wakeEvent = tiedSystemEvents.find(e => e.name === 'Wake Up');
+    const [wh, wm] = (wakeEvent?.time || child.wake_time || '07:00').slice(0, 5).split(':').map(Number);
+    // Bedtime start for this specific day (day-specific overrides and an
+    // event pushing it later included); fall back to the child's base bedtime.
+    const bedtimeEvent = tiedSystemEvents.find(e => e.name === 'Bedtime');
     const bedtimeStr = (bedtimeEvent?.time || child.bedtime || '').slice(0, 5);
     const dayEnd = (() => {
       if (!bedtimeStr) return undefined;
@@ -985,12 +1016,15 @@ const TimelineScheduleView = ({
     return { dayStart: wh * 60 + wm, dayEnd };
   })();
 
-  // Resolve day-specific overrides for a task. Per-date wins over per-weekday.
+  // Resolve day-specific overrides for a task. Per-date wins over per-weekday,
+  // then where the task moved with wake-up or bedtime.
+  const tiedTimeOf = (task: { id: string; scheduled_time?: string | null }): string | null =>
+    task.scheduled_time ? dayTies.times.get(task.id) ?? task.scheduled_time : null;
   const getTaskTimeForDay = (task: any): { time: string; duration: number } => {
     const dateOverride = task.date_overrides?.[selectedDayDateString];
     const weekdayOverride = task.schedule_overrides?.[dayOfWeek];
     return {
-      time: dateOverride?.scheduled_time || weekdayOverride?.scheduled_time || task.scheduled_time || '09:00',
+      time: dateOverride?.scheduled_time || weekdayOverride?.scheduled_time || tiedTimeOf(task) || '09:00',
       duration: dateOverride?.duration ?? weekdayOverride?.duration ?? task.duration ?? 30,
     };
   };
@@ -1090,28 +1124,31 @@ const TimelineScheduleView = ({
   };
   fixedEvents.forEach(e => endsAt.set(e.id, toMinutesOfDay(e.time) + e.duration));
   const pinnedTimeOf = (task: typeof draggableTasks[number]) =>
-    task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || task.scheduled_time;
+    task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || tiedTimeOf(task);
   draggableTasks.forEach(task => {
     const pinned = pinnedTimeOf(task);
     if (pinned) endsAt.set(task.id, toMinutesOfDay(pinned) + getTaskTimeForDay(task).duration);
   });
   // Flex tasks (no pinned time) are placed in turn: after their anchor when
-  // they have one, otherwise at their window_start hint or the next slot.
+  // they have one, otherwise at their window_start hint (moved along with
+  // wake-up or bedtime) or the next slot.
   const flexTimes = new Map<string, string>();
   for (const task of orderByAnchors(draggableTasks)) {
     if (pinnedTimeOf(task)) continue;
     const taskDuration = getTaskTimeForDay(task).duration;
-    const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : undefined;
+    const anchorId = dayTies.anchors.get(task.id) ?? task.after_task_id;
+    const anchorEnd = anchorId ? endsAt.get(anchorId) : undefined;
+    const windowStart = dayTies.times.get(task.id) ?? task.window_start;
     let startMin: number;
     if (anchorEnd != null) {
       // "After this": right after the anchor, or the next gap after it.
       startMin = resolveDropStart(flexOccupied, anchorEnd, taskDuration, dayBounds) ?? anchorEnd;
     } else {
-      const hint = task.window_start || findNextAvailableTime(taskDuration);
+      const hint = windowStart || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
       // A task with no placement hint at all shouldn't be auto-parked in a
       // slot that has already passed when viewing today.
-      const hintMinutes = task.window_start
+      const hintMinutes = windowStart
         ? hh * 60 + hm
         : (isPSTToday(selectedDay) ? Math.max(hh * 60 + hm, nowMinutes) : hh * 60 + hm);
       const placedStart = resolveDropStart(flexOccupied, hintMinutes, taskDuration, dayBounds);

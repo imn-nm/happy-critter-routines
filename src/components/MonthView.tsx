@@ -206,7 +206,7 @@ const MonthView = ({
     // Apply day-specific overrides for system tasks
     const resolved = tasksForDate.map(task => {
       if (systemTaskNames.includes(task.name)) {
-        const override = getSystemTaskScheduleForDay(child, task.name, dayName, dateString);
+        const override = getSystemTaskScheduleForDay(child, task.name, dayName, dateString, holidays);
         if (override) {
           return { ...task, scheduled_time: override.time, duration: override.duration };
         }

@@ -52,10 +52,17 @@ interface Note {
   gain?: number;
 }
 
+// Children side by side often reach the same moment together (Dinner for
+// everyone): the same cue from two screens at once plays once.
+const lastPlayed = new Map<string, number>();
+
 const play = (notes: Note[], type: OscillatorType = "sine") => {
   if (!soundsEnabled()) return;
   const c = getCtx();
   if (!c || c.state !== "running") return;
+  const cue = `${type}:${notes.map(n => n.f).join(",")}`;
+  if (Date.now() - (lastPlayed.get(cue) ?? 0) < 1000) return;
+  lastPlayed.set(cue, Date.now());
   const now = c.currentTime;
   for (const n of notes) {
     const osc = c.createOscillator();

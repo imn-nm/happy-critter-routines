@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { Plus, X, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs, springs } from "@/lib/motion";
-import { WHEEL_COLORS, MAX_WHEEL_OPTIONS } from "@/lib/spinningWheel";
+import { WHEEL_COLORS, MAX_WHEEL_OPTIONS, MIN_WHEEL_OPTIONS, STARTER_WHEEL_OPTIONS } from "@/lib/spinningWheel";
 
 interface SpinningWheelEditorProps {
   childName?: string;
@@ -49,7 +49,7 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
           <span className="text-[15px] font-semibold text-focus-text">Free-Time Spinning Wheel</span>
           <span className="text-13 text-focus-muted leading-snug">
             Add fun activities {childName ? `${childName} can` : "your child can"} land on during
-            free time. They'll see the wheel and can spin it — they can't change the options.
+            free time. Free time opens on the wheel, and they can spin it — they can't change the options.
           </span>
         </div>
       </div>
@@ -115,8 +115,8 @@ const SpinningWheelEditor = ({ childName, value, onChange }: SpinningWheelEditor
 
       <div className="flex items-center justify-between text-12 text-focus-muted">
         <span>
-          {options.length < 2
-            ? "Add at least 2 to enable the wheel."
+          {options.length < MIN_WHEEL_OPTIONS
+            ? `Until there are ${MIN_WHEEL_OPTIONS}, the wheel uses ${STARTER_WHEEL_OPTIONS.join(", ")}.`
             : "Wheel is ready! 🎉"}
         </span>
         <span className={cn(options.length >= MAX_WHEEL_OPTIONS && "text-focus-coral")}>

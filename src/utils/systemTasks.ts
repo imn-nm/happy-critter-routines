@@ -1,5 +1,7 @@
+import { addDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { type Child } from '@/hooks/useChildren';
+import { minutesToTime, timeToMinutes } from '@/utils/scheduleOverlap';
 
 export interface SystemTaskTemplate {
   name: string;
@@ -243,18 +245,68 @@ export const updateAllSystemTaskInstances = async (childId: string, systemTaskUp
 };
 
 // ── Weekends ──────────────────────────────────────────────────────────────
-// Wake-up, meals and bedtime can run on other times on Saturday and Sunday.
-// They're stored in the row's per-weekday overrides (wake_schedule_overrides
-// etc.), under both weekend days; everything else uses the everyday time.
+// Wake-up, lunch, dinner and bedtime can run on other times at the weekend.
+// "Weekend" follows the child's school days: a later wake-up and meals are for
+// days off (Saturday, Sunday, a no-school holiday), a later bedtime for the
+// night *before* a day off (Friday and Saturday), so Sunday night is still an
+// early night before school. The time is stored once, under `weekend` in the
+// row's overrides column (wake_schedule_overrides etc.).
+// Breakfast has no weekend time: it always follows wake-up (see below).
 
-export const WEEKEND_DAYS = ['saturday', 'sunday'] as const;
-export const isWeekendDay = (dayOfWeek: string) => dayOfWeek === 'saturday' || dayOfWeek === 'sunday';
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const WEEKDAY_NAMES = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
-/** The built-in rows that can have weekend times (School has its own editor). */
+/** Enough of a holiday to know whether there's school. */
+export interface HolidayLike {
+  date: string;
+  end_date?: string | null;
+  is_no_school?: boolean | null;
+}
+
+const schoolDaysOf = (child: Partial<Child>) => (child.school_days?.length ? child.school_days : WEEKDAY_NAMES);
+const nextDayName = (day: string) => DAY_NAMES[(DAY_NAMES.indexOf(day) + 1) % 7];
+const nextDateString = (date: string) => format(addDays(new Date(`${date}T00:00:00`), 1), 'yyyy-MM-dd');
+
+/** No school that day: not one of the child's school days, or a no-school holiday. */
+export const isDayOff = (child: Partial<Child>, dayOfWeek: string, date?: string, holidays?: HolidayLike[] | null) => {
+  if (!schoolDaysOf(child).includes(dayOfWeek)) return true;
+  return !!date && !!holidays?.some(h => h.is_no_school && date >= h.date && date <= (h.end_date || h.date));
+};
+
+/** The built-in rows with a daily time (School has its own editor). */
 export type RoutineKey = 'wake' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime';
 export const ROUTINE_KEYS: RoutineKey[] = ['wake', 'breakfast', 'lunch', 'dinner', 'bedtime'];
-export const isRoutineKey = (key: string | null | undefined): key is RoutineKey =>
-  !!key && (ROUTINE_KEYS as string[]).includes(key);
+
+/** The rows that can have a weekend time of their own. */
+export type WeekendKey = Exclude<RoutineKey, 'breakfast'>;
+export const WEEKEND_KEYS: WeekendKey[] = ['wake', 'lunch', 'dinner', 'bedtime'];
+export const isWeekendKey = (key: string | null | undefined): key is WeekendKey =>
+  !!key && (WEEKEND_KEYS as string[]).includes(key);
+
+/** Does this row use its weekend time on this day? Bedtime looks at the morning after. */
+export const usesWeekendTime = (
+  child: Partial<Child>,
+  key: WeekendKey,
+  dayOfWeek: string,
+  date?: string,
+  holidays?: HolidayLike[] | null,
+) =>
+  key === 'bedtime'
+    ? isDayOff(child, nextDayName(dayOfWeek), date ? nextDateString(date) : undefined, holidays)
+    : isDayOff(child, dayOfWeek, date, holidays);
+
+/**
+ * "Saturday and Sunday", or for bedtime "Friday and Saturday": the usual
+ * weekend days of a row. Short: "Fri & Sat".
+ */
+export const weekendDaysLabel = (child: Partial<Child>, key: WeekendKey, short = false) => {
+  const week = [...DAY_NAMES.slice(1), 'sunday'];
+  const names = week
+    .filter(day => usesWeekendTime(child, key, day))
+    .map(day => day[0].toUpperCase() + (short ? day.slice(1, 3) : day.slice(1)));
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} ${short ? '&' : 'and'} ${names[names.length - 1]}`;
+};
 
 type DayTimes = Record<string, { time: string; duration: number }>;
 
@@ -262,19 +314,41 @@ type DayTimes = Record<string, { time: string; duration: number }>;
 export const overridesField = (key: RoutineKey) => `${key}_schedule_overrides` as const;
 
 /** A row's own weekend time, or null when weekends use the everyday one. */
-export const weekendTimeOf = (child: Partial<Child>, key: RoutineKey) => {
+export const weekendTimeOf = (child: Partial<Child>, key: WeekendKey) => {
   const overrides = child[overridesField(key)] as DayTimes | null | undefined;
-  return overrides?.saturday ?? overrides?.sunday ?? null;
+  // Saturday/Sunday: how weekend times were stored before `weekend`.
+  return overrides?.weekend ?? overrides?.saturday ?? overrides?.sunday ?? null;
 };
 
-/** The row's per-weekday times with the weekend set to `value` (null: back to everyday). */
+/** The row's overrides with the weekend set to `value` (null: back to everyday). */
 export const withWeekendTime = (overrides: DayTimes | null | undefined, value: { time: string; duration: number } | null) => {
-  const next: DayTimes = { ...(overrides ?? {}) };
-  for (const day of WEEKEND_DAYS) {
-    if (value) next[day] = value;
-    else delete next[day];
-  }
-  return next;
+  const { saturday: _sat, sunday: _sun, weekend: _old, ...rest } = overrides ?? {};
+  return value ? { ...rest, weekend: value } : rest;
+};
+
+// ── Breakfast follows wake-up ─────────────────────────────────────────────
+// Breakfast keeps its everyday distance from wake-up, so a later wake-up (the
+// weekend, one sleepy morning) moves it too. Only a change to breakfast for
+// one date pins it.
+
+/** Minutes from wake-up to breakfast on the everyday schedule; null when unknown. */
+export const breakfastGap = (child: Partial<Child>) => {
+  const wake = timeToMinutes(child.wake_time);
+  const breakfast = timeToMinutes(child.breakfast_time);
+  if (wake == null || breakfast == null || breakfast < wake) return null;
+  return breakfast - wake;
+};
+
+/**
+ * The everyday breakfast time that puts breakfast at `time` on a day that
+ * wakes at `dayWake`: an edit made on a Saturday keeps weekdays in step.
+ */
+export const everydayBreakfastFor = (child: Partial<Child>, time: string, dayWake: string) => {
+  const wake = timeToMinutes(child.wake_time);
+  const at = timeToMinutes(time);
+  const woke = timeToMinutes(dayWake);
+  if (wake == null || at == null || woke == null) return time.slice(0, 5);
+  return minutesToTime(wake + Math.max(0, at - woke));
 };
 
 /**
@@ -293,7 +367,8 @@ export const getSystemTaskScheduleForDay = (
   child: Child,
   taskName: string,
   dayOfWeek: string, // e.g., 'monday', 'tuesday', etc.
-  dateString?: string // optional yyyy-MM-dd; when provided, system_date_overrides win.
+  dateString?: string, // optional yyyy-MM-dd; when provided, system_date_overrides win.
+  holidays?: HolidayLike[] | null, // no-school holidays count as days off
 ): DaySpecificSchedule | null => {
   const taskNameLower = taskName.toLowerCase();
 
@@ -353,24 +428,38 @@ export const getSystemTaskScheduleForDay = (
     }
   }
 
+  // A usual length for a row whose profile never stored one (null): used
+  // raw, the row counted as zero minutes and anything set to start after it
+  // was pushed down the day.
+  const defaultDuration = child[mapping.durationField] as number | null | undefined;
+  const usualDuration = defaultDuration
+    ?? systemTaskTemplates.find(t => t.name.toLowerCase() === taskNameLower)?.defaultDuration ?? 30;
+
+  // Breakfast follows that day's wake-up.
+  if (taskNameLower === 'breakfast') {
+    const gap = breakfastGap(child);
+    const wake = gap == null ? null : getSystemTaskScheduleForDay(child, 'Wake Up', dayOfWeek, dateString, holidays);
+    const wakeMin = timeToMinutes(wake?.time);
+    if (gap != null && wakeMin != null) return { time: minutesToTime(wakeMin + gap), duration: usualDuration };
+  }
+
   // Per-weekday override.
   const overrides = child[mapping.overridesField] as Record<string, { time: string; duration: number }> | undefined;
   if (overrides && overrides[dayOfWeek]) {
     return overrides[dayOfWeek];
   }
 
+  // The weekend time, on the days it's for.
+  const key = systemTaskKey(taskName);
+  if (overrides?.weekend && isWeekendKey(key) && usesWeekendTime(child, key, dayOfWeek, dateString, holidays)) {
+    return overrides.weekend;
+  }
+
   // Fall back to default schedule
   const defaultTime = child[mapping.timeField] as string | undefined;
-  const defaultDuration = child[mapping.durationField] as number | null | undefined;
 
   if (defaultTime) {
-    return {
-      time: defaultTime,
-      // A child whose profile was never saved has no lengths stored (null):
-      // use the usual ones, or the row counted as zero minutes and anything
-      // set to start after it was pushed down the day.
-      duration: defaultDuration ?? systemTaskTemplates.find(t => t.name.toLowerCase() === taskNameLower)?.defaultDuration ?? 30,
-    };
+    return { time: defaultTime, duration: usualDuration };
   }
 
   return null;

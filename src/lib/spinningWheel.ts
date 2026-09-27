@@ -27,3 +27,16 @@ export function normalizeWheelOptions(value: unknown): string[] {
 export function hasWheelOptions(options?: string[] | null): boolean {
   return (options?.length ?? 0) >= MIN_WHEEL_OPTIONS;
 }
+
+/**
+ * What the wheel lands on until a grown-up adds their own. Free time comes
+ * first on the wheel, so every child has one; all screen-free, like the rest
+ * of free time.
+ */
+export const STARTER_WHEEL_OPTIONS = ["Draw", "Lego", "Read", "Play outside", "Puzzle", "Dance"];
+
+/** The child's wheel: the parent's own options, or the starter ones until there are enough. */
+export function wheelOptionsFor(value: unknown): string[] {
+  const own = normalizeWheelOptions(value);
+  return hasWheelOptions(own) ? own : STARTER_WHEEL_OPTIONS;
+}

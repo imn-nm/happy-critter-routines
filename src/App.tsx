@@ -17,6 +17,7 @@ import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
 import ChildNameGate from "./pages/ChildNameGate";
+import ChildrenTogether from "./pages/ChildrenTogether";
 import ChecklistPreview from "./pages/ChecklistPreview";
 import ChorePreview from "./pages/ChorePreview";
 import ChildOverduePreview from "./pages/ChildOverduePreview";
@@ -59,6 +60,8 @@ const ProtectedRoutes = () => (
     <Route path="/" element={<ChildNameGate />} />
     <Route path="/landing" element={<Index />} />
     <Route path="/dashboard" element={<Navigate to="/parent" replace />} />
+    {/* Up to three children side by side on an iPad or computer. */}
+    <Route path="/child/together" element={<ChildrenTogether />} />
     <Route path="/child/:childId" element={<ChildInterface />} />
     {/* Grown-up side: behind the parent PIN once a child's screen has been
         open on this device. */}
