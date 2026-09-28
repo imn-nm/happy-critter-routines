@@ -12,7 +12,7 @@ import { useCompletions } from '@/hooks/useCompletions';
 import { Child } from '@/hooks/useChildren';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
-import { tieDay } from '@/utils/dayTies';
+import { isBedtimeRoutine, tieDay } from '@/utils/dayTies';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
@@ -1242,9 +1242,12 @@ const TimelineScheduleView = ({
       const [nextHours, nextMinutes] = nextEvent.time.split(':').map(Number);
       const nextStartMinutes = nextHours * 60 + nextMinutes;
       
-      // If there's a gap of 15+ minutes, create an empty block
+      // If there's a gap of 15+ minutes, create an empty block. The bedtime
+      // routine runs straight into bed, so none there: finishing it early
+      // starts Bedtime on the child's screen.
       const gapMinutes = nextStartMinutes - currentEndMinutes;
-      if (gapMinutes >= 15) {
+      const intoBed = isBedtimeRoutine(currentEvent.name) && nextEvent.name === 'Bedtime';
+      if (gapMinutes >= 15 && !intoBed) {
         const gapStartHours = Math.floor(currentEndMinutes / 60);
         const gapStartMins = currentEndMinutes % 60;
         const gapTimeStr = `${gapStartHours.toString().padStart(2, '0')}:${gapStartMins.toString().padStart(2, '0')}`;

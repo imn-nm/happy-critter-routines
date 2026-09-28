@@ -37,7 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { broadcastCoins } from "@/utils/coinSync";
 import { toast } from "sonner";
 import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
-import { tieDay } from "@/utils/dayTies";
+import { isBedtimeRoutine, tieDay } from "@/utils/dayTies";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -747,6 +747,23 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       }
     }
 
+    // Done with the bedtime routine (finished early, or its time is up) and
+    // bed is next: straight to bed, no free time in between.
+    if (!current && upcoming[0] && isBedtimeRow(upcoming[0].name)) {
+      const startOf = (t: { scheduled_time?: string | null }) => {
+        const [sh, sm] = (t.scheduled_time || '00:00').slice(0, 5).split(':').map(Number);
+        return sh * 60 + sm;
+      };
+      const bedStart = startOf(upcoming[0]);
+      const before = todaysSchedule
+        .filter(t => t.type !== 'floating' && t.scheduled_time && startOf(t) < bedStart)
+        .pop();
+      if (before && isBedtimeRoutine(before.name) && (before.isCompleted || nowMinutes >= startOf(before))) {
+        current = upcoming.shift()!;
+        freeTimeUntil = '';
+      }
+    }
+
     // Keep the unfinished activity in focus while the wall-clock schedule
     // continues underneath it. Bedtime remains a fixed end to the day, and so
     // does an event: the game starts when it starts.
@@ -876,6 +893,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       const gapStart = start + duration;
       const gapMinutes = nextStart - gapStart;
       if (gapMinutes < FREE_TIME_MIN_MINUTES) return;
+      // The bedtime routine runs straight into bed.
+      if (isBedtimeRoutine(task.name) && isBedtimeRow(next.name)) return;
       rows.push({ kind: 'free', id: `free-${task.id}`, startMin: gapStart, durationMin: gapMinutes });
     });
     return rows;
