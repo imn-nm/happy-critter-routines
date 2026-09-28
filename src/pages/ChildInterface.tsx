@@ -13,7 +13,7 @@ import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import Playtime from "@/components/pets/playtime/Playtime";
 import { petNick } from "@/components/pets/petCatalog";
-import { SPORTS_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
+import { SLEEP_RE, SPORTS_RE, WIND_DOWN_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import { personalityFor, pickFreeTimeActivity } from "@/components/pets/personality";
 import PetFace from "@/components/pets/PetFace";
 import AmbientClock from "@/components/AmbientClock";
@@ -685,7 +685,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
   // The last 40 minutes before bedtime: the rabbit starts yawning on its own.
   const drowsy = (() => {
-    const bed = todaysSchedule.find(t => t.name.toLowerCase().includes('bedtime'))?.scheduled_time;
+    const bed = todaysSchedule.find(t => isBedtimeRow(t.name))?.scheduled_time;
     if (!bed) return false;
     const [bh, bm] = bed.slice(0, 5).split(':').map(Number);
     const [nh, nm] = getPSTTimeString().split(':').map(Number);
@@ -754,7 +754,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       (a.scheduled_time || '').localeCompare(b.scheduled_time || '')
     );
     let stillToDo = sorted;
-    if (sorted.length > 0 && !current?.name.toLowerCase().includes('bedtime') && !current?.is_event) {
+    if (sorted.length > 0 && !isBedtimeRow(current?.name) && !current?.is_event) {
       if (current) upcoming.unshift(current);
       current = sorted[0];
       stillToDo = sorted.slice(1);
@@ -897,6 +897,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
   const promptForTask = (name: string): string | null => {
     const normalized = name.toLowerCase();
+    if (WIND_DOWN_RE.test(normalized)) return "Let’s get cozy for bed!";
     if (SPORTS_RE.test(normalized)) return "Let’s get moving!";
     if (/school|class|lesson|learn/.test(normalized)) return "Let’s learn together!";
     if (/wake|morning/.test(normalized)) return "Good morning!";
@@ -907,9 +908,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   };
 
   const petMoodForTask = (name: string) => {
-    const normalized = name.toLowerCase();
+    const normalized = name.trim().toLowerCase();
     if (/wake|morning/.test(normalized)) return 'excited' as const;
-    if (/bed|sleep|nap|night/.test(normalized)) return 'sleep' as const;
+    // The bedtime routine is awake and yawning; only Bedtime (or a nap) sleeps.
+    if (WIND_DOWN_RE.test(normalized)) return 'drowsy' as const;
+    if (SLEEP_RE.test(normalized)) return 'sleep' as const;
     return drowsy ? 'drowsy' as const : 'happy' as const;
   };
 
@@ -1158,6 +1161,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const greeting = returnGreeting ? say(returnGreeting.text, "👋") : null;
   const taskEmoji = (name: string) => {
     const n = name.toLowerCase();
+    if (WIND_DOWN_RE.test(n)) return "🌙";
     if (SPORTS_RE.test(n)) return "⚽";
     if (/school|class|lesson|learn/.test(n)) return "📚";
     if (/wake|morning/.test(n)) return "☀️";
@@ -1181,7 +1185,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               : activePhase === 'event' ? `Time for ${activeTask.name}. Have fun!` : null}
             // At bedtime the day is over for chimes too: no "still to do"
             // ping on top of the goodnight one.
-            stillToDoIds={activeTask?.name.toLowerCase().includes('bedtime') ? [] : stillToDo.map(t => t.id)}
+            stillToDoIds={isBedtimeRow(activeTask?.name) ? [] : stillToDo.map(t => t.id)}
             dayOver={dayOver}
           />
         )}
@@ -1264,7 +1268,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {!isRestDay && (frozenTask || activeTask) && (() => {
           const displayTask = frozenTask ?? activeTask;
           const isFrozen = !!frozenTask;
-          const isBedtime = displayTask.name.toLowerCase().includes('bedtime');
+          // Only the built-in Bedtime row says goodnight; "Bedtime routine" is a task.
+          const isBedtime = isBedtimeRow(displayTask.name);
 
           if (isBedtime) {
             return (
@@ -1898,6 +1903,9 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
 /** The wheel is only offered in free time longer than this: a spin needs time to do what it picks. */
 const WHEEL_MIN_SECONDS = 10 * 60;
+
+/** The built-in Bedtime row, the day's goodnight. Not "Bedtime routine", which is an ordinary task. */
+const isBedtimeRow = (name?: string | null) => name === 'Bedtime';
 /** Biscuit's "get ready" heads-up comes this long before the next task; games end then too. */
 const GET_READY_SECONDS = 5 * 60;
 
@@ -2050,7 +2058,7 @@ function ScheduleRow({
   const displayTime = !showToday && (time || windowStart) ? (time || windowStart) : null;
   const [hourMin, ampm] = displayTime ? splitTime12(displayTime) : ['', ''];
   // Bedtime marks the end of the day, not a timed activity — don't show a duration.
-  const isBedtime = name.toLowerCase().includes('bedtime');
+  const isBedtime = isBedtimeRow(name);
   const subtitle = (() => {
     if (hasWindow) {
       const [s, sap] = splitTime12(windowStart!);
@@ -2217,7 +2225,7 @@ function PictureDay({ rows, focusTaskId, nowMinutes }: { rows: PictureRow[]; foc
               : start != null && !done && nowMinutes >= start;
             const name = row.kind === 'free' ? 'Free Time' : row.task.name;
             const blocks = Math.min(6, Math.max(1, Math.round(minutes / 10)));
-            const isBedtime = name.toLowerCase().includes('bedtime');
+            const isBedtime = isBedtimeRow(name);
             return (
               <div
                 key={row.kind === 'free' ? row.id : row.task.id}

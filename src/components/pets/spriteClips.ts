@@ -126,9 +126,16 @@ export const MOOD_PLAN: Record<PetMood, MoodPlan> = {
 /** Task names that count as sport or exercise (the rabbit plays soccer). */
 export const SPORTS_RE = /\b(soccer|football|sports?|gym|gymnastics|swim\w*|basketball|baseball|softball|tennis|hockey|run|running|jog\w*|exercise|workout|pe|p\.e\.|karate|judo|taekwondo|martial|cycling|bike|biking|skat\w*|cricket|rugby|volleyball|lacrosse|golf|athletics|track)\b/;
 
+/** Getting ready for bed ("Bedtime routine"): the rabbit is winding down, not asleep yet. */
+export const WIND_DOWN_RE = /bedtime routine|ready for bed|wind down/;
+/** Actually sleeping: the built-in Bedtime row, a nap. Not "Make bed" or "Bedtime routine". */
+export const SLEEP_RE = /^bedtime$|\bsleep|\bnap\b/;
+
 export const activityForTask = (name?: string | null): PetActivity | undefined => {
-  const n = (name ?? "").toLowerCase();
+  const n = (name ?? "").trim().toLowerCase();
   if (!n) return undefined;
+  // A bedtime story, before "brush" in the routine's steps can pick brushing.
+  if (WIND_DOWN_RE.test(n)) return "reading";
   if (/brush|teeth|tooth/.test(n)) return "brushing";
   if (/breakfast|lunch|dinner|snack|eat|meal|supper/.test(n)) return "eating";
   // Before reading and gaming: "swim lesson", "PE class" and "play soccer" are sport.
@@ -138,6 +145,6 @@ export const activityForTask = (name?: string | null): PetActivity | undefined =
   if (/bubble/.test(n)) return "bubbles";
   if (/outside|outdoor|park|garden|nature/.test(n)) return "outside";
   if (/game|gaming|play|screen|tv|video|tablet/.test(n)) return "gaming";
-  if (/bed|sleep|nap|night/.test(n)) return "sleeping";
+  if (SLEEP_RE.test(n)) return "sleeping";
   return undefined;
 };

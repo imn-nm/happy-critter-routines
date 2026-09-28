@@ -26,7 +26,8 @@ const ScheduleSoundCues = ({ activeTaskId, activeTaskName, stillToDoIds, dayOver
     const prev = prevActiveIdRef.current;
     prevActiveIdRef.current = activeTaskId;
     if (prev === undefined || !activeTaskId || activeTaskId === prev) return;
-    const bedtime = (activeTaskName ?? "").toLowerCase().includes("bedtime");
+    // The built-in Bedtime row only: "Bedtime routine" starts like any task.
+    const bedtime = activeTaskName === "Bedtime";
     if (bedtime) sounds.bedtime();
     else sounds.start();
     if (!speakPrompts || !activeTaskName) return;
