@@ -36,6 +36,12 @@ create table if not exists public.streaks (
 );
 create index if not exists streaks_child_id_idx on public.streaks (child_id);
 
+-- One streak at a time per child: one row of stars to follow is what little
+-- ones can hold on to. The app pauses the current one before starting or
+-- turning on another; this keeps two phones from ending up with two.
+create unique index if not exists streaks_one_active_per_child
+  on public.streaks (child_id) where is_active;
+
 -- One answer per streak per day. No row = nobody answered.
 create table if not exists public.streak_days (
   streak_id uuid not null references public.streaks(id) on delete cascade,

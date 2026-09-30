@@ -37,7 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Task Sessions**: Active task timing with start/end tracking
 - **Rewards**: Items children can purchase with earned coins
 - **Reward Purchases**: Transaction history for reward redemptions
-- **Streaks**: "N days in a row → ★ stars"; the parent answers once a day, the database counts beads and pays (see `docs/STREAKS.md`)
+- **Streaks**: "N days in a row → ★ stars", one at a time per child; the parent answers once a day, the database counts and pays into the same ★ the Rewards shop spends (see `docs/STREAKS.md`)
 
 **Database Schema** (Supabase):
 - `profiles` - Parent user accounts
@@ -77,7 +77,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `useRewards` - Reward system management
 - `useStreaks` - Streaks and daily check-ins
 
-**Round display**: the child's Piko device is a 466 px round screen. `src/components/round/` holds its screens (`RoundStreakScreen` is the reference for the firmware), sized in container units so the same layout renders at any size. Preview at `/preview/streaks` in dev.
+**Round display**: the child's Piko device is a 466 px round screen, designed in Figma (UI-UX file, "Circle Display" section). `src/components/round/` holds its streak moments (`StreakMoment` is the reference for the firmware), sized in container units so the same layout renders at any size. Streaks never get a child page: their row lives in the Rewards shop. Preview at `/preview/streaks` in dev.
 
 ### Authentication
 Development mode with auto-login functionality using test credentials (test@taskie.app). The app automatically creates accounts and handles authentication for development purposes.

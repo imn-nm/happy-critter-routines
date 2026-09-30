@@ -8,6 +8,8 @@ import { useMotionPrefs } from "@/lib/motion";
 import { getPSTDateString, toPSTDateString } from "@/utils/pstDate";
 import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
 import StarBadge from "@/components/StarBadge";
+import StreakRow from "@/components/streaks/StreakRow";
+import { useStreaks } from "@/hooks/useStreaks";
 
 interface RewardsShopProps {
   childId: string;
@@ -21,12 +23,16 @@ interface RewardsShopProps {
 
 /**
  * The child's reward shop. The only things a child can do here are look at
- * stars, ask for a reward, and see what happened to earlier asks. State comes
+ * stars, ask for a reward, and see what happened to earlier asks. A streak
+ * sits under the star count: one more way to earn them, not a page of its
+ * own (one at a time, so at most one row). State comes
  * from the purchases feed (kept live by useRewards), so approve / deny from
  * the parent's phone shows up here without a reload.
  */
 const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture }: RewardsShopProps) => {
   const { rewards, allRewards, purchases, loading, purchaseReward } = useRewards(childId);
+  const { streaks } = useStreaks([childId]);
+  const streak = streaks.find(s => s.is_active);
   const { t: tMotion } = useMotionPrefs();
   const [requestingId, setRequestingId] = useState<string | null>(null);
   // Reward id whose request failed — renders a child-legible retry line.
@@ -147,6 +153,14 @@ const RewardsShop = ({ childId, childName, currentCoins, open, onClose, picture 
                 {reserved} of them saved for what you asked for
               </p>
             ))}
+
+            {/* How to earn more: the streak's stars, the big one last. */}
+            {streak && (
+              <div className="mb-sp-3 flex flex-col gap-1.5">
+                <p className={picture ? "sr-only" : "text-12 font-semibold text-focus-muted"}>Earn more stars</p>
+                <StreakRow streak={streak} picture={picture} />
+              </div>
+            )}
 
             {/* Rewards list */}
             <div className="overflow-y-auto flex flex-col gap-sp-2" style={{ maxHeight: "calc(75dvh - 120px)" }}>

@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Caption, ChoiceButton, SectionHeading, SheetHeader, StarStepper } from "@/components/sheet/SheetParts";
 import { sheetFooterClass } from "@/components/sheet/sheetStyles";
-import RoundStreakScreen from "@/components/round/RoundStreakScreen";
-import RoundDevice from "@/components/round/RoundDevice";
+import StreakRow from "@/components/streaks/StreakRow";
 import {
   DEFAULT_STREAK_DAYS,
   STREAK_DAY_OPTIONS,
@@ -17,6 +16,7 @@ import {
 } from "@/data/streakPresets";
 import type { NewStreak, Streak, StreakChanges, StreakResult } from "@/hooks/useStreaks";
 import type { Child } from "@/hooks/useChildren";
+import { useRewards } from "@/hooks/useRewards";
 import { displayModeFor } from "@/utils/displayMode";
 import { getTaskIconComponent, getTaskIconKey } from "@/utils/taskIcon";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,9 @@ const MAX_STARS = 50;
 /**
  * New / edit streak, as a bottom sheet like the task sheet. Three choices
  * and it's done: what (a picture tile, or type your own), how many days in a
- * row, and how many stars. The round screen underneath shows exactly what
- * the child will see.
+ * row, and how many stars. The stars go to the child's Rewards shop, so the
+ * sheet says what they're worth there, and shows the row the child will see
+ * in the shop. One streak at a time: it says which one it will pause.
  */
 const StreakSheet = ({
   open,
@@ -36,6 +37,7 @@ const StreakSheet = ({
   kids,
   defaultChildId,
   streak,
+  active = [],
   onCreate,
   onUpdate,
   onDelete,
@@ -47,6 +49,8 @@ const StreakSheet = ({
   defaultChildId?: string;
   /** Editing this streak (otherwise it's a new one). */
   streak?: Streak | null;
+  /** Streaks going now (one per child at most), to say which a new one pauses. */
+  active?: Streak[];
   onCreate: (rows: NewStreak[]) => Promise<unknown>;
   onUpdate: (args: { id: string; changes: StreakChanges }) => Promise<StreakResult | null>;
   onDelete: (id: string) => Promise<unknown>;
@@ -61,6 +65,7 @@ const StreakSheet = ({
           kids={kids}
           defaultChildId={defaultChildId}
           streak={streak ?? null}
+          active={active}
           onClose={() => onOpenChange(false)}
           onCreate={onCreate}
           onUpdate={onUpdate}
@@ -75,6 +80,7 @@ const StreakForm = ({
   kids,
   defaultChildId,
   streak,
+  active,
   onClose,
   onCreate,
   onUpdate,
@@ -83,6 +89,7 @@ const StreakForm = ({
   kids: Child[];
   defaultChildId?: string;
   streak: Streak | null;
+  active: Streak[];
   onClose: () => void;
   onCreate: (rows: NewStreak[]) => Promise<unknown>;
   onUpdate: (args: { id: string; changes: StreakChanges }) => Promise<StreakResult | null>;
@@ -114,6 +121,12 @@ const StreakForm = ({
   const mode = displayModeFor(previewChild) === "picture" ? "little" : "big";
   const canSave = !!name && childIds.length > 0 && !saving;
   const whoLabel = chosenKids.length === 1 ? chosenKids[0].name : "your child";
+  // One at a time: the streaks this one would pause.
+  const displaced = active.filter(a => childIds.includes(a.child_id) && a.id !== streak?.id);
+  const displacedLabel = [...new Set(displaced.map(a => a.name))].join(" and ");
+  // What the stars are worth in the child's shop.
+  const { rewards } = useRewards(previewChild?.id);
+  const cheapest = rewards[0];
 
   const chooseDays = (d: number) => {
     setDays(d);
@@ -147,9 +160,7 @@ const StreakForm = ({
         })));
         const who = chosenKids.map(k => k.name).join(" and ");
         toast.success(`${name}: streak started`, {
-          description: moment === "night"
-            ? `Check in each morning. ${who} sees the stars fill up.`
-            : `Check in each day. ${who} sees the stars fill up.`,
+          description: `${moment === "night" ? "Check in each morning." : "Check in each day."} ${who} sees the stars in the Rewards shop.${displacedLabel ? ` ${displacedLabel} is paused.` : ""}`,
         });
       }
       onClose();
@@ -165,7 +176,7 @@ const StreakForm = ({
     setSaving(true);
     try {
       await onUpdate({ id: streak.id, changes: { is_active: !streak.is_active } });
-      toast.success(streak.is_active ? "Streak paused" : "Streak back on");
+      toast.success(streak.is_active ? "Streak paused" : displacedLabel ? `Streak back on. ${displacedLabel} is paused.` : "Streak back on");
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't change that.");
@@ -305,36 +316,42 @@ const StreakForm = ({
       <section className="flex flex-col gap-2.5">
         <SectionHeading>Stars at the end</SectionHeading>
         <StarStepper value={stars} onChange={v => { setStarsTouched(true); setStars(Math.max(1, v)); }} max={MAX_STARS} />
+        <Caption>
+          {cheapest
+            ? stars >= cheapest.cost
+              ? `Enough for ${cheapest.name} (★ ${cheapest.cost}) in ${previewChild?.name ?? "their"}’s shop.`
+              : `${cheapest.name} is ★ ${cheapest.cost} in ${previewChild?.name ?? "their"}’s shop.`
+            : `The stars go to ${previewChild?.name ?? "their"}’s Rewards shop, like all their stars.`}
+        </Caption>
       </section>
 
-      {/* What the child sees on their round screen. */}
+      {/* What the child sees: the row in their Rewards shop. */}
       {name && (
-        <section className="flex flex-col items-center gap-3 rounded-[18px] bg-focus-sunken px-4 pb-4 pt-3.5">
-          <p className="self-start text-12 font-semibold uppercase tracking-wide text-focus-muted">
-            What {previewChild?.name ?? "your child"} sees
+        <section className="flex flex-col gap-3 rounded-[18px] bg-focus-sunken px-4 pb-4 pt-3.5">
+          <p className="text-12 font-semibold uppercase tracking-wide text-focus-muted">
+            In {previewChild?.name ?? "your child"}’s Rewards shop
           </p>
-          <RoundDevice className="w-[210px]">
-            <RoundStreakScreen
-              name={name}
-              icon={icon}
-              moment={moment}
-              target={days}
-              count={Math.min(streak?.current_count ?? 0, days - 1)}
-              reward={stars}
-              mode={mode}
-              stars={previewChild?.currentCoins}
-              outfit={previewChild?.pet_outfit}
-              seed={previewChild?.id}
-              sound={false}
-            />
-          </RoundDevice>
+          <StreakRow
+            picture={mode === "little"}
+            streak={{
+              ...(streak ?? ({} as Streak)),
+              name, icon, moment, target_days: days, reward_stars: stars,
+              current_count: Math.min(streak?.current_count ?? 0, days - 1),
+            }}
+          />
           <Caption>
-            Each yes lights a star. The big star gives ★ {stars}, then it starts again.
+            Each yes pops up a new star for {whoLabel}. The big star gives ★ {stars}, then it starts again.
           </Caption>
         </section>
       )}
 
       <div className={sheetFooterClass}>
+        {!editing && displacedLabel && (
+          <p className="text-center text-12 text-focus-muted">One at a time: starting this pauses {displacedLabel}.</p>
+        )}
+        {editing && !streak?.is_active && displacedLabel && (
+          <p className="text-center text-12 text-focus-muted">One at a time: turning this back on pauses {displacedLabel}.</p>
+        )}
         <Button type="submit" variant="primary" disabled={!canSave} className="h-[52px] w-full rounded-[12px] text-13">
           {editing ? "Save changes" : childIds.length > 1 ? `Start ${childIds.length} streaks` : "Start streak"}
         </Button>

@@ -1,12 +1,15 @@
 import { useState } from "react";
-import RoundStreakScreen, { type StreakCelebration } from "@/components/round/RoundStreakScreen";
+import StreakMoment from "@/components/round/StreakMoment";
 import RoundDevice from "@/components/round/RoundDevice";
-import { STREAK_DAY_OPTIONS, STREAK_PRESETS } from "@/data/streakPresets";
+import StreakMoments from "@/components/round/StreakMoments";
+import StreakRow from "@/components/streaks/StreakRow";
+import TonightsStar from "@/components/streaks/TonightsStar";
 import StreaksSection from "@/components/streaks/StreaksSection";
-import KidStreaks from "@/components/round/KidStreaks";
+import RewardsShop from "@/components/RewardsShop";
+import StarBadge from "@/components/StarBadge";
+import { STREAK_DAY_OPTIONS, STREAK_PRESETS } from "@/data/streakPresets";
 import type { Child } from "@/hooks/useChildren";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { SheetHeader } from "@/components/sheet/SheetParts";
+import type { Streak } from "@/hooks/useStreaks";
 import { unlockSounds } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 
@@ -19,154 +22,118 @@ const SAMPLE_KIDS = [
   kid("00000000-0000-4000-8000-000000000002", "Leo", 8, 30),
 ];
 
+const sample = (p: (typeof STREAK_PRESETS)[number], count: number, target: number): Streak => ({
+  id: `sample-${p.key}-${count}-${target}`, child_id: "", name: p.name, icon: p.icon, moment: p.moment,
+  target_days: target, reward_stars: target, current_count: count, rounds_completed: 0,
+  last_round_on: null, counting_from: null, is_active: true, sort_order: 0, created_at: "",
+});
+
 /**
- * Bench for the streak screen on the round device: play a week of answers
- * against it (Yes / Not this time) in either mode, and see the fixed states
- * side by side. Mirrors settle_streak's counting. Dev-only route.
+ * Bench for streaks. A streak has no child page: its stars show in the
+ * Rewards shop, its moments pop up once, and night streaks remind at
+ * bedtime. Dev-only route.
  */
 const StreaksPreview = () => {
   const [presetKey, setPresetKey] = useState("bed");
   const preset = STREAK_PRESETS.find(p => p.key === presetKey) ?? STREAK_PRESETS[0];
-  const [mode, setMode] = useState<"little" | "big">("little");
+  const [mode, setMode] = useState<"little" | "big">("big");
   const [target, setTarget] = useState(5);
-  const [count, setCount] = useState(2);
-  const [stars, setStars] = useState(12);
-  const [celebrate, setCelebrate] = useState<StreakCelebration | null>(null);
-  const [n, setN] = useState(0);
-  const [childSheet, setChildSheet] = useState(false);
-  const reward = target;
-
-  const yes = () => {
-    unlockSounds();
-    const next = count + 1;
-    setN(k => k + 1);
-    if (next >= target) {
-      setCount(0);
-      setStars(s => s + reward);
-      setCelebrate({ kind: "round", key: n + 1 });
-    } else {
-      setCount(next);
-      setCelebrate({ kind: "bead", key: n + 1 });
-    }
-  };
+  const [kind, setKind] = useState<"bead" | "round">("bead");
+  const [shopState, setShopState] = useState<"can" | "togo" | "none">("can");
+  const [play, setPlay] = useState(0);
+  const [shopOpen, setShopOpen] = useState(false);
+  const shop = shopState === "can" ? { name: "Ice Cream Trip", toGo: 0 } : shopState === "togo" ? { name: "Movie Night", toGo: 3 } : null;
 
   const chip = (on: boolean) =>
-    cn("min-h-11 rounded-full px-4 text-sm font-semibold", on ? "bg-[#a89af0] text-[#20294a]" : "bg-[#2c3558] text-[#bdb5f5]");
+    cn("min-h-11 rounded-full px-4 text-sm font-semibold", on ? "bg-focus-lavender text-focus-bg" : "bg-focus-surface text-focus-muted");
+  const replay = (k: "bead" | "round") => { unlockSounds(); setKind(k); setPlay(n => n + 1); };
 
   return (
-    <div className="min-h-dvh bg-[#181e36] p-6 text-[#f5f3ff] sm:p-10">
-      <h1 className="font-piko text-4xl">Streaks on the round screen</h1>
-      <p className="mt-2 max-w-prose text-sm text-[#bdb5f5]">
-        The child's side of a streak on the 466 px Piko screen. Tap Yes and Not this time to play the parent's daily answers.
+    <div className="min-h-dvh bg-focus-sheet p-6 text-focus-text sm:p-10">
+      <h1 className="text-32 font-bold">Streaks</h1>
+      <p className="mt-2 max-w-prose text-sm text-focus-muted">
+        No page of their own on the child's side: the stars live in the Rewards shop, a new star or the big star pops up once, and night streaks show tonight's star at bedtime.
       </p>
 
-      <div className="mt-8 flex flex-col gap-10 lg:flex-row lg:items-start">
+      <h2 className="mt-10 text-20 font-semibold">Moments on the round screen</h2>
+      <div className="mt-6 flex flex-col gap-10 lg:flex-row lg:items-start">
         <div className="mx-auto w-full max-w-[380px] shrink-0">
           <RoundDevice>
-            <RoundStreakScreen
+            <StreakMoment
+              kind={kind}
+              playKey={play}
               name={preset.name}
               icon={preset.icon}
               moment={preset.moment}
               target={target}
-              count={count}
-              reward={reward}
+              count={kind === "round" ? 0 : Math.min(3, target - 1)}
+              reward={target}
               mode={mode}
-              stars={stars}
-              celebrate={celebrate}
+              childName="Amira"
+              shop={shop}
               seed="preview-child"
-              page={{ index: 0, total: 2 }}
             />
           </RoundDevice>
           <div className="mt-6 flex justify-center gap-3">
-            <button type="button" onClick={() => { unlockSounds(); setCount(0); setCelebrate(null); }} className="min-h-12 rounded-[14px] bg-[#2c3558] px-5 font-semibold text-[#bdb5f5]">
-              Not this time
-            </button>
-            <button type="button" onClick={yes} className="min-h-12 rounded-[14px] bg-[#dcef70] px-6 font-semibold text-[#20294a]">
-              Yes!
-            </button>
+            <button type="button" onClick={() => replay("bead")} className="min-h-12 rounded-[14px] bg-focus-surface px-5 font-semibold text-focus-muted">New star</button>
+            <button type="button" onClick={() => replay("round")} className="min-h-12 rounded-[14px] bg-focus-lime px-5 font-semibold text-focus-bg">Big star</button>
           </div>
         </div>
-
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mode">
-            <button type="button" className={chip(mode === "little")} onClick={() => setMode("little")}>Little · 2–5</button>
-            <button type="button" className={chip(mode === "big")} onClick={() => setMode("big")}>Big · 6–10</button>
+            <button type="button" className={chip(mode === "little")} onClick={() => setMode("little")}>Picture · 2–6</button>
+            <button type="button" className={chip(mode === "big")} onClick={() => setMode("big")}>Detailed · 7+</button>
           </div>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Days in a row">
             {STREAK_DAY_OPTIONS.map(d => (
-              <button key={d} type="button" className={chip(target === d)} onClick={() => { setTarget(d); setCount(c => Math.min(c, d - 1)); }}>
-                {d} days
-              </button>
+              <button key={d} type="button" className={chip(target === d)} onClick={() => setTarget(d)}>{d} days</button>
             ))}
+          </div>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="After the big star">
+            <button type="button" className={chip(shopState === "can")} onClick={() => setShopState("can")}>Can get a reward</button>
+            <button type="button" className={chip(shopState === "togo")} onClick={() => setShopState("togo")}>Some to go</button>
+            <button type="button" className={chip(shopState === "none")} onClick={() => setShopState("none")}>No rewards yet</button>
           </div>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Streak">
             {STREAK_PRESETS.map(p => (
-              <button key={p.key} type="button" className={chip(presetKey === p.key)} onClick={() => setPresetKey(p.key)}>
-                {p.name}
-              </button>
+              <button key={p.key} type="button" className={chip(presetKey === p.key)} onClick={() => setPresetKey(p.key)}>{p.name}</button>
             ))}
           </div>
         </div>
       </div>
 
-      <h2 className="mt-14 font-piko text-2xl">Parent's phone and child screen</h2>
-      <p className="mt-2 max-w-prose text-sm text-[#bdb5f5]">
-        The real parent section and child button, reading the streaks tables. Signed out, the lists stay empty unless requests are stubbed.
+      <h2 className="mt-14 text-20 font-semibold">Parent's phone and child screen</h2>
+      <p className="mt-2 max-w-prose text-sm text-focus-muted">
+        The real parent section, and the child's Rewards shop, moments and bedtime reminder, reading the streaks tables. Signed out, they stay empty unless requests are stubbed.
       </p>
       <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start">
         <div data-testid="parent-phone" className="w-full max-w-[390px] rounded-[32px] bg-focus-bg p-5">
           <StreaksSection kids={SAMPLE_KIDS} />
         </div>
-        <div className="flex w-full max-w-[390px] flex-col gap-4">
-          <div data-testid="child-header" className="flex items-center justify-between rounded-[32px] bg-focus-bg p-5">
-            <p className="text-20 font-semibold text-focus-text">👋 {SAMPLE_KIDS[0].name}</p>
-            <KidStreaks child={SAMPLE_KIDS[0]} picture />
+        <div data-testid="child-screen" className="flex w-full max-w-[390px] flex-col gap-5 rounded-[32px] bg-focus-bg p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-20 font-semibold">👋 {SAMPLE_KIDS[0].name}</p>
+            <StarBadge count={SAMPLE_KIDS[0].currentCoins} onClick={() => setShopOpen(true)} aria-label="Open rewards shop" />
           </div>
-          {/* As on the child's page: the list in a sheet, the streak sheet on top. */}
-          <button type="button" onClick={() => setChildSheet(true)} className="min-h-11 rounded-[14px] bg-[#2c3558] px-4 text-sm font-semibold text-[#bdb5f5]">
-            Maya's streaks (child page)
-          </button>
-          <Dialog open={childSheet} onOpenChange={setChildSheet}>
-            <DialogContent className="max-h-[92vh] sm:max-w-[480px] bg-focus-sheet [&>button]:hidden">
-              <DialogTitle className="sr-only">Maya's streaks</DialogTitle>
-              <DialogDescription className="sr-only">Maya's streaks</DialogDescription>
-              <div className="flex flex-col gap-4 pb-2">
-                <SheetHeader title="Maya's Streaks" onClose={() => setChildSheet(false)} />
-                <StreaksSection kids={[SAMPLE_KIDS[0]]} includePaused heading={null} />
-              </div>
-            </DialogContent>
-          </Dialog>
+          <TonightsStar childId={SAMPLE_KIDS[0].id} picture />
+          <StreakMoments child={SAMPLE_KIDS[0]} picture onOpenRewards={() => setShopOpen(true)} />
+          <RewardsShop childId={SAMPLE_KIDS[0].id} childName={SAMPLE_KIDS[0].name} currentCoins={SAMPLE_KIDS[0].currentCoins} open={shopOpen} onClose={() => setShopOpen(false)} picture />
         </div>
       </div>
 
-      <h2 className="mt-14 font-piko text-2xl">States</h2>
-      <div className="mt-6 grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4">
+      <h2 className="mt-14 text-20 font-semibold">The row in the Rewards shop</h2>
+      <div className="mt-6 grid max-w-[820px] grid-cols-1 gap-4 sm:grid-cols-2">
         {[
-          { label: "Little · first night", mode: "little" as const, count: 0, target: 5, p: STREAK_PRESETS[0] },
-          { label: "Little · 3 of 5", mode: "little" as const, count: 3, target: 5, p: STREAK_PRESETS[0] },
-          { label: "Little · big star next", mode: "little" as const, count: 4, target: 5, p: STREAK_PRESETS[2] },
-          { label: "Little · 3 in a row", mode: "little" as const, count: 1, target: 3, p: STREAK_PRESETS[4] },
-          { label: "Big · 3 of 5", mode: "big" as const, count: 3, target: 5, p: STREAK_PRESETS[0] },
-          { label: "Big · 7 days", mode: "big" as const, count: 5, target: 7, p: STREAK_PRESETS[2] },
-          { label: "Big · 10 days", mode: "big" as const, count: 6, target: 10, p: STREAK_PRESETS[6] },
-          { label: "Big · long name", mode: "big" as const, count: 2, target: 5, p: { ...STREAK_PRESETS[3], name: "Feed the cat breakfast" } },
-        ].map(s => (
-          <figure key={s.label} className="flex flex-col items-center gap-3">
-            <RoundDevice className="w-full max-w-[240px]">
-              <RoundStreakScreen
-                name={s.p.name}
-                icon={s.p.icon}
-                moment={s.p.moment}
-                target={s.target}
-                count={s.count}
-                reward={s.target}
-                mode={s.mode}
-                stars={12}
-                seed={s.label}
-                sound={false}
-              />
-            </RoundDevice>
-            <figcaption className="font-pixel text-sm text-[#bdb5f5]">{s.label}</figcaption>
+          { label: "Detailed · 3 of 5", picture: false, s: sample(STREAK_PRESETS[0], 3, 5) },
+          { label: "Detailed · big star next", picture: false, s: sample(STREAK_PRESETS[2], 4, 5) },
+          { label: "Detailed · 10 days", picture: false, s: sample(STREAK_PRESETS[6], 6, 10) },
+          { label: "Detailed · just started over", picture: false, s: sample(STREAK_PRESETS[0], 0, 7) },
+          { label: "Picture · 1 of 3", picture: true, s: sample(STREAK_PRESETS[0], 1, 3) },
+          { label: "Picture · 3 of 5", picture: true, s: sample(STREAK_PRESETS[4], 3, 5) },
+        ].map(x => (
+          <figure key={x.label} className="flex flex-col gap-2 rounded-[24px] bg-focus-sheet p-4">
+            <StreakRow streak={x.s} picture={x.picture} />
+            <figcaption className="text-12 text-focus-muted">{x.label}</figcaption>
           </figure>
         ))}
       </div>

@@ -1,31 +1,27 @@
 /**
- * One star bead of a streak, as the child sees it on the round screen and
- * the parent sees it on the check-in card. Piko colours (brand book): Star
- * Amber for a star from a grown-up, surface navy for one still to come,
- * lavender for the one they're going for next. Every bead gets the brand's
- * little shine at the top left.
+ * One star of a streak, drawn the way the round display's Figma draws stars
+ * (Circle Display, row 09): lime for a star a grown-up gave, a lavender
+ * outline for the one they're going for next, a quiet outline for the rest,
+ * and a filled navy star for the big one still to win.
  */
-/** "prize": the big star at the end of the row, still to be won. */
 export type StreakStarState = "empty" | "next" | "filled" | "prize";
 
-// Piko palette (tokens.css / brand book).
-export const PIKO = {
-  navy: "#20294a",
-  deep: "#181e36",
-  abyss: "#0e1221",
+// The round display's colours (Focus — Navy & Play variables in Figma).
+export const ROUND = {
+  black: "#000000",
+  bg: "#20294a",
+  sheet: "#181e36",
+  sunken: "#0e1221",
   surface: "#2c3558",
   raised: "#3c4770",
   text: "#f5f3ff",
   muted: "#bdb5f5",
-  cream: "#f9f5e1",
   lime: "#dcef70",
-  amber: "#fab047",
   lavender: "#a89af0",
-  mint: "#65cdaa",
+  iris: "#879bff",
 } as const;
 
-// A five-point star in a 24-unit box. Drawn with a round-joined stroke in the
-// fill colour, which softens the points into a bead-like star.
+// A five-point star in a 24-unit box, softened by a round-joined stroke.
 const STAR_POINTS = (() => {
   const pts: string[] = [];
   for (let i = 0; i < 10; i++) {
@@ -36,19 +32,18 @@ const STAR_POINTS = (() => {
   return pts.join(" ");
 })();
 
+const STYLE: Record<StreakStarState, { fill: string; stroke: string; width: number }> = {
+  filled: { fill: ROUND.lime, stroke: ROUND.lime, width: 2.6 },
+  next: { fill: "none", stroke: ROUND.lavender, width: 1.8 },
+  empty: { fill: "none", stroke: ROUND.raised, width: 1.8 },
+  prize: { fill: ROUND.raised, stroke: ROUND.raised, width: 2.6 },
+};
+
 const StreakStar = ({ state, className }: { state: StreakStarState; className?: string }) => {
-  const fill = state === "filled" ? PIKO.amber : state === "next" ? PIKO.navy : state === "prize" ? PIKO.raised : PIKO.surface;
-  const stroke = state === "filled" ? PIKO.amber : state === "next" ? PIKO.lavender : state === "prize" ? PIKO.raised : PIKO.surface;
+  const s = STYLE[state];
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <polygon
-        points={STAR_POINTS}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={state === "next" ? 2.2 : 3.2}
-        strokeLinejoin="round"
-      />
-      {state === "filled" && <circle cx="9.3" cy="9.6" r="1.5" fill="#fff" opacity={0.6} />}
+      <polygon points={STAR_POINTS} fill={s.fill} stroke={s.stroke} strokeWidth={s.width} strokeLinejoin="round" />
     </svg>
   );
 };

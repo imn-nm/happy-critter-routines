@@ -131,6 +131,24 @@ update public.children set current_coins = 3 where id = 'c0000000-0000-0000-0000
 select pg_temp.mark('2026-09-13', null);
 select pg_temp.check('undo floors the balance at 0', pg_temp.bal() = 0);
 
+-- One streak at a time: a second active streak for Maya is refused…
+do $$ begin
+  insert into public.streaks (child_id, name) values ('c0000000-0000-0000-0000-000000000001', 'Brush teeth');
+  raise exception 'FAILED: second active streak accepted';
+exception when unique_violation then
+  raise notice 'ok: a second active streak is refused';
+end $$;
+-- …but pausing the current one first (what the app does) lets it start.
+update public.streaks set is_active = false where id = (select v from t_ids where k = 'bed');
+insert into public.streaks (child_id, name) values ('c0000000-0000-0000-0000-000000000001', 'Brush teeth');
+select pg_temp.check('pause, then start another', (select count(*) from public.streaks where child_id = 'c0000000-0000-0000-0000-000000000001' and is_active) = 1);
+do $$ begin
+  update public.streaks set is_active = true where id = (select v from t_ids where k = 'bed');
+  raise exception 'FAILED: turned a second streak back on';
+exception when unique_violation then
+  raise notice 'ok: turning a paused one back on needs the other paused first';
+end $$;
+
 -- Another family can't see or answer Maya's streak.
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
 select pg_temp.check('other family sees no streaks', (select count(*) from public.streaks) = 0);

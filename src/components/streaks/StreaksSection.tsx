@@ -126,6 +126,7 @@ const StreaksSection = ({
         kids={kids}
         defaultChildId={kids.length === 1 ? kids[0].id : undefined}
         streak={editing}
+        active={streaks.filter(s => s.is_active)}
         onCreate={createStreaks}
         onUpdate={updateStreak}
         onDelete={deleteStreak}

@@ -41,8 +41,24 @@ const ERRORS: Record<string, string> = {
   day_in_future: "That day hasn't happened yet.",
 };
 
-const friendly = (error: { message?: string } | null) =>
-  new Error((error?.message && ERRORS[error.message]) || "Couldn't save that. Please try again.");
+const friendly = (error: { message?: string; code?: string } | null) =>
+  new Error(
+    error?.code === '23505'
+      ? 'Only one streak at a time. Pause the one that’s going first.'
+      : (error?.message && ERRORS[error.message]) || "Couldn't save that. Please try again.",
+  );
+
+/**
+ * One streak at a time per child (the database insists). Starting or turning
+ * on a streak pauses whatever that child has going, and the sheet says so
+ * before the parent taps.
+ */
+const pauseActive = async (childIds: string[], exceptId?: string) => {
+  let q = supabase.from('streaks').update({ is_active: false }).in('child_id', childIds).eq('is_active', true);
+  if (exceptId) q = q.neq('id', exceptId);
+  const { error } = await q;
+  if (error) throw friendly(error);
+};
 
 /** A week of answers is plenty for today's check-in and the recent-days row. */
 const RECENT_DAYS = 7;
@@ -99,6 +115,7 @@ export const useStreaks = (childIds: string[]) => {
 
   const create = useMutation({
     mutationFn: async (rows: NewStreak[]) => {
+      await pauseActive([...new Set(rows.map(r => r.child_id))]);
       const { error } = await supabase.from('streaks').insert(rows);
       if (error) throw friendly(error);
     },
@@ -107,6 +124,10 @@ export const useStreaks = (childIds: string[]) => {
 
   const update = useMutation({
     mutationFn: async ({ id, changes }: { id: string; changes: StreakChanges }): Promise<StreakResult | null> => {
+      if (changes.is_active === true) {
+        const childId = streaks.find(s => s.id === id)?.child_id;
+        if (childId) await pauseActive([childId], id);
+      }
       const { error } = await supabase.from('streaks').update(changes).eq('id', id);
       if (error) throw friendly(error);
       // New days or stars can finish the round that's going (4 beads, and

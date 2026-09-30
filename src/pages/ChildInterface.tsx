@@ -51,7 +51,8 @@ import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerIt
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { speak } from "@/lib/speech";
 import StarBadge from "@/components/StarBadge";
-import KidStreaks from "@/components/round/KidStreaks";
+import StreakMoments from "@/components/round/StreakMoments";
+import TonightsStar from "@/components/streaks/TonightsStar";
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -1218,10 +1219,6 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <div className="flex items-center gap-2 min-w-0">
               <p className="text-20 font-semibold text-focus-text leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-            {/* Streaks: opens the round streak screen, and opens by itself to
-                cheer a new star (not side by side, where screens are shared). */}
-            {!preview && <KidStreaks child={child} picture={picture} autoOpen={!propChildId} />}
             <StarBadge
               onClick={() => setShowRewardsShop(true)}
               aria-label="Open rewards shop"
@@ -1254,7 +1251,6 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 ))}
               </AnimatePresence>
             </StarBadge>
-            </div>
           </div>
         )}
 
@@ -1315,6 +1311,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
+                {!preview && <TonightsStar childId={child.id} picture={picture} />}
               </motion.div>
             );
           }
@@ -1646,6 +1643,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
               {petNick(child.petType)} is still asleep. See you in the morning!
             </p>
+            {!preview && <TonightsStar childId={child.id} picture={picture} />}
           </motion.div>
         )}
 
@@ -1667,6 +1665,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
               {petNick(child.petType)} is going to sleep too. See you tomorrow!
             </p>
+            {!preview && <TonightsStar childId={child.id} picture={picture} />}
           </motion.div>
         )}
 
@@ -1832,6 +1831,17 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       </div>
 
       {/* Rewards Shop popup */}
+      {/* Streak moments: a new star, or the big star, pops up once and closes.
+          Not while asleep, and not side by side, where screens are shared. */}
+      {!preview && (
+        <StreakMoments
+          child={child}
+          picture={picture}
+          enabled={!propChildId && !sleepTime && !dayOver}
+          onOpenRewards={() => setShowRewardsShop(true)}
+        />
+      )}
+
       <RewardsShop
         picture={picture}
         childId={child.id}

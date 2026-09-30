@@ -100,9 +100,12 @@ coins"). Purchases are logged as transactions.
 "Stay in bed 5 nights in a row → ★ 5." The parent picks a habit (picture
 presets or their own words), how many days in a row (3/5/7/10) and the stars
 it pays, then answers once a day on their phone: **Yes** or **Not this
-time**. Each Yes fills a star bead on the child's round screen; the last one,
-a big star, pays the stars and a new round starts. "Not this time" quietly
-empties the beads; a day with no answer changes nothing. The child's screen
+time**. A streak is one more way to earn stars, spent in the Rewards shop like
+any others, and a child has one at a time. On the child's side it has no page:
+its row of stars sits in the Rewards shop under the ★ count, a new star or the
+finished round pops up once (the big star points at what the stars can get),
+and a night streak shows tonight's star at bedtime. "Not this time" quietly
+empties the row; a day with no answer changes nothing. The child's screen
 never mentions a missed day. Details and the device spec: `docs/STREAKS.md`.
 
 ### 6.7 Virtual Pet
