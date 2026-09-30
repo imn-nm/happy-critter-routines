@@ -17,7 +17,7 @@ import { Child } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
 import { useHolidays, Holiday } from '@/hooks/useHolidays';
 import { useDayNotes, DayNote } from '@/hooks/useDayNotes';
-import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { getSystemTaskScheduleForDay, systemRowAddedOn } from '@/utils/systemTasks';
 import { getPSTDate } from '@/utils/pstDate';
 import { isRestDate } from '@/utils/restDays';
 import { prepMinutes } from '@/utils/eventWindow';
@@ -194,9 +194,10 @@ const MonthView = ({
         return false;
       }
       if (task.is_recurring && task.recurring_days) {
-        if (!task.recurring_days.includes(dayName)) return false;
         if (task.excluded_dates?.includes(dateString)) return false;
-        return true;
+        // A built-in row can be added to one day on its own (Lunch, no school).
+        return task.recurring_days.includes(dayName)
+          || (systemTaskNames.includes(task.name) && systemRowAddedOn(child, task.name, dateString));
       }
       if (!task.is_recurring && task.task_date) {
         return task.task_date === dateString;

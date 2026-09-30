@@ -50,6 +50,11 @@ interface TaskFormProps {
   /** Edit mode: copy this task to another child. */
   onCopy?: () => void;
   /**
+   * Is this built-in row ("Lunch") on that date already? When it isn't, typing
+   * its name adds it to that one day instead of being refused.
+   */
+  builtInRunsOn?: (name: string, date: string) => boolean;
+  /**
    * Draw the sheet's own header (grabber, "New Task" title, 44px close
    * button). On by default; a host that already draws a visible title and
    * close button can turn it off.
@@ -110,7 +115,7 @@ const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 /** A sensible ceiling for one task's stars; rewards are priced against these. */
 const MAX_STARS = 20;
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy, showHeader = true }: TaskFormProps) => {
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy, builtInRunsOn, showHeader = true }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -448,8 +453,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       ? (wakeMinutes != null && startMinutes < wakeMinutes ? "Bedtime has to be before midnight: the day starts fresh at midnight." : null)
       : (startMinutes + durationTotal > 24 * 60 ? "This would run past midnight. The day starts fresh at midnight, so make it end by 11:59pm." : null);
   // A parent's own task can't take a built-in row's name: the app would treat
-  // it as that row.
-  const nameClash = isSystemEvent ? undefined : reservedTaskName(formData.name);
+  // it as that row. On a day the row isn't on (Lunch with no school), a
+  // one-off with its name adds that row to the day instead.
+  const reserved = isSystemEvent ? undefined : reservedTaskName(formData.name);
+  const addsBuiltIn = !!reserved && !isEdit && !repeats && !isChore && !isEvent
+    && !!builtInRunsOn && !builtInRunsOn(reserved, formData.taskDate);
+  const nameClash = addsBuiltIn ? undefined : reserved;
+  const builtInElsewhere = !!reserved && !!builtInRunsOn && !isEdit && !builtInRunsOn(reserved, formData.taskDate);
   // A chore window that ends before it starts would never be open.
   const windowBackwards = isChore && !formData.choreAnytime && formData.windowEnd <= formData.windowStart;
   const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !(isEvent && badEnd);
@@ -698,7 +708,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </div>
         {/* What the name suggested, so a length that changed on its own is
             never a surprise. */}
-        {!isEdit && template && !nameClash && (
+        {!isEdit && template && !reserved && (
           <div className="flex items-center gap-1.5 px-1">
             <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
             <Caption>
@@ -710,9 +720,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             </Caption>
           </div>
         )}
+        {addsBuiltIn && (
+          <Caption>Adds {reserved} to {dateLabel} only. Its usual days stay as they are.</Caption>
+        )}
         {nameClash && (
           <Caption tone="error" id="taskNameClash">
-            {nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "{nameClash} at Grandma's".
+            {builtInElsewhere
+              ? `${nameClash} is part of the daily routine. To add it just for this day, make it a one-day Task; its usual days are set in the profile.`
+              : `${nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "${nameClash} at Grandma's".`}
           </Caption>
         )}
       </div>

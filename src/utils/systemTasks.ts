@@ -363,6 +363,18 @@ export const systemTaskKey = (taskName: string): string | null => {
   return null;
 };
 
+/**
+ * A built-in row put on one date by itself, outside its usual days (Lunch on
+ * a weekday with no school). It's stored as that date's time for the row in
+ * system_date_overrides, like a one-day time change.
+ */
+export const systemRowAddedOn = (child: Partial<Child> | null | undefined, taskName: string, date: string) => {
+  const key = systemTaskKey(taskName);
+  const byDate = (child as { system_date_overrides?: Record<string, Record<string, { time?: string }>> } | null | undefined)
+    ?.system_date_overrides;
+  return !!(key && byDate?.[date]?.[key]?.time);
+};
+
 export const getSystemTaskScheduleForDay = (
   child: Child,
   taskName: string,

@@ -36,11 +36,11 @@ import { springs } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import ChildProfileEdit from "@/components/ChildProfileEdit";
 import { supabase } from "@/integrations/supabase/client";
-import { everydayBreakfastFor, getSystemTaskScheduleForDay, isWeekendKey, overridesField, updateAllSystemTaskInstances, usesWeekendTime, weekendDaysLabel, weekendTimeOf, withWeekendTime } from "@/utils/systemTasks";
+import { everydayBreakfastFor, getSystemTaskScheduleForDay, isWeekendKey, overridesField, reservedTaskName, updateAllSystemTaskInstances, usesWeekendTime, weekendDaysLabel, weekendTimeOf, withWeekendTime } from "@/utils/systemTasks";
 import { minutesToTime, timeToMinutes } from "@/utils/scheduleOverlap";
 import { useHolidays } from "@/hooks/useHolidays";
 import { isRestDate, restDayUpdate } from "@/utils/restDays";
-import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
+import { describeClash, findStartClash, runsOn, tasksOnDate, upcomingDates, type SystemDateOverrides, type TaskLike } from "@/utils/startClash";
 import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 import StarBadge from "@/components/StarBadge";
@@ -459,6 +459,36 @@ const ChildDashboard = () => {
           }
           await updateTask(editingTask.id, { ...taskData, id: editingTask.id, child_id: editingTask.child_id, created_at: editingTask.created_at, updated_at: new Date().toISOString() });
         }
+      } else if (reservedTaskName(taskData.name ?? '') && child) {
+        // A built-in row's name on a day it isn't on (Lunch with no school):
+        // put that row on this one day. The form only allows this then.
+        const name = reservedTaskName(taskData.name)!;
+        const row = tasks.find(t => t.name === name && t.is_active !== false);
+        const key = systemNameToKey[name];
+        if (!row || !key) {
+          refuse(`${name} can't be added right now. Try again in a moment.`);
+          return;
+        }
+        const date = taskData.task_date || format(currentDate, 'yyyy-MM-dd');
+        const usual = getSystemTaskScheduleForDay(child, name, format(new Date(`${date}T00:00:00`), 'EEEE').toLowerCase(), date, holidays);
+        const time = (taskData.scheduled_time || taskData.window_start || usual?.time || row.scheduled_time || '12:00').slice(0, 5);
+        const duration = taskData.duration ?? usual?.duration ?? row.duration ?? 30;
+        const existing: SystemDateOverrides = (child as Child & { system_date_overrides?: SystemDateOverrides }).system_date_overrides || {};
+        const nextOverrides = { ...existing, [date]: { ...(existing[date] || {}), [key]: { time, duration } } };
+        // Un-skip it too, when this day was skipped.
+        const rowForDay = { ...row, excluded_dates: (row.excluded_dates || []).filter(d => d !== date) };
+        const clash = findStartClash(
+          rowForDay as TaskLike, [date],
+          tasks.map(t => (t.id === row.id ? rowForDay : t)) as TaskLike[],
+          { ...child, system_date_overrides: nextOverrides } as Child,
+        );
+        if (clash) {
+          refuse(describeClash(clash));
+          return;
+        }
+        await updateChild(child.id, { system_date_overrides: nextOverrides } as Partial<Child>);
+        if (row.excluded_dates?.includes(date)) await updateTask(row.id, rowForDay);
+        toast({ title: `${name} added to ${format(new Date(`${date}T00:00:00`), 'EEE, MMM d')}` });
       } else {
         // If no scheduled_time, auto-calculate based on existing schedule.
         // Skip auto-calc when window_start is present — that's a placement hint
@@ -538,9 +568,19 @@ const ChildDashboard = () => {
   const handleDeleteTask = async (taskId: string, mode: 'all' | 'this-date' = 'all', dateStr?: string) => {
     try {
       if (mode === 'this-date' && dateStr) {
-        // Skip a single occurrence by appending the date to excluded_dates.
         const task = tasks.find(t => t.id === taskId);
-        if (task) {
+        const key = task ? systemNameToKey[task.name] : undefined;
+        const day = format(new Date(`${dateStr}T00:00:00`), 'EEEE').toLowerCase();
+        if (task && key && child && !task.recurring_days?.includes(day)) {
+          // A built-in row that was only added to this day: take it back off.
+          const existing: SystemDateOverrides = (child as Child & { system_date_overrides?: SystemDateOverrides }).system_date_overrides || {};
+          const { [key]: _gone, ...restOfDay } = existing[dateStr] || {};
+          const next = { ...existing };
+          if (Object.keys(restOfDay).length) next[dateStr] = restOfDay;
+          else delete next[dateStr];
+          await updateChild(child.id, { system_date_overrides: Object.keys(next).length ? next : null } as Partial<Child>);
+        } else if (task) {
+          // Skip a single occurrence by appending the date to excluded_dates.
           const next = Array.from(new Set([...(task.excluded_dates || []), dateStr]));
           await updateTask(taskId, { ...task, excluded_dates: next });
         }
@@ -1061,6 +1101,11 @@ const ChildDashboard = () => {
             anchorOptions={anchorOptions}
             routines={routines}
             schoolDays={child?.school_days}
+            builtInRunsOn={(name, date) => {
+              const row = tasks.find(t => t.name === name && t.is_active !== false);
+              // Without the row there's nothing to add to the day: keep refusing the name.
+              return !row || runsOn(row as TaskLike, date, child);
+            }}
             onCopy={children.length > 1 ? () => {
               const original = tasks.find(t => t.id === editingTask?.id);
               if (!original) return;

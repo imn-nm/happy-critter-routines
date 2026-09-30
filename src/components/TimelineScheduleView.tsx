@@ -11,7 +11,7 @@ import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
 import { Child } from '@/hooks/useChildren';
 import { useToast } from '@/hooks/use-toast';
-import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { getSystemTaskScheduleForDay, isSystemTaskName, systemRowAddedOn } from '@/utils/systemTasks';
 import { isBedtimeRoutine, tieDay } from '@/utils/dayTies';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
@@ -871,9 +871,10 @@ const TimelineScheduleView = ({
       // For recurring tasks, check if today is in their recurring days
       // (and not in the per-occurrence exclusion list).
       if (task.is_recurring && task.recurring_days) {
-        if (!task.recurring_days.includes(dayName)) return false;
         if (task.excluded_dates?.includes(dateString)) return false;
-        return true;
+        // A built-in row can be added to one day on its own (Lunch, no school).
+        return task.recurring_days.includes(dayName)
+          || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, dateString));
       }
       
       // For non-recurring tasks, check if today matches their task_date

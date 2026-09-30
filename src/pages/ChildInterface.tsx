@@ -36,7 +36,7 @@ import { useHolidays } from "@/hooks/useHolidays";
 import { supabase } from "@/integrations/supabase/client";
 import { broadcastCoins } from "@/utils/coinSync";
 import { toast } from "sonner";
-import { ensureSystemTasksExist, getSystemTaskScheduleForDay } from "@/utils/systemTasks";
+import { ensureSystemTasksExist, getSystemTaskScheduleForDay, isSystemTaskName, systemRowAddedOn } from "@/utils/systemTasks";
 import { isBedtimeRoutine, tieDay } from "@/utils/dayTies";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { format } from 'date-fns';
@@ -380,9 +380,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     let todaysTasks = tasksWithCompletion.filter(task => {
       if (task.is_active === false) return false;
       if (task.is_recurring && task.recurring_days) {
-        if (!task.recurring_days.includes(currentDay)) return false;
         if (task.excluded_dates?.includes(todayStr)) return false;
-        return true;
+        // A built-in row can be added to one day on its own (Lunch, no school).
+        return task.recurring_days.includes(currentDay)
+          || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, todayStr));
       }
       if (!task.is_recurring && task.task_date) {
         return task.task_date === todayStr;

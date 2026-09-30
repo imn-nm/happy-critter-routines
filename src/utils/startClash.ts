@@ -1,7 +1,7 @@
 import { addDays, format } from 'date-fns';
 import type { Task } from '@/types/Task';
 import type { Child } from '@/hooks/useChildren';
-import { getSystemTaskScheduleForDay, isSystemTaskName } from '@/utils/systemTasks';
+import { getSystemTaskScheduleForDay, isSystemTaskName, systemRowAddedOn } from '@/utils/systemTasks';
 import { timeToMinutes } from '@/utils/scheduleOverlap';
 import { getPSTDateString } from '@/utils/pstDate';
 
@@ -19,10 +19,13 @@ export type SystemDateOverrides = Record<string, Record<string, { time?: string;
 const dayNameOf = (date: string) => format(new Date(`${date}T00:00:00`), 'EEEE').toLowerCase();
 
 /** Does a timed task happen on this date? Chores never block the timeline. */
-export const runsOn = (task: TaskLike, date: string) => {
+export const runsOn = (task: TaskLike, date: string, child?: Child | null) => {
   if (task.is_active === false || task.type === 'floating') return false;
   if (task.is_recurring) {
-    return !!task.recurring_days?.includes(dayNameOf(date)) && !task.excluded_dates?.includes(date);
+    if (task.excluded_dates?.includes(date)) return false;
+    // A built-in row can be added to one day on its own (Lunch, no school).
+    return !!task.recurring_days?.includes(dayNameOf(date))
+      || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, date));
   }
   if (task.task_date) return task.task_date === date;
   return !!task.created_at && format(new Date(task.created_at), 'yyyy-MM-dd') === date;
@@ -67,11 +70,11 @@ export const findStartClash = (
   child: Child | null,
 ): StartClash | null => {
   for (const date of dates) {
-    if (!runsOn(candidate, date)) continue;
+    if (!runsOn(candidate, date, child)) continue;
     const start = startOn(candidate, date, child);
     if (start == null) continue;
     for (const other of tasks) {
-      if (other.id === candidate.id || !runsOn(other, date)) continue;
+      if (other.id === candidate.id || !runsOn(other, date, child)) continue;
       if (startOn(other, date, child) === start) return { date, otherName: other.name, start };
     }
   }
@@ -93,7 +96,7 @@ export const describeClash = (clash: StartClash) => {
  */
 export const tasksOnDate = <T extends TaskLike>(tasks: T[], date: string, child: Child | null) =>
   tasks
-    .filter(t => runsOn(t, date))
+    .filter(t => runsOn(t, date, child))
     .map(t => {
       const start = startOn(t, date, child);
       if (start == null) return null;
