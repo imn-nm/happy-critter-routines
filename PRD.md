@@ -96,7 +96,16 @@ Marks a task that the child cannot skip. Important tasks:
 Per-child catalog of redeemable items (e.g. "30 minutes of Roblox — 50
 coins"). Purchases are logged as transactions.
 
-### 6.6 Virtual Pet
+### 6.6 Streaks
+"Stay in bed 5 nights in a row → ★ 5." The parent picks a habit (picture
+presets or their own words), how many days in a row (3/5/7/10) and the stars
+it pays, then answers once a day on their phone: **Yes** or **Not this
+time**. Each Yes fills a star bead on the child's round screen; the last one,
+a big star, pays the stars and a new round starts. "Not this time" quietly
+empties the beads; a day with no answer changes nothing. The child's screen
+never mentions a missed day. Details and the device spec: `docs/STREAKS.md`.
+
+### 6.7 Virtual Pet
 Each child has one pet with happiness tied to daily completion rate. Pet shows
 emotions: encouraging, happy, excited, resting. Pet avatar changes size/state
 contextually (e.g. sleeping at bedtime, celebrating on early completion).
@@ -163,6 +172,10 @@ task_completions    — child_id, task_id, completed_date, coins_earned,
 task_sessions       — active timing; task_id, start_time, end_time
 rewards             — child_id, name, cost_coins, icon
 reward_purchases    — child_id, reward_id, purchased_at, cost_coins
+streaks             — child_id, name, icon, moment (day/night), target_days,
+                      reward_stars; current_count and rounds_completed are
+                      kept by settle_streak()
+streak_days         — streak_id, date, kept, stars_given (one answer a day)
 holidays            — child_id, date, is_no_school, label
 ```
 
@@ -256,7 +269,6 @@ when the parent edits something from the dashboard.
 - Multi-parent / co-parent accounts.
 - Parent-to-child in-app messaging.
 - Social / sharing features (friends, leaderboards).
-- Streaks across weeks (only per-day happiness is tracked).
 - Push notifications — the app relies on kids opening it, not on interrupting
   them.
 

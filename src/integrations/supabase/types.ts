@@ -661,6 +661,100 @@ export type Database = {
           },
         ]
       }
+      streak_days: {
+        Row: {
+          date: string
+          kept: boolean
+          marked_at: string
+          marked_by: string | null
+          stars_given: number
+          streak_id: string
+        }
+        Insert: {
+          date: string
+          kept: boolean
+          marked_at?: string
+          marked_by?: string | null
+          stars_given?: number
+          streak_id: string
+        }
+        Update: {
+          date?: string
+          kept?: boolean
+          marked_at?: string
+          marked_by?: string | null
+          stars_given?: number
+          streak_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streak_days_streak_id_fkey"
+            columns: ["streak_id"]
+            isOneToOne: false
+            referencedRelation: "streaks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      streaks: {
+        Row: {
+          child_id: string
+          counting_from: string | null
+          created_at: string
+          current_count: number
+          icon: string
+          id: string
+          is_active: boolean
+          last_round_on: string | null
+          moment: string
+          name: string
+          reward_stars: number
+          rounds_completed: number
+          sort_order: number
+          target_days: number
+        }
+        Insert: {
+          child_id: string
+          counting_from?: string | null
+          created_at?: string
+          current_count?: number
+          icon?: string
+          id?: string
+          is_active?: boolean
+          last_round_on?: string | null
+          moment?: string
+          name: string
+          reward_stars?: number
+          rounds_completed?: number
+          sort_order?: number
+          target_days?: number
+        }
+        Update: {
+          child_id?: string
+          counting_from?: string | null
+          created_at?: string
+          current_count?: number
+          icon?: string
+          id?: string
+          is_active?: boolean
+          last_round_on?: string | null
+          moment?: string
+          name?: string
+          reward_stars?: number
+          rounds_completed?: number
+          sort_order?: number
+          target_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streaks_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_completions: {
         Row: {
           child_id: string
@@ -926,6 +1020,10 @@ export type Database = {
       }
       is_household_member: { Args: { hid: string }; Returns: boolean }
       is_household_owner: { Args: { hid: string }; Returns: boolean }
+      mark_streak_day: {
+        Args: { p_date: string; p_kept: boolean; p_streak_id: string }
+        Returns: Json
+      }
       peek_household_invite: { Args: { invite_token: string }; Returns: Json }
       redeem_household_invite: {
         Args: { invite_token: string; bring_children?: boolean }
@@ -937,6 +1035,7 @@ export type Database = {
         Args: { p_household: string; p_pin: string | null }
         Returns: undefined
       }
+      settle_streak: { Args: { p_streak_id: string }; Returns: Json }
       shares_household_with: { Args: { other_user: string }; Returns: boolean }
       undo_task_completion: { Args: { p_completion_id: string }; Returns: Json }
       verify_parent_pin: {

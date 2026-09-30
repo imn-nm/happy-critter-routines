@@ -100,4 +100,14 @@ export const sounds = {
   soon: () => play([{ f: A4, at: 0, len: 0.22, gain: 0.08 }, { f: E5, at: 0.2, len: 0.36, gain: 0.08 }]),
   /** Bedtime. Two descending notes, quiet. */
   bedtime: () => play([{ f: E5, at: 0, len: 0.5, gain: 0.07 }, { f: C5, at: 0.5, len: 0.8, gain: 0.06 }]),
+  /**
+   * The Piko chime: a G, then the C above it (brand book). Only ever for good
+   * things, like a new streak bead.
+   */
+  chime: () => play([{ f: G5, at: 0, len: 0.18 }, { f: C6, at: 0.14, len: 0.42 }], "triangle"),
+  /** A streak round finished: the chime, then a hop up to the top C. */
+  streakDone: () => play([
+    { f: G5, at: 0, len: 0.16 }, { f: C6, at: 0.12, len: 0.2 },
+    { f: G5, at: 0.36, len: 0.14 }, { f: C6, at: 0.48, len: 0.6, gain: 0.14 },
+  ], "triangle"),
 };

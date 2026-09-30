@@ -51,6 +51,7 @@ import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerIt
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { speak } from "@/lib/speech";
 import StarBadge from "@/components/StarBadge";
+import KidStreaks from "@/components/round/KidStreaks";
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -1217,6 +1218,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             <div className="flex items-center gap-2 min-w-0">
               <p className="text-20 font-semibold text-focus-text leading-none truncate">{picture ? `👋 ${child.name}` : `Hi, ${child.name}!`}</p>
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+            {/* Streaks: opens the round streak screen, and opens by itself to
+                cheer a new star (not side by side, where screens are shared). */}
+            {!preview && <KidStreaks child={child} picture={picture} autoOpen={!propChildId} />}
             <StarBadge
               onClick={() => setShowRewardsShop(true)}
               aria-label="Open rewards shop"
@@ -1249,6 +1254,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 ))}
               </AnimatePresence>
             </StarBadge>
+            </div>
           </div>
         )}
 

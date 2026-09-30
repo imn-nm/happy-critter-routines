@@ -27,6 +27,7 @@ import { isRestDate } from "@/utils/restDays";
 import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
 import StarBadge from "@/components/StarBadge";
+import StreaksSection from "@/components/streaks/StreaksSection";
 import { prepMinutes } from "@/utils/eventWindow";
 
 // Per-child chip colours on event cards (Figma 390:3407: tinted fill, same-
@@ -374,6 +375,9 @@ const Dashboard = () => {
             />
           ))}
         </section>
+
+        {/* Streaks: today's one-tap check-ins ("Last night? Yes / Not this time"). */}
+        <StreaksSection kids={children} />
 
         {/* Upcoming events (Figma 390:3629 / 390:3631) */}
         <h2 className="pt-1 text-16 leading-[22px] font-semibold text-focus-text">Upcoming Events</h2>

@@ -23,6 +23,10 @@ export default {
 				body: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
 				sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
 				mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+				// Piko brand (the child's round screen): big words, reading letters, pixel numbers.
+				piko: ['"Bagel Fat One"', '"Arial Rounded MT Bold"', '"Trebuchet MS"', 'system-ui', 'sans-serif'],
+				read: ['Andika', 'Verdana', '"Segoe UI"', 'system-ui', 'sans-serif'],
+				pixel: ['"Pixelify Sans"', '"Courier New"', 'ui-monospace', 'monospace'],
 			},
 			fontSize: {
 				// Aligned to --fs-* in tokens.css

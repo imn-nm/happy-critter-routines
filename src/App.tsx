@@ -33,6 +33,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import TimeReservePreview from "./pages/TimeReservePreview";
+import StreaksPreview from "./pages/StreaksPreview";
 import { MotionConfig } from "motion/react";
 
 // Design/preview tool pages only exist in local dev builds. They are never
@@ -107,6 +108,7 @@ const App = () => (
               <Route path="/preview/sprite-pet" element={<SpritePetPreview />} />
               <Route path="/preview/playtime" element={<AuthProvider><PlaytimePreview /></AuthProvider>} />
               <Route path="/preview/critter-editor" element={<CritterEditor />} />
+              <Route path="/preview/streaks" element={<StreaksPreview />} />
             </>
           )}
           <Route

@@ -132,12 +132,17 @@ const RULES: { keywords: string[]; key: string }[] = [
  * the parent) wins; otherwise fall back to keyword matching on the name.
  */
 export function getTaskIconComponent(taskName: string, iconKey?: string | null): TaskIconComponent {
-  if (iconKey && ICON_BY_KEY[iconKey]) return ICON_BY_KEY[iconKey];
+  return ICON_BY_KEY[getTaskIconKey(taskName, iconKey)];
+}
+
+/** The icon key a name picks (see getTaskIconComponent), for saving it. */
+export function getTaskIconKey(taskName: string, iconKey?: string | null): string {
+  if (iconKey && ICON_BY_KEY[iconKey]) return iconKey;
   const name = ` ${(taskName || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
   for (const { keywords, key } of RULES) {
-    if (keywords.some((k) => name.includes(` ${k}`))) return ICON_BY_KEY[key];
+    if (keywords.some((k) => name.includes(` ${k}`))) return key;
   }
-  return ICON_BY_KEY.star;
+  return "star";
 }
 
 /** Render the icon for a task. `className` controls size/color. */

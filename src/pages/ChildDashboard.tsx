@@ -44,6 +44,8 @@ import { describeClash, findStartClash, tasksOnDate, upcomingDates, type SystemD
 import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 import StarBadge from "@/components/StarBadge";
+import StreaksSection from "@/components/streaks/StreaksSection";
+import { SheetHeader } from "@/components/sheet/SheetParts";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -57,6 +59,7 @@ const ChildDashboard = () => {
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const [scheduleTab, setScheduleTab] = useState("timeline");
   const [showRewards, setShowRewards] = useState(false);
+  const [showStreaks, setShowStreaks] = useState(false);
   const [showWheelEditor, setShowWheelEditor] = useState(false);
   const [showRoutines, setShowRoutines] = useState(false);
   const [copyingTask, setCopyingTask] = useState<Task | null>(null);
@@ -748,6 +751,7 @@ const ChildDashboard = () => {
               childName={child.name}
               onEditSchedule={openProfileEdit}
               onActivityWheel={() => setShowWheelEditor(true)}
+              onStreaks={() => setShowStreaks(true)}
               onReports={() => navigate(`/reports/${child.id}`)}
               onChildView={() => navigate(`/child/${child.id}`)}
               alertCount={alertCount}
@@ -912,6 +916,18 @@ const ChildDashboard = () => {
       </Dialog>
 
       {/* Spinning wheel setup dialog — parent sets the child-specific options */}
+      {/* Streaks — this child's, paused ones included. */}
+      <Dialog open={showStreaks} onOpenChange={setShowStreaks}>
+        <DialogContent className="max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] sm:max-w-[480px] bg-focus-sheet [&>button]:hidden">
+          <DialogTitle className="sr-only">{child.name}'s streaks</DialogTitle>
+          <DialogDescription className="sr-only">Stars for doing something a number of days in a row</DialogDescription>
+          <div className="flex flex-col gap-4 pb-2">
+            <SheetHeader title={`${child.name}'s Streaks`} onClose={() => setShowStreaks(false)} />
+            <StreaksSection kids={[child]} includePaused heading={null} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showWheelEditor} onOpenChange={setShowWheelEditor}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogTitle className="text-xl font-bold">Spinning Wheel</DialogTitle>

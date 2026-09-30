@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BarChart3, Bell, CalendarCog, Eye, Shuffle } from "lucide-react";
+import { BarChart3, Bell, CalendarCog, Eye, Shuffle, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ interface QuickAccessMenuProps {
   childName: string;
   onEditSchedule: () => void;
   onActivityWheel: () => void;
+  onStreaks: () => void;
   onReports: () => void;
   onChildView: () => void;
   alertCount: number;
@@ -24,13 +25,14 @@ interface QuickAccessMenuProps {
  * Quick access menu, opened from the ••• button on the child's schedule
  * page. It drops down right under the button and holds everything about the
  * child that isn't the day itself: schedule settings, the activity wheel,
- * reports, the child's own view and alerts.
+ * streaks, reports, the child's own view and alerts.
  */
 export default function QuickAccessMenu({
   children,
   childName,
   onEditSchedule,
   onActivityWheel,
+  onStreaks,
   onReports,
   onChildView,
   alertCount,
@@ -49,6 +51,10 @@ export default function QuickAccessMenu({
         <DropdownMenuItem onSelect={onActivityWheel}>
           <Shuffle aria-hidden />
           Activity Wheel
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onStreaks}>
+          <Star aria-hidden />
+          Streaks
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onReports}>
           <BarChart3 aria-hidden />
