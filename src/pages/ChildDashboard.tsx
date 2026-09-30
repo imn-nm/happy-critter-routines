@@ -552,6 +552,13 @@ const ChildDashboard = () => {
     }
   };
 
+  /** Undo "only on this day" (a task, or a built-in row such as School). */
+  const handleRestoreTask = async (taskId: string, dateStr: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    await updateTask(taskId, { ...task, excluded_dates: (task.excluded_dates || []).filter(d => d !== dateStr) });
+  };
+
   const handleReorderTasks = async (reorderedTasks: Task[]) => {
     try {
       // Build occupied slots from system/fixed tasks (not being reordered)
@@ -832,6 +839,7 @@ const ChildDashboard = () => {
                   hideHeader
                   getTasksWithCompletionStatus={getTasksWithCompletionStatus}
                   onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
+                  onRestoreTask={handleRestoreTask}
                   onToggleCompletion={handleToggleCompletion}
                   onDateChange={setCurrentDate}
                   onReorderTasks={handleReorderTasks}
@@ -873,11 +881,7 @@ const ChildDashboard = () => {
             onOpenDay={(date) => { setCurrentDate(date); setScheduleTab("timeline"); }}
             onAddTask={(date) => { setCurrentDate(date); handleAddTask(); }}
             onEditTask={handleEditTask} onDeleteTask={handleDeleteTask}
-            onRestoreTask={async (taskId, dateStr) => {
-              const task = tasks.find(t => t.id === taskId);
-              if (!task) return;
-              await updateTask(taskId, { ...task, excluded_dates: (task.excluded_dates || []).filter(d => d !== dateStr) });
-            }}
+            onRestoreTask={handleRestoreTask}
             onSelectedDateChange={setCurrentDate}
             onToggleRestDay={async (dateStr, next) => {
               await updateChild(child.id, restDayUpdate(child, dateStr, next));

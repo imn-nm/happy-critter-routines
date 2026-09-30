@@ -94,6 +94,8 @@ interface TimelineScheduleViewProps {
   onAddTask?: (prefillTime?: string) => void;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string, mode?: 'all' | 'this-date', dateStr?: string) => void;
+  /** Bring back something skipped on this day ("Only on this day", School included). */
+  onRestoreTask?: (taskId: string, dateStr: string) => void;
   onTaskTimeUpdate?: (taskId: string, newTime: string, dayName?: string) => void;
   onReorderTasks?: (tasks: any[]) => void;
   onDateChange?: (date: Date) => void;
@@ -712,6 +714,7 @@ const TimelineScheduleView = ({
   onAddTask,
   onEditTask,
   onDeleteTask,
+  onRestoreTask,
   onTaskTimeUpdate,
   onReorderTasks,
   onDateChange,
@@ -1665,6 +1668,32 @@ const TimelineScheduleView = ({
           ))}
         </div>
       )}
+
+      {/* Skipped just for this day (School on a day off, a lesson that's
+          cancelled): shown so the skip can be undone here. */}
+      {onRestoreTask && (() => {
+        const skipped = tasksWithCompletion.filter(t =>
+          t.is_active !== false && t.is_recurring && t.recurring_days?.includes(dayOfWeek)
+          && t.excluded_dates?.includes(selectedDayDateString));
+        if (!skipped.length) return null;
+        return (
+          <div className="flex flex-col gap-sp-2">
+            <p className="text-[12px] leading-4 font-semibold text-focus-muted">Skipped This Day</p>
+            {skipped.map(task => (
+              <div key={task.id} className="flex items-center gap-3 rounded-[16px] border border-dashed border-focus-muted/40 pl-[14px] pr-1 py-1">
+                <span className="flex-1 min-w-0 truncate text-[14px] text-focus-muted line-through">{task.name}</span>
+                <button
+                  type="button"
+                  onClick={() => onRestoreTask(task.id, selectedDayDateString)}
+                  className="shrink-0 h-11 inline-flex items-center gap-1.5 rounded-[14px] px-3 text-[13px] font-semibold text-focus-lavender hover:bg-focus-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Timeline + Chores Sidebar */}
       {(() => {

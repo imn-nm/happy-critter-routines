@@ -120,6 +120,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const isSystemEvent =
     (!!task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ||
     (isEdit && isSystemTaskName(task?.name));
+  // School and meals can be skipped for a day; the row must be a real one.
+  const canSkipDay = !!task?.id
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id)
+    && !['Wake Up', 'Bedtime'].includes(task.name ?? '');
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
 
@@ -1205,6 +1209,48 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         >
           {isEdit ? 'Save Changes' : (isChore ? 'Add Chore' : 'Add to Schedule')}
         </Button>
+
+        {/* A built-in row (School, a meal) can be skipped for one day: no
+            school on a day off, dinner out. Every other day keeps it, and the
+            skip can be restored from that day. Wake-up and bedtime frame the
+            day, so they always stay. */}
+        {isEdit && onDelete && task?.id && isSystemEvent && canSkipDay && (
+          !showDeleteConfirm ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full text-focus-coral hover:text-focus-coral hover:bg-focus-coral/10"
+            >
+              Skip on {format(currentDate, 'EEE, MMM d')}
+            </Button>
+          ) : (
+            <div className="rounded-[18px] border border-focus-coral/30 bg-focus-coral/5 p-3 flex flex-col gap-2">
+              <p className="text-13 text-focus-text text-center">
+                No {formData.name} on {format(currentDate, 'EEE, MMM d')}? Every other day keeps it.
+              </p>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => onDelete(task.id, 'this-date', format(currentDate, 'yyyy-MM-dd'))}
+                className="w-full"
+              >
+                Skip Only on {format(currentDate, 'EEE, MMM d')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          )
+        )}
 
         {/* Delete — the secondary, destructive spot under the save button */}
         {isEdit && onDelete && task?.id && !isSystemEvent && (
