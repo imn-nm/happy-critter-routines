@@ -117,7 +117,8 @@ after the day is over), then store the new numbers.
 
 Positions are percent of the screen; sizes in `cqi` (1% of the width).
 Black screen, Inter, Focus colours (lime `#DCEF70` stars, lavender
-`#A89AF0` next, raised `#3C4770` still to come).
+`#A89AF0` next, raised `#3C4770` outline still to come; the big star still
+to win is raised with a lime rim).
 
 | Element | New star | Big star |
 |---|---|---|

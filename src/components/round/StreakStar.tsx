@@ -2,7 +2,7 @@
  * One star of a streak, drawn the way the round display's Figma draws stars
  * (Circle Display, row 09): lime for a star a grown-up gave, a lavender
  * outline for the one they're going for next, a quiet outline for the rest,
- * and a filled navy star for the big one still to win.
+ * and a navy star with a lime rim for the big one still to win.
  */
 export type StreakStarState = "empty" | "next" | "filled" | "prize";
 
@@ -36,7 +36,8 @@ const STYLE: Record<StreakStarState, { fill: string; stroke: string; width: numb
   filled: { fill: ROUND.lime, stroke: ROUND.lime, width: 2.6 },
   next: { fill: "none", stroke: ROUND.lavender, width: 1.8 },
   empty: { fill: "none", stroke: ROUND.raised, width: 1.8 },
-  prize: { fill: ROUND.raised, stroke: ROUND.raised, width: 2.6 },
+  // A lime rim so the big star reads on the dark rows before it's won.
+  prize: { fill: ROUND.raised, stroke: ROUND.lime, width: 1.6 },
 };
 
 const StreakStar = ({ state, className }: { state: StreakStarState; className?: string }) => {
