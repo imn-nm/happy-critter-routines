@@ -16,16 +16,22 @@ device/
     day.c, logic.c     the day plan, and the live day (a port of ChildInterface + timeReserve.ts)
     ui/                Field Kit screens: Home, Rewards, Chores, schedule, overlays, the wheel
     pet/               Biscuit: behaviour engine (port of SpritePet.tsx) + the LED-field renderer
-    play/              Playtime: menu, Dress up, Bath time, Carrot catch, Bubble pop, Peekaboo
+    play/              Playtime: menu (two pages), Dress up, Bath time, Carrot catch, Bubble pop, Peekaboo,
+                       Roll home, Biscuit says, Carrot stack (the motion games, see app/motion.h)
     assets/            generated fonts and line icons
     vendor/cjson/      cJSON (MIT)
     hal.h              what a platform provides (clock, network, storage, sound, speech)
+    motion.c           the accelerometer's signals: tilt, shake, knocks, holding still
   platform/
     sim/               browser simulator: main_sim.c, web/ (page, housing, demo plans), build.py
     esp32s3/           ESP-IDF project for the board: main.c, hal_esp32.c, sdkconfig.defaults
   tools/               generators: fonts.mjs, icons.mjs, pet_export.mjs, setup.py
   docs/day-plan.md     the JSON the device reads every day
 ```
+
+## On the web app
+
+The same firmware runs inside the child view: `/child/:childId/circle` (the round button at the top of the child's screen) draws the Circle on a canvas and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit) is saved the way the list view saves it. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
 
 ## Run the simulator
 
@@ -47,7 +53,7 @@ Using the simulator:
 - **The button at 1 o'clock:** the green cap on the housing, or <kbd>Space</kbd>.
 - **Clock:** use the slider, the ±5 min / ±1 h buttons, the jumps to each task, and the speed (up to 300×).
 - **Demo plans:** a school day, running late, a weekend, a free day and a rest day. There are toggles for picture view (under 7), for no internet, and for whether the device is paired with a grown-up's app (unpaired shows the pairing code).
-- **The handheld:** a toggle for sitting on its dock (the night clock from Goodnight on, and charging) and a battery level (10% and below shows "Put me on my dock").
+- **The handheld:** a toggle for sitting on its dock (the night clock from Goodnight on, and charging), a battery level (10% and below shows "Put me on my dock"), and the pretend accelerometer: a round **Tilt** pad (or the arrow keys while the page has focus), **Shake** (600 ms of 1.5 g wobble) and **Knock** (one sharp spike). They drive the motion games on Playtime's second page: Roll home (tilt), Biscuit says (tilt, shake, tap, the button, hold still) and Carrot stack (hold still, tilt). Carrot catch runs on tilt too.
 - **Grown-up actions:** approve a reward, say no to one, give a star, give a streak star, the last streak star, the crash screen.
 - **The morning:** the alarm sounds at wake-up time and the ring turns from sky to lime as the room lights up; the button is "I'm up"; a quick drag down snoozes it for five minutes (twice at most, and nothing on screen says so).
 
@@ -100,8 +106,9 @@ What the board layer does (`main/hal_esp32.c`):
 | Clock | SNTP when online; the server's `Date` header as a fallback; the firmware's build time with no network, so the demo runs offline |
 | Day plan | `GET` the plan URL with `Authorization: Bearer <token>`, refreshed every 5 minutes and at midnight |
 | Events | `POST` to the events URL; kept in NVS and retried every 20 s while offline |
-| Storage | NVS namespace `mytoki`: the day's progress, celebrations already shown, the outfit, the Carrot catch best |
+| Storage | NVS namespace `mytoki`: the day's progress, celebrations already shown, the outfit, the game bests (`carrot-best`, `maze-best-0..2`, `says-best`, `stack-best`) |
 | Button | GPIO, active low, 30 ms debounce |
+| Motion | the board's QMI8658 over the BSP's I2C bus at 100 Hz (`CONFIG_MYTOKI_IMU`), handed to `mytoki_motion()`; the product's LIS2DH12 swaps in behind the same call, its click interrupt feeding `motion_add_taps()`. The axis mapping (`IMU_AX/AY/AZ`, `IMU_S*`) is set on the bench |
 | Sound | chimes synthesised into the ES8311 (start, done, tick, "soon", the MyToki chime G5→C6, bedtime) |
 | Speech | not on the board yet (picture view's read-aloud is a no-op there; the simulator uses the browser's voice) |
 | Brightness | `bsp_display_brightness_set`: dimmed at night |
@@ -130,4 +137,5 @@ What the board layer does (`main/hal_esp32.c`):
 
 - **A server endpoint for the plan.** Today the simulator and the board use demo plans. The next step is a Supabase Edge Function that builds `docs/day-plan.md` from the parent's data and accepts the events.
 - **Device pairing and Wi-Fi setup.** With no device token the board shows its pairing code (`mytoki_day_failed(3)`); the app side that turns the code into a token does not exist yet, and Wi-Fi still comes from menuconfig.
+- **Motion on hardware.** The QMI8658 task is written against the datasheet and the esp-bsp I2C helpers (`bsp_i2c_init`, `bsp_i2c_get_handle`) but has never run; the axis signs need a bench test, and knocks may need the sensor's own click detector.
 - **Speech on the board.** The dock and the battery are read through `hal_docked()` and `hal_battery()`, which the board answers with "no" and 100% until the enclosure's charger-detect pin and fuel gauge exist.

@@ -249,7 +249,7 @@ Biscuit is the reason a child picks MyToki up. The pet has to feel alive, like a
 
 **Playtime**
 
-Five games, all no-fail, none paying stars, all screen-free in spirit (short and gentle):
+Eight games on two pages, all no-fail, none paying stars, all screen-free in spirit (short and gentle). The second page holds the motion games for older kids: they use the accelerometer (tilt, shake, a knock, holding still) and keep a personal best to beat.
 
 | Game | What happens |
 | --- | --- |
@@ -258,6 +258,9 @@ Five games, all no-fail, none paying stars, all screen-free in spirit (short and
 | Carrot catch | Thirty seconds of catching carrots; gold ones count three; a personal best |
 | Bubble pop | Biscuit blows bubbles, the child pops them; a cheer every ten |
 | Peekaboo | Three bushes; ears peek as a hint; Biscuit pops up with "boo" |
+| Roll home | Tilt MyToki to roll a carrot through a hedge maze to Biscuit; three mazes, a best time for each |
+| Biscuit says | Biscuit calls a move (tilt left, right, up, down, shake, tap, the button, hold still) and the window shrinks; a slip ends the run with a cheer; best run kept |
+| Carrot stack | Hold it level and still and carrots land on Biscuit's tray; tilt leans the stack and the top ones slide off; tallest stack kept |
 
 Play ends on its own five minutes before the next thing, with a goodbye instead of a nag.
 
@@ -282,7 +285,7 @@ The handheld is a toy the child carries, not a watch and not a clock. It must su
 | Board | Waveshare ESP32-S3 with 8 MB PSRAM, Wi-Fi |
 | Sound | Small speaker for chimes; speech later |
 | Input | One hardware button at 1 o'clock on the rim, plus touch |
-| Motion | 3-axis accelerometer: wakes the screen when picked up, lets Biscuit react to a shake or a tap, knows when it is in the dock |
+| Motion | 3-axis accelerometer: plays the motion games (tilt, shake, knock, hold still), and later wakes the screen when picked up, lets Biscuit react to a shake or a tap, knows when it is in the dock |
 | Housing | Navy with a green button (moodboard: handheld toys, orange cables, dot-matrix screens) |
 
 The first board is a development kit. The product version needs a battery sized for a full day, a lanyard point, a drop-proof shell, and a quiet mode for school.

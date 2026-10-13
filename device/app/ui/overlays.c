@@ -772,9 +772,70 @@ void denied_open(const day_reward_t *r, const char *note, overlay_cb_t on_shop)
     auto_close(&denied, 20000);
 }
 
+/* Figma Reward spotlight: the picture on a 212 px card circle centred at (233, 178), a dotted orbit
+ * (248 across, 70 %), two little stars, and a badge at the bottom right when there is one. */
+static void reward_spotlight(lv_obj_t *o, const day_reward_t *r, uint32_t orbit, uint32_t star1, uint32_t star2)
+{
+    lv_obj_t *spot = ui_box(o);
+    lv_obj_set_size(spot, 212, 212);
+    lv_obj_set_pos(spot, 127, 72);
+    ui_style_card(spot, C_GLASS, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_t *ring = ring_create(o, 124);
+    lv_obj_align(ring, LV_ALIGN_CENTER, 0, -54);
+    ring_style_t s = ring_style(60, orbit, orbit);
+    s.count = 36;
+    s.lit = 36;
+    s.arc = false;
+    s.edge = 0;
+    s.lit_r = 2.1f;
+    s.dim_r = 2.1f;
+    s.lit_opa = s.dim_opa = 178;
+    ring_set(ring, &s);
+    const lv_image_dsc_t *art = reward_art(r->icon);
+    if (art) {
+        lv_obj_t *img = lv_image_create(spot);
+        lv_image_set_src(img, art);
+        lv_image_set_scale(img, (uint32_t)(256 * 138 / 72));   /* an 88-in-112 picture, at 176 */
+        lv_obj_center(img);
+    } else {
+        lv_obj_t *ic = ui_icon(spot, r->icon[0] ? r->icon : "gift", 96, C_BONE);
+        lv_obj_center(ic);
+    }
+    lv_obj_t *s1 = ui_icon(o, "star-fill", 24, star1);
+    lv_obj_set_pos(s1, 109, 119);
+    lv_obj_t *s2 = ui_icon(o, "star-fill", 18, star2);
+    lv_obj_set_pos(s2, 339, 183);
+}
+
 void reward_asked_open(const day_reward_t *r)
 {
-    circle_screen(&asked, "star-line", "Asked!", r, "Waiting for your parent to say yes.", "Back to shop", NULL);
+    circle_slot = &asked;
+    circle_cb = NULL;
+    lv_obj_t *o = open_overlay(&asked, true);
+    header(o, "star-line", C_BONE, "Request sent!", NULL, 0);
+    reward_spotlight(o, r, C_MINT, C_MINT, C_LAVENDER);
+    /* the badge: a kite in a mint circle with an ink edge, bottom right of the spotlight */
+    lv_obj_t *badge = ui_box(o);
+    lv_obj_set_size(badge, 48, 48);
+    lv_obj_set_pos(badge, 309, 231);
+    ui_style_card(badge, C_MINT, LV_RADIUS_CIRCLE, C_INK, LV_OPA_COVER);
+    lv_obj_set_style_border_width(badge, 4, 0);
+    lv_obj_t *ki = ui_icon(badge, "kite", 24, C_NAVY);
+    lv_obj_center(ki);
+    lv_obj_t *name = ui_label(o, F_ITEM, C_BONE, r->title);
+    lv_obj_set_width(name, 320);
+    lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+    lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 306);
+    lv_obj_t *c = ui_label(o, F_BODY_P, C_MUTED, "Waiting for a grown-up");
+    lv_obj_set_width(c, 320);
+    lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 342);
+    lv_obj_t *btn = button_create(o, BTN_PRIMARY, false, "gift", "Back to shop");
+    lv_obj_add_event_cb(btn, on_circle_button, LV_EVENT_CLICKED, NULL);
+    lv_obj_update_layout(btn);
+    lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 402);
+    overlay_enter_push(o);
 }
 
 /* Figma Rewards · 02 · Choose and ask: the picture in a 112 px peach circle, the name, the price
@@ -801,24 +862,28 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
     ask_index = index;
     lv_obj_t *o = open_overlay(&chosen, true);
     header(o, "star-line", C_BONE, "Want this reward?", NULL, 0);
-    lv_obj_t *pic = reward_picture(o, r, 112);
-    lv_obj_set_pos(pic, 177, 115);
-    lv_obj_t *name = ui_label(o, F_ITEM, C_BONE, r->title);
-    lv_obj_set_width(name, 320);
-    lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-    lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 235);
+    reward_spotlight(o, r, C_LAVENDER, C_BUTTER, 0xEAB5DE);
     bool enough = stars >= r->cost;
+    /* the price: a card pill over the bottom of the spotlight, the stars in amber */
     lv_obj_t *price = ui_row(o, 6);
+    lv_obj_set_height(price, 38);
+    lv_obj_set_style_pad_hor(price, 14, 0);
+    lv_obj_set_flex_align(price, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    ui_style_card(price, C_GLASS, 20, C_LINE, LV_OPA_COVER);
     char cost[24];
     if (enough) snprintf(cost, sizeof cost, "%d stars", r->cost);
     else snprintf(cost, sizeof cost, "%d more stars", r->cost - stars);
     ui_icon(price, "star-fill", 22, enough ? C_BUTTER : C_MUTED);
     ui_label(price, F_ITEM, enough ? C_BUTTER : C_MUTED, cost);
     lv_obj_update_layout(price);
-    lv_obj_align(price, LV_ALIGN_TOP_MID, 0, 278);
+    lv_obj_align(price, LV_ALIGN_TOP_MID, 0, 263);
+    lv_obj_t *name = ui_label(o, F_ITEM, C_BONE, r->title);
+    lv_obj_set_width(name, 320);
+    lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+    lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 312);
     if (enough) {
-        lv_obj_t *ask = button_create(o, BTN_PRIMARY, false, "check", "Ask for this");
+        lv_obj_t *ask = button_create(o, BTN_PRIMARY, false, NULL, "Ask for this");
         lv_obj_add_event_cb(ask, on_ask, LV_EVENT_CLICKED, NULL);
         lv_obj_update_layout(ask);
         lv_obj_align(ask, LV_ALIGN_TOP_MID, 0, 355);

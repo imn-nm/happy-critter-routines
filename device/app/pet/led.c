@@ -166,9 +166,10 @@ void led_render(const led_args_t *a)
                 f = a->fx ? a->fx[c] : 0;
                 r = a->room ? a->room[c] : 0;
                 w = a->walls ? a->walls[c] : 0;
-            } else if (a->extend && gy >= 0 && gy < a->gh) {
-                /* past the grid's sides: the room's edge column carries on (a wide strip) */
-                int c = gy * a->gw + (gx < 0 ? 0 : a->gw - 1);
+            } else if (a->extend) {
+                /* past the grid: the room's edge cells carry on (a wide strip, or the whole circle) */
+                int ex = gx < 0 ? 0 : gx >= a->gw ? a->gw - 1 : gx, ey = gy < 0 ? 0 : gy >= a->gh ? a->gh - 1 : gy;
+                int c = ey * a->gw + ex;
                 r = a->room ? a->room[c] : 0;
                 w = a->walls ? a->walls[c] : 0;
                 if (!w && r) { w = r; r = 0; }

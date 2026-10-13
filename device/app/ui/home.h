@@ -12,7 +12,7 @@ typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE } home_mid_t;   /* NONE
 typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS } home_bottom_t;
 typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;  /* y 75 (99 in picture view), 314, 368, 213 */
 /* What sits under the title (Figma Header "Below"): a plain line, a Time pill, a Status pill. */
-typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;   /* FREE: the time pill and the Spin/Play switch, no title */
+typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;   /* FREE: the time pill and the Play (or Spin) pill, no title */
 
 typedef struct {
     /* header */
@@ -42,6 +42,7 @@ typedef struct {
     uint8_t pet_dim;
     bool room_off;              /* the last minutes of a task: the room goes dark, Biscuit stays */
     int16_t pet_d, pet_xy;      /* 0 = the usual 286 px circle at (90, 90); the alarm fills the screen (446 at 10) */
+    bool pet_wide;              /* the room carries on past its grid to the rim (the alarm) */
     bool say_low;               /* `say` as a bubble at the bottom instead (the alarm, over the full-screen room) */
     int8_t chores_left;         /* at an event: a small "N to finish" pill under Biscuit that opens the list */
     bool wake;                  /* the alarm: he sits up and stretches, the room at dawn */
@@ -55,6 +56,8 @@ typedef struct {
     card_end_t card_end;
     bool card_lime;             /* a lime card with no ring: tapping it opens something */
     int8_t steps_total, steps_done;
+    bool steps_list;            /* older kids: the numbered steps in Biscuit's place (card_text is this step) */
+    char step_prev[56], step_next[56];   /* the step before (done, mint) and the one after, dimmed; "" for none */
     /* bottom */
     home_bottom_t bottom;
     char next_icon[20], next_title[44], next_time[8];

@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import ChildSetup from "./pages/ChildSetup";
 import ParentSettings from "./pages/ParentSettings";
 import ChildInterface from "./pages/ChildInterface";
+import ChildCircle from "./pages/ChildCircle";
 import ChildDashboard from "./pages/ChildDashboard";
 import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
@@ -63,6 +64,8 @@ const ProtectedRoutes = () => (
     {/* Up to three children side by side on an iPad or computer. */}
     <Route path="/child/together" element={<ChildrenTogether />} />
     <Route path="/child/:childId" element={<ChildInterface />} />
+    {/* The same day on the MyToki Circle: the handheld's round screen, run by its firmware. */}
+    <Route path="/child/:childId/circle" element={<ChildCircle />} />
     {/* Grown-up side: behind the parent PIN once a child's screen has been
         open on this device. */}
     <Route element={<ParentGate />}>

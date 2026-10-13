@@ -8,6 +8,8 @@
  *  - store:   NVS namespace "mytoki".
  *  - button:  CONFIG_MYTOKI_BUTTON_GPIO (BOOT, GPIO0, active low) until the shell's button exists.
  *  - sound:   simple chimes synthesised into the ES8311 speaker codec.
+ *  - motion:  the board's QMI8658 accelerometer over I2C at 100 Hz (CONFIG_MYTOKI_IMU);
+ *             the product's LIS2DH12 goes behind the same mytoki_motion() call.
  * Every call into the app (mytoki_*) happens with the LVGL lock held.
  */
 #include <stdio.h>
@@ -348,6 +350,70 @@ static void button_task(void *arg)
     }
 }
 
+/* ================================================================ motion */
+#ifdef CONFIG_MYTOKI_IMU
+#include "driver/i2c_master.h"
+
+/* QMI8658 (QST), the dev board's 6-axis IMU; only the accelerometer is read. Register codes
+ * from the datasheet; check them against the BSP's own qmi8658 component once ESP-IDF is here. */
+#define QMI_ADDR 0x6B           /* 0x6A when SA0 is pulled low */
+#define QMI_WHO_AM_I 0x00       /* reads 0x05 */
+#define QMI_CTRL1 0x02          /* 0x40: address auto-increment */
+#define QMI_CTRL2 0x03          /* 0x23: accel +-4 g, 100 Hz */
+#define QMI_CTRL7 0x08          /* 0x01: accel on */
+#define QMI_AX_L 0x35
+/* Which sensor axis is the screen's x (right), y (12 o'clock), z (out of the screen), and its
+ * sign: set on the bench by tilting the board and watching the log. */
+#define IMU_AX 0
+#define IMU_AY 1
+#define IMU_AZ 2
+#define IMU_SX 1
+#define IMU_SY 1
+#define IMU_SZ 1
+
+static i2c_master_dev_handle_t imu;
+
+static bool imu_write(uint8_t reg, uint8_t val)
+{
+    uint8_t b[2] = { reg, val };
+    return i2c_master_transmit(imu, b, 2, 50) == ESP_OK;
+}
+
+static bool imu_read(uint8_t reg, uint8_t *buf, size_t n)
+{
+    return i2c_master_transmit_receive(imu, &reg, 1, buf, n, 50) == ESP_OK;
+}
+
+static void motion_task(void *arg)
+{
+    (void)arg;
+    i2c_master_bus_handle_t bus = NULL;
+    if (bsp_i2c_init() != ESP_OK || (bus = bsp_i2c_get_handle()) == NULL) { ESP_LOGW(TAG, "no I2C bus: no motion"); vTaskDelete(NULL); return; }
+    i2c_device_config_t cfg = { .dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = QMI_ADDR, .scl_speed_hz = 400000 };
+    if (i2c_master_bus_add_device(bus, &cfg, &imu) != ESP_OK) { ESP_LOGW(TAG, "no IMU device: no motion"); vTaskDelete(NULL); return; }
+    uint8_t who = 0;
+    if (!imu_read(QMI_WHO_AM_I, &who, 1) || who != 0x05) { ESP_LOGW(TAG, "QMI8658 not found (who am I 0x%02x): no motion", who); vTaskDelete(NULL); return; }
+    imu_write(QMI_CTRL1, 0x40);
+    imu_write(QMI_CTRL2, 0x23);
+    imu_write(QMI_CTRL7, 0x01);
+    ESP_LOGI(TAG, "motion: QMI8658 at 100 Hz");
+    TickType_t wake = xTaskGetTickCount();
+    for (;;) {
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(10));
+        uint8_t raw[6];
+        if (!imu_read(QMI_AX_L, raw, 6)) continue;
+        float a[3];
+        for (int i = 0; i < 3; i++) a[i] = (int16_t)(raw[i * 2] | (raw[i * 2 + 1] << 8)) * (4.0f / 32768.0f);
+        float x = IMU_SX * a[IMU_AX], y = IMU_SY * a[IMU_AY], z = IMU_SZ * a[IMU_AZ];
+        /* a 10 ms wait at most: a dropped sample costs nothing, a stalled screen would */
+        if (bsp_display_lock(10) == ESP_OK) {
+            mytoki_motion(x, y, z);
+            bsp_display_unlock();
+        }
+    }
+}
+#endif
+
 /* ================================================================ chimes */
 typedef struct { float f; int at, dur; float gain; } note_t;
 static const note_t SOUNDS[][3] = {
@@ -425,4 +491,7 @@ void hal_esp32_start(void)
     xTaskCreate(button_task, "mytoki-button", 4096, NULL, 5, NULL);
     xTaskCreate(net_task, "mytoki-net", 12288, NULL, 4, NULL);
     if (sound_q) xTaskCreate(sound_task, "mytoki-sound", 6144, NULL, 3, NULL);
+#ifdef CONFIG_MYTOKI_IMU
+    xTaskCreate(motion_task, "mytoki-motion", 3072, NULL, 4, NULL);
+#endif
 }

@@ -34,7 +34,7 @@
       <canvas id="screen" width="466" height="466" aria-label="MyToki screen"></canvas>
       <button class="hw-button" id="hwButton" aria-label="Hardware button (Space)"></button>
     </div>
-    <p class="hint">Click to touch. Drag sideways to swipe: it turns the pages on Home and backs out of lists and Playtime (a game, then the menu). Flick up on Home to lift the day's schedule; flick down, or drag its title down, to put it away. The green button at 1 o'clock (or <kbd>Space</kbd>) is the hardware button. A quick drag down on the morning alarm snoozes it.</p>
+    <p class="hint">Click to touch. Drag sideways to swipe: it turns the pages on Home and backs out of lists and Playtime (a game, then the menu). Flick up on Home to lift the day's schedule; flick down, or drag its title down, to put it away. The green button at 1 o'clock (or <kbd>Space</kbd>) is the hardware button. A quick drag down on the morning alarm snoozes it. The arrow keys tilt the handheld for the motion games; the Tilt pad, Shake and Knock are in the panel.</p>
   </section>
 
   <aside class="panel">
@@ -85,6 +85,17 @@
       <label class="row">Battery %
         <input type="number" id="battery" min="0" max="100" value="100" style="width:72px">
       </label>
+      <div class="row tilt-row">
+        <span>Tilt <output id="tiltOut">level</output></span>
+        <div class="pad" id="tiltPad" tabindex="0" role="slider" aria-label="Tilt the handheld (drag, or the arrow keys)">
+          <div class="dot" id="tiltDot"></div>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="tiltLevel">Level</button>
+        <button id="shakeBtn">Shake</button>
+        <button id="knockBtn">Knock</button>
+      </div>
     </fieldset>
 
     <fieldset>

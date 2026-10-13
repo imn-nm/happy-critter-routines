@@ -140,6 +140,16 @@ export function getTaskIconComponent(taskName: string, iconKey?: string | null):
   return ICON_BY_KEY.star;
 }
 
+/** The icon's key for a task (the parent's pick, or the name's keyword): what the MyToki Circle draws. */
+export function taskIconKey(taskName: string, iconKey?: string | null): string {
+  if (iconKey && ICON_BY_KEY[iconKey]) return iconKey;
+  const name = ` ${(taskName || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  for (const { keywords, key } of RULES) {
+    if (keywords.some((k) => name.includes(` ${k}`))) return key;
+  }
+  return "star";
+}
+
 /** Render the icon for a task. `className` controls size/color. */
 export function getTaskIcon(
   taskName: string,

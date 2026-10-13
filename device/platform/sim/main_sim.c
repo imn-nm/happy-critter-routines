@@ -128,6 +128,9 @@ EXPORT(sim_pointer) void sim_pointer(int32_t x, int32_t y, int32_t down)
 
 EXPORT(sim_button) void sim_button(void) { mytoki_button(); }
 
+/* the page's pretend accelerometer: the tilt pad, Shake and Knock, 50 Hz */
+EXPORT(sim_motion) void sim_motion(float ax, float ay, float az) { mytoki_motion(ax, ay, az); }
+
 EXPORT(sim_day) void sim_day(const char *json, int32_t len) { mytoki_day_received(json, (size_t)len); }
 EXPORT(sim_day_failed) void sim_day_failed(int32_t reason) { mytoki_day_failed(reason); }
 EXPORT(sim_debug) void sim_debug(const char *cmd) { mytoki_debug(cmd); }

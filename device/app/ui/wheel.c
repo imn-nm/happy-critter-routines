@@ -11,17 +11,16 @@
 
 #define PI_F 3.14159265f
 #define SIZE 300          /* the widget; the wheel is centred in it */
-#define RIM_R 128         /* Figma "Rim": 256 px, surface/card with a line outline */
-#define SLICE_R 112       /* the coloured slices */
-#define BULB_R 119.5f     /* 24 bulbs, every 15 degrees */
+#define SLICE_R 133       /* Figma (2026-10-12): a 266 px wheel of dark slices inside the time ring */
 #define ICON_R 88         /* a slice's icon, along its middle */
 #define LABEL_R 63        /* its word */
 #define HUB_RING_R 42     /* ink ring round the hub */
 #define HUB_R 38          /* the lime Spin button */
 #define MAXOPT 8
 
-/* Figma slice colours, clockwise from the top: Draw sky, Lego lavender, Read carrot, Outside mint,
- * Puzzle pink, Dance coral. More options go on in the same order. */
+/* The icons' colours, clockwise from the top: Draw sky, Lego lavender, Read carrot, Outside mint,
+ * Puzzle pink, Dance coral. More options go on in the same order. The slices themselves alternate
+ * surface/line and surface/card. */
 static const uint32_t COLORS[] = { 0x879BFF, 0xA89AF0, 0xF7945A, 0x65CDAA, 0xEAB5DE, 0xFF8F91, C_BUTTER, C_SKY };
 
 typedef struct {
@@ -113,18 +112,14 @@ static void wheel_draw(lv_event_t *e)
     const float cx = c.x1 + SIZE / 2.0f, cy = c.y1 + SIZE / 2.0f;
     const float slice = 360.0f / w->n;
 
-    /* the rim */
-    dot(layer, cx, cy, RIM_R, C_LINE, LV_OPA_COVER);
-    dot(layer, cx, cy, RIM_R - 2, C_GLASS, LV_OPA_COVER);
-
-    /* the slices: filled sectors (LVGL: 0 degrees = 3 o'clock) */
+    /* the slices: filled sectors (LVGL: 0 degrees = 3 o'clock), line and card by turns */
     for (int i = 0; i < w->n; i++) {
         float mid = i * slice + w->angle;
         lv_draw_arc_dsc_t a;
         lv_draw_arc_dsc_init(&a);
         a.center.x = (int32_t)lroundf(cx);
         a.center.y = (int32_t)lroundf(cy);
-        a.color = COL(wheel_color(i));
+        a.color = COL(i % 2 == 0 ? C_LINE : C_GLASS);
         a.opa = LV_OPA_COVER;
         a.width = SLICE_R;
         a.radius = SLICE_R;
@@ -133,13 +128,13 @@ static void wheel_draw(lv_event_t *e)
         a.end_angle = norm360(mid + slice / 2 - 90);
         lv_draw_arc(layer, &a);
     }
-    /* the seams between slices: 3 px of ink */
+    /* the seams between slices: 2 px of ink */
     for (int i = 0; i < w->n; i++) {
         float sa = (i * slice + w->angle - slice / 2) * PI_F / 180;
         lv_draw_line_dsc_t ln;
         lv_draw_line_dsc_init(&ln);
         ln.color = COL(C_INK);
-        ln.width = 3;
+        ln.width = 2;
         ln.round_start = ln.round_end = 1;
         ln.p1.x = cx + HUB_RING_R * sinf(sa);
         ln.p1.y = cy - HUB_RING_R * cosf(sa);
@@ -154,7 +149,7 @@ static void wheel_draw(lv_event_t *e)
         lv_draw_image_dsc_t im;
         lv_draw_image_dsc_init(&im);
         im.src = icon_find(wheel_icon_for(w->opt[i]), 26);
-        im.recolor = COL(C_NAVY);
+        im.recolor = COL(wheel_color(i));
         im.recolor_opa = LV_OPA_COVER;
         lv_area_t ia = { (int32_t)ix - 13, (int32_t)iy - 13, (int32_t)ix + 12, (int32_t)iy + 12 };
         lv_draw_image(layer, &im, &ia);
@@ -162,37 +157,27 @@ static void wheel_draw(lv_event_t *e)
         lv_draw_label_dsc_t lb;
         lv_draw_label_dsc_init(&lb);
         lb.font = F_LABEL;
-        lb.color = COL(C_NAVY);
+        lb.color = COL(C_BONE);
         lb.align = LV_TEXT_ALIGN_CENTER;
         lb.text = w->opt[i];
         lv_area_t la = { (int32_t)lx - 45, (int32_t)ly - 12, (int32_t)lx + 45, (int32_t)ly + 12 };
         lv_draw_label(layer, &lb, &la);
     }
-    /* 24 bulbs round the rim: amber ones glow; they chase round while the wheel turns */
-    int shift = w->spinning ? ((int)(w->angle / 15.0f)) % 2 : 0;
-    bool flash = (int32_t)(w->flash_until - lv_tick_get()) > 0;
-    for (int k = 0; k < 24; k++) {
-        float a = k * 15.0f * PI_F / 180;
-        float x = cx + BULB_R * sinf(a), y = cy - BULB_R * cosf(a);
-        bool amber = flash ? ((lv_tick_get() / 90 + (uint32_t)k) % 2) == 0 : ((k + shift) % 2) == 0;
-        if (amber) dot(layer, x, y, flash ? 8.5f : 6.5f, C_BUTTER, flash ? 110 : 71);
-        dot(layer, x, y, 3.5f, amber ? C_BUTTER : C_BONE, LV_OPA_COVER);
-    }
     /* the ink ring round the hub (the hub itself is a child) */
     dot(layer, cx, cy, HUB_RING_R, C_INK, LV_OPA_COVER);
-    /* the pointer: a lime triangle with an ink edge, its tip on the slices at 12 o'clock */
+    /* the pointer: a lime triangle with an ink edge over the top of the wheel (Figma: 24 px at y 86) */
     lv_draw_triangle_dsc_t t;
     lv_draw_triangle_dsc_init(&t);
     t.color = COL(C_INK);
     t.opa = LV_OPA_COVER;
-    t.p[0].x = cx - 16; t.p[0].y = cy - 134;
-    t.p[1].x = cx + 16; t.p[1].y = cy - 134;
-    t.p[2].x = cx;      t.p[2].y = cy - 102;
+    t.p[0].x = cx - 16; t.p[0].y = cy - 149;
+    t.p[1].x = cx + 16; t.p[1].y = cy - 149;
+    t.p[2].x = cx;      t.p[2].y = cy - 119;
     lv_draw_triangle(layer, &t);
     t.color = COL(C_LIME);
-    t.p[0].x = cx - 13; t.p[0].y = cy - 132;
-    t.p[1].x = cx + 13; t.p[1].y = cy - 132;
-    t.p[2].x = cx;      t.p[2].y = cy - 106;
+    t.p[0].x = cx - 12; t.p[0].y = cy - 146;
+    t.p[1].x = cx + 12; t.p[1].y = cy - 146;
+    t.p[2].x = cx;      t.p[2].y = cy - 123;
     lv_draw_triangle(layer, &t);
 }
 

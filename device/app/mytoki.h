@@ -11,6 +11,10 @@ void mytoki_start(void);
 /* The hardware button at 1 o'clock was pressed. */
 void mytoki_button(void);
 
+/* One accelerometer sample in g, 50 to 100 Hz (see app/motion.h for the device frame).
+ * A platform without a sensor never calls it; the games then keep to touch. */
+void mytoki_motion(float ax, float ay, float az);
+
 /* Today's day plan arrived (JSON, device/docs/day-plan.md). The text is copied. */
 void mytoki_day_received(const char *json, size_t len);
 

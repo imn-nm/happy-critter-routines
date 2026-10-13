@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "circle:build": "python device/platform/sim/build.py && node -e \"require('fs').copyFileSync('device/platform/sim/web/mytoki.wasm','public/mytoki.wasm')\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

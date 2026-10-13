@@ -30,6 +30,10 @@ const FROM_LUCIDE = {
   medal: 'medal', shield: 'shield',
   // the new screens (Figma 609:2719 rows 01, 07, 08, 10)
   hand: 'hand', cloudmoon: 'cloud-moon', battery: 'battery-low', charging: 'battery-charging', link: 'link',
+  // the motion games (Playtime page 2) and the Biscuit says cues
+  move: 'move', megaphone: 'megaphone', layers: 'layers', 'chevron-left': 'chevron-left',
+  'arrow-up': 'arrow-up', 'arrow-down': 'arrow-down', 'arrow-left': 'arrow-left', 'arrow-right': 'arrow-right',
+  vibrate: 'vibrate', pointer: 'pointer',
 };
 
 // App task-icon keys (taskIcon.tsx ICON_OPTIONS) and the other names plans may use -> device icon.

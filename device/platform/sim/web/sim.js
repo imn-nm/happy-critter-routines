@@ -299,6 +299,55 @@
       if ((e.code === 'Space' || e.code === 'Enter') && !/INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); press(); }
     });
 
+    // the accelerometer: the tilt pad (or the arrow keys), Shake and Knock, pushed at 50 Hz
+    const motion = { tx: 0, ty: 0, shakeUntil: 0, knock: 0, keys: {} };
+    const pad = $('tiltPad'), dot = $('tiltDot');
+    const showTilt = () => {
+      dot.style.left = `${50 + motion.tx * 42}%`;
+      dot.style.top = `${50 + motion.ty * 42}%`;
+      $('tiltOut').textContent = motion.tx === 0 && motion.ty === 0 ? 'level' : `${Math.round(motion.tx * 45)}°, ${Math.round(motion.ty * 45)}°`;
+    };
+    const setTilt = (tx, ty) => { motion.tx = Math.max(-1, Math.min(1, tx)); motion.ty = Math.max(-1, Math.min(1, ty)); showTilt(); };
+    let padDown = false;
+    const padPos = (e) => {
+      const r = pad.getBoundingClientRect();
+      return [(e.clientX - r.left - r.width / 2) / (r.width * 0.42), (e.clientY - r.top - r.height / 2) / (r.height * 0.42)];
+    };
+    pad.addEventListener('pointerdown', (e) => { padDown = true; pad.setPointerCapture(e.pointerId); setTilt(...padPos(e)); });
+    pad.addEventListener('pointermove', (e) => { if (padDown) setTilt(...padPos(e)); });
+    const padUp = () => { padDown = false; };
+    pad.addEventListener('pointerup', padUp);
+    pad.addEventListener('pointercancel', padUp);
+    $('tiltLevel').onclick = () => setTilt(0, 0);
+    $('shakeBtn').onclick = () => { motion.shakeUntil = performance.now() + 600; };
+    $('knockBtn').onclick = () => { motion.knock = 1; };
+    // hold an arrow key to tilt 0.6 that way; the pad is for fine control
+    const KEYS = { ArrowLeft: [-0.6, 0], ArrowRight: [0.6, 0], ArrowUp: [0, -0.6], ArrowDown: [0, 0.6] };
+    const keyTilt = () => {
+      let tx = 0, ty = 0;
+      for (const k in motion.keys) if (motion.keys[k]) { tx += KEYS[k][0]; ty += KEYS[k][1]; }
+      setTilt(tx, ty);
+    };
+    window.addEventListener('keydown', (e) => {
+      if (!KEYS[e.code] || /INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)) return;
+      e.preventDefault();
+      if (!motion.keys[e.code]) { motion.keys[e.code] = true; keyTilt(); }
+    });
+    window.addEventListener('keyup', (e) => { if (KEYS[e.code]) { motion.keys[e.code] = false; keyTilt(); } });
+    setInterval(() => {
+      if (!ex || !ex.sim_motion) return;
+      const rx = motion.ty * Math.PI / 4, ry = motion.tx * Math.PI / 4;   // 1.0 on the pad = 45 degrees
+      let ax = -Math.sin(ry), ay = Math.sin(rx), az = Math.sqrt(Math.max(0, 1 - ax * ax - ay * ay));
+      const t = performance.now();
+      if (t < motion.shakeUntil) {
+        const s = Math.sin(t / 1000 * 2 * Math.PI * 8) * 1.5;   // 8 Hz, about 1.5 g
+        ax += s * 0.8; ay += s * 0.5; az += s * 0.6;
+      }
+      if (motion.knock) { az += 2.5; motion.knock = 0; }
+      ex.sim_motion(ax, ay, az);
+    }, 20);
+    showTilt();
+
     // the green cap at 1 o'clock: an arc on the rim
     const a0 = (-90 + 22) * Math.PI / 180, a1 = (-90 + 44) * Math.PI / 180, r0 = 270, r1 = 302;
     const P = (r, a) => `${300 + r * Math.cos(a)} ${300 + r * Math.sin(a)}`;

@@ -8,6 +8,7 @@
 //                          { "swipe": "left" }, { "debug": "approve" }, { "advance": 300 }] }]
 // Also: "docked", "battery" and "unpaired" on a shot; steps "flick" (a snooze), "pair", "docked", "battery".
 // "wait" runs the app for that many ms with the clock moving; "advance" jumps the clock (seconds).
+// The accelerometer: "tilt": [x, y] (-1..1, stays until changed), "shake": ms, "knock": n, "still": ms.
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
@@ -69,10 +70,29 @@ function runShot(shot) {
   ex = new WebAssembly.Instance(module, { wasi_snapshot_preview1: wasi, mytoki }).exports;
   if (ex._initialize) ex._initialize();
   ex.sim_init();
+  // the pretend accelerometer: one sample per 16 ms tick from the current tilt, plus shakes and knocks
+  const motion = { tx: 0, ty: 0, shakeLeft: 0, knocks: 0, knockGap: 0, t: 0 };
+  const pushMotion = () => {
+    if (!ex.sim_motion) return;
+    const rx = motion.ty * Math.PI / 4, ry = motion.tx * Math.PI / 4;
+    let ax = -Math.sin(ry), ay = Math.sin(rx), az = Math.sqrt(Math.max(0, 1 - ax * ax - ay * ay));
+    motion.t += 16;
+    if (motion.shakeLeft > 0) {
+      motion.shakeLeft -= 16;
+      const s = Math.sin(motion.t / 1000 * 2 * Math.PI * 8) * 1.5;
+      ax += s * 0.8; ay += s * 0.5; az += s * 0.6;
+    }
+    if (motion.knocks > 0) {
+      if (motion.knockGap <= 0) { az += 2.5; motion.knocks--; motion.knockGap = 250; }
+      else motion.knockGap -= 16;
+    }
+    ex.sim_motion(ax, ay, az);
+  };
   const run = (ms) => {
     for (let t = 0; t < ms; t += 16) {
       if (pendingDay && !shot.noPlan) { pendingDay = false; if (shot.unpaired) ex.sim_day_failed(3); else if (shot.offline) ex.sim_day_failed(0); else withString(planJson(), (p, n) => ex.sim_day(p, n)); }
       simMs += 16;
+      pushMotion();
       ex.sim_step(16);
     }
   };
@@ -105,6 +125,10 @@ function runShot(shot) {
       ex.sim_pointer(233, 270, 0); run(400);
     }
     if (s.patch) { shot.patch = { ...(shot.patch || {}), ...s.patch }; withString('refresh', (p) => ex.sim_debug(p)); run(100); }
+    if (s.tilt) { motion.tx = s.tilt[0]; motion.ty = s.tilt[1]; }
+    if (s.shake) { motion.shakeLeft = s.shake; run(s.shake); }
+    if (s.knock) { motion.knocks = s.knock; motion.knockGap = 0; run(s.knock * 250 + 150); }
+    if (s.still) run(s.still);
   }
   run(shot.settleMs ?? 100);
   const fb = new Uint16Array(ex.memory.buffer, ex.sim_fb(), W * H);

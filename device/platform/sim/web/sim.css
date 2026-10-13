@@ -98,6 +98,35 @@ button:hover { border-color: var(--ink); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .row select { flex: 1; max-width: 220px; }
 .check { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.tilt-row { align-items: flex-start; }
+.tilt-row output { color: var(--muted); font: 12px/1.2 ui-monospace, Consolas, monospace; display: block; margin-top: 4px; }
+.pad {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: radial-gradient(circle, #fff 0, #e9ebe6 70%, #dfe2dc 100%);
+  cursor: crosshair;
+  touch-action: none;
+  flex: none;
+}
+.pad::before, .pad::after { content: ""; position: absolute; background: var(--line); }
+.pad::before { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+.pad::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+.pad:focus-visible { outline: 2px solid var(--accent); }
+.pad .dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  pointer-events: none;
+}
 .jumps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .jumps button { font-size: 12px; padding: 3px 7px; border-radius: 999px; }
 .log-box ol { margin: 0; padding-left: 18px; max-height: 220px; overflow-y: auto; font: 12px/1.35 ui-monospace, Consolas, monospace; }

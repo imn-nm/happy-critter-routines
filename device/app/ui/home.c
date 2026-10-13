@@ -36,6 +36,8 @@ static struct {
     char stars_sig[48], status_sig[80];
     time_pill_t pill;
     lime_card_t card;
+    lv_obj_t *step_prev, *step_prev_text, *step_next, *step_next_text;   /* the steps list round the current step */
+    lv_obj_t *free_btn, *free_btn_label;   /* free time: the pill under the time that flips to Biscuit (Play) or the wheel (Spin) */
     bubble_t bubble;
     next_block_t next;
     uint8_t worm_eaten;
@@ -73,6 +75,25 @@ static void worm_draw(lv_event_t *e)
         if (eaten && k < h.worm_eaten - 1) continue; /* the worm sits on them */
         lv_draw_rect(layer, &d, &a);
     }
+}
+
+/* A quiet step row: "1. Put on your pants" with the ring, at a third of its colour. */
+static lv_obj_t *step_row(lv_obj_t *parent, lv_obj_t **text, uint32_t color)
+{
+    lv_obj_t *r = ui_row(parent, 10);
+    lv_obj_set_height(r, 34);
+    ui_style_card(r, color, 14, 0, 0);
+    lv_obj_set_style_bg_opa(r, 84, 0);   /* 33 % */
+    lv_obj_set_style_pad_left(r, 12, 0);
+    lv_obj_set_style_pad_right(r, 8, 0);
+    *text = ui_label(r, F_CAPTION, C_NAVY, "");
+    lv_obj_t *ring = ui_box(r);
+    lv_obj_set_size(ring, 22, 22);
+    lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(ring, 2, 0);
+    lv_obj_set_style_border_color(ring, COL(C_NAVY), 0);
+    lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
+    return r;
 }
 
 /* Figma "Mode switch": a 238 x 46 pill with two 112 x 36 sides, Spin and Play; the selected side
@@ -181,6 +202,10 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lime_card_create(page, &h.card, 0);
     lv_obj_add_flag(h.card.root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(h.card.root, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_CARD);
+    /* Figma Morning · Get dressed (steps): the step before (mint, done) and the one after (lime),
+     * both at a third of their colour, 34 high in Caption 15, round the current step */
+    h.step_prev = step_row(page, &h.step_prev_text, C_MINT);
+    h.step_next = step_row(page, &h.step_next_text, C_LIME);
 
     bubble_create(page, &h.bubble);
 
@@ -248,6 +273,17 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     pet_face_create(h.mode_play, 1, COL(C_GLASS));
     h.mode_play_label = ui_label(h.mode_play, F_BUTTON, C_BONE, "Play");
     lv_obj_add_event_cb(h.mode_play, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_PLAY);
+    /* Figma Free time (2026-10-12): the time at the top with one 112 x 36 card pill under it that
+     * goes to the other side: "Play" over the wheel, "Spin" over Biscuit */
+    h.free_btn = ui_row(page, 8);
+    lv_obj_set_size(h.free_btn, 112, 36);
+    lv_obj_set_pos(h.free_btn, 177, 38);
+    lv_obj_set_flex_align(h.free_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    ui_style_card(h.free_btn, C_GLASS, 22, 0, 0);
+    lv_obj_set_style_bg_color(h.free_btn, COL(C_LINE), LV_STATE_PRESSED);
+    lv_obj_add_flag(h.free_btn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(h.free_btn, 6);
+    h.free_btn_label = ui_label(h.free_btn, F_BUTTON, C_BONE, "Play");
     /* Biscuit can be tapped: a lime ring (300) and a ripple (312) that pulses out (Figma "Tap Biscuit") */
     h.tap_in = ui_box(page);
     lv_obj_set_size(h.tap_in, 300, 300);
@@ -302,8 +338,14 @@ void home_render(const home_view_t *v)
     ui_show(h.clock, v->clock);
     ui_show(h.icon, !v->clock && !freehdr && v->icon[0] && v->picture);
     ui_show(h.title, !v->clock && !freehdr);
-    ui_show(h.mode, freehdr);
-    if (freehdr) mode_select(v->free_mode == 1);
+    ui_show(h.mode, false);   /* the switch gave way to one pill */
+    ui_show(h.free_btn, freehdr);
+    if (freehdr) {
+        bool play = v->free_mode == 1;
+        ui_set_text(h.free_btn_label, play ? "Spin" : "Play");
+        lv_obj_remove_event_cb(h.free_btn, fire);
+        lv_obj_add_event_cb(h.free_btn, fire, LV_EVENT_CLICKED, (void *)(intptr_t)(play ? HOME_TAP_WHEEL : HOME_TAP_PLAY));
+    }
     bool text = !v->clock && !v->late_chip && v->below == BELOW_TEXT && v->status[0];
     bool pill = !v->late_chip && (v->below == BELOW_TIME || freehdr) && v->status[0];
     bool spill = !v->clock && !v->late_chip && v->below == BELOW_STATUS && v->status[0];
@@ -341,8 +383,11 @@ void home_render(const home_view_t *v)
     if (pill) {
         time_pill_set(&h.pill, v->status_icon, v->status, v->status_color);
         lv_obj_update_layout(h.pill.root);
-        lv_obj_align(h.pill.root, LV_ALIGN_TOP_MID, 0, v->clock ? 92 : freehdr ? 14 : v->picture ? 76 : 45);
+        lv_obj_align(h.pill.root, LV_ALIGN_TOP_MID, 0, v->clock ? 92 : freehdr ? 6 : v->picture ? 76 : 45);
         lv_obj_set_style_opa(h.pill.root, v->clock ? 204 : LV_OPA_COVER, 0);
+        /* free time: the words alone, no card behind them (Figma Free time · timer + Play) */
+        lv_obj_set_style_bg_opa(h.pill.root, freehdr ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
+        lv_obj_set_style_border_opa(h.pill.root, freehdr ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
     }
 
     /* the middle */
@@ -363,6 +408,7 @@ void home_render(const home_view_t *v)
         look.pitch = 3.8f;      /* the same LED grid as the 232 px Field Kit scene, more of the room */
         look.dim = v->pet_dim;
         look.room_off = v->room_off;
+        look.wide = v->pet_wide;
         pet_set_look(h.pet, &look);
         pet_set_mood(h.pet, v->mood);
         pet_set_activity(h.pet, v->activity);
@@ -376,8 +422,16 @@ void home_render(const home_view_t *v)
 
     /* message card */
     ui_show(h.card.root, v->card != CARDPOS_NONE);
+    ui_show(h.step_prev, v->steps_list && v->step_prev[0]);
+    ui_show(h.step_next, v->steps_list && v->step_next[0]);
+    if (v->steps_list) {
+        if (v->step_prev[0]) { ui_set_text(h.step_prev_text, v->step_prev); lv_obj_update_layout(h.step_prev); lv_obj_align(h.step_prev, LV_ALIGN_TOP_MID, 0, 160); }
+        if (v->step_next[0]) { ui_set_text(h.step_next_text, v->step_next); lv_obj_update_layout(h.step_next); lv_obj_align(h.step_next, LV_ALIGN_TOP_MID, 0, 272); }
+    }
     if (v->card != CARDPOS_NONE) {
-        if (v->steps_total > 0) {
+        if (v->steps_list) {
+            lime_card_set(&h.card, NULL, v->card_text, v->card_end);   /* "2. Put on your pants", no dots */
+        } else if (v->steps_total > 0) {
             lime_card_set(&h.card, NULL, v->card_text, v->card_end);
             lime_card_set_steps(&h.card, v->steps_total, v->steps_done);
         } else {

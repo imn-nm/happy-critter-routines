@@ -44,4 +44,11 @@ menu "MyToki"
         bool "Chimes on the speaker"
         default y
 
+    config MYTOKI_IMU
+        bool "Motion from the board's QMI8658 (the motion games)"
+        default y
+        help
+            Reads the accelerometer over the board's I2C bus at 100 Hz and hands the samples
+            to the app (mytoki_motion). The product swaps in a LIS2DH12 behind the same call.
+
 endmenu
