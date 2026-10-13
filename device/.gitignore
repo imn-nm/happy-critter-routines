@@ -1,0 +1,12 @@
+# Fetched or made by tools/setup.py and the builds (see README.md)
+.tools/
+third_party/
+build/
+tools/node_modules/
+tools/.cache/
+platform/sim/web/mytoki.wasm
+platform/esp32s3/build/
+platform/esp32s3/managed_components/
+platform/esp32s3/dependencies.lock
+platform/esp32s3/sdkconfig
+platform/esp32s3/sdkconfig.old

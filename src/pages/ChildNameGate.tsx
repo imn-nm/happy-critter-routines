@@ -34,7 +34,7 @@ const ChildNameGate = () => {
           <div className="w-20 h-20 rounded-[24px] bg-focus-surface flex items-center justify-center mx-auto">
             <Sparkles className="w-9 h-9 text-focus-lavender" />
           </div>
-          <h1 className="text-24 font-bold text-focus-text">Welcome to PetPals!</h1>
+          <h1 className="text-24 font-bold text-focus-text">Welcome to MyToki!</h1>
           <p className="text-14 text-focus-muted">
             No children profiles yet. Go to the parent portal to set up your first profile,
             or switch accounts if you're on a child's device.

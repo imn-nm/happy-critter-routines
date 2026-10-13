@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "child": { "id": "demo-amira", "name": "Amira", "pet": "Biscuit", "stars": 12, "wake": "08:00" },
+  "tasks": [],
+  "chores": [ { "id": "room", "title": "Clean Room", "icon": "clean" } ],
+  "rewards": [ { "id": "icecream", "title": "Ice Cream Trip", "icon": "icecream", "color": "#F59A76", "cost": 20 } ]
+}

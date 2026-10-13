@@ -21,7 +21,7 @@ const Index = () => {
             <div className="w-10 h-10 rounded-[14px] bg-focus-surface flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-focus-lavender" />
             </div>
-            <span className="text-20 font-bold text-focus-text">PetPals</span>
+            <span className="text-20 font-bold text-focus-text">MyToki</span>
           </div>
           <Button
             onClick={() => navigate("/parent")}

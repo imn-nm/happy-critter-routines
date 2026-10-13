@@ -292,7 +292,7 @@ const Dashboard = () => {
           <div className="w-16 h-16 rounded-[20px] bg-focus-surface flex items-center justify-center mx-auto mb-5">
             <Sparkles className="w-7 h-7 text-focus-lavender" />
           </div>
-          <h1 className="text-24 font-bold text-focus-text mb-2">Welcome to PetPals!</h1>
+          <h1 className="text-24 font-bold text-focus-text mb-2">Welcome to MyToki!</h1>
           <p className="text-focus-muted text-14 mb-6">Add your first child to get started.</p>
           <Button size="lg" onClick={() => navigate("/setup")} className="gap-2">
             <Plus className="w-5 h-5" />

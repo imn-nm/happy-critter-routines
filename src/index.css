@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* PetPals — shadcn bridge over the new design system (tokens.css).
+/* MyToki — shadcn bridge over the new design system (tokens.css).
    tokens.css is imported in main.tsx. This file maps shadcn's HSL token
    convention to the new palette so existing components pick up the new look.
 */

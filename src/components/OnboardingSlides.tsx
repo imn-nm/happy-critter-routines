@@ -170,7 +170,7 @@ const OnboardingSlides = ({ open, onDone, finishLabel = "Get Started", onFinish 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Welcome to PetPals"
+      aria-label="Welcome to MyToki"
       className="fixed inset-0 z-[80] flex flex-col bg-focus-bg font-sans"
     >
       {/* Skip — always reachable, top-right. */}

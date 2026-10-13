@@ -1515,7 +1515,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         totalSeconds={freeTimeCountdown.total}
                         remainingSeconds={freeTimeCountdown.remaining}
                         status="ahead"
-                        sizePx={220}
+                        sizePx={260}
                         isRunning={true}
                         frameContent
                       >

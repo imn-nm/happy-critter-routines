@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "child": { "id": "demo-amira", "name": "Amira", "pet": "Biscuit", "stars": 41, "wake": "07:00", "outfit": { "head": "wizard" } },
+  "tasks": [
+    { "id": "wake", "title": "Wake Up", "icon": "sunrise", "start": "07:00", "end": "07:15", "system": "wake" },
+    { "id": "breakfast", "title": "Breakfast", "icon": "utensils", "start": "07:30", "end": "08:00", "system": "breakfast" },
+    { "id": "school", "title": "School", "icon": "school", "start": "08:30", "end": "14:30", "system": "school" },
+    { "id": "piano", "title": "Piano Practice", "icon": "music", "start": "15:00", "end": "15:30", "important": true },
+    { "id": "desk", "title": "Tidy Desk", "icon": "clean", "start": "15:30", "end": "15:40", "important": true },
+    { "id": "snack", "title": "Snack", "icon": "apple", "start": "15:40", "end": "15:50" },
+    { "id": "soccer", "title": "Soccer Practice", "icon": "ball", "start": "16:15", "end": "17:30", "event": true, "event_start": "16:30",
+      "steps": [ { "id": "s1", "text": "Pack your water bottle" }, { "id": "s2", "text": "Put on your cleats" } ] },
+    { "id": "dinner", "title": "Dinner", "icon": "utensils", "start": "18:00", "end": "18:45", "system": "dinner" },
+    { "id": "bedtime", "title": "Bedtime", "icon": "moon", "start": "20:00", "end": "21:00", "system": "bedtime" }
+  ],
+  "chores": [ { "id": "fish", "title": "Feed Fish", "icon": "fish" } ],
+  "rewards": [
+    { "id": "icecream", "title": "Ice Cream Trip", "icon": "icecream", "color": "#F59A76", "cost": 20 },
+    { "id": "movie", "title": "Movie Night", "icon": "film", "color": "#5BB4FF", "cost": 40 }
+  ],
+  "streaks": [ { "id": "bedtime", "title": "Bedtime", "icon": "bed", "goal": 5, "count": 4, "prize": 5, "night": true } ],
+  "wheel": ["Draw", "Lego", "Read", "Outside", "Puzzle", "Dance"]
+}

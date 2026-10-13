@@ -1,0 +1,56 @@
+{
+  "v": 1,
+  "child": {
+    "id": "demo-amira",
+    "name": "Amira",
+    "pet": "Biscuit",
+    "picture": false,
+    "stars": 41,
+    "wake": "07:00",
+    "outfit": {}
+  },
+  "rest_day": false,
+  "tasks": [
+    { "id": "wake", "title": "Wake Up", "icon": "sunrise", "start": "07:00", "end": "07:15", "system": "wake" },
+    { "id": "dress", "title": "Get Dressed", "icon": "shirt", "start": "07:15", "end": "07:30",
+      "steps": [
+        { "id": "d1", "text": "Take off your pajamas" },
+        { "id": "d2", "text": "Put on your pants" },
+        { "id": "d3", "text": "Put on your shirt" },
+        { "id": "d4", "text": "Put on your socks" }
+      ] },
+    { "id": "breakfast", "title": "Breakfast", "icon": "utensils", "start": "07:30", "end": "08:00", "system": "breakfast" },
+    { "id": "teeth-am", "title": "Brush Teeth", "icon": "smile", "start": "08:00", "end": "08:10" },
+    { "id": "school", "title": "School", "icon": "school", "start": "08:30", "end": "15:00", "system": "school", "fun": false },
+    { "id": "snack", "title": "Snack", "icon": "apple", "start": "15:15", "end": "15:40" },
+    { "id": "homework", "title": "Homework", "icon": "book", "start": "15:40", "end": "16:00" },
+    { "id": "soccer", "title": "Soccer Practice", "icon": "ball", "start": "16:00", "end": "17:30", "event": true, "event_start": "16:15",
+      "steps": [
+        { "id": "s1", "text": "Pack your water bottle" },
+        { "id": "s2", "text": "Put on your cleats" },
+        { "id": "s3", "text": "Grab your ball" }
+      ] },
+    { "id": "dinner", "title": "Dinner", "icon": "utensils", "start": "18:00", "end": "18:45", "system": "dinner" },
+    { "id": "piano", "title": "Piano Practice", "icon": "music", "start": "18:45", "end": "19:15", "important": true },
+    { "id": "routine", "title": "Bedtime Routine", "icon": "moon", "start": "19:40", "end": "20:00", "bedtime_routine": true,
+      "steps": [
+        { "id": "r1", "text": "Pajamas on" },
+        { "id": "r2", "text": "Brush your teeth" },
+        { "id": "r3", "text": "Toilet" },
+        { "id": "r4", "text": "Story time" },
+        { "id": "r5", "text": "Hug" }
+      ] },
+    { "id": "bedtime", "title": "Bedtime", "icon": "moon", "start": "20:00", "end": "21:00", "system": "bedtime" }
+  ],
+  "chores": [
+    { "id": "dishwasher", "title": "Empty Dishwasher", "icon": "dishes", "from": "15:00", "to": "19:00" },
+    { "id": "room", "title": "Clean Room", "icon": "clean", "from": "15:00", "to": "19:30" },
+    { "id": "fish", "title": "Feed Fish", "icon": "fish" }
+  ],
+  "rewards": [
+    { "id": "icecream", "title": "Ice Cream Trip", "icon": "icecream", "color": "#F59A76", "cost": 20 },
+    { "id": "movie", "title": "Movie Night", "icon": "film", "color": "#5BB4FF", "cost": 40 },
+    { "id": "book", "title": "New Book", "icon": "book", "color": "#5FD9A0", "cost": 15, "state": "waiting" }
+  ],
+  "wheel": ["Draw", "Lego", "Read", "Outside", "Puzzle", "Dance"]
+}

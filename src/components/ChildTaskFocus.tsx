@@ -114,7 +114,7 @@ export default function ChildTaskFocus(props: Props) {
 
       <div className="w-full flex items-center justify-center py-1.5">
         <CircularTimer totalSeconds={props.totalSeconds} remainingSeconds={Math.max(0, props.remainingSeconds)}
-          sizePx={220} status="on-track" isRunning={!props.done} onComplete={props.onTimeUp} frameContent>
+          sizePx={260} status="on-track" isRunning={!props.done} onComplete={props.onTimeUp} frameContent>
           {props.companion}
         </CircularTimer>
       </div>

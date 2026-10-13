@@ -1,0 +1,1047 @@
+<title>Rabbit Playtime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #131c1b;
+    --ink: #f9f5e1;
+    --muted: #a2b4ae;
+    --line: #2a3b38;
+    --accent: #f7945a;
+    --pink: #f17097;
+    --shell: #efe4cc;
+    --shell-edge: #cdbb95;
+    --shell-ink: #3a3226;
+    --shell-soft: #7a6b52;
+    --key: #fffaf0;
+    --bezel: #1b2322;
+    --display: "Pixelify Sans", "Courier New", monospace;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  html, body { background: var(--ground); color: var(--ink); }
+  body { font-family: var(--mono); font-size: 14px; line-height: 1.55; padding-inline: 16px; padding-block: 28px 48px; }
+  .wrap {
+    max-width: 1060px; margin: 0 auto;
+    display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 28px 44px; align-items: start;
+  }
+  header.top { grid-column: 1 / -1; }
+  .eyebrow { font-family: var(--display); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 4.6vw, 46px); line-height: 1; margin: 0; text-wrap: balance; }
+  .lede { margin: 12px 0 0; color: var(--muted); max-width: 64ch; }
+
+  /* the device */
+  .device {
+    background: var(--shell); color: var(--shell-ink);
+    border: 3px solid var(--shell-edge); border-radius: 28px;
+    box-shadow: 0 6px 0 0 var(--shell-edge), 0 18px 40px -18px #000c;
+    padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .device-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-inline: 4px; }
+  .pill {
+    font-family: var(--display); font-size: 15px; background: #d9f2df; color: #1f5a33;
+    border: 2px solid #9ed3ad; border-radius: 999px; padding: 3px 12px 2px; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .pill.over { background: #fbe3d3; color: #8a3f15; border-color: #f2b58e; }
+  .brand { font-family: var(--display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--shell-soft); }
+  .screen {
+    background: var(--bezel); border-radius: 12px; padding: 10px;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .screen canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; cursor: pointer; max-width: 100%; }
+  .hint { margin: 0; min-height: 3em; font-size: 13px; color: var(--shell-ink); padding-inline: 4px; }
+
+  .panel { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+  .modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+
+  button {
+    font-family: var(--display); font-size: 16px; line-height: 1.1; color: var(--shell-ink);
+    background: var(--key); border: 2px solid var(--shell-edge); border-radius: 10px;
+    box-shadow: 0 4px 0 0 var(--shell-edge); padding: 9px 14px 8px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 0 var(--shell-edge); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button.big { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px 10px; font-size: 17px; }
+  button.big canvas, .item canvas { image-rendering: pixelated; display: block; }
+  button.go { background: var(--accent); border-color: #d8703a; box-shadow: 0 4px 0 0 #d8703a; color: #2a1a10; }
+  button.back { background: transparent; box-shadow: none; border-color: transparent; color: var(--shell-soft); padding-inline: 4px; }
+  button.back:hover { color: var(--shell-ink); }
+
+  .closet { display: flex; flex-direction: column; gap: 10px; }
+  .slot { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: center; }
+  .slot-name { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--shell-soft); }
+  .slot-items { display: flex; gap: 8px; flex-wrap: wrap; }
+  .item { display: flex; align-items: center; gap: 8px; padding: 6px 10px 5px; font-size: 14px; }
+  .item[aria-pressed="true"] { background: #ffe3cf; border-color: var(--accent); box-shadow: 0 4px 0 0 #d8703a; }
+
+  .steps { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+  .steps li {
+    flex: 1; text-align: center; font-family: var(--display); font-size: 15px; padding: 5px 4px 4px;
+    border: 2px solid var(--shell-edge); border-radius: 8px; color: var(--shell-soft);
+  }
+  .steps li.on { background: var(--accent); border-color: #d8703a; color: #2a1a10; }
+  .steps li.done { background: #d9f2df; border-color: #9ed3ad; color: #1f5a33; }
+  .meter { height: 12px; border-radius: 6px; background: #e2d4b5; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: #35b8a8; transition: width .15s linear; }
+  .scoreline { display: flex; gap: 22px; font-family: var(--display); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .scoreline b { color: #c0551f; }
+
+  /* notes */
+  .notes { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
+  .notes h2 { font-family: var(--display); font-weight: 600; font-size: 21px; margin: 0; }
+  .notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .notes li { border-left: 3px solid var(--line); padding-left: 12px; color: var(--muted); max-width: 52ch; }
+  .notes li b { color: var(--ink); font-weight: 500; }
+  .notes .try li { border-left-color: var(--accent); }
+
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } .device { max-width: 560px; } }
+  @media (max-width: 420px) {
+    .device { padding: 10px 10px 14px; border-radius: 22px; }
+    .screen { padding: 6px; }
+    .modes { gap: 6px; }
+    button.big { font-size: 15px; }
+    .slot { grid-template-columns: 1fr; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) { button:active { transform: none; } .meter i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Free-time play · prototype</p>
+    <h1>Rabbit Playtime</h1>
+    <p class="lede">When the schedule opens up free time, the child can play with their rabbit: dress it up, give it a bubble bath, or catch falling carrots together.</p>
+  </header>
+
+  <section class="device" aria-label="Rabbit device">
+    <div class="device-top">
+      <span class="pill" id="clockPill">Free time · <span id="clock">15:00</span> left</span>
+      <span class="brand">Happy Critter</span>
+    </div>
+    <div class="screen"><canvas id="stage" aria-label="Your rabbit. Tap it to play."></canvas></div>
+    <p class="hint" id="hint" aria-live="polite"></p>
+
+    <div class="panel" data-panel="home">
+      <div class="modes">
+        <button class="big" type="button" data-go="dress"><canvas data-icon="hat"></canvas><span>Dress up</span></button>
+        <button class="big" type="button" data-go="bath"><canvas data-icon="duck"></canvas><span>Bath time</span></button>
+        <button class="big" type="button" data-go="game"><canvas data-icon="carrot"></canvas><span>Carrot catch</span></button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="dress" hidden>
+      <div class="closet" id="closet"></div>
+      <div class="row">
+        <button class="back" type="button" data-go="home">← Home</button>
+        <button type="button" id="undress">Take it all off</button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="bath" hidden>
+      <ol class="steps" id="steps">
+        <li data-step="scrub">1 Scrub</li><li data-step="rinse">2 Rinse</li><li data-step="dry">3 Dry</li>
+      </ol>
+      <div class="meter" role="progressbar" aria-label="Bath step progress" aria-valuemin="0" aria-valuemax="100"><i id="bathBar"></i></div>
+      <div class="row">
+        <button class="back" type="button" data-go="home">← Home</button>
+        <button type="button" id="bathAgain">Start over</button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="game" hidden>
+      <div class="scoreline"><span>Carrots <b id="score">0</b></span><span>Best <b id="best">0</b></span></div>
+      <div class="row">
+        <button class="back" type="button" data-go="home">← Home</button>
+        <button class="go" type="button" id="playBtn">Play</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="notes">
+    <div>
+      <h2>Try it</h2>
+      <ul class="try">
+        <li><b>Home:</b> tap the rabbit and it turns to wave at you. Tap the floor and it hops over.</li>
+        <li><b>Dress up:</b> seven accessories in three slots. Tap the rabbit to twirl and see the outfit from the side.</li>
+        <li><b>Bath time:</b> rub the sponge over the mud, rinse under the shower, then towel it fluffy.</li>
+        <li><b>Carrot catch:</b> drag, tap, or use ← → to catch carrots for 30 seconds. Golden ones count three.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>How it fits the app</h2>
+      <ul>
+        <li><b>Opens during free time.</b> It unlocks in the windows the schedule frees up, including time left over when a task is finished early.</li>
+        <li><b>No stars here.</b> Stars only come from parents, so play earns carrots for fun and a personal best, nothing to spend.</li>
+        <li><b>Never a sad pet.</b> Missed carrots bounce away, mud is just a reason for a bath, and every round ends with a cheer.</li>
+        <li><b>Faces you only when playing with you.</b> It stays in its 3/4 view while it hops, catches and bathes, and turns to face the child to wave, get dressed and cheer.</li>
+        <li><b>The outfit sticks.</b> Whatever it's wearing carries into every game, and is remembered on this device.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- palette & stage ----------
+  const PAL = {
+    W: "#f9f5e1", O: "#f7945a", o: "#d8703a", K: "#010101", P: "#f17097", R: "#f6adc3", M: "#c94f79",
+    T: "#35b8a8", t: "#1f857a", B: "#a9def6", F: "#ffffff", f: "#9fd3ef", Y: "#ffe07a", y: "#f5b544",
+    G: "#7cc35a", g: "#4f9a3c", k: "#2c2838", X: "#e0584f", x: "#b33f38", u: "#8f6446", U: "#b0805c",
+    w: "#cfdfe3", L: "#c9d3dc", l: "#8d9aa8", H: "#fffaf0", h: "#2b4843", d: "#b7ae96",
+  };
+  const LW = 96, LH = 64, FLOOR = 58, SY = FLOOR - 40, FRAME = 1000 / 12;
+
+  // ---------- pixel map ----------
+  const KEY = (x, y) => (y + 256) * 1024 + (x + 256);
+  class Pix {
+    constructor() { this.m = new Map(); }
+    set(x, y, c) { if (c && c !== ".") this.m.set(KEY(x, y), c); return this; }
+    get(x, y) { return this.m.get(KEY(x, y)); }
+    del(x, y) { this.m.delete(KEY(x, y)); }
+    clone() { const p = new Pix(); p.m = new Map(this.m); return p; }
+    each(fn) { for (const [k, c] of this.m) fn((k % 1024) - 256, Math.floor(k / 1024) - 256, c); }
+    stamp(rows, dx = 0, dy = 0, color) {
+      rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { const c = r[x]; if (c !== ".") this.set(x + dx, y + dy, color || c); } });
+      return this;
+    }
+    bounds() {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      this.each((x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; });
+      return { x0, y0, x1, y1 };
+    }
+    flipX(w) { const p = new Pix(); this.each((x, y, c) => p.set(w - 1 - x, y, c)); return p; }
+  }
+  const rep = (s, n = 2) => Array(n).fill(s);
+  const runs = (p, list, c = "W") => { for (const [y, a, b] of list) for (let x = a; x <= b; x++) p.set(x, y, c); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ---------- the rabbit (same sprites as the clips) ----------
+  const SIDE = new Pix().stamp([
+    ...rep(".....WWWW......WWW..........."),
+    ...rep("...WWWWWWWW..WWOWWWW........."),
+    ...rep(".WWWWWWOOWW..WWOOOWW........."),
+    ...rep(".WWWWOOOOWW..WWOOOWW........."),
+    ...rep(".....OOOOWW..WWOOOWW........."),
+    ...rep(".....WWWWWWWWWWOWWW.........."),
+    ...rep("..WWWWWWWWWWWWWWWWWWW........", 4),
+    ...rep("WWKKKKWWWWWKKKKWWWWWWWW......", 4),
+    ...rep("WWWWWWWPPWWWWWWWWWWWWWW......"),
+    ...rep("WWWWWWWWWWWWWWWWWWWWWWW......"),
+    ...rep("..WWWWWWWWWWWWWWWWWWW........"),
+    ...rep(".......WWWWWWWWWWWWW........."),
+    ...rep(".....WWWWWWWWWWWWWWWWW......."),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWWWWW", 4),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+    ...rep("...WWWWWWWWWWWWWWWWWWW......."),
+  ]);
+  const FRONT = new Pix().stamp([
+    ...rep("....WWWW......WWWW...."),
+    ...rep("..WWWWWWWW..WWOOWWWW.."),
+    ...rep(".WWWWWOOWW..WWOOOOWW.."),
+    ...rep(".WWWOOOOWW..WWOOOOWW.."),
+    ...rep("....OOOOWW..WWOOOOWW.."),
+    ...rep("....WWWWWWWWWWOOWW...."),
+    ...rep("...WWWWWWWWWWWWWWWW...", 4),
+    ...rep(".WWWKKKKWWWWWWKKKKWWW.", 4),
+    ...rep(".WWWWWWWWWPPWWWWWWWWW."),
+    ...rep(".WWWWWWWWWWWWWWWWWWWW."),
+    ...rep("...WWWWWWWWWWWWWWWW..."),
+    ...rep(".....WWWWWWWWWWWW....."),
+    ...rep("....WWWWWWWWWWWWWW....", 10),
+    ...rep("....WWWWWW..WWWWWW...."),
+  ]);
+  // T-pose arms, and the wave as the left T arm tilted up
+  const T_LEFT_ARM = [[3, 28, 33], [2, 28, 33], [1, 28, 33], [0, 28, 33], [-1, 29, 32]];
+  const tilted = (k) => {
+    const p = FRONT.clone();
+    for (const [x, top, bottom] of T_LEFT_ARM) {
+      const lift = Math.round(k * (3 - x));
+      for (let y = top - lift; y <= bottom - lift; y++) p.set(x, y, "W");
+    }
+    return p;
+  };
+  const TPOSE = FRONT.clone();
+  runs(TPOSE, [[28, 0, 3], [29, -1, 3], [30, -1, 3], [31, -1, 3], [32, -1, 3], [33, 0, 3],
+    [28, 18, 21], [29, 18, 22], [30, 18, 22], [31, 18, 22], [32, 18, 22], [33, 18, 21]]);
+  const FRONT_POSES = { rest: FRONT, wave: tilted(1), waveLow: tilted(0.5), t: TPOSE };
+
+  function squash(p, sx, sy) {
+    const b = p.bounds(), ax = (b.x0 + b.x1 + 1) / 2, ay = b.y1 + 1, out = new Pix();
+    const X0 = Math.floor(ax + (b.x0 - ax) * sx) - 1, X1 = Math.ceil(ax + (b.x1 + 1 - ax) * sx) + 1;
+    const Y0 = Math.floor(ay + (b.y0 - ay) * sy) - 1;
+    for (let y = Y0; y <= b.y1; y++) for (let x = X0; x <= X1; x++) {
+      const c = p.get(Math.floor(ax + (x + 0.5 - ax) / sx), Math.floor(ay + (y + 0.5 - ay) / sy));
+      if (c) out.set(x, y, c);
+    }
+    return out;
+  }
+  function eyes(p, kind, xs, top = 16) {
+    for (const c of xs) {
+      for (let y = top; y < top + 4; y++) for (let x = c; x < c + 4; x++) p.set(x, y, "W");
+      const K = (x, y) => p.set(x, y, "K");
+      const block = (y0, y1) => { for (let y = y0; y <= y1; y++) for (let x = c; x < c + 4; x++) K(x, y); };
+      if (kind === "open") block(top, top + 3);
+      else if (kind === "blink") block(top + 2, top + 2);
+      else if (kind === "happy") { K(c + 1, top + 1); K(c + 2, top + 1); K(c, top + 2); K(c + 3, top + 2); }
+    }
+  }
+  function mouth(p, kind, nx, y = 22) {
+    const s = (x, yy, c = "K") => p.set(x, yy, c);
+    if (kind === "smile") { s(nx - 1, y); s(nx + 2, y); s(nx, y + 1); s(nx + 1, y + 1); }
+    else if (kind === "o") { s(nx, y); s(nx + 1, y); s(nx, y + 1); s(nx + 1, y + 1); }
+    else if (kind === "yay") {
+      for (let x = nx - 1; x <= nx + 2; x++) s(x, y);
+      s(nx - 1, y + 1); s(nx, y + 1, "P"); s(nx + 1, y + 1, "P"); s(nx + 2, y + 1);
+      s(nx, y + 2); s(nx + 1, y + 2);
+    }
+  }
+
+  // ---------- accessories (drawn for both views) ----------
+  const PARTY_HAT = ["...FF...", "...FF...", "...PP...", "...PP...", "..YYYY..", "..YYYY..", ".PPPPPP.", ".PPPPPP.", "YYYYYYYY", "yyyyyyyy"];
+  const BOW = ["PP.PP", "PPMPP", "PP.PP"];
+  const HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
+  const BOWTIE = ["XX..XX", "XXxxXX", "XX..XX"];
+  const ACC = {
+    hat: { slot: "head", name: "Party hat", draw(p, v) { p.stamp(PARTY_HAT, v === "front" ? 7 : 8, 2); } },
+    crown: { slot: "head", name: "Flower crown", draw(p, v) {
+      const [a, b, cs] = v === "front" ? [3, 18, [4, 8, 13, 17]] : [2, 20, [3, 8, 13, 18]];
+      for (let x = a; x <= b; x++) p.set(x, 12, "G");
+      ["P", "Y", "B", "R"].forEach((c, i) => {
+        const x = cs[i]; p.set(x, 10, c); p.set(x - 1, 11, c); p.set(x + 1, 11, c); p.set(x, 12, c); p.set(x, 11, c === "Y" ? "O" : "Y");
+      });
+    } },
+    bow: { slot: "head", name: "Ear bow", draw(p) { p.stamp(BOW, 2, 5); } },
+    specs: { slot: "face", name: "Round specs", draw(p, v) {
+      const [l, r] = v === "front" ? [4, 14] : [2, 11];
+      for (const c of [l, r]) {
+        for (let x = c; x <= c + 3; x++) { p.set(x, 15, "t"); p.set(x, 20, "t"); }
+        for (let y = 16; y <= 19; y++) { p.set(c - 1, y, "t"); p.set(c + 4, y, "t"); }
+      }
+      for (let x = l + 5; x <= r - 2; x++) p.set(x, 17, "t");
+      if (v === "side") for (let x = r + 5; x <= 21; x++) p.set(x, 17, "t");
+    } },
+    hearts: { slot: "face", name: "Heart shades", draw(p, v) {
+      const [l, r] = v === "front" ? [3, 13] : [1, 10];
+      p.stamp(HEART, l, 15); p.stamp(HEART, r, 15);
+      for (let x = l + 7; x < r; x++) p.set(x, 16, "M");
+      if (v === "side") for (let x = r + 7; x <= 21; x++) p.set(x, 16, "M");
+    } },
+    scarf: { slot: "neck", name: "Cozy scarf", draw(p, v) {
+      const [a, b, tx] = v === "front" ? [4, 17, 12] : [6, 20, 7];
+      for (let x = a; x <= b; x++) { p.set(x, 26, x % 3 === 0 ? "x" : "X"); p.set(x, 27, (x + 1) % 3 === 0 ? "x" : "X"); }
+      for (let y = 28; y <= 32; y++) for (let x = tx; x <= tx + 2; x++) p.set(x, y, y === 30 ? "x" : "X");
+      p.set(tx, 33, "X"); p.set(tx + 2, 33, "X");
+    } },
+    bowtie: { slot: "neck", name: "Bow tie", draw(p, v) { p.stamp(BOWTIE, v === "front" ? 8 : 7, 26); } },
+  };
+  const SLOTS = [["head", "Head"], ["face", "Face"], ["neck", "Neck"]];
+  function dress(p, view, outfit) {
+    if (!outfit) return;
+    for (const [slot] of [["neck"], ["face"], ["head"]]) if (outfit[slot] && ACC[outfit[slot]]) ACC[outfit[slot]].draw(p, view);
+  }
+
+  // ---------- rabbit builders ----------
+  function side(o = {}) {
+    let p = SIDE.clone();
+    eyes(p, o.eyes || "open", [2, 11]);
+    if (o.mouth) mouth(p, o.mouth, 7);
+    if (o.blush) [[2, 21], [3, 21], [13, 21], [14, 21]].forEach(([x, y]) => p.set(x, y, "R"));
+    if (o.cheek) { p.set(-1, 21, "W"); p.set(-1, 22, "W"); }
+    if (o.perk) {
+      const q = new Pix();
+      p.each((x, y, c) => q.set(x, y <= 9 ? y - 1 : y, c));
+      for (let x = 0; x < 29; x++) { const c = p.get(x, 9); if (c) q.set(x, 9, c); }
+      p = q;
+    }
+    dress(p, "side", o.outfit);
+    return o.mirror ? p.flipX(29) : p;
+  }
+  function front(o = {}) {
+    const p = FRONT_POSES[o.pose || "rest"].clone();
+    eyes(p, o.eyes || "open", [4, 14]);
+    if (o.mouth) mouth(p, o.mouth, 10);
+    if (o.blush) [[3, 21], [4, 21], [17, 21], [18, 21]].forEach(([x, y]) => p.set(x, y, "R"));
+    dress(p, "front", o.outfit);
+    return p;
+  }
+
+  // ---------- tiny pixel font ----------
+  const FONT = {
+    A: [".#.", "#.#", "###", "#.#", "#.#"], B: ["##.", "#.#", "##.", "#.#", "##."], C: [".##", "#..", "#..", "#..", ".##"],
+    D: ["##.", "#.#", "#.#", "#.#", "##."], E: ["###", "#..", "##.", "#..", "###"], F: ["###", "#..", "##.", "#..", "#.."],
+    G: [".##", "#..", "#.#", "#.#", ".##"], H: ["#.#", "#.#", "###", "#.#", "#.#"], I: ["###", ".#.", ".#.", ".#.", "###"],
+    K: ["#.#", "#.#", "##.", "#.#", "#.#"], L: ["#..", "#..", "#..", "#..", "###"], M: ["#.#", "###", "###", "#.#", "#.#"],
+    N: ["##.", "#.#", "#.#", "#.#", "#.#"], O: [".#.", "#.#", "#.#", "#.#", ".#."], P: ["##.", "#.#", "##.", "#..", "#.."],
+    R: ["##.", "#.#", "##.", "#.#", "#.#"], S: [".##", "#..", ".#.", "..#", "##."], T: ["###", ".#.", ".#.", ".#.", ".#."],
+    U: ["#.#", "#.#", "#.#", "#.#", "###"], W: ["#.#", "#.#", "###", "###", "#.#"], Y: ["#.#", "#.#", ".#.", ".#.", ".#."],
+    0: ["###", "#.#", "#.#", "#.#", "###"], 1: [".#.", "##.", ".#.", ".#.", "###"], 2: ["##.", "..#", ".#.", "#..", "###"],
+    3: ["##.", "..#", ".#.", "..#", "##."], 4: ["#.#", "#.#", "###", "..#", "..#"], 5: ["###", "#..", "##.", "..#", "##."],
+    6: [".##", "#..", "###", "#.#", "###"], 7: ["###", "..#", ".#.", ".#.", ".#."], 8: ["###", "#.#", "###", "#.#", "###"],
+    9: ["###", "#.#", "###", "..#", "##."], "!": ["#", "#", "#", ".", "#"], "+": ["...", ".#.", "###", ".#.", "..."],
+    ":": [".", "#", ".", "#", "."],
+  };
+  const textW = (s) => [...s].reduce((w, ch) => w + (FONT[ch] ? FONT[ch][0].length : 2) + 1, -1);
+  function text(p, s, x, y, c) { for (const ch of s) { const g = FONT[ch]; if (g) { p.stamp(g, x, y, c); x += g[0].length + 1; } else x += 3; } }
+  function bubble(p, s, x, y, tail = "left") {
+    const w = textW(s) + 6, h = 11;
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) if (!((xx === 0 || xx === w - 1) && (yy === 0 || yy === h - 1))) p.set(x + xx, y + yy, "H");
+    if (tail === "left") { p.set(x + 1, y + h, "H"); p.set(x + 2, y + h, "H"); p.set(x, y + h + 1, "H"); p.set(x - 1, y + h + 2, "H"); }
+    else { p.set(x + w - 2, y + h, "H"); p.set(x + w - 3, y + h, "H"); p.set(x + w - 1, y + h + 1, "H"); p.set(x + w, y + h + 2, "H"); }
+    text(p, s, x + 3, y + 3, "h");
+  }
+
+  // ---------- small sprites ----------
+  const STAR_BIG = ["..Y..", "..Y..", "YYFYY", "..Y..", "..Y.."];
+  const STAR_SMALL = [".Y.", "YFY", ".Y."];
+  const RING = [["f"], ["ff", "ff"], [".f.", "f.f", ".f."], [".ff.", "fF.f", "f..f", ".ff."]];
+  const DUCK = [".YYY...", "YYkYOO.", ".YYY...", "YYYYYYY", "YYYYYYy", ".yyyyy."];
+  const CARROT = ["G.g.G", ".GgG.", ".OOO.", ".OOo.", ".OOo.", "..Oo.", "..O.."];
+  const GOLD = CARROT.map((r) => r.replace(/O/g, "Y").replace(/o/g, "y"));
+  const SPONGE = ["YYYYYYY", "YyYYYyY", "YYYyYYY", "yYYYYYy"];
+  const SHOWER = ["..ll..", "..ll..", ".LLLL.", "LLLLLL", "lLlLlL"];
+  const TOWEL = ["RRRRRRR", "RFRRRRR", "RRRRRRR", "PPPPPPP", "RRRRRRR"];
+
+  // ---------- scenes (drawn once, 96 x 64) ----------
+  const Rc = (ctx, x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  function makeScene(fn) { const c = document.createElement("canvas"); c.width = LW; c.height = LH; fn(c.getContext("2d")); return c; }
+  const CARROT_PIC = [[16, 12], [17, 12], [15, 13], [16, 13], [14, 14], [15, 14], [13, 15], [14, 15], [13, 16]];
+  const SCENES = {
+    den: makeScene((c) => {
+      Rc(c, 0, 0, LW, LH, "#2b4843");
+      Rc(c, 0, 38, LW, 14, "#264039"); Rc(c, 0, 38, LW, 1, "#355650");
+      Rc(c, 7, 8, 16, 14, "#6d5238"); Rc(c, 8, 9, 14, 7, "#5d8f93"); Rc(c, 8, 16, 14, 5, "#4a7d4f");
+      CARROT_PIC.forEach(([x, y]) => Rc(c, x, y, 1, 1, "#f7945a"));
+      [[17, 11], [18, 10], [18, 11]].forEach(([x, y]) => Rc(c, x, y, 1, 1, "#8fd16a"));
+      Rc(c, 70, 7, 20, 17, "#6d5238"); Rc(c, 71, 8, 18, 15, "#8ec5e0"); Rc(c, 79, 8, 1, 15, "#6d5238"); Rc(c, 71, 15, 18, 1, "#6d5238");
+      Rc(c, 73, 11, 5, 2, "#f4fbff"); Rc(c, 74, 10, 2, 1, "#f4fbff"); Rc(c, 82, 18, 5, 2, "#f4fbff");
+      Rc(c, 69, 24, 22, 1, "#7d6655");
+      Rc(c, 0, 52, LW, 12, "#1b2d2a"); Rc(c, 0, 52, LW, 1, "#243b37"); Rc(c, 0, 61, LW, 1, "#20342f");
+      Rc(c, 22, 55, 52, 5, "#3a5c56"); Rc(c, 20, 56, 56, 3, "#3a5c56"); Rc(c, 24, 57, 48, 1, "#46716a");
+    }),
+    bath: makeScene((c) => {
+      Rc(c, 0, 0, LW, 52, "#29435f");
+      for (let x = 2; x < LW; x += 6) Rc(c, x, 0, 1, 52, "#2f4d6c");
+      for (let y = 5; y < 52; y += 6) Rc(c, 0, y, LW, 1, "#2f4d6c");
+      Rc(c, 6, 5, 15, 23, "#7fa2c0"); Rc(c, 5, 6, 17, 21, "#7fa2c0"); Rc(c, 6, 6, 15, 21, "#3b6282");
+      for (let i = 0; i < 7; i++) { Rc(c, 8 + i, 17 - i, 1, 1, "#5d89ab"); Rc(c, 11 + i, 19 - i, 1, 1, "#5d89ab"); }
+      Rc(c, 76, 12, 16, 1, "#7fa2c0"); Rc(c, 78, 13, 11, 16, "#f6adc3"); Rc(c, 78, 25, 11, 1, "#f17097"); Rc(c, 78, 27, 11, 1, "#f17097");
+      Rc(c, 0, 52, LW, 12, "#1c3047"); Rc(c, 0, 52, LW, 1, "#284260");
+    }),
+    garden: makeScene((c) => {
+      Rc(c, 0, 0, LW, 48, "#3b6a78");
+      Rc(c, 8, 7, 12, 2, "#5b8c98"); Rc(c, 11, 6, 5, 1, "#5b8c98"); Rc(c, 60, 12, 14, 2, "#5b8c98"); Rc(c, 63, 11, 7, 1, "#5b8c98");
+      Rc(c, 0, 38, LW, 10, "#2f5a4d"); Rc(c, 4, 35, 24, 3, "#2f5a4d"); Rc(c, 10, 33, 12, 2, "#2f5a4d");
+      Rc(c, 56, 36, 34, 2, "#2f5a4d"); Rc(c, 64, 34, 16, 2, "#2f5a4d");
+      Rc(c, 0, 46, LW, 18, "#3b6f43"); Rc(c, 0, 46, LW, 1, "#4c8752");
+      [[6, 50, "#f17097"], [14, 54, "#ffe07a"], [80, 52, "#ffe07a"], [88, 49, "#f6adc3"]].forEach(([x, y, col]) => {
+        Rc(c, x, y + 1, 1, 4, "#2e5e35"); Rc(c, x - 1, y, 3, 1, col); Rc(c, x, y - 1, 1, 3, col); Rc(c, x, y, 1, 1, "#ffe07a");
+      });
+    }),
+  };
+
+  // ---------- state ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("rabbit-playtime:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("rabbit-playtime:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+  };
+  let outfit = Object.assign({ head: null, face: null, neck: null }, store.get("outfit", {}));
+  let best = store.get("best", 0) || 0;
+  let now = 0;
+  const blinking = (period = 3600, offset = 0) => (now + offset) % period < 150;
+
+  const bun = { x: 34, dir: -1, target: null, hop: 0, act: null, munch: 0 };
+  const frontX = () => (bun.dir < 0 ? bun.x + 2 : bun.x + 5);
+  let parts = [];
+
+  // frame sequences at 12 fps
+  function seq() {
+    const frames = [];
+    const api = { add(n, fn) { for (let i = 0; i < n; i++) { const j = i; frames.push((fresh) => fn(j, fresh)); } return api; }, frames };
+    return api;
+  }
+  function play(frames, done) { bun.act = { frames, t: 0, done }; }
+  function actPose() {
+    const a = bun.act; if (!a) return null;
+    const i = Math.floor(a.t / FRAME);
+    if (i >= a.frames.length) { bun.act = null; if (a.done) a.done(); return null; }
+    const fresh = a.last !== i; a.last = i;
+    return a.frames[i](fresh);
+  }
+
+  // ---------- particles ----------
+  function spawn(o) { parts.push({ t: 0, vx: 0, vy: 0, g: 0, ...o }); }
+  function burst(x, y, n = 6) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI * (0.1 + 0.8 * i / Math.max(1, n - 1));
+      spawn({ kind: "star", x, y, vx: Math.cos(a) * 26, vy: -Math.sin(a) * 30, g: 40, life: 900 });
+    }
+  }
+  function stepParts(dt) {
+    for (const p of parts) { p.t += dt; p.vy += p.g * dt / 1000; p.x += p.vx * dt / 1000; p.y += p.vy * dt / 1000; }
+    parts = parts.filter((p) => p.t < p.life);
+  }
+  function drawParts(fx) {
+    for (const p of parts) {
+      const x = Math.round(p.x), y = Math.round(p.y), a = p.t / p.life;
+      if (p.kind === "star") { if (a < 0.7) fx.stamp(Math.floor(p.t / 120) % 2 ? STAR_SMALL : STAR_BIG, x - 2, y - 2); else if (Math.floor(p.t / 80) % 2) fx.set(x, y, "Y"); }
+      else if (p.kind === "bubble") fx.stamp(RING[Math.min(3, Math.floor(a * 4))], x, y);
+      else if (p.kind === "drop") { fx.set(x, y, "f"); fx.set(x, y - 1, "B"); }
+      else if (p.kind === "splash") { fx.set(x - 1, y, "f"); fx.set(x + 1, y - 1, "f"); }
+      else if (p.kind === "crumb") fx.set(x, y, p.c || "O");
+      else if (p.kind === "text") text(fx, p.s, x, y, p.c || "H");
+      else if (p.kind === "leaf") fx.stamp(Math.floor(p.t / 150) % 2 ? ["GG.", ".gG"] : [".GG", "Gg."], x, y);
+    }
+  }
+
+  // ---------- canvas & drawing ----------
+  const canvas = document.getElementById("stage"), ctx = canvas.getContext("2d"), screen = canvas.parentElement;
+  let K = 4;
+  function fit() {
+    const cs = getComputedStyle(screen);
+    const avail = screen.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const dpr = window.devicePixelRatio || 1;
+    const k = Math.max(1, Math.round(Math.max(2, Math.floor(avail / LW)) * dpr));
+    if (k === K && canvas.width === LW * k) return;
+    K = k; canvas.width = LW * k; canvas.height = LH * k;
+    canvas.style.width = (LW * k) / dpr + "px"; canvas.style.height = (LH * k) / dpr + "px";
+  }
+  new ResizeObserver(fit).observe(screen); fit();
+
+  function drawPix(p, ox, oy) {
+    const byColor = new Map();
+    p.each((x, y, c) => { let a = byColor.get(c); if (!a) byColor.set(c, (a = [])); a.push(x + ox, y + oy); });
+    for (const [c, a] of byColor) { ctx.fillStyle = PAL[c]; for (let i = 0; i < a.length; i += 2) ctx.fillRect(a[i], a[i + 1], 1, 1); }
+  }
+  function drawShadow(p, ox, oy, floor = FLOOR) {
+    const b = p.bounds(); let xa = 1e9, xb = -1e9;
+    p.each((x, y) => { if (y === b.y1) { xa = Math.min(xa, x); xb = Math.max(xb, x); } });
+    const air = oy + b.y1 < floor - 1, grow = air ? 0 : 2;
+    ctx.fillStyle = "rgba(0,0,0,.28)";
+    ctx.fillRect(ox + xa - grow, floor, xb - xa + 1 + grow * 2, 2);
+  }
+  function drawPose(pose, floor) {
+    if (!pose) return;
+    if (floor !== false) drawShadow(pose.r, pose.x, pose.y);
+    drawPix(pose.r, pose.x, pose.y);
+    if (pose.fx) drawPix(pose.fx, 0, 0);
+  }
+
+  // ---------- shared moves ----------
+  const sidePose = (o = {}, dy = 0) => ({ r: side({ mirror: bun.dir > 0, outfit, ...o }), x: Math.round(bun.x), y: SY + dy });
+  const hopOffsets = [0, -2, -3, -3, -2, 0];
+  function idleSide() {
+    if (bun.target == null && !bun.moving) return sidePose({ eyes: blinking() ? "blink" : "open" });
+    const ph = Math.floor(bun.hop / FRAME) % 6;
+    const pose = sidePose({}, hopOffsets[ph]);
+    if (ph === 0) pose.r = squash(pose.r, 1.06, 0.92);
+    return pose;
+  }
+  function turnToYou(s, fx0) {
+    const sideR = () => side({ mirror: bun.dir > 0, outfit });
+    return s
+      .add(3, () => ({ r: side({ mirror: bun.dir > 0, outfit, perk: true }), x: Math.round(bun.x), y: SY }))
+      .add(1, () => ({ r: squash(sideR(), 1.08, 0.9), x: Math.round(bun.x), y: SY }))
+      .add(2, () => ({ r: squash(front({ outfit }), 0.96, 1.05), x: fx0, y: SY - 3 }))
+      .add(1, () => ({ r: squash(front({ outfit }), 1.08, 0.9), x: fx0, y: SY }));
+  }
+  function turnBack(s, fx0) {
+    const sideR = () => side({ mirror: bun.dir > 0, outfit });
+    return s
+      .add(1, () => ({ r: squash(front({ outfit }), 1.08, 0.9), x: fx0, y: SY }))
+      .add(2, () => ({ r: squash(sideR(), 0.96, 1.05), x: Math.round(bun.x), y: SY - 3 }))
+      .add(1, () => ({ r: squash(sideR(), 1.08, 0.9), x: Math.round(bun.x), y: SY }));
+  }
+  function waveFrames() {
+    const fx0 = Math.round(frontX());
+    const s = seq();
+    turnToYou(s, fx0);
+    s.add(3, () => ({ r: front({ outfit, mouth: "smile" }), x: fx0, y: SY }));
+    s.add(18, (i) => {
+      const fx = new Pix(); if (i >= 2) bubble(fx, "HI!", Math.min(fx0 + 24, LW - 18), SY - 1);
+      return { r: front({ outfit, pose: (i >> 1) % 2 ? "waveLow" : "wave", eyes: i >= 4 && i < 12 ? "happy" : "open", mouth: "smile", blush: true }), x: fx0, y: SY, fx };
+    });
+    s.add(6, (i) => ({ r: front({ outfit, mouth: "smile", eyes: i === 3 ? "blink" : "open" }), x: fx0, y: SY }));
+    turnBack(s, fx0);
+    return s.frames;
+  }
+  function cheerFrames(fx0, label) {
+    const up = { outfit, pose: "t", eyes: "happy", mouth: "yay", blush: true };
+    const withBubble = (pose) => { if (label) { pose.fx = pose.fx || new Pix(); bubble(pose.fx, label, Math.min(fx0 + 24, LW - textW(label) - 8), 2); } return pose; };
+    const s = seq();
+    s.add(2, () => withBubble({ r: squash(front({ outfit, mouth: "smile" }), 1.1, 0.86), x: fx0, y: SY }));
+    s.add(1, (i, fresh) => { if (fresh) burst(fx0 + 11, SY + 8, 7); return withBubble({ r: squash(front(up), 0.94, 1.08), x: fx0, y: SY - 3 }); });
+    s.add(3, (i) => withBubble({ r: front(up), x: fx0, y: SY - [6, 7, 6][i] }));
+    s.add(1, () => withBubble({ r: front(up), x: fx0, y: SY - 3 }));
+    s.add(2, () => withBubble({ r: squash(front(up), 1.1, 0.88), x: fx0, y: SY }));
+    s.add(1, (i, fresh) => { if (fresh) burst(fx0 + 11, SY + 8, 5); return withBubble({ r: squash(front(up), 0.94, 1.08), x: fx0, y: SY - 3 }); });
+    s.add(2, () => withBubble({ r: front(up), x: fx0, y: SY - 5 }));
+    s.add(1, () => withBubble({ r: front(up), x: fx0, y: SY - 2 }));
+    s.add(2, () => withBubble({ r: squash(front(up), 1.1, 0.88), x: fx0, y: SY }));
+    return s.frames;
+  }
+
+  // ---------- UI helpers ----------
+  const hintEl = document.getElementById("hint");
+  const setHint = (s) => { hintEl.textContent = s; };
+  const panels = [...document.querySelectorAll("[data-panel]")];
+
+  // ================= HOME =================
+  const home = {
+    scene: "den",
+    enter() {
+      bun.target = null; bun.act = null; bun.moving = false; bun.x = clamp(bun.x, 4, LW - 33);
+      setHint("Tap the rabbit to say hi. Tap the floor and it hops over.");
+    },
+    update(dt) {
+      if (bun.act || bun.target == null) return;
+      const d = bun.target - bun.x;
+      if (Math.abs(d) < 0.6) { bun.x = bun.target; bun.target = null; return; }
+      bun.dir = Math.sign(d);
+      bun.x += Math.sign(d) * Math.min(Math.abs(d), 24 * dt / 1000);
+      bun.hop += dt;
+    },
+    draw() { drawPose(actPose() || idleSide()); },
+    down(x, y) {
+      if (bun.act) return;
+      const onBun = x >= bun.x && x <= bun.x + 28 && y >= SY && y <= SY + 40;
+      if (onBun) { bun.target = null; play(waveFrames()); setHint("It turns round to wave at you!"); }
+      else if (y >= 40) { bun.target = clamp(x - 14, 4, LW - 33); bun.hop = 0; }
+    },
+  };
+
+  // ================= DRESS UP =================
+  const DX = 37;
+  const dressMode = {
+    scene: "den",
+    enter() { bun.act = null; setHint("Tap clothes to try them on. Tap the rabbit to twirl."); },
+    update() {},
+    draw() {
+      drawPose(actPose() || { r: front({ outfit, eyes: blinking(3200) ? "blink" : "open", mouth: "smile" }), x: DX, y: SY });
+    },
+    down(x, y) {
+      if (bun.act) return;
+      if (x >= DX - 1 && x <= DX + 21 && y >= SY && y <= SY + 40) this.twirl();
+    },
+    twirl() {
+      const s = seq();
+      s.add(1, () => ({ r: squash(front({ outfit }), 1.08, 0.9), x: DX, y: SY }));
+      s.add(2, () => ({ r: side({ outfit }), x: DX - 2, y: SY - 2 }));
+      s.add(2, () => ({ r: side({ outfit, mirror: true, eyes: "happy" }), x: DX - 5, y: SY - 3 }));
+      s.add(1, () => ({ r: front({ outfit, eyes: "happy" }), x: DX, y: SY - 2 }));
+      s.add(1, () => ({ r: squash(front({ outfit, eyes: "happy" }), 1.08, 0.9), x: DX, y: SY }));
+      s.add(6, () => ({ r: front({ outfit, eyes: "happy", mouth: "smile", blush: true }), x: DX, y: SY }));
+      play(s.frames);
+    },
+    wear(id) {
+      const slot = ACC[id].slot;
+      outfit[slot] = outfit[slot] === id ? null : id;
+      store.set("outfit", outfit);
+      const s = seq();
+      s.add(1, () => ({ r: squash(front({ outfit, eyes: "happy" }), 1.08, 0.9), x: DX, y: SY }));
+      s.add(2, () => ({ r: front({ outfit, eyes: "happy", mouth: "yay" }), x: DX, y: SY - 3 }));
+      s.add(1, () => ({ r: squash(front({ outfit, eyes: "happy", mouth: "yay" }), 1.08, 0.9), x: DX, y: SY }));
+      s.add(5, () => ({ r: front({ outfit, eyes: "happy", mouth: "smile", blush: true }), x: DX, y: SY }));
+      play(s.frames);
+      if (outfit[slot]) burst(DX + 10, SY + { head: 6, face: 17, neck: 27 }[slot], 5);
+      syncCloset();
+    },
+  };
+
+  // ================= BATH =================
+  const BX = 37, BY = 13;               // rabbit sits in the tub; rows 31+ are under water
+  const VIS = [];                      // visible fur cells [x, y] in sprite coords
+  FRONT.each((x, y) => { if (y <= 30) VIS.push([x, y]); });
+  const VKEY = new Set(VIS.map(([x, y]) => KEY(x, y)));
+  const MUD = [[5, 6], [6, 6], [6, 7], [17, 3], [18, 3], [18, 4], [8, 13], [9, 13], [9, 14], [18, 22], [19, 22], [19, 23],
+    [2, 22], [3, 22], [7, 28], [8, 28], [8, 29], [13, 27], [14, 27]];
+  const bath = {
+    scene: "bath",
+    enter() { this.reset(); },
+    reset() {
+      this.phase = "scrub"; this.soap = new Set(); this.wet = new Set(); this.mud = new Set(MUD.map(([x, y]) => KEY(x, y)));
+      this.busy = 0; this.dropT = 0; this.drops = []; this.px = null; this.py = null; this.down_ = false; this.doneT = 0;
+      bun.act = null; parts = [];
+      setHint("Scrub-a-dub! Rub the sponge over the muddy spots.");
+      this.sync();
+    },
+    progress() {
+      if (this.phase === "scrub") return Math.min(1, (this.soap.size / VIS.length) / 0.7) * (this.mud.size ? 0.95 : 1);
+      if (this.phase === "rinse") return 1 - this.soap.size / Math.max(1, this.soapStart);
+      if (this.phase === "dry") return 1 - this.wet.size / VIS.length;
+      return 1;
+    },
+    sync() {
+      document.querySelectorAll("#steps li").forEach((li) => {
+        const order = ["scrub", "rinse", "dry", "done"], me = order.indexOf(li.dataset.step), cur = order.indexOf(this.phase);
+        li.className = me < cur ? "done" : me === cur ? "on" : "";
+      });
+      const p = Math.round(this.progress() * 100);
+      const bar = document.getElementById("bathBar"); bar.style.width = p + "%"; bar.parentElement.setAttribute("aria-valuenow", p);
+      document.getElementById("bathAgain").textContent = this.phase === "done" ? "Bath again" : "Start over";
+    },
+    around(x, y, r, fn) {
+      const cx = x - BX, cy = y - BY;
+      for (let yy = Math.floor(cy - r); yy <= cy + r; yy++) for (let xx = Math.floor(cx - r); xx <= cx + r; xx++) {
+        if ((xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2 <= r * r && VKEY.has(KEY(xx, yy))) fn(KEY(xx, yy), xx, yy);
+      }
+    },
+    down(x, y) { this.down_ = true; this.move(x, y); },
+    up() { this.down_ = false; },
+    move(x, y) {
+      this.px = x; this.py = y;
+      if (!this.down_) return;
+      if (this.phase === "scrub") {
+        let hit = false;
+        this.around(x, y, 2.7, (k) => { if (!this.soap.has(k)) { this.soap.add(k); hit = true; } this.mud.delete(k); });
+        if (hit) { this.busy = 350; if (Math.random() < 0.25) spawn({ kind: "bubble", x: x + (Math.random() * 6 - 3), y, vy: -14, vx: Math.random() * 6 - 3, life: 1300 }); }
+        if (this.soap.size >= VIS.length * 0.7 && this.mud.size === 0) {
+          this.phase = "rinse"; this.soapStart = this.soap.size; this.down_ = false;
+          setHint("All soapy! Now hold the shower over the rabbit to rinse the bubbles off.");
+        }
+        this.sync();
+      } else if (this.phase === "dry") {
+        let hit = false;
+        this.around(x, y, 3, (k) => { if (this.wet.delete(k)) hit = true; });
+        if (hit) this.busy = 350;
+        if (this.wet.size <= VIS.length * 0.03) this.finish();
+        this.sync();
+      }
+    },
+    finish() {
+      this.phase = "done"; this.wet.clear(); this.down_ = false;
+      setHint("So fresh and fluffy! Tap the rabbit for a snuggle, or give it another bath.");
+      const s = seq();
+      s.add(2, () => ({ r: squash(front({ eyes: "blink", mouth: "smile" }), 1.1, 1.08), x: BX, y: BY }));
+      s.add(6, (i) => ({ r: front({ eyes: "blink", mouth: "smile" }), x: BX + (i % 2 ? 1 : -1), y: BY }));
+      s.add(2, (i, fresh) => { if (fresh && i === 0) burst(BX + 10, BY + 6, 7); return { r: front({ eyes: "happy", mouth: "yay", blush: true }), x: BX, y: BY }; });
+      this.doneT = 0;
+      play(s.frames);
+      this.sync();
+    },
+    update(dt) {
+      this.busy = Math.max(0, this.busy - dt);
+      if (this.phase === "done") this.doneT += dt;
+      if (this.phase === "rinse" && this.down_ && this.px != null) {
+        this.dropT -= dt;
+        while (this.dropT <= 0) { this.dropT += 26; this.drops.push({ x: this.px + Math.random() * 6 - 3, y: this.py + 3, vy: 70 }); }
+      }
+      for (const d of this.drops) {
+        d.y += d.vy * dt / 1000;
+        if (this.phase === "rinse") {
+          let hit = false;
+          this.around(d.x, d.y, 1.7, (k) => { if (this.soap.delete(k)) hit = true; this.wet.add(k); });
+          if (hit) this.busy = 300;
+        }
+        if (d.y >= 43) { d.dead = true; spawn({ kind: "splash", x: d.x, y: 42, life: 160 }); }
+      }
+      this.drops = this.drops.filter((d) => !d.dead);
+      if (this.phase === "rinse") {
+        if (this.soap.size <= Math.max(4, VIS.length * 0.03)) {
+          this.phase = "dry"; this.soap.clear(); this.down_ = false;
+          VIS.forEach(([x, y]) => this.wet.add(KEY(x, y)));
+          setHint("Brrr, wet! Rub the towel over the rabbit to dry it off.");
+        }
+        this.sync();
+      }
+    },
+    rabbit() {
+      const busy = this.busy > 0;
+      let o;
+      if (this.phase === "done") o = { eyes: blinking(3000) ? "blink" : "happy", mouth: "smile", blush: true };
+      else if (this.phase === "scrub") o = busy ? { eyes: "happy", mouth: "yay" } : { eyes: blinking() ? "blink" : "open", mouth: "smile" };
+      else if (this.phase === "rinse") o = busy ? { eyes: "blink", mouth: "smile" } : { eyes: blinking() ? "blink" : "open", mouth: "smile" };
+      else o = busy ? { eyes: "happy", mouth: "smile" } : { eyes: blinking() ? "blink" : "open", mouth: "o" };
+      const p = front(o);
+      for (const [x, y] of VIS) {
+        const k = KEY(x, y), base = p.get(x, y);
+        if (base !== "W" && base !== "O") continue;
+        if (this.mud.has(k)) p.set(x, y, (x + y) % 2 ? "u" : "U");
+        else if (this.soap.has(k)) {
+          const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => VKEY.has(KEY(x + dx, y + dy)) && !this.soap.has(KEY(x + dx, y + dy)));
+          p.set(x, y, edge || (x * 3 + y * 5) % 11 === 0 ? "f" : "F");
+        }
+        else if (this.wet.has(k)) p.set(x, y, (x * 5 + y * 3) % 7 === 0 ? "f" : "w");
+      }
+      // foam puffs out past the silhouette
+      for (const k of this.soap) {
+        const x = (k % 1024) - 256, y = Math.floor(k / 1024) - 256;
+        for (const nx of [x - 1, x + 1]) if (!p.get(nx, y) && (nx * 3 + y) % 2 === 0) p.set(nx, y, (nx + y) % 3 ? "F" : "f");
+      }
+      const wiggle = this.phase === "scrub" && busy ? (Math.floor(now / 110) % 2 ? 1 : -1) : 0;
+      return { r: p, x: BX + wiggle, y: BY };
+    },
+    draw() {
+      const pose = actPose() || this.rabbit();
+      drawPix(pose.r, pose.x, pose.y);
+      // tub in front of the rabbit
+      const c = ctx;
+      Rc(c, 23, 44, 50, 1, "#ffffff"); Rc(c, 22, 45, 52, 2, "#eef3f8");
+      Rc(c, 23, 47, 50, 9, "#dfe6ee"); Rc(c, 23, 47, 3, 9, "#c9d3de"); Rc(c, 70, 47, 3, 9, "#c9d3de"); Rc(c, 24, 55, 48, 1, "#c9d3de");
+      Rc(c, 27, 56, 4, 3, "#c7a86b"); Rc(c, 65, 56, 4, 3, "#c7a86b");
+      const foamy = this.phase === "scrub" || this.phase === "rinse";
+      for (let x = 24; x < 72; x++) {
+        const h = (x * 5 + Math.floor(now / 260)) % 4;
+        if (foamy) { Rc(c, x, 43, 1, 1, h % 2 ? "#ffffff" : "#bfe6f7"); if (h === 0) Rc(c, x, 42, 1, 1, "#ffffff"); }
+        else Rc(c, x, 43, 1, 1, h === 0 ? "#bfe6f7" : "#9fd3ef");
+      }
+      const fx = new Pix();
+      fx.stamp(DUCK, 62, 38 + (Math.floor(now / 600) % 2));
+      for (const d of this.drops) { fx.set(Math.round(d.x), Math.round(d.y), "f"); fx.set(Math.round(d.x), Math.round(d.y) - 1, "B"); }
+      drawParts(fx);
+      if (this.phase === "done" && this.doneT < 2600) bubble(fx, "SO FLUFFY!", LW - textW("SO FLUFFY!") - 8, 4);
+      if (this.px != null && this.phase !== "done") {
+        const tool = { scrub: SPONGE, rinse: SHOWER, dry: TOWEL }[this.phase];
+        fx.stamp(tool, Math.round(this.px) - 3, Math.round(this.py) - 2);
+        if (this.phase === "rinse" && this.down_) for (let i = -2; i <= 2; i += 2) fx.set(Math.round(this.px) + i, Math.round(this.py) + 3 + ((Math.floor(now / 60) + i) % 2), "f");
+      }
+      drawPix(fx, 0, 0);
+    },
+    tapRabbit(x, y) {
+      if (this.phase !== "done" || bun.act) return false;
+      if (x < BX || x > BX + 21 || y < BY || y > 44) return false;
+      const s = seq();
+      s.add(8, () => ({ r: front({ eyes: "happy", mouth: "yay", blush: true }), x: BX, y: BY - 1 }));
+      burst(BX + 10, BY + 4, 4);
+      play(s.frames);
+      return true;
+    },
+  };
+  const bathMode = {
+    scene: "bath",
+    enter() { bath.enter(); },
+    update(dt) { bath.update(dt); },
+    draw() { bath.draw(); },
+    down(x, y) { if (!bath.tapRabbit(x, y)) bath.down(x, y); },
+    move(x, y) { bath.move(x, y); },
+    up() { bath.up(); },
+    leave() { bath.px = null; },
+  };
+
+  // ================= CARROT CATCH =================
+  let seed = 7;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const game = {
+    scene: "garden",
+    enter() {
+      this.state = "ready"; this.score = 0; this.time = 30000; this.carrots = []; this.keys = { l: false, r: false };
+      bun.x = 34; bun.dir = -1; bun.target = null; bun.act = null; bun.munch = 0; bun.moving = false; parts = [];
+      setHint("Carrots are falling! Drag or tap to move the rabbit under them, or use ← →. Tap Play to start.");
+      this.sync();
+    },
+    start() {
+      this.state = "playing"; this.score = 0; this.time = 30000; this.carrots = []; this.spawnT = 400;
+      bun.x = 34; bun.dir = -1; bun.target = null; bun.act = null; bun.munch = 0; parts = []; seed = (Date.now() >>> 0) || 7;
+      setHint("Catch as many as you can! Golden carrots count three.");
+      this.sync();
+    },
+    finish() {
+      this.state = "end"; bun.moving = false; bun.target = null;
+      const record = this.score > best;
+      if (record) { best = this.score; store.set("best", best); }
+      bun.dir = -1;
+      const fx0 = Math.round(frontX());
+      const label = `YUM! ${this.score}`;
+      const s = seq();
+      turnToYou(s, fx0);
+      play([...s.frames, ...cheerFrames(fx0, label)]);
+      this.endPose = () => {
+        const fx = new Pix(); bubble(fx, label, Math.min(fx0 + 24, LW - textW(label) - 8), 2);
+        return { r: front({ outfit, pose: "t", eyes: blinking(2800) ? "blink" : "happy", mouth: "yay", blush: true }), x: fx0, y: SY, fx };
+      };
+      setHint(record ? `A new best: ${this.score} carrots! Tap Play for another round.` : `Yum, ${this.score} carrots! Tap Play for another round.`);
+      this.sync();
+    },
+    sync() {
+      document.getElementById("score").textContent = this.score;
+      document.getElementById("best").textContent = best;
+      document.getElementById("playBtn").textContent = this.state === "playing" ? "Playing…" : this.state === "end" ? "Play again" : "Play";
+      document.getElementById("playBtn").disabled = this.state === "playing";
+    },
+    update(dt) {
+      bun.munch = Math.max(0, bun.munch - dt);
+      if (this.state !== "playing") return;
+      this.time -= dt;
+      if (this.time <= 0) { this.time = 0; this.finish(); return; }
+      const elapsed = 30000 - this.time;
+      this.spawnT -= dt;
+      if (this.spawnT <= 0) {
+        this.spawnT = 900 - 350 * (elapsed / 30000);
+        this.carrots.push({ x: 6 + rand() * (LW - 12), y: -8, vy: 16 + 12 * (elapsed / 30000), gold: rand() < 0.12, state: "fall", t: 0 });
+      }
+      // movement: keys win, otherwise follow the finger
+      let v = 0;
+      if (this.keys.l || this.keys.r) { v = (this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0); bun.target = null; }
+      else if (bun.target != null) { const d = bun.target - bun.x; if (Math.abs(d) > 0.6) v = Math.sign(d); else bun.target = null; }
+      if (v) {
+        bun.dir = v;
+        const step = 46 * dt / 1000;
+        bun.x = clamp(bun.x + v * (bun.target != null ? Math.min(step, Math.abs(bun.target - bun.x)) : step), -2, LW - 27);
+        bun.hop += dt; bun.moving = true;
+      } else bun.moving = false;
+      // carrots
+      const hx0 = bun.x + (bun.dir < 0 ? 0 : 6), hy0 = SY + 10;
+      for (const c of this.carrots) {
+        c.t += dt;
+        if (c.state === "fall") {
+          c.y += c.vy * dt / 1000;
+          const tx = c.x, ty = c.y + 6;
+          if (tx >= hx0 - 1 && tx <= hx0 + 23 && ty >= hy0 && ty <= hy0 + 16) {
+            c.state = "gone";
+            const n = c.gold ? 3 : 1; this.score += n; bun.munch = 520;
+            spawn({ kind: "text", s: "+" + n, x: tx - 3, y: hy0 - 6, vy: -14, life: 800, c: c.gold ? "Y" : "H" });
+            for (let i = 0; i < 3; i++) spawn({ kind: "crumb", x: bun.x + (bun.dir < 0 ? 6 : 22), y: SY + 24, vx: (Math.random() - 0.5) * 18, vy: -8, g: 90, life: 500, c: c.gold ? "Y" : "O" });
+            if (c.gold) burst(tx, hy0, 4);
+            this.sync();
+          } else if (c.y + 7 >= FLOOR) { c.state = "bounce"; c.vy = -22; c.t = 0; c.y = FLOOR - 7; }
+        } else if (c.state === "bounce") {
+          c.vy += 80 * dt / 1000; c.y = Math.min(FLOOR - 7, c.y + c.vy * dt / 1000);
+          if (c.t > 900) c.state = "gone";
+        }
+      }
+      this.carrots = this.carrots.filter((c) => c.state !== "gone");
+    },
+    draw() {
+      const fx = new Pix();
+      for (const c of this.carrots) {
+        if (c.state === "bounce" && c.t > 500 && Math.floor(c.t / 90) % 2) continue;
+        fx.stamp(c.gold ? GOLD : CARROT, Math.round(c.x) - 2, Math.round(c.y));
+        if (c.gold && Math.floor(now / 150) % 2) fx.set(Math.round(c.x) + 3, Math.round(c.y) + 1, "F");
+      }
+      let pose = actPose();
+      if (!pose && this.state === "end" && this.endPose) pose = this.endPose();
+      if (!pose) {
+        if (bun.munch > 0) {
+          const m = Math.floor(bun.munch / 100) % 2;
+          pose = sidePose({ eyes: "happy", mouth: m ? "o" : undefined, cheek: !m, blush: true });
+        } else if (bun.moving) {
+          const ph = Math.floor(bun.hop / 70) % 6;
+          pose = sidePose({}, [0, -1, -2, -2, -1, 0][ph]);
+        } else pose = sidePose({ eyes: blinking() ? "blink" : "open" });
+      }
+      drawPose(pose);
+      drawParts(fx);
+      // HUD
+      fx.stamp([".G.", "GgG", ".O.", "OOo", "OO.", ".O."], 3, 2);
+      text(fx, String(this.score), 8, 3, "H");
+      const secs = Math.ceil(this.time / 1000), clock = `0:${String(secs).padStart(2, "0")}`;
+      if (this.state !== "end") text(fx, clock, LW - textW(clock) - 3, 3, secs <= 5 && this.state === "playing" && Math.floor(now / 250) % 2 ? "Y" : "H");
+      if (this.state === "ready") bubble(fx, "TAP PLAY!", 52, 8);
+      drawPix(fx, 0, 0);
+    },
+    down(x) {
+      if (this.state !== "playing") { if (!bun.act) this.start(); return; }
+      bun.target = clamp(x - 14, -2, LW - 27);
+    },
+    move(x, y, pressed) { if (pressed && this.state === "playing") bun.target = clamp(x - 14, -2, LW - 27); },
+  };
+
+  // ---------- modes ----------
+  const MODES = { home, dress: dressMode, bath: bathMode, game };
+  let mode = home, modeName = "home";
+  function setMode(name) {
+    if (mode.leave) mode.leave();
+    modeName = name; mode = MODES[name];
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    parts = [];
+    mode.enter();
+  }
+  document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.go)));
+  document.getElementById("playBtn").addEventListener("click", () => game.start());
+  document.getElementById("bathAgain").addEventListener("click", () => bath.reset());
+  document.getElementById("undress").addEventListener("click", () => {
+    outfit = { head: null, face: null, neck: null }; store.set("outfit", outfit); syncCloset();
+    dressMode.twirl();
+  });
+
+  // ---------- pixel icons for the buttons ----------
+  function iconCanvas(cv, pix, scale = 4) {
+    const b = pix.bounds(), w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * scale * dpr); cv.height = Math.round(h * scale * dpr);
+    cv.style.width = w * scale + "px"; cv.style.height = h * scale + "px";
+    const c = cv.getContext("2d"); c.scale(scale * dpr, scale * dpr);
+    pix.each((x, y, col) => { c.fillStyle = PAL[col]; c.fillRect(x - b.x0, y - b.y0, 1, 1); });
+  }
+  const ICONS = {
+    hat: new Pix().stamp(PARTY_HAT), duck: new Pix().stamp(DUCK), carrot: new Pix().stamp(CARROT),
+  };
+  document.querySelectorAll("[data-icon]").forEach((cv) => iconCanvas(cv, ICONS[cv.dataset.icon], 4));
+
+  const closet = document.getElementById("closet");
+  const itemButtons = {};
+  for (const [slot, label] of SLOTS) {
+    const row = document.createElement("div"); row.className = "slot";
+    row.innerHTML = `<span class="slot-name">${label}</span><div class="slot-items"></div>`;
+    const holder = row.querySelector(".slot-items");
+    for (const [id, a] of Object.entries(ACC)) {
+      if (a.slot !== slot) continue;
+      const btn = document.createElement("button"); btn.type = "button"; btn.className = "item";
+      const cv = document.createElement("canvas"); const pix = new Pix(); a.draw(pix, "front");
+      iconCanvas(cv, pix, id === "specs" || id === "hearts" || id === "crown" || id === "scarf" ? 2 : 3);
+      const span = document.createElement("span"); span.textContent = a.name;
+      btn.append(cv, span);
+      btn.addEventListener("click", () => dressMode.wear(id));
+      holder.appendChild(btn); itemButtons[id] = btn;
+    }
+    closet.appendChild(row);
+  }
+  function syncCloset() { for (const [id, btn] of Object.entries(itemButtons)) btn.setAttribute("aria-pressed", String(outfit[ACC[id].slot] === id)); }
+  syncCloset();
+
+  // ---------- input ----------
+  const pointer = { down: false };
+  const toStage = (e) => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * LW, (e.clientY - r.top) / r.height * LH]; };
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); canvas.setPointerCapture(e.pointerId); pointer.down = true;
+    const [x, y] = toStage(e); if (mode.down) mode.down(x, y);
+  });
+  canvas.addEventListener("pointermove", (e) => { const [x, y] = toStage(e); if (mode.move) mode.move(x, y, pointer.down); });
+  const release = () => { pointer.down = false; if (mode.up) mode.up(); };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+  canvas.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && mode.leave) mode.leave(); });
+  const keyMap = { ArrowLeft: "l", a: "l", A: "l", ArrowRight: "r", d: "r", D: "r" };
+  window.addEventListener("keydown", (e) => {
+    if (modeName !== "game") return;
+    if (keyMap[e.key]) { game.keys[keyMap[e.key]] = true; e.preventDefault(); }
+    else if ((e.key === " " || e.key === "Enter") && game.state !== "playing" && document.activeElement === document.body) { game.start(); e.preventDefault(); }
+  });
+  window.addEventListener("keyup", (e) => { if (keyMap[e.key]) game.keys[keyMap[e.key]] = false; });
+
+  // ---------- free-time clock ----------
+  let freeLeft = 15 * 60;
+  const clockEl = document.getElementById("clock"), pillEl = document.getElementById("clockPill");
+  setInterval(() => {
+    if (freeLeft <= 0) return;
+    freeLeft -= 1;
+    clockEl.textContent = `${Math.floor(freeLeft / 60)}:${String(freeLeft % 60).padStart(2, "0")}`;
+    if (freeLeft === 0) { pillEl.classList.add("over"); pillEl.textContent = "Free time's up · next task soon"; }
+  }, 1000);
+
+  // ---------- loop ----------
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min(50, t - last); last = t; now += dt;
+    if (bun.act) bun.act.t += dt;
+    mode.update(dt);
+    stepParts(dt);
+    ctx.setTransform(K, 0, 0, K, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(SCENES[mode.scene], 0, 0);
+    mode.draw();
+    if (mode !== bathMode && mode !== game && parts.length) { const fx = new Pix(); drawParts(fx); drawPix(fx, 0, 0); }
+    requestAnimationFrame(loop);
+  }
+
+  const start = (location.hash || "").slice(1);
+  setMode(MODES[start] ? start : "home");
+  requestAnimationFrame(loop);
+})();
+</script>

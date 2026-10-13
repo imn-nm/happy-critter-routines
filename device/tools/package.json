@@ -1,0 +1,16 @@
+{
+  "name": "mytoki-device-tools",
+  "private": true,
+  "description": "Asset generators for the MyToki device firmware (fonts, icons, Biscuit frames). Not part of the web app.",
+  "type": "module",
+  "scripts": {
+    "fonts": "node fonts.mjs",
+    "icons": "node icons.mjs",
+    "pet": "node pet_export.mjs",
+    "assets": "node fonts.mjs && node icons.mjs && node pet_export.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "lv_font_conv": "^1.5.3"
+  }
+}

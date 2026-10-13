@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyToki Simulator</title>
+<link rel="stylesheet" href="sim.css">
+</head>
+<body>
+<main class="sim">
+  <section class="stage">
+    <div class="device" id="device">
+      <svg class="housing" viewBox="0 0 600 600" aria-hidden="true">
+        <defs>
+          <radialGradient id="shell" cx="50%" cy="38%" r="62%">
+            <stop offset="0" stop-color="#2C3558"/>
+            <stop offset="1" stop-color="#20294A"/>
+          </radialGradient>
+          <linearGradient id="btn" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#65CDAA"/>
+            <stop offset="1" stop-color="#00714B"/>
+          </linearGradient>
+          <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/>
+          </filter>
+        </defs>
+        <!-- the button at 1 o'clock sits on the rim, under the shell's edge -->
+        <path id="btnShape" d="" fill="url(#btn)"/>
+        <circle cx="300" cy="300" r="292" fill="url(#shell)" filter="url(#drop)"/>
+        <circle cx="300" cy="300" r="284" fill="none" stroke="#3a456e" stroke-width="2" opacity="0.6"/>
+        <circle cx="300" cy="300" r="246" fill="#0b0f1d"/>
+        <circle cx="300" cy="300" r="240" fill="#040605"/>
+      </svg>
+      <canvas id="screen" width="466" height="466" aria-label="MyToki screen"></canvas>
+      <button class="hw-button" id="hwButton" aria-label="Hardware button (Space)"></button>
+    </div>
+    <p class="hint">Click to touch. Drag sideways to swipe: it turns the pages on Home and backs out of lists and Playtime (a game, then the menu). Flick up on Home to lift the day's schedule; flick down, or drag its title down, to put it away. The green button at 1 o'clock (or <kbd>Space</kbd>) is the hardware button. A quick drag down on the morning alarm snoozes it.</p>
+  </section>
+
+  <aside class="panel">
+    <h1>MyToki <span>simulator</span></h1>
+    <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75C · 466 × 466 · same C code as the board</p>
+
+    <fieldset>
+      <legend>Clock</legend>
+      <div class="clock-row">
+        <output id="clockOut">--:--</output>
+        <span id="dayOut"></span>
+      </div>
+      <input type="range" id="timeSlider" min="0" max="1439" step="1" aria-label="Time of day">
+      <div class="btns">
+        <button data-jump="-60">−1 h</button>
+        <button data-jump="-5">−5 m</button>
+        <button data-jump="5">+5 m</button>
+        <button data-jump="60">+1 h</button>
+        <button id="realTime">Now</button>
+      </div>
+      <label class="row">Speed
+        <select id="speed">
+          <option value="1">1×</option>
+          <option value="10">10×</option>
+          <option value="60">60× (a minute a second)</option>
+          <option value="300">300×</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Day plan</legend>
+      <label class="row">Plan
+        <select id="scenario"></select>
+      </label>
+      <div class="jumps" id="jumps"></div>
+      <label class="check"><input type="checkbox" id="online" checked> Internet connection</label>
+      <label class="check"><input type="checkbox" id="picture"> Picture view (under 7)</label>
+      <label class="check"><input type="checkbox" id="paired" checked> Paired with a grown-up's app</label>
+      <div class="btns">
+        <button id="reload">Reload plan</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>The handheld</legend>
+      <label class="check"><input type="checkbox" id="docked"> On its dock (the night clock, charging)</label>
+      <label class="row">Battery %
+        <input type="number" id="battery" min="0" max="100" value="100" style="width:72px">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Grown-up actions</legend>
+      <div class="btns">
+        <button data-debug="approve">Approve a reward</button>
+        <button data-debug="deny">Say no to a reward</button>
+        <button data-debug="givestar">Give a star</button>
+        <button data-debug="crash">Crash screen</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="log-box">
+      <legend>Sent to the server</legend>
+      <ol id="log"></ol>
+    </fieldset>
+  </aside>
+</main>
+<script src="sim.js"></script>
+</body>
+</html>

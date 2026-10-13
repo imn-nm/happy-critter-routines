@@ -1,0 +1,1925 @@
+<title>Retro Rabbit Clips</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A single dark look on purpose: the clips are judged against the app's night-purple timer. */
+  :root {
+    color-scheme: dark;
+    --ground: #131c1b;
+    --panel: #1a2625;
+    --bezel: #0d1413;
+    --line: #2a3b38;
+    --ink: #f9f5e1;
+    --muted: #a2b4ae;
+    --accent: #f7945a;
+    --pink: #f17097;
+    --display: "Pixelify Sans", "Courier New", monospace;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  html, body { background: var(--ground); color: var(--ink); }
+  body {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.55;
+    padding-inline: 16px;
+    padding-block: 32px 48px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px; }
+  .eyebrow {
+    font-family: var(--display); font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 6px;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700; font-size: clamp(30px, 4.6vw, 46px);
+    line-height: 1; margin: 0; text-wrap: balance;
+  }
+  .lede { margin: 12px 0 0; color: var(--muted); max-width: 62ch; }
+  .lede b { color: var(--ink); font-weight: 500; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font-family: var(--display); font-size: 15px; line-height: 1; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--line); border-radius: 0;
+    padding: 9px 14px 8px; cursor: pointer;
+    box-shadow: 0 3px 0 0 var(--bezel);
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:active { transform: translateY(2px); box-shadow: 0 1px 0 0 var(--bezel); }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .closet {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+    background: var(--panel); border: 2px solid var(--line); padding: 12px 16px;
+  }
+  .closet-title { font-family: var(--display); font-size: 17px; color: var(--accent); }
+  .slot { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  select {
+    font-family: var(--mono); font-size: 13px; color: var(--ink);
+    background: var(--bezel); border: 2px solid var(--line); border-radius: 0; padding: 5px 8px;
+  }
+
+  .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+  .clip { background: var(--panel); border: 2px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+  .stage {
+    background: var(--bezel); padding: 16px; display: flex; justify-content: center; align-items: center;
+    border-bottom: 2px solid var(--line);
+  }
+  /* The round timer the child sees: a ring that fills as the clip plays, the room clipped inside it. */
+  .dial { position: relative; width: min(100%, 270px); aspect-ratio: 1; max-width: 100%; }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial circle { fill: none; stroke-width: 1.8; }
+  .dial .track { stroke: var(--line); }
+  .dial .arc { stroke: var(--accent); stroke-linecap: round; }
+  .dial canvas {
+    position: absolute; inset: 7.5%; width: 85%; height: 85%; border-radius: 50%;
+    display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+  }
+
+  .meta { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .meta-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: 23px; line-height: 1.1; margin: 0; }
+  .tags { display: flex; gap: 6px; }
+  .tag {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+    padding: 2px 7px; border: 1px solid var(--line); color: var(--muted);
+  }
+  .tag.front { border-color: var(--pink); color: var(--pink); }
+  .tag.room { color: var(--ink); }
+  .trigger { margin: 0; color: var(--muted); font-size: 13px; }
+  .trigger b { color: var(--ink); font-weight: 500; }
+  .beats { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+  .beats li { font-size: 12px; padding: 3px 8px; border: 1px solid var(--line); color: var(--muted); }
+  .beats li.on { background: var(--accent); border-color: var(--accent); color: #1a1410; }
+  .meta-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: auto; }
+  .len { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  footer.spec {
+    display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between;
+    border-top: 2px solid var(--line); padding-top: 18px; color: var(--muted); font-size: 12px;
+  }
+  .swatches { display: flex; flex-wrap: wrap; gap: 14px; list-style: none; margin: 0; padding: 0; }
+  .swatches li { display: flex; align-items: center; gap: 7px; font-variant-numeric: tabular-nums; }
+  .swatches i { width: 14px; height: 14px; display: inline-block; outline: 1px solid #0006; }
+
+  @media (prefers-reduced-motion: reduce) {
+    button:active { transform: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Pet animations · 12 fps</p>
+      <h1>Retro Rabbit Clips</h1>
+      <p class="lede">Twelve moments from the child's day, drawn by the app's own code. Each one plays in its own room, cut to the <b>round timer</b> the child sees. The rabbit rests in its <b>3/4 view</b> and turns to <b>face you</b> only when it's talking to you.</p>
+    </div>
+    <div class="controls">
+      <button id="pauseAll" type="button">Pause</button>
+      <button id="speed" type="button">Speed 1×</button>
+    </div>
+  </header>
+
+  <section class="closet" id="closet" aria-label="Dress up">
+    <span class="closet-title">Dress up</span>
+  </section>
+
+  <main class="clips" id="clips"></main>
+
+  <footer class="spec">
+    <ul class="swatches">
+      <li><i style="background:#f9f5e1"></i>#f9f5e1</li>
+      <li><i style="background:#f7945a"></i>#f7945a</li>
+      <li><i style="background:#f17097"></i>#f17097</li>
+      <li><i style="background:#010101"></i>#010101</li>
+    </ul>
+    <span>Sprites 29×40 (3/4), 22×40 (front), 36×21 (asleep) · stage 77×56 · timer window 80×80, clipped to a circle</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
+  // src/components/pets/pixel/pix.ts
+  var PAL = {
+    W: "#f9f5e1",
+    // fur
+    O: "#f7945a",
+    // inner ear, carrot
+    o: "#d8703a",
+    // carrot shade
+    K: "#010101",
+    // eyes, mouth
+    P: "#f17097",
+    // nose, pink
+    R: "#f6adc3",
+    // blush
+    M: "#c94f79",
+    // bow knot, shade frame
+    T: "#35b8a8",
+    // teal
+    t: "#1f857a",
+    // dark teal
+    B: "#a9def6",
+    // bristles
+    F: "#ffffff",
+    // white
+    f: "#9fd3ef",
+    // foam, bubbles, drops
+    Y: "#ffe07a",
+    // stars, gold
+    y: "#f5b544",
+    // gold shade
+    Z: "#d9d6ff",
+    // sleepy Zs
+    d: "#b7ae96",
+    // dust
+    G: "#7cc35a",
+    // leaf green
+    g: "#4f9a3c",
+    // leaf shade
+    N: "#5b8def",
+    // book cover
+    n: "#3c63b5",
+    // book spine
+    q: "#b9c4d8",
+    // book text
+    L: "#cbc5de",
+    // console
+    k: "#2c2838",
+    // dark detail
+    E: "#9bbc0f",
+    // console screen
+    e: "#306230",
+    // screen detail
+    X: "#e0584f",
+    // red
+    x: "#b33f38",
+    // red shade
+    A: "#f1d27a",
+    // straw
+    a: "#c99a3e",
+    // straw shade
+    V: "#5f9a9d",
+    // book cover
+    v: "#3b484d",
+    // book spine
+    D: "#1b2346",
+    // TV screen
+    u: "#8f6446",
+    // mud
+    U: "#b0805c",
+    // mud light
+    w: "#cfdfe3",
+    // wet fur
+    H: "#fffaf0",
+    // speech bubble
+    h: "#2b4843"
+    // speech bubble text
+  };
+  var KEY = (x, y) => (y + 256) * 1024 + (x + 256);
+  var xOf = (k) => k % 1024 - 256;
+  var yOf = (k) => Math.floor(k / 1024) - 256;
+  var Pix = class _Pix {
+    constructor() {
+      __publicField(this, "m", /* @__PURE__ */ new Map());
+    }
+    set(x, y, c) {
+      if (c && c !== ".") this.m.set(KEY(x, y), c);
+      return this;
+    }
+    get(x, y) {
+      return this.m.get(KEY(x, y));
+    }
+    del(x, y) {
+      this.m.delete(KEY(x, y));
+    }
+    clone() {
+      const p = new _Pix();
+      p.m = new Map(this.m);
+      return p;
+    }
+    each(fn) {
+      for (const [k, c] of this.m) fn(xOf(k), yOf(k), c);
+    }
+    /** Paint rows of palette keys; "." is empty. `color` overrides every cell. */
+    stamp(rows, dx = 0, dy = 0, color) {
+      rows.forEach((r, y) => {
+        for (let x = 0; x < r.length; x++) {
+          const c = r[x];
+          if (c !== ".") this.set(x + dx, y + dy, color != null ? color : c);
+        }
+      });
+      return this;
+    }
+    /** Paint another map on top. */
+    merge(o, dx = 0, dy = 0) {
+      o.each((x, y, c) => this.set(x + dx, y + dy, c));
+      return this;
+    }
+    bounds() {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      this.each((x, y) => {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      });
+      return { x0, y0, x1, y1 };
+    }
+    /** Mirror left to right within a sprite `w` cells wide. */
+    flipX(w) {
+      const p = new _Pix();
+      this.each((x, y, c) => p.set(w - 1 - x, y, c));
+      return p;
+    }
+  };
+  var rep = (s, n = 2) => Array(n).fill(s);
+  var runs = (p, list, c = "W") => {
+    for (const [y, a, b] of list) for (let x = a; x <= b; x++) p.set(x, y, c);
+    return p;
+  };
+  function squash(p, sx, sy) {
+    const b = p.bounds();
+    const ax = (b.x0 + b.x1 + 1) / 2;
+    const ay = b.y1 + 1;
+    const out = new Pix();
+    const X02 = Math.floor(ax + (b.x0 - ax) * sx) - 1;
+    const X12 = Math.ceil(ax + (b.x1 + 1 - ax) * sx) + 1;
+    const Y02 = Math.floor(ay + (b.y0 - ay) * sy) - 1;
+    for (let y = Y02; y <= b.y1; y++) {
+      for (let x = X02; x <= X12; x++) {
+        const c = p.get(Math.floor(ax + (x + 0.5 - ax) / sx), Math.floor(ay + (y + 0.5 - ay) / sy));
+        if (c) out.set(x, y, c);
+      }
+    }
+    return out;
+  }
+
+  // src/components/pets/pixel/accessories.ts
+  var PARTY_HAT = ["...NN...", "...NN...", "..GGGG..", "..GGGG..", ".NNNNNN.", ".NNNNNN.", "GGGGGGGG", "gggggggg"];
+  var BOW = ["MM...MM", "MRM.MRM", "MPPMPPM", "MPM.MPM", "MM...MM"];
+  var HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
+  var BOWTIE = ["XX..XX", "XXxxXX", "XX..XX"];
+  var PILE = { head: -20, neck: -11, face: -5 };
+  function straw(p, y, a, b, shade = false) {
+    for (let x = a; x <= b; x++) p.set(x, y, shade || (x * 2 + y) % 5 === 0 ? "a" : "A");
+  }
+  var ACCESSORIES = {
+    hat: {
+      slot: "head",
+      name: "Party hat",
+      draw(p, v) {
+        if (v === "sleep") p.stamp(PARTY_HAT, PILE.head, 13);
+        else p.stamp(PARTY_HAT, v === "front" ? 7 : 8, 4);
+      }
+    },
+    // A low crown sits over the ear bases, so the ears poke up through the hat,
+    // with a wide woven brim and a red ribbon.
+    straw: {
+      slot: "head",
+      name: "Straw hat",
+      draw(p, v) {
+        if (v === "sleep") {
+          straw(p, 18, PILE.head + 2, PILE.head + 6);
+          for (let x = PILE.head + 2; x <= PILE.head + 6; x++) p.set(x, 19, "X");
+          straw(p, 20, PILE.head - 1, PILE.head + 9);
+          return;
+        }
+        const [c0, c1, b0, b1] = v === "front" ? [4, 17, -3, 24] : [5, 19, -3, 25];
+        straw(p, 8, c0 + 1, c1 - 1);
+        straw(p, 9, c0, c1);
+        for (let x = c0; x <= c1; x++) p.set(x, 10, "X");
+        straw(p, 11, b0 + 1, b1 - 1);
+        straw(p, 12, b0, b1, true);
+      }
+    },
+    cap: {
+      slot: "head",
+      name: "Baseball cap",
+      draw(p, v) {
+        const run = (y, a, b, c) => {
+          for (let x = a; x <= b; x++) p.set(x, y, c);
+        };
+        if (v === "sleep") {
+          run(18, PILE.head + 1, PILE.head + 4, "X");
+          run(19, PILE.head, PILE.head + 5, "X");
+          run(20, PILE.head, PILE.head + 8, "x");
+          return;
+        }
+        if (v === "front") {
+          run(7, 10, 11, "x");
+          run(8, 5, 16, "X");
+          run(9, 4, 17, "X");
+          run(10, 3, 18, "X");
+          run(11, 3, 18, "X");
+          p.set(10, 9, "F");
+          p.set(11, 9, "F");
+          p.set(10, 10, "F");
+          p.set(11, 10, "F");
+          run(12, 2, 19, "x");
+          run(13, 3, 18, "x");
+          return;
+        }
+        run(7, 11, 12, "x");
+        run(8, 6, 17, "X");
+        run(9, 5, 18, "X");
+        run(10, 4, 19, "X");
+        run(11, 4, 19, "X");
+        run(11, -2, 3, "x");
+        run(12, -4, 6, "x");
+      }
+    },
+    crown: {
+      slot: "head",
+      name: "Flower crown",
+      draw(p, v) {
+        if (v === "sleep") {
+          p.stamp(["P.Y.B.R", "GGGGGGG"], PILE.head, 19);
+          return;
+        }
+        const [a, b, cs] = v === "front" ? [3, 18, [4, 8, 13, 17]] : [2, 20, [3, 8, 13, 18]];
+        for (let x = a; x <= b; x++) p.set(x, 12, "G");
+        ["P", "Y", "B", "R"].forEach((c, i) => {
+          const x = cs[i];
+          p.set(x, 10, c);
+          p.set(x - 1, 11, c);
+          p.set(x + 1, 11, c);
+          p.set(x, 12, c);
+          p.set(x, 11, c === "Y" ? "O" : "Y");
+        });
+      }
+    },
+    bow: {
+      slot: "head",
+      name: "Ear bow",
+      draw(p, v) {
+        p.stamp(BOW, v === "sleep" ? PILE.head + 1 : v === "front" ? 1 : 2, v === "sleep" ? 16 : 8);
+      }
+    },
+    specs: {
+      slot: "face",
+      name: "Round specs",
+      draw(p, v) {
+        if (v === "sleep") {
+          p.stamp(["tt.tt", "t.t.t"], PILE.face, 19);
+          return;
+        }
+        const [l, r] = v === "front" ? [4, 14] : [2, 11];
+        for (const c of [l, r]) {
+          for (let x = c; x <= c + 3; x++) {
+            p.set(x, 15, "t");
+            p.set(x, 20, "t");
+          }
+          for (let y = 16; y <= 19; y++) {
+            p.set(c - 1, y, "t");
+            p.set(c + 4, y, "t");
+          }
+        }
+        for (let x = l + 5; x <= r - 2; x++) p.set(x, 17, "t");
+        if (v === "side") for (let x = r + 5; x <= 21; x++) p.set(x, 17, "t");
+      }
+    },
+    hearts: {
+      slot: "face",
+      name: "Heart shades",
+      draw(p, v) {
+        if (v === "sleep") {
+          p.stamp(["PP.PP", ".P.P."], PILE.face, 19);
+          return;
+        }
+        const [l, r] = v === "front" ? [3, 13] : [1, 10];
+        p.stamp(HEART, l, 15);
+        p.stamp(HEART, r, 15);
+        for (let x = l + 7; x < r; x++) p.set(x, 16, "M");
+        if (v === "side") for (let x = r + 7; x <= 21; x++) p.set(x, 16, "M");
+      }
+    },
+    scarf: {
+      slot: "neck",
+      name: "Cozy scarf",
+      draw(p, v) {
+        if (v === "sleep") {
+          p.stamp(["XxXxX", "XXXXX"], PILE.neck, 19);
+          return;
+        }
+        const [a, b, tx] = v === "front" ? [4, 17, 12] : [6, 20, 7];
+        for (let x = a; x <= b; x++) {
+          p.set(x, 26, x % 3 === 0 ? "x" : "X");
+          p.set(x, 27, (x + 1) % 3 === 0 ? "x" : "X");
+        }
+        for (let y = 28; y <= 32; y++) for (let x = tx; x <= tx + 2; x++) p.set(x, y, y === 30 ? "x" : "X");
+        p.set(tx, 33, "X");
+        p.set(tx + 2, 33, "X");
+      }
+    },
+    bowtie: {
+      slot: "neck",
+      name: "Bow tie",
+      draw(p, v) {
+        if (v === "sleep") p.stamp(BOWTIE, PILE.neck, 18);
+        else p.stamp(BOWTIE, v === "front" ? 8 : 7, 26);
+      }
+    }
+  };
+  var ACCESSORY_IDS = Object.keys(ACCESSORIES);
+  var SLOTS = [
+    { slot: "head", label: "Head" },
+    { slot: "face", label: "Face" },
+    { slot: "neck", label: "Neck" }
+  ];
+  var LAYER_ORDER = ["neck", "face", "head"];
+  function dress(p, view, outfit2) {
+    if (!outfit2) return p;
+    for (const slot of LAYER_ORDER) {
+      const id = outfit2[slot];
+      if (id && ACCESSORIES[id] && ACCESSORIES[id].slot === slot) ACCESSORIES[id].draw(p, view);
+    }
+    return p;
+  }
+  function normalizeOutfit(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const out = {};
+    for (const { slot } of SLOTS) {
+      const id = raw[slot];
+      if (typeof id === "string" && id in ACCESSORIES && ACCESSORIES[id].slot === slot) out[slot] = id;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  // src/components/pets/pixel/sprites.ts
+  var SIDE = new Pix().stamp([
+    ...rep(".....WWWW......WWW..........."),
+    ...rep("...WWWWWWWW..WWOWWWW........."),
+    ...rep(".WWWWWWOOWW..WWOOOWW........."),
+    ...rep(".WWWWOOOOWW..WWOOOWW........."),
+    ...rep(".....OOOOWW..WWOOOWW........."),
+    ...rep(".....WWWWWWWWWWOWWW.........."),
+    ...rep("..WWWWWWWWWWWWWWWWWWW........", 4),
+    ...rep("WWKKKKWWWWWKKKKWWWWWWWW......", 4),
+    ...rep("WWWWWWWPPWWWWWWWWWWWWWW......"),
+    ...rep("WWWWWWWWWWWWWWWWWWWWWWW......"),
+    ...rep("..WWWWWWWWWWWWWWWWWWW........"),
+    ...rep(".......WWWWWWWWWWWWW........."),
+    ...rep(".....WWWWWWWWWWWWWWWWW......."),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWWWWW", 4),
+    ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+    ...rep("...WWWWWWWWWWWWWWWWWWW.......")
+  ]);
+  var SIDE_W = 29;
+  var FRONT_BASE = new Pix().stamp([
+    ...rep("....WWWW......WWWW...."),
+    ...rep("..WWWWWWWW..WWOOWWWW.."),
+    ...rep(".WWWWWOOWW..WWOOOOWW.."),
+    ...rep(".WWWOOOOWW..WWOOOOWW.."),
+    ...rep("....OOOOWW..WWOOOOWW.."),
+    ...rep("....WWWWWWWWWWOOWW...."),
+    ...rep("...WWWWWWWWWWWWWWWW...", 4),
+    ...rep(".WWWKKKKWWWWWWKKKKWWW.", 4),
+    ...rep(".WWWWWWWWWPPWWWWWWWWW."),
+    ...rep(".WWWWWWWWWWWWWWWWWWWW."),
+    ...rep("...WWWWWWWWWWWWWWWW..."),
+    ...rep(".....WWWWWWWWWWWW....."),
+    ...rep("....WWWWWWWWWWWWWW....", 10),
+    ...rep("....WWWWWW..WWWWWW....")
+  ]);
+  var T_LEFT_ARM = [[3, 28, 33], [2, 28, 33], [1, 28, 33], [0, 28, 33], [-1, 29, 32]];
+  var tiltedArm = (k) => {
+    const p = FRONT_BASE.clone();
+    for (const [x, top, bottom] of T_LEFT_ARM) {
+      const lift = Math.round(k * (3 - x));
+      for (let y = top - lift; y <= bottom - lift; y++) p.set(x, y, "W");
+    }
+    return p;
+  };
+  var TPOSE = runs(FRONT_BASE.clone(), [
+    [28, 0, 3],
+    [29, -1, 3],
+    [30, -1, 3],
+    [31, -1, 3],
+    [32, -1, 3],
+    [33, 0, 3],
+    [28, 18, 21],
+    [29, 18, 22],
+    [30, 18, 22],
+    [31, 18, 22],
+    [32, 18, 22],
+    [33, 18, 21]
+  ]);
+  var FRONT_POSES = { rest: FRONT_BASE, wave: tiltedArm(1), waveLow: tiltedArm(0.5), t: TPOSE };
+  var SLEEPER = new Pix().stamp([
+    ".....................WWW............",
+    ".................WWWWWWW............",
+    "............WWWWWWWWWWWWWWW.........",
+    ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+    ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+    "..WWWWWWWWWWWWWWWWWWWWWWWWWW........",
+    "..WWWWWWWWWWWWWWWWOOOOOOOOW.........",
+    "..WWWWWWWWWWWWWWWWOWWWWWWWW.........",
+    "..WWWWWWWWWWWWWWWWWWWWW.............",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWW.......",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+    "WWKKKKWWWWWKKKKWWWWWWWWWWWWWWW......",
+    "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+    "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+    "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    ".....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+    "......WWWWWWWWWWWWWWWWWWWWWWWWWWWW.."
+  ]);
+  function eyes(p, kind, xs, top = 16) {
+    for (const c of xs) {
+      for (let y = top; y < top + 4; y++) for (let x = c; x < c + 4; x++) p.set(x, y, "W");
+      const block = (y0, y1) => {
+        for (let y = y0; y <= y1; y++) for (let x = c; x < c + 4; x++) p.set(x, y, "K");
+      };
+      if (kind === "open") block(top, top + 3);
+      else if (kind === "up") block(top - 1, top + 2);
+      else if (kind === "down") block(top + 1, top + 4);
+      else if (kind === "blink") block(top + 2, top + 2);
+      else if (kind === "half") block(top + 2, top + 3);
+      else if (kind === "happy") {
+        p.set(c + 1, top + 1, "K");
+        p.set(c + 2, top + 1, "K");
+        p.set(c, top + 2, "K");
+        p.set(c + 3, top + 2, "K");
+      }
+    }
+  }
+  function mouth(p, kind, nx, y = 22) {
+    const s = (x, yy, c = "K") => p.set(x, yy, c);
+    if (kind === "smile") {
+      s(nx - 1, y);
+      s(nx + 2, y);
+      s(nx, y + 1);
+      s(nx + 1, y + 1);
+    } else if (kind === "o") {
+      s(nx, y);
+      s(nx + 1, y);
+      s(nx, y + 1);
+      s(nx + 1, y + 1);
+    } else if (kind === "yawn") {
+      s(nx, y);
+      s(nx + 1, y);
+      s(nx - 1, y + 1);
+      s(nx, y + 1);
+      s(nx + 1, y + 1);
+      s(nx + 2, y + 1);
+      s(nx - 1, y + 2);
+      s(nx, y + 2, "P");
+      s(nx + 1, y + 2, "P");
+      s(nx + 2, y + 2);
+      s(nx, y + 3);
+      s(nx + 1, y + 3);
+    } else if (kind === "yay") {
+      for (let x = nx - 1; x <= nx + 2; x++) s(x, y);
+      s(nx - 1, y + 1);
+      s(nx, y + 1, "P");
+      s(nx + 1, y + 1, "P");
+      s(nx + 2, y + 1);
+      s(nx, y + 2);
+      s(nx + 1, y + 2);
+    } else if (kind === "grin") {
+      for (let x = nx - 2; x <= nx + 3; x++) s(x, y);
+      s(nx - 2, y + 1);
+      for (let x = nx - 1; x <= nx + 2; x++) s(x, y + 1, "F");
+      s(nx + 3, y + 1);
+      for (let x = nx - 1; x <= nx + 2; x++) s(x, y + 2);
+    }
+  }
+  var PAW = [[27, 1, 3], [28, 0, 5], [29, 0, 5], [30, 0, 5], [31, 1, 5]];
+  var paw = (p, dx, dy) => {
+    for (const [y, a, b] of PAW) for (let x = a; x <= b; x++) p.set(x + dx, y + dy, "W");
+  };
+  function brush(p, dx, dy) {
+    for (let x = 5; x <= 8; x++) {
+      p.set(x + dx, 22 + dy, "B");
+      p.set(x + dx, 23 + dy, "T");
+    }
+    for (let i = 0; i < 7; i++) p.set(4 - i + dx, 24 + i + dy, "T");
+    paw(p, dx, dy);
+  }
+  var FOAM = [
+    [[4, 21, "f"], [3, 22, "f"], [4, 22, "F"], [3, 21, "F"]],
+    [[9, 22, "f"], [10, 22, "F"], [9, 21, "F"], [10, 23, "f"]],
+    [[1, 24, "f"], [1, 25, "F"], [0, 24, "f"]]
+  ];
+  var LEAVES = [[-1, 1, "G"], [-2, 1, "g"], [-1, 2, "g"], [-2, 2, "G"], [-3, 2, "G"], [-2, 3, "G"], [0, 2, "G"]];
+  function carrot(p, L, dx, dy) {
+    paw(p, dx, dy);
+    const tx = 6 + dx, ty = 22 + dy;
+    for (let i = 0; i < L; i++) {
+      p.set(tx - i, ty + i, "O");
+      if (i) p.set(tx - i + 1, ty + i, "o");
+    }
+    const n = Math.max(L, 1) - 1;
+    for (const [x, y, c] of LEAVES) p.set(tx - n + x, ty + n + y, c);
+  }
+  var FLIP = [
+    null,
+    ["..qqqq..", ".qFFFFq.", "qFFFFFFq"],
+    ["...q...", "..qFq..", "..qFq..", "..qFq..", "..qFq..", ".qqFqq."],
+    ["..qqqq..", ".qFFFFq.", "qFFFFFFq"]
+  ];
+  var FLIP_AT = [null, [3, 27], [7, 25], [10, 27]];
+  function book(p, dy, flip, open = 1) {
+    const fill = (x0, x1, y0, y1, c) => {
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) p.set(x, y + dy, c);
+    };
+    const f = FLIP[flip], at = FLIP_AT[flip];
+    if (open && f && at) p.stamp(f, at[0], at[1] + dy);
+    if (open) {
+      fill(3, 6, 30, 38, "V");
+      fill(14, 17, 30, 38, "V");
+      fill(7, 13, 31, 39, "V");
+      fill(10, 10, 31, 38, "v");
+      fill(10, 10, 40, 40, "V");
+      fill(3, 3, 28, 29, "W");
+      fill(2, 4, 34, 36, "W");
+      fill(16, 17, 34, 36, "W");
+    } else {
+      fill(7, 13, 30, 39, "V");
+      fill(7, 7, 30, 39, "v");
+      fill(5, 7, 34, 36, "W");
+      fill(13, 14, 34, 36, "W");
+    }
+  }
+  function remote(p, dy, press) {
+    const y = 28 + dy;
+    for (let x = -5; x <= 1; x++) {
+      p.set(x, y, "L");
+      p.set(x, y + 1, "L");
+      p.set(x, y + 2, "q");
+    }
+    p.set(-5, y + 1, press ? "X" : "x");
+    p.set(-3, y, "k");
+    p.set(-2, y, "P");
+    paw(p, 0, dy + (press ? 1 : 0));
+  }
+  var KICK = [[34, 0, 3], [35, -1, 4], [36, -1, 4], [37, 0, 3]];
+  function side(o = {}) {
+    var _a, _b;
+    let p = SIDE.clone();
+    eyes(p, (_a = o.eyes) != null ? _a : "open", [2, 11]);
+    if (o.mouth) mouth(p, o.mouth, 7);
+    if (o.blush) for (const [x, y] of [[2, 21], [3, 21], [13, 21], [14, 21]]) p.set(x, y, "R");
+    if (o.sniff) {
+      p.set(7, 21, "W");
+      p.set(8, 21, "W");
+      p.set(7, 19, "P");
+      p.set(8, 19, "P");
+    }
+    if (o.cheek) {
+      p.set(-1, 21, "W");
+      p.set(-1, 22, "W");
+    }
+    dress(p, "side", o.outfit);
+    if (o.perk) {
+      const q = new Pix();
+      p.each((x, y, c) => q.set(x, y <= 9 ? y - 1 : y, c));
+      for (let x = -2; x < SIDE_W + 2; x++) {
+        const c = p.get(x, 9);
+        if (c) q.set(x, 9, c);
+      }
+      p = q;
+    }
+    if (o.headDy) {
+      const q = new Pix();
+      p.each((x, y, c) => {
+        if (y > 25) q.set(x, y, c);
+      });
+      if (o.headDy < 0) for (let x = 0; x < SIDE_W; x++) {
+        const c = SIDE.get(x, 26);
+        if (c) q.set(x, 25, c);
+      }
+      p.each((x, y, c) => {
+        if (y <= 25) q.set(x, y + o.headDy, c);
+      });
+      p = q;
+    }
+    if (o.foam) for (let i = 0; i < o.foam; i++) for (const [x, y, c] of FOAM[i]) p.set(x, y, c);
+    if (o.brush) brush(p, ...o.brush);
+    if (o.carrot) carrot(p, ...o.carrot);
+    if (o.book) book(p, o.book[0], o.book[1], (_b = o.book[2]) != null ? _b : 1);
+    if (o.remote) remote(p, ...o.remote);
+    if (o.kick) for (const [y, a, b] of KICK) for (let x = a; x <= b; x++) p.set(x, y, "W");
+    return o.mirror ? p.flipX(SIDE_W) : p;
+  }
+  function front(o = {}) {
+    var _a, _b;
+    let p = FRONT_POSES[(_a = o.pose) != null ? _a : "rest"].clone();
+    eyes(p, (_b = o.eyes) != null ? _b : "open", [4, 14]);
+    if (o.mouth) mouth(p, o.mouth, 10);
+    if (o.blush) for (const [x, y] of [[3, 21], [4, 21], [17, 21], [18, 21]]) p.set(x, y, "R");
+    dress(p, "front", o.outfit);
+    if (o.flap) {
+      const q = new Pix();
+      p.each((x, y, c) => q.set(x, y >= 28 && y <= 33 && (x <= 3 || x >= 18) ? y - 1 : y, c));
+      p = q;
+    }
+    return p;
+  }
+  function sleeper(o = {}) {
+    let p = SLEEPER.clone();
+    if (o.eyes) eyes(p, o.eyes, [2, 11], 9);
+    if (o.twitch) for (let x = 21; x <= 23; x++) p.set(x, -1, "W");
+    if (o.bubble) noseBubble(p, o.bubble);
+    if (o.inhale) {
+      const q = new Pix();
+      p.each((x, y, c) => {
+        if (y <= 15) {
+          q.set(x, y - 1, c);
+          if (y === 15) q.set(x, y, c);
+        } else q.set(x, y, c);
+      });
+      p = q;
+    }
+    dress(p, "sleep", o.outfit);
+    return p;
+  }
+  function noseBubble(p, s) {
+    if (s === "pop") {
+      for (const [x, y] of [[1, 12], [6, 11], [1, 18], [7, 17]]) p.set(x, y, "f");
+      return;
+    }
+    const x0 = 7 - s, y0 = 13;
+    for (let y = 0; y < s; y++) {
+      for (let x = 0; x < s; x++) {
+        const edge = x === 0 || y === 0 || x === s - 1 || y === s - 1;
+        const corner = s > 3 && (x === 0 || x === s - 1) && (y === 0 || y === s - 1);
+        if (edge && !corner) p.set(x0 + x, y0 + y, "f");
+      }
+    }
+    if (s >= 4) p.set(x0 + 1, y0 + 1, "F");
+  }
+  var GLYPH = {
+    z: ["####", "..#.", ".#..", "####"],
+    Z: ["#####", "...#.", "..#..", ".#...", "#####"]
+  };
+  var STAR_BIG = ["..Y..", "..Y..", "YYFYY", "..Y..", "..Y.."];
+  var STAR_SMALL = [".Y.", "YFY", ".Y."];
+  var STAR7 = ["...Y...", "..YYY..", "YYYFYYY", ".YYYYY.", "..YYY..", ".YY.YY.", ".Y...Y."];
+  var STAR5 = ["..Y..", ".YYY.", "YYFYY", ".YYY.", ".Y.Y."];
+  var HEART2 = [".P.P.", "PPPPP", "PPPPP", ".PPP.", "..P.."];
+  var RING = [["f"], ["ff", "ff"], [".f.", "f.f", ".f."], [".ff.", "fF.f", "f..f", ".ff."]];
+  var FLY = [["YY.YY", "YYkYY", ".y.y."], ["..Y..", ".YkY.", "..y.."]];
+  var LEAF = [[".GG", "GgG", "Gg."], ["GG.", "GgG", ".gG"]];
+  function zzz(fx, f, ox, oy, period = 36) {
+    for (let i = 0; i < 3; i++) {
+      const a = ((f - i * (period / 3)) % period + period) % period;
+      if (a >= period - 6 || a === period - 8) continue;
+      fx.stamp(a < period / 3 ? GLYPH.z : GLYPH.Z, ox + Math.round(a * 0.35) + (a >> 2) % 2, oy - Math.round(a * 0.65), "Z");
+    }
+  }
+  function sparkles(fx, f, x, y) {
+    const small = (f >> 1) % 2;
+    fx.stamp(small ? STAR_SMALL : STAR_BIG, small ? x + 1 : x, small ? y + 1 : y);
+    if ((f >> 1) % 3 !== 1) fx.stamp(STAR_SMALL, x + 6, y - 5);
+  }
+  function risingBubbles(fx, f, ox, oy, period = 24) {
+    for (let k = 0; k < period / 6; k++) {
+      const a = ((f - k * 6) % period + period) % period;
+      if (a > 11) continue;
+      const x = Math.round(ox - a * (0.5 + k % 2 * 0.25) + (a >> 2) % 2);
+      const y = Math.round(oy - a * 1.3);
+      if (a === 11) {
+        fx.set(x - 1, y - 1, "f");
+        fx.set(x + 2, y - 1, "f");
+        fx.set(x - 1, y + 2, "f");
+        fx.set(x + 2, y + 2, "f");
+        continue;
+      }
+      fx.stamp(RING[a < 3 ? 0 : a < 6 ? 1 : a < 9 ? 2 : 3], x, y);
+    }
+  }
+  function bigStar(fx, t, x, y) {
+    if (t < 0 || t > 20 || t > 17 && t % 2) return;
+    if (t < 2 || (t >> 1) % 3 === 2) fx.stamp(STAR5, x + 1, y + 1);
+    else fx.stamp(STAR7, x, y);
+  }
+  function starBurst(fx, t, cx, cy) {
+    if (t < 1 || t > 16) return;
+    const cols = ["Y", "P", "T", "Y", "O", "Y", "P", "T"];
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI * (0.08 + 0.84 * i / 7);
+      const v = 1.4 + i % 3 * 0.3;
+      const x = Math.round(cx + Math.cos(a) * v * t);
+      const y = Math.round(cy - Math.sin(a) * v * t + 0.12 * t * t);
+      if (t < 12) {
+        fx.set(x - 1, y, cols[i]);
+        fx.set(x + 1, y, cols[i]);
+        fx.set(x, y - 1, cols[i]);
+        fx.set(x, y + 1, cols[i]);
+        fx.set(x, y, "F");
+      } else if (t % 2 === 0) fx.set(x, y, cols[i]);
+    }
+  }
+  function heart(fx, t, x, y) {
+    if (t < 1 || t > 11 && t % 2) return;
+    fx.stamp(HEART2, x, y - Math.round(t * 0.7));
+  }
+  function crumbs(fx, t, x, y, floor) {
+    const a = [Math.round(x - t * 0.4), Math.round(y + 0.35 * t * t)];
+    const b = [Math.round(x + 2 + t * 0.2), Math.round(y + 1 + 0.3 * t * t)];
+    if (a[1] < floor) fx.set(a[0], a[1], "O");
+    if (b[1] < floor) fx.set(b[0], b[1], "o");
+  }
+  function fallingLeaves(fx, t, x, y, floor) {
+    if (t > 15 || t > 13 && t % 2) return;
+    const yy = Math.min(floor - 2, Math.round(y + 0.45 * t * t));
+    const landed = yy === floor - 2;
+    fx.stamp(landed ? ["GgG", ".G."] : t % 2 ? ["GG.", ".gG"] : [".GG", "Gg."], x - Math.round(t * 0.5), yy);
+  }
+  function winStars(fx, t, x, y) {
+    if (t < 1) return;
+    fx.stamp(t % 4 < 2 ? STAR_SMALL : STAR_BIG, x - 2 - Math.round(t * 0.3), y - 6 - Math.round(t * 0.8));
+    if (t > 3) fx.stamp(STAR_SMALL, x + 3, y - 4 - Math.round((t - 3) * 0.9));
+  }
+  function dust(fx, f, x0, x1, floor) {
+    const puff = f ? ["d.d", ".d."] : [".dd.", "dddd"];
+    fx.stamp(puff, x0 - (f ? 5 : 4), floor - 1 - (f ? 1 : 0));
+    fx.stamp(puff, x1 + (f ? 2 : 1), floor - 1 - (f ? 1 : 0));
+  }
+  var butterfly = (fx, x, y, open) => fx.stamp(FLY[open ? 0 : 1], Math.round(x), Math.round(y));
+  var leaf = (fx, x, y, frame) => fx.stamp(LEAF[frame % 2], Math.round(x), Math.round(y));
+  var BALL = [
+    [".FFF.", "FkFkF", "FFkFF", "FkFkF", ".FFF."],
+    [".FkF.", "FFkFF", "kkFkk", "FFkFF", ".FkF."]
+  ];
+  var ball = (fx, x, y, spin) => fx.stamp(BALL[spin % 2], Math.round(x), Math.round(y));
+  function tv(fx, x, floor, screen, f = 0) {
+    const top = floor - 22;
+    const at = (dx, dy, c) => fx.set(x + dx, top + dy, c);
+    for (let i = 0; i < 4; i++) {
+      at(4 + i, i, "k");
+      at(13 - i, i, "k");
+    }
+    at(8, 4, "k");
+    at(9, 4, "k");
+    for (let dy = 5; dy <= 19; dy++) {
+      for (let dx = 0; dx <= 17; dx++) {
+        const edge = dy === 5 || dy === 19 || dx === 0 || dx === 17;
+        const corner = (dy === 5 || dy === 19) && (dx === 0 || dx === 17);
+        if (!corner) at(dx, dy, edge ? "k" : "L");
+      }
+    }
+    for (const dy of [8, 9, 12, 13]) {
+      at(14, dy, "k");
+      at(15, dy, "k");
+    }
+    for (const dy of [15, 17]) {
+      at(14, dy, "q");
+      at(15, dy, "q");
+    }
+    at(3, 20, "k");
+    at(3, 21, "k");
+    at(14, 20, "k");
+    at(14, 21, "k");
+    const sx = 2, sy = 7;
+    const scr = (dx, dy, c) => at(sx + dx, sy + dy, c);
+    for (let dy = 0; dy < 11; dy++) {
+      for (let dx = 0; dx < 11; dx++) {
+        if ((dy === 0 || dy === 10) && (dx === 0 || dx === 10)) continue;
+        scr(dx, dy, "D");
+      }
+    }
+    if (screen === "line") for (let dx = 1; dx <= 9; dx++) scr(dx, 5, "F");
+    else if (screen === "dot") {
+      scr(5, 5, "F");
+      scr(4, 5, "f");
+      scr(6, 5, "f");
+    } else if (screen === "win") {
+      for (let dy = 1; dy <= 9; dy++) for (let dx = 1; dx <= 9; dx++) if ((dx + dy + f) % 2 === 0) scr(dx, dy, dy % 4 === 0 ? "y" : "Y");
+    } else if (screen === "play") {
+      for (let dx = 0; dx < 11; dx++) {
+        scr(dx, 8, "G");
+        scr(dx, 9, "g");
+        if (dx > 0 && dx < 10) scr(dx, 10, "g");
+      }
+      scr(6, 7, "O");
+      scr(7, 7, "O");
+      scr(6, 6, "O");
+      scr(7, 6, "O");
+      const hx = 1 + Math.floor(f % 24 * 9 / 24);
+      const hop = hx >= 4 && hx <= 8 ? [0, 2, 3, 3, 2][hx - 4] : 0;
+      scr(hx, 5 - hop, "F");
+      scr(hx, 6 - hop, "X");
+      scr(hx, 7 - hop, "X");
+      scr(8, 2, (f >> 2) % 2 ? "Y" : "y");
+    }
+  }
+  function goal(fx, left, top, floor, ripple = false) {
+    const right = left + 8;
+    for (let y = top; y < floor; y++) {
+      fx.set(left, y, "F");
+      fx.set(right, y, "F");
+    }
+    for (let x = left; x <= right; x++) fx.set(x, top, "F");
+    for (let y = top + 1; y < floor; y++) {
+      for (let x = left + 1; x < right; x++) if ((x + y + (ripple ? 1 : 0)) % 2 === 0) fx.set(x, y, "q");
+    }
+  }
+
+  // src/components/pets/pixel/clips.ts
+  var FPS = 12;
+  var FRAME_MS = 1e3 / FPS;
+  var FLOOR = 55;
+  var SX = 25;
+  var SY = FLOOR - 40;
+  var FX = 27;
+  var LX = 21;
+  var LY = FLOOR - 21;
+  function build(segs, loop) {
+    const table = [];
+    for (const [n, fn] of segs) for (let l = 0; l < n; l++) table.push({ fn, l });
+    return {
+      frameCount: table.length,
+      durationMs: Math.round((table.length - 1) * FRAME_MS),
+      loop,
+      frame: (i, o) => {
+        const e = table[Math.max(0, Math.min(table.length - 1, i))];
+        return e.fn(e.l, i, o);
+      }
+    };
+  }
+  var S = (opts, o, extra) => ({ r: side({ ...opts, outfit: o }), x: SX, y: SY, ...extra });
+  var F = (opts, o, extra) => ({ r: front({ ...opts, outfit: o }), x: FX, y: SY, ...extra });
+  var Z = (opts, o, extra) => ({ r: sleeper({ ...opts, outfit: o }), x: LX, y: LY, ...extra });
+  var neutral = (_l, _i, o) => S({}, o);
+  var restBlink = (at) => (l, _i, o) => S({ eyes: l === at || l === at + 1 ? "blink" : "open" }, o);
+  var withFx = (frame, draw) => {
+    var _a;
+    const fx = (_a = frame.fx) != null ? _a : new Pix();
+    draw(fx);
+    return { ...frame, fx };
+  };
+  var turnToYou = () => [
+    [3, (_l, _i, o) => S({ perk: true }, o)],
+    [1, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 1.08, 0.9), x: SX, y: SY })],
+    [2, (_l, _i, o) => ({ r: squash(front({ outfit: o }), 0.96, 1.05), x: FX, y: SY - 3 })],
+    [1, (_l, _i, o) => ({ r: squash(front({ outfit: o }), 1.08, 0.9), x: FX, y: SY })]
+  ];
+  var turnBack = () => [
+    [1, (_l, _i, o) => ({ r: squash(front({ outfit: o }), 1.08, 0.9), x: FX, y: SY })],
+    [2, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 0.96, 1.05), x: SX, y: SY - 3 })],
+    [1, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 1.08, 0.9), x: SX, y: SY })]
+  ];
+  var Idle = build([
+    [48, restBlink(20)],
+    [1, neutral]
+  ]);
+  var Wave = build([
+    ...turnToYou(),
+    [3, (_l, _i, o) => F({ mouth: "smile" }, o)],
+    [1, (_l, _i, o) => F({ pose: "wave", mouth: "smile" }, o)],
+    [18, (l, _i, o) => F({
+      pose: (l >> 1) % 2 ? "waveLow" : "wave",
+      eyes: l >= 4 && l < 12 ? "happy" : "open",
+      mouth: "smile",
+      blush: true
+    }, o)],
+    [1, (_l, _i, o) => F({ mouth: "smile", blush: true }, o)],
+    [6, (l, _i, o) => F({ mouth: "smile", eyes: l === 3 ? "blink" : "open" }, o)],
+    ...turnBack(),
+    [8, neutral],
+    [1, neutral]
+  ]);
+  var CHEER = { pose: "t", eyes: "happy", mouth: "yay", blush: true };
+  var cheerFx = (frame, i) => withFx(frame, (fx) => {
+    bigStar(fx, i - 10, 63, 3);
+    starBurst(fx, i - 10, 38, 18);
+    starBurst(fx, i - 17, 38, 18);
+  });
+  var Celebrate = build([
+    ...turnToYou(),
+    [2, (_l, _i, o) => ({ r: squash(front({ mouth: "smile", outfit: o }), 1.1, 0.86), x: FX, y: SY })],
+    [1, (_l, i, o) => cheerFx({ r: squash(front({ ...CHEER, outfit: o }), 0.94, 1.08), x: FX, y: SY - 3 }, i)],
+    [3, (l, i, o) => cheerFx(F(CHEER, o, { y: SY - [6, 7, 6][l] }), i)],
+    [1, (_l, i, o) => cheerFx(F(CHEER, o, { y: SY - 3 }), i)],
+    [2, (_l, i, o) => cheerFx({ r: squash(front({ ...CHEER, outfit: o }), 1.1, 0.88), x: FX, y: SY }, i)],
+    [1, (_l, i, o) => cheerFx({ r: squash(front({ ...CHEER, outfit: o }), 0.94, 1.08), x: FX, y: SY - 3 }, i)],
+    [2, (_l, i, o) => cheerFx(F(CHEER, o, { y: SY - 5 }), i)],
+    [1, (_l, i, o) => cheerFx(F(CHEER, o, { y: SY - 2 }), i)],
+    [2, (_l, i, o) => cheerFx({ r: squash(front({ ...CHEER, outfit: o }), 1.1, 0.88), x: FX, y: SY }, i)],
+    [8, (l, i, o) => cheerFx(F({ ...CHEER, flap: (l >> 1) % 2 === 1 }, o), i)],
+    [2, (_l, _i, o) => F({ mouth: "smile", blush: true }, o)],
+    ...turnBack(),
+    [7, neutral],
+    [1, neutral]
+  ]);
+  var Encourage = build([
+    ...turnToYou(),
+    [2, (_l, _i, o) => F({ mouth: "smile" }, o)],
+    [12, (l, i, o) => {
+      const ph = l % 4;
+      const opts = { pose: "t", eyes: "happy", mouth: "yay", blush: true, flap: ph === 1 || ph === 2 };
+      const frame = ph === 0 ? { r: squash(front({ ...opts, outfit: o }), 1.08, 0.9), x: FX, y: SY } : F(opts, o, { y: SY - (ph === 3 ? 1 : 2) });
+      return withFx(frame, (fx) => heart(fx, i - 9, FX + 22, SY + 10));
+    }],
+    [10, (_l, i, o) => withFx(F({ mouth: "smile", blush: true }, o), (fx) => heart(fx, i - 9, FX + 22, SY + 10))],
+    ...turnBack(),
+    [13, neutral],
+    [1, neutral]
+  ]);
+  var curiousFly = (frame, i) => withFx(frame, (fx) => {
+    if (i < 4 || i > 32) return;
+    const t = (i - 4) / 28;
+    butterfly(fx, -6 + 86 * t, 5 + Math.round(3 * Math.sin(i * 0.8)), (i >> 1) % 2 === 0);
+  });
+  var Curious = build([
+    [4, (_l, i, o) => curiousFly(S({}, o), i)],
+    [4, (_l, i, o) => curiousFly(S({ perk: true }, o), i)],
+    [8, (_l, i, o) => curiousFly(S({ perk: true, eyes: "up" }, o), i)],
+    [12, (l, i, o) => curiousFly(S({ sniff: l % 2 === 1 }, o), i)],
+    [4, (_l, i, o) => curiousFly(S({ eyes: "happy", blush: true }, o), i)],
+    [2, (_l, _i, o) => S({ eyes: "blink" }, o)],
+    [9, neutral],
+    [1, neutral]
+  ]);
+  var ASLEEP = 36;
+  var asleep = (l, o) => {
+    const g = l % ASLEEP;
+    const bubble = g < 30 ? 1 + Math.min(4, Math.floor(g / 6)) : g < 33 ? 5 : g === 33 ? "pop" : void 0;
+    return withFx(
+      Z({ inhale: g < ASLEEP / 2, twitch: g === 20 || g === 21, bubble }, o),
+      (fx) => zzz(fx, g, LX + 10, LY - 2, ASLEEP)
+    );
+  };
+  var SLEEPY_INTRO = 4 + 13 + 21 + 5;
+  var Sleepy = build([
+    [4, neutral],
+    [13, (l, _i, o) => S({ eyes: "blink", mouth: l < 2 || l > 11 ? "o" : "yawn", headDy: l < 2 || l > 11 ? 0 : -1 }, o)],
+    [8, (_l, _i, o) => S({ eyes: "half" }, o)],
+    [4, (_l, _i, o) => S({ eyes: "blink", headDy: 1 }, o)],
+    [3, (_l, _i, o) => S({ eyes: "half" }, o)],
+    [6, (_l, _i, o) => S({ eyes: "blink", headDy: 1 }, o)],
+    [1, (_l, _i, o) => ({ r: squash(side({ eyes: "blink", outfit: o }), 1.06, 0.84), x: SX, y: SY })],
+    [2, (_l, _i, o) => withFx({ r: squash(sleeper({ outfit: o }), 1.06, 0.86), x: LX, y: LY }, (fx) => dust(fx, 0, LX, LX + 35, FLOOR))],
+    [2, (_l, _i, o) => withFx(Z({}, o), (fx) => dust(fx, 1, LX, LX + 35, FLOOR))],
+    [ASLEEP, (l, _i, o) => asleep(l, o)],
+    [1, (_l, _i, o) => asleep(0, o)],
+    [3, (_l, _i, o) => Z({ eyes: "half" }, o)],
+    [2, (_l, _i, o) => Z({ eyes: "open" }, o)],
+    [1, (_l, _i, o) => ({ r: squash(sleeper({ eyes: "open", outfit: o }), 1.06, 0.8), x: LX, y: LY })],
+    [1, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 1.1, 0.85), x: SX, y: SY })],
+    [6, (_l, _i, o) => ({ r: squash(side({ eyes: "blink", mouth: "yawn", perk: true, outfit: o }), 0.94, 1.08), x: SX, y: SY })],
+    [1, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 1.06, 0.92), x: SX, y: SY })],
+    [4, (l, _i, o) => S({ perk: l % 2 === 0 }, o, { x: SX + (l % 2 ? 1 : -1) })],
+    [1, neutral],
+    [1, neutral]
+  ], [SLEEPY_INTRO, SLEEPY_INTRO + ASLEEP]);
+  var MUNCH = 9;
+  var munch = (L, j, o) => {
+    const base = j === 0 ? S({ carrot: [L, 0, 0], mouth: "o" }, o) : j === 1 ? S({ carrot: [Math.max(0, L - 2), 0, 0] }, o) : S({ carrot: [Math.max(0, L - 2), 0, 1], cheek: j % 2 === 0, sniff: j % 2 === 1, eyes: j >= 5 ? "happy" : "open" }, o);
+    return j >= 1 ? withFx(base, (fx) => crumbs(fx, j - 1, SX + 5, SY + 24, FLOOR)) : base;
+  };
+  var loopMunch = (j, o) => j === 0 ? S({ carrot: [5, 0, 0], mouth: "o" }, o) : withFx(
+    S({ carrot: [5, 0, j === 1 ? 0 : 1], cheek: j >= 2 && j % 2 === 0, sniff: j >= 2 && j % 2 === 1, eyes: j >= 5 ? "happy" : "open" }, o),
+    (fx) => crumbs(fx, j - 1, SX + 5, SY + 24, FLOOR)
+  );
+  var EAT_INTRO = 5;
+  var Eating = build([
+    [2, neutral],
+    [2, (_l, _i, o) => S({ carrot: [5, 0, 3] }, o)],
+    [1, (_l, _i, o) => S({ carrot: [5, 0, 1] }, o)],
+    [MUNCH * 2, (l, _i, o) => loopMunch(l % MUNCH, o)],
+    [MUNCH, (l, _i, o) => munch(5, l, o)],
+    [7, (l, _i, o) => munch(3, l, o)],
+    [1, (_l, _i, o) => S({ carrot: [1, 0, 0], mouth: "o" }, o)],
+    [1, (_l, _i, o) => S({ carrot: [0, 0, 0] }, o)],
+    [6, (l, _i, o) => withFx(S({ cheek: l % 2 === 0, sniff: l % 2 === 1 }, o), (fx) => fallingLeaves(fx, l, SX + 2, SY + 23, FLOOR))],
+    [10, (l, _i, o) => withFx(S({ eyes: "happy", blush: true, mouth: "smile" }, o), (fx) => {
+      fallingLeaves(fx, 6 + l, SX + 2, SY + 23, FLOOR);
+      heart(fx, l, SX + 21, SY + 10);
+    })],
+    [2, neutral],
+    [1, neutral]
+  ], [EAT_INTRO, EAT_INTRO + MUNCH * 2]);
+  var READ = 16;
+  var TURN = 6;
+  var READ_INTRO = 5;
+  var Reading = build([
+    [2, neutral],
+    [1, (_l, _i, o) => S({ book: [2, 0, 0] }, o)],
+    [1, (_l, _i, o) => S({ book: [0, 0, 0] }, o)],
+    [1, (_l, _i, o) => S({ book: [0, 0] }, o)],
+    [READ, (l, _i, o) => S({ book: [0, 0], eyes: l === 8 || l === 9 ? "blink" : "open" }, o)],
+    [TURN, (l, _i, o) => S({ book: [0, (l >> 1) + 1], eyes: "up" }, o)],
+    [READ, (l, _i, o) => S({ book: [0, 0], perk: l === 6 || l === 7 }, o)],
+    [TURN, (l, _i, o) => S({ book: [0, (l >> 1) + 1], eyes: "up" }, o)],
+    [4, (_l, _i, o) => S({ book: [0, 0] }, o)],
+    [12, (l, _i, o) => withFx(S({ book: [0, 0], eyes: "happy", blush: true }, o), (fx) => sparkles(fx, l, SX + 22, SY + 2))],
+    [1, (_l, _i, o) => S({ book: [0, 0, 0], eyes: "happy" }, o)],
+    [1, (_l, _i, o) => S({ book: [2, 0, 0] }, o)],
+    [3, neutral],
+    [1, neutral]
+  ], [READ_INTRO, READ_INTRO + (READ + TURN) * 2]);
+  var PLAY = 24;
+  var GAME_INTRO = 4;
+  var TV_X = 1;
+  var withTv = (frame, screen, f = 0) => withFx(frame, (fx) => tv(fx, TV_X, FLOOR, screen, f));
+  var Gaming = build([
+    [1, neutral],
+    [1, (_l, _i, o) => withTv(S({ remote: [3, false] }, o), "off")],
+    [1, (_l, _i, o) => withTv(S({ remote: [1, false] }, o), "off")],
+    [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "line")],
+    [PLAY, (l, _i, o) => withTv(S({ remote: [0, l % 6 === 0], eyes: l === 12 || l === 13 ? "blink" : "open" }, o), "play", l)],
+    [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "play", 0)],
+    [3, (l, _i, o) => withTv(S({ remote: [0, false], perk: true }, o), "play", l + 1)],
+    [12, (l, _i, o) => withFx(
+      withTv(S({ remote: [0, false], eyes: "happy", blush: true, mouth: "smile" }, o), "win", l),
+      (fx) => winStars(fx, l, TV_X + 11, FLOOR - 16)
+    )],
+    [1, (_l, _i, o) => withTv(S({ remote: [0, true] }, o), "line")],
+    [1, (_l, _i, o) => withTv(S({ remote: [0, false] }, o), "dot")],
+    [2, (_l, _i, o) => withTv(S({ remote: [2, false] }, o), "off")],
+    [3, neutral],
+    [1, neutral]
+  ], [GAME_INTRO, GAME_INTRO + PLAY]);
+  var SCRUB = 24;
+  var BRUSH_INTRO = 5;
+  var scrub = (l, o) => withFx(
+    S({ eyes: "happy", foam: 3, brush: l < 12 ? [[0, -1, 0, 1][l % 4], 0] : [0, (l >> 1) % 2] }, o),
+    (fx) => risingBubbles(fx, l, SX + 2, SY + 19, SCRUB)
+  );
+  var BrushingTeeth = build([
+    [2, neutral],
+    [2, (_l, _i, o) => S({ brush: [0, 3] }, o)],
+    [1, (_l, _i, o) => S({ brush: [0, 1] }, o)],
+    [SCRUB, (l, _i, o) => scrub(l, o)],
+    [1, (_l, _i, o) => scrub(0, o)],
+    [2, (_l, _i, o) => S({ foam: 1, brush: [0, 3] }, o)],
+    [14, (l, _i, o) => withFx(S({ eyes: "happy", mouth: "grin", blush: true }, o), (fx) => {
+      if (l >= 1) sparkles(fx, l, SX - 7, SY + 18);
+    })],
+    [3, neutral],
+    [1, neutral]
+  ], [BRUSH_INTRO, BRUSH_INTRO + SCRUB]);
+  var HOP_Y = [0, -2, -3, -3, -2, 0];
+  var leafAt = (i) => {
+    if (i < 6) return null;
+    if (i < 36) {
+      const t = (i - 6) / 30;
+      return [10 + Math.round(4 * Math.sin(i * 0.5)) - Math.round(4 * t), -4 + Math.round(56 * t)];
+    }
+    if (i < 50) return [6, 52];
+    if (i < 66) {
+      const t = (i - 50) / 16;
+      return [6 - Math.round(14 * t), 52 - Math.round(40 * t * t) + Math.round(2 * Math.sin(i))];
+    }
+    return null;
+  };
+  var withLeaf = (frame, i) => {
+    const at = leafAt(i);
+    return at ? withFx(frame, (fx) => leaf(fx, at[0], at[1], i >> 1)) : frame;
+  };
+  var hopTo = (from, dir, mirror) => (l, i, o) => {
+    const hop = Math.floor(l / 6), ph = l % 6;
+    const x = from + dir * (hop * 4 + Math.min(4, Math.max(0, ph)));
+    const r = side({ mirror, outfit: o });
+    return withLeaf({ r: ph === 0 || ph === 5 ? squash(r, 1.06, 0.92) : r, x, y: SY + HOP_Y[ph] }, i);
+  };
+  var LeafChase = build([
+    [6, (_l, i, o) => withLeaf(S({}, o), i)],
+    [12, (l, i, o) => withLeaf(S({ perk: true, eyes: l < 6 ? "open" : "up" }, o), i)],
+    [2, (_l, i, o) => withLeaf({ r: squash(side({ eyes: "down", outfit: o }), 1.08, 0.88), x: SX, y: SY }, i)],
+    [18, hopTo(SX, -1, false)],
+    [12, (l, i, o) => withLeaf(S({ eyes: "down", sniff: l % 2 === 1 }, o, { x: SX - 12 }), i)],
+    [10, (_l, i, o) => withLeaf(S({ eyes: "up", blush: true, mouth: "smile" }, o, { x: SX - 12 }), i)],
+    [6, (l, i, o) => withLeaf(S({ eyes: l < 4 ? "up" : "happy", blush: true }, o, { x: SX - 12 }), i)],
+    [1, (_l, i, o) => withLeaf({ r: squash(side({ mirror: true, outfit: o }), 1.06, 0.92), x: SX - 12, y: SY }, i)],
+    [18, hopTo(SX - 12, 1, true)],
+    [1, (_l, _i, o) => ({ r: squash(side({ outfit: o }), 1.06, 0.92), x: SX, y: SY })],
+    [10, neutral],
+    [2, (_l, _i, o) => S({ eyes: "blink" }, o)],
+    [22, neutral],
+    [1, neutral]
+  ]);
+  var BALL_X = 19;
+  var BALL_KICK_Y = 48;
+  var BALL_GROUND_Y = FLOOR - 5;
+  var GOAL_X = 3;
+  var GOAL_TOP = 37;
+  var JUGGLE = 12;
+  var JUGGLES = 4;
+  var SOCCER_INTRO = 6;
+  var SOCCER_LOOP = 7 * FPS;
+  var withPitch = (frame, drawBall, ripple = false) => withFx(frame, (fx) => {
+    goal(fx, GOAL_X, GOAL_TOP, FLOOR, ripple);
+    drawBall(fx);
+  });
+  var juggle = (l, o) => {
+    const t = l % JUGGLE;
+    const u = t / JUGGLE;
+    const y = BALL_KICK_Y - Math.round(22 * 4 * u * (1 - u));
+    const eyesNow = t <= 1 || t >= 11 ? "down" : t >= 4 && t <= 8 ? "up" : "open";
+    const r = side({ kick: t <= 1, eyes: eyesNow, outfit: o });
+    return withPitch({ r: t === 0 ? squash(r, 1.04, 0.96) : r, x: SX, y: SY }, (fx) => ball(fx, BALL_X, y, t >> 1));
+  };
+  var Soccer = build([
+    [1, neutral],
+    [5, (l, i, o) => withPitch(S({ perk: l >= 1, eyes: l >= 1 ? "down" : "open" }, o), (fx) => ball(fx, -6 + Math.round(25 * (i / 5)), BALL_GROUND_Y, i))],
+    // The loop.
+    [JUGGLE * JUGGLES, (l, _i, o) => juggle(l, o)],
+    [1, (_l, _i, o) => juggle(0, o)],
+    [2, (l, _i, o) => withPitch({ r: squash(side({ eyes: "down", outfit: o }), 1.06, 0.92), x: SX, y: SY }, (fx) => ball(fx, BALL_X, BALL_KICK_Y + 1 + l, 0))],
+    [1, (_l, _i, o) => withPitch(S({ kick: true, eyes: "open" }, o), (fx) => ball(fx, BALL_X - 2, BALL_KICK_Y - 1, 1))],
+    [8, (l, _i, o) => {
+      const t = l / 7;
+      const x = BALL_X - 2 - Math.round(12 * t);
+      const y = Math.round(47 - 3 * t - 12 * 4 * t * (1 - t));
+      return withPitch(S({ eyes: "open" }, o), (fx) => ball(fx, x, y, l >> 1));
+    }],
+    [2, (l, _i, o) => withPitch(S({ eyes: "happy" }, o), (fx) => {
+      ball(fx, GOAL_X + 2, 47 + l * 2, 0);
+      starBurst(fx, l + 1, GOAL_X + 4, GOAL_TOP + 1);
+    }, l % 2 === 0)],
+    [12, (l, _i, o) => {
+      const ph = l % 6;
+      const r = side({ eyes: "happy", mouth: "yay", blush: true, outfit: o });
+      const x = GOAL_X + 2 + Math.round((BALL_X - GOAL_X - 2) * (l + 1) / 12);
+      return withPitch(
+        { r: ph === 0 ? squash(r, 1.06, 0.92) : r, x: SX, y: SY + [0, -2, -4, -4, -2, 0][ph] },
+        (fx) => {
+          ball(fx, x, BALL_GROUND_Y, l);
+          starBurst(fx, l + 3, GOAL_X + 4, GOAL_TOP + 1);
+          sparkles(fx, l, SX + 22, SY + 2);
+        }
+      );
+    }],
+    [10, (l, _i, o) => withPitch(
+      S(l < 6 ? { mouth: "smile", blush: true, eyes: l === 3 || l === 4 ? "blink" : "open" } : { eyes: "down" }, o),
+      (fx) => ball(fx, BALL_X, BALL_GROUND_Y, 0)
+    )],
+    // Identical to the loop's first frame. Outro: trap the ball, tap it into the goal.
+    [1, (_l, _i, o) => juggle(0, o)],
+    [2, (l, _i, o) => withPitch(S({ eyes: "down" }, o), (fx) => ball(fx, BALL_X, BALL_KICK_Y + 1 + l, 0))],
+    [7, (l, _i, o) => withPitch(S({ mouth: "smile", blush: true }, o), (fx) => ball(fx, BALL_X - 2 * (l + 1), BALL_GROUND_Y, l))],
+    [3, neutral],
+    [1, neutral]
+  ], [SOCCER_INTRO, SOCCER_INTRO + SOCCER_LOOP]);
+  var PIXEL_CLIPS = {
+    Idle,
+    LeafChase,
+    Celebrate,
+    Encourage,
+    Wave,
+    Curious,
+    Sleepy,
+    Eating,
+    Reading,
+    Gaming,
+    BrushingTeeth,
+    Soccer
+  };
+
+  // src/components/pets/pixel/scenes.ts
+  var CLIP_SCENE = {
+    Soccer: "garden",
+    Reading: "study",
+    Gaming: "playroom",
+    Eating: "kitchen",
+    BrushingTeeth: "bath",
+    Sleepy: "bedroom"
+  };
+  var SHADOW = {
+    den: "#15241f",
+    garden: "#2d5634",
+    bath: "#16273a",
+    kitchen: "#231b17",
+    study: "#17152a",
+    playroom: "#1b1628",
+    bedroom: "#2c2347"
+  };
+  var X0 = -6;
+  var X1 = 84;
+  var Y0 = -8;
+  var Y1 = 80;
+  var BAND = FLOOR - 3;
+  var DX = 3;
+  var DY = 8;
+  var hexRGB = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+  function render(crop, draw) {
+    const buf = new Uint8ClampedArray(crop.w * crop.h * 4);
+    const R2 = (x, y, w, h, c) => {
+      const [r, g, b] = hexRGB(c);
+      const xa = Math.max(x, crop.x), xb = Math.min(x + w, crop.x + crop.w);
+      const ya = Math.max(y, crop.y), yb = Math.min(y + h, crop.y + crop.h);
+      for (let yy = ya; yy < yb; yy++) {
+        for (let xx = xa; xx < xb; xx++) {
+          const o = ((yy - crop.y) * crop.w + (xx - crop.x)) * 4;
+          buf[o] = r;
+          buf[o + 1] = g;
+          buf[o + 2] = b;
+          buf[o + 3] = 255;
+        }
+      }
+    };
+    const P = (x, y, w, h, c) => R2(x + DX, y + DY, w, h, c);
+    draw(R2, P);
+    return buf;
+  }
+  var WALL = (R2, c) => R2(X0, Y0, X1 - X0, BAND - Y0, c);
+  var GROUND = (R2, c, edge) => {
+    R2(X0, BAND, X1 - X0, Y1 - BAND, c);
+    R2(X0, BAND, X1 - X0, 1, edge);
+  };
+  function disc(P, cx, cy, r, c, clip) {
+    for (let y = Math.floor(cy - r); y <= cy + r; y++) {
+      for (let x = Math.floor(cx - r); x <= cx + r; x++) {
+        if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 > r * r) continue;
+        if (clip && (x < clip[0] || x > clip[2] || y < clip[1] || y > clip[3])) continue;
+        P(x, y, 1, 1, c);
+      }
+    }
+  }
+  function flower(P, x, y, c) {
+    P(x, y + 1, 1, 4, "#2e5e35");
+    P(x - 1, y, 3, 1, c);
+    P(x, y - 1, 1, 3, c);
+    P(x, y, 1, 1, "#ffe07a");
+  }
+  var ROOMS = {
+    den(R2, P) {
+      WALL(R2, "#2b4843");
+      R2(X0, 31 + DY, X1 - X0, 13, "#264039");
+      R2(X0, 31 + DY, X1 - X0, 1, "#355650");
+      P(5, 8, 14, 12, "#6d5238");
+      P(6, 9, 12, 6, "#5d8f93");
+      P(6, 15, 12, 4, "#4a7d4f");
+      for (const [x, y] of [[12, 12], [13, 12], [11, 13], [12, 13], [10, 14], [11, 14], [9, 15], [10, 15], [9, 16]]) P(x, y, 1, 1, "#f7945a");
+      for (const [x, y] of [[13, 11], [14, 10], [14, 11]]) P(x, y, 1, 1, "#8fd16a");
+      GROUND(R2, "#1b2d2a", "#243b37");
+      R2(X0, 50 + DY, X1 - X0, 1, "#20342f");
+    },
+    garden(R2, P) {
+      WALL(R2, "#3b6a78");
+      P(8, 7, 11, 2, "#5b8c98");
+      P(10, 6, 5, 1, "#5b8c98");
+      P(47, 12, 13, 2, "#5b8c98");
+      P(50, 11, 6, 1, "#5b8c98");
+      R2(X0, 33 + DY, X1 - X0, 8, "#2f5a4d");
+      P(4, 30, 20, 3, "#2f5a4d");
+      P(9, 28, 10, 2, "#2f5a4d");
+      P(44, 31, 26, 2, "#2f5a4d");
+      P(50, 29, 14, 2, "#2f5a4d");
+      R2(X0, 40 + DY, X1 - X0, Y1 - 40 - DY, "#3b6f43");
+      R2(X0, 40 + DY, X1 - X0, 1, "#4c8752");
+      flower(P, 7, 39, "#f17097");
+      flower(P, 12, 42, "#ffe07a");
+      flower(P, 61, 40, "#ffe07a");
+      flower(P, 66, 38, "#f6adc3");
+    },
+    bath(R2, P) {
+      WALL(R2, "#29435f");
+      for (let x = 2 + DX - 12; x < X1; x += 6) R2(x, Y0, 1, BAND - Y0, "#2f4d6c");
+      for (let y = 5 + DY - 18; y < BAND; y += 6) R2(X0, y, X1 - X0, 1, "#2f4d6c");
+      P(4, 4, 13, 21, "#7fa2c0");
+      P(3, 5, 15, 19, "#7fa2c0");
+      P(4, 5, 13, 19, "#3b6282");
+      for (let i = 0; i < 6; i++) {
+        P(6 + i, 15 - i, 1, 1, "#5d89ab");
+        P(9 + i, 17 - i, 1, 1, "#5d89ab");
+      }
+      P(2, 28, 17, 1, "#7fa2c0");
+      P(6, 24, 4, 4, "#f17097");
+      P(6, 24, 4, 1, "#f7a8c0");
+      P(8, 21, 1, 3, "#35b8a8");
+      P(7, 20, 2, 1, "#a9def6");
+      GROUND(R2, "#1c3047", "#284260");
+      R2(X0, 49 + DY, X1 - X0, 1, "#22384f");
+    },
+    kitchen(R2, P) {
+      WALL(R2, "#4a3c34");
+      P(4, 6, 17, 14, "#6b5646");
+      P(5, 7, 15, 12, "#7fb3c4");
+      P(12, 7, 1, 12, "#6b5646");
+      P(5, 12, 15, 1, "#6b5646");
+      P(3, 20, 19, 1, "#7d6655");
+      P(53, 29, 19, 2, "#8a6b52");
+      P(54, 31, 18, 13, "#6b5242");
+      P(56, 34, 14, 1, "#5a4437");
+      P(62, 35, 1, 8, "#5a4437");
+      P(59, 23, 7, 6, "#8fbfcb");
+      P(59, 23, 7, 1, "#c6e3ea");
+      P(60, 24, 1, 4, "#f7945a");
+      P(62, 24, 1, 4, "#f7945a");
+      P(64, 25, 1, 3, "#f7945a");
+      P(60, 21, 1, 2, "#7cc35a");
+      P(62, 20, 1, 3, "#7cc35a");
+      P(64, 22, 1, 2, "#4f9a3c");
+      R2(X0, BAND, X1 - X0, Y1 - BAND, "#2f2621");
+      for (let y = BAND, r = 0; y < Y1; y += 3, r++) {
+        for (let x = (DX + r % 2 * 4) % 8 - 8; x < X1; x += 8) R2(x, y, 4, 3, "#3a2e28");
+      }
+    },
+    study(R2, P) {
+      WALL(R2, "#34304e");
+      P(2, 6, 19, 38, "#5d4838");
+      P(3, 7, 17, 36, "#262238");
+      const COL = ["#e07a5f", "#81b29a", "#f2cc8f", "#5b8def", "#f17097", "#b8a1e3"];
+      [[8, 15], [18, 25], [28, 35]].forEach(([, bottom], s) => {
+        P(3, bottom + 1, 17, 2, "#5d4838");
+        for (let x = 4, i = s; x < 18; i++) {
+          const w = 2 + (i % 3 === 1 ? 1 : 0), h = 6 + i * 5 % 3;
+          P(x, bottom + 1 - h, w, h, COL[i % COL.length]);
+          x += w + (i % 4 === 3 ? 1 : 0);
+        }
+      });
+      P(63, 16, 1, 28, "#8f86b5");
+      P(60, 42, 7, 2, "#8f86b5");
+      P(59, 11, 9, 5, "#f2cc8f");
+      P(60, 10, 7, 1, "#f2cc8f");
+      P(59, 16, 9, 1, "#fbe5b8");
+      GROUND(R2, "#221f35", "#2c2842");
+    },
+    playroom(R2, P) {
+      WALL(R2, "#3a3150");
+      const cols = ["#f17097", "#ffe07a", "#35b8a8", "#f7945a", "#5b8def"];
+      R2(X0, 4 + DY, X1 - X0, 1, "#6d628a");
+      for (let i = -2; i < 12; i++) {
+        const c = cols[(i % 5 + 5) % 5];
+        P(2 + i * 8, 5, 5, 1, c);
+        P(3 + i * 8, 6, 3, 1, c);
+        P(4 + i * 8, 7, 1, 1, c);
+      }
+      P(56, 37, 7, 7, "#e07a5f");
+      P(58, 39, 3, 3, "#f2a58f");
+      P(63, 39, 6, 5, "#5b8def");
+      P(65, 40, 2, 3, "#8fb0f3");
+      P(57, 31, 6, 6, "#f2cc8f");
+      P(59, 33, 2, 2, "#f8e2b8");
+      GROUND(R2, "#272036", "#322a47");
+    }
+  };
+  function bedroom(R2, P, lvl, g, sunUp, awake, ring) {
+    const WALLS = ["#22244a", "#2c2b52", "#37355d", "#433f68"];
+    const SKY = ["#121430", "#3b2c5e", "#d9855e", "#86bfe0"];
+    const FLR = ["#17182f", "#1b1b34", "#201f3a", "#25233f"];
+    WALL(R2, WALLS[lvl]);
+    P(48, 5, 19, 20, "#3b3e72");
+    P(50, 7, 15, 16, SKY[lvl]);
+    if (lvl >= 2) disc(P, 57.5, Math.max(11.5, 22.5 - sunUp), 3.2, "#ffd36b", [50, 7, 64, 22]);
+    if (lvl < 2) {
+      for (let y = 7; y < 14; y++) {
+        for (let x = 50; x < 57; x++) {
+          const a = (x + 0.5 - 53.5) ** 2 + (y + 0.5 - 10.5) ** 2, b = (x + 0.5 - 54.9) ** 2 + (y + 0.5 - 9.6) ** 2;
+          if (a <= 2.7 ** 2 && b > 2.2 ** 2) P(x, y, 1, 1, "#fff0b3");
+        }
+      }
+    }
+    if (lvl === 0) {
+      [[61, 9], [63, 12], [52, 18], [60, 19], [55, 21]].forEach(([x, y], i) => {
+        const ph = (g + i * 7) % 20;
+        if (ph < 3) {
+          P(x - 1, y, 3, 1, "#fff7d6");
+          P(x, y - 1, 1, 3, "#fff7d6");
+        } else P(x, y, 1, 1, ph < 12 ? "#aab0ea" : "#6d74b8");
+      });
+    }
+    P(57, 7, 1, 16, "#3b3e72");
+    P(50, 14, 15, 1, "#3b3e72");
+    P(46, 25, 23, 1, "#4a4d85");
+    GROUND(R2, FLR[lvl], "#202144");
+    P(8, 45, 48, 6, "#3d3160");
+    P(6, 46, 52, 4, "#3d3160");
+    P(10, 47, 44, 1, "#4f4180");
+    P(10, 49, 44, 1, "#4f4180");
+    P(54, 35, 15, 2, "#4b3f75");
+    P(55, 37, 13, 8, "#3a2f5c");
+    P(56, 40, 11, 1, "#4b3f75");
+    P(57, 27, 11, 8, "#2a2b45");
+    P(58, 28, 9, 6, awake ? "#6ee07a" : "#34366a");
+    const face = awake ? [[60, 29], [64, 29], [60, 31], [61, 32], [62, 32], [63, 32], [64, 31]] : [[62, 29], [61, 30], [61, 31], [62, 32], [63, 32]];
+    for (const [x, y] of face) P(x, y, 1, 1, awake ? "#1f3b27" : "#aab0ea");
+    if (ring) {
+      for (const [x, y] of [[55, 28], [54, 29], [54, 30], [54, 31], [55, 32], [69, 28], [70, 29], [70, 30], [70, 31], [69, 32]]) P(x, y, 1, 1, "#fff7d6");
+    }
+  }
+  var cache = /* @__PURE__ */ new Map();
+  function backdrop(scene, clip, i, crop) {
+    var _a, _b;
+    let key = `${scene}`;
+    let draw;
+    if (scene === "bedroom") {
+      const loopEnd = (_b = (_a = PIXEL_CLIPS.Sleepy.loop) == null ? void 0 : _a[1]) != null ? _b : Infinity;
+      const t = clip === "Sleepy" ? i - loopEnd : -1;
+      if (t < 0) {
+        const g = i % 20;
+        key += `:night:${g}`;
+        draw = (R2, P) => bedroom(R2, P, 0, g, 0, false, false);
+      } else {
+        const s = Math.min(t, 16);
+        const lvl = s < 2 ? 1 : s < 4 ? 2 : 3;
+        const ring = s < 10 && s % 4 < 2;
+        key += `:dawn:${s}`;
+        draw = (R2, P) => bedroom(R2, P, lvl, 0, s - 2, true, ring);
+      }
+    } else {
+      draw = ROOMS[scene];
+    }
+    key += `@${crop.x},${crop.y},${crop.w},${crop.h}`;
+    let buf = cache.get(key);
+    if (!buf) {
+      buf = render(crop, draw);
+      cache.set(key, buf);
+    }
+    return buf;
+  }
+  function shadowUnder(scene, r, x, y) {
+    const out = new Pix();
+    const b = r.bounds();
+    let xa = Infinity, xb = -Infinity;
+    r.each((cx, cy) => {
+      if (cy === b.y1) {
+        xa = Math.min(xa, cx);
+        xb = Math.max(xb, cx);
+      }
+    });
+    if (!Number.isFinite(xa)) return out;
+    const grow = y + b.y1 < FLOOR - 1 ? 0 : 2;
+    const c = SHADOW[scene];
+    const top = FLOOR - 1;
+    for (let cx = x + xa - grow; cx <= x + xb + grow; cx++) {
+      out.set(cx, top, c);
+      out.set(cx, top + 1, c);
+    }
+    for (let cx = x + xa - grow + 2; cx <= x + xb + grow - 2; cx++) out.set(cx, top + 2, c);
+    return out;
+  }
+
+  // src/components/pets/pixel/render.ts
+  var RGB = {};
+  for (const [k, hex] of Object.entries(PAL)) {
+    RGB[k] = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+  }
+  var scratch = /* @__PURE__ */ new Map();
+  function scratchFor(w, h) {
+    const key = `${w}x${h}`;
+    let s = scratch.get(key);
+    if (!s) {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      s = { canvas, ctx, img: ctx.createImageData(w, h) };
+      scratch.set(key, s);
+    }
+    return s;
+  }
+  var colour = (c) => {
+    let rgb = RGB[c];
+    if (!rgb && c[0] === "#") {
+      rgb = [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+      RGB[c] = rgb;
+    }
+    return rgb;
+  };
+  function paint(canvas, layers, crop, backdrop2) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const s = scratchFor(crop.w, crop.h);
+    const d = s.img.data;
+    if (backdrop2 && backdrop2.length === d.length) d.set(backdrop2);
+    else d.fill(0);
+    for (const { p, x: ox, y: oy } of layers) {
+      p.each((x, y, c) => {
+        const cx = x + ox - crop.x;
+        const cy = y + oy - crop.y;
+        if (cx < 0 || cy < 0 || cx >= crop.w || cy >= crop.h) return;
+        const rgb = colour(c);
+        if (!rgb) return;
+        const o = (cy * crop.w + cx) * 4;
+        d[o] = rgb[0];
+        d[o + 1] = rgb[1];
+        d[o + 2] = rgb[2];
+        d[o + 3] = 255;
+      });
+    }
+    s.ctx.putImageData(s.img, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(s.canvas, 0, 0, canvas.width, canvas.height);
+  }
+
+  // ../AppData/Local/Temp/claude/C--Users-imaan-happy-critter-routines/113299ab-9b26-4c7a-ae24-db033ad1944d/scratchpad/clips-page/page.ts
+  var RING2 = { x: -2, y: -5, w: 80, h: 80 };
+  var ROOM_NAME = {
+    den: "Den",
+    garden: "Garden",
+    bath: "Bathroom",
+    kitchen: "Kitchen",
+    study: "Study",
+    playroom: "Playroom",
+    bedroom: "Bedroom"
+  };
+  var CARDS = [
+    {
+      clip: "Wave",
+      title: "Wave hello",
+      faces: true,
+      still: 18,
+      trigger: "the child comes back to the app, or taps the rabbit",
+      alt: "The rabbit hops round to face you and waves its paw",
+      beats: [[0, "Turn to you"], [10, "Wave"], [30, "Smile"], [36, "Turn back"], [40, "Rest"]]
+    },
+    {
+      clip: "Idle",
+      title: "Resting",
+      still: 0,
+      trigger: "between everything else",
+      alt: "The rabbit sits in its 3/4 view and blinks",
+      beats: [[0, "Rest"], [20, "Blink"], [22, "Rest"]]
+    },
+    {
+      clip: "Curious",
+      title: "Butterfly visit",
+      still: 20,
+      trigger: "quiet moments, now and then on its own",
+      alt: "A butterfly flutters past; the rabbit's ears prick up and it sniffs",
+      beats: [[0, "Ears up"], [16, "Sniff"], [28, "Happy"], [34, "Rest"]]
+    },
+    {
+      clip: "LeafChase",
+      title: "Leaf chase",
+      still: 44,
+      trigger: "every 16 to 26 seconds inside the timer while the rabbit waits",
+      alt: "A leaf drifts down; the rabbit hops after it, sniffs it and hops home",
+      beats: [[0, "Watch"], [18, "Chase"], [38, "Sniff"], [66, "Hop home"], [86, "Rest"]]
+    },
+    {
+      clip: "Encourage",
+      title: "Keep going",
+      faces: true,
+      still: 14,
+      trigger: "now and then while a task is under way, or on a tap",
+      alt: "The rabbit faces you, bounces with its arms out and a heart floats up",
+      beats: [[0, "Turn to you"], [9, "Bounce"], [21, "Heart"], [31, "Turn back"], [35, "Rest"]]
+    },
+    {
+      clip: "BrushingTeeth",
+      title: "Brush teeth",
+      loops: 3,
+      still: 12,
+      trigger: "tasks with <b>brush</b>, <b>teeth</b> or <b>tooth</b> in the name",
+      alt: "The rabbit scrubs its teeth in the bathroom, bubbles rise, then it grins",
+      beats: [[0, "Pick up brush"], [5, "Scrub"], [29, "Sparkle grin"], [46, "Rest"]]
+    },
+    {
+      clip: "Eating",
+      title: "Carrot snack",
+      loops: 3,
+      still: 9,
+      trigger: "<b>breakfast</b>, <b>lunch</b>, <b>dinner</b>, snacks and meals",
+      alt: "The rabbit nibbles a carrot in the kitchen with puffed cheeks",
+      beats: [[0, "Pick up carrot"], [5, "Munch"], [23, "Last bites"], [41, "All gone"], [57, "Rest"]]
+    },
+    {
+      clip: "Soccer",
+      title: "Soccer",
+      loops: 2,
+      still: 60,
+      trigger: "sport and exercise: <b>soccer</b>, <b>swim</b>, <b>gym</b>, <b>PE</b>, <b>run</b> and more",
+      alt: "In the garden the rabbit keeps the ball up with its foot, then shoots it into the goal and hops for joy",
+      beats: [[0, "Ball rolls in"], [6, "Keepy-uppy"], [54, "Shoot"], [66, "Goal!"], [80, "Catch breath"], [90, "Tap it in"], [100, "Rest"]]
+    },
+    {
+      clip: "Reading",
+      title: "Story time",
+      loops: 2,
+      still: 23,
+      trigger: "<b>school</b>, <b>homework</b>, reading and stories",
+      alt: "In the study the rabbit holds an open book up, cover towards you, and turns the pages",
+      beats: [[0, "Open book"], [5, "Read"], [21, "Turn page"], [27, "Read"], [43, "Turn page"], [53, "Aha!"], [65, "Close book"], [67, "Rest"]]
+    },
+    {
+      clip: "Gaming",
+      title: "Game time",
+      loops: 3,
+      still: 16,
+      trigger: "<b>games</b>, <b>play</b>, screen time and <b>TV</b>",
+      alt: "In the playroom the rabbit points a remote at a little TV, plays, and wins",
+      beats: [[0, "TV on"], [4, "Play"], [32, "Win!"], [44, "TV off"], [48, "Rest"]]
+    },
+    {
+      clip: "Celebrate",
+      title: "Star cheer",
+      faces: true,
+      still: 14,
+      trigger: "a task is finished or a parent gives <b>\u2605</b>",
+      alt: "The rabbit faces you and jumps twice in a T pose, bursting into stars",
+      beats: [[0, "Turn to you"], [7, "Jump"], [22, "Cheer"], [30, "Turn back"], [36, "Rest"]]
+    },
+    {
+      clip: "Sleepy",
+      title: "Sleep and wake",
+      loops: 2,
+      still: 60,
+      trigger: "<b>bedtime</b>, until the clock's ok-to-wake light turns green",
+      alt: "In the bedroom the rabbit yawns, flops onto the rug asleep, then wakes at dawn as the clock turns green",
+      beats: [[0, "Rest"], [4, "Yawn"], [17, "Nod off"], [38, "Plop"], [43, "Asleep"], [79, "Wake up"], [86, "Stretch"], [94, "Good morning"], [98, "Rest"]]
+    }
+  ];
+  function sequence(card) {
+    var _a;
+    const c = PIXEL_CLIPS[card.clip];
+    const out = [];
+    const add = (a, b) => {
+      for (let i = a; i < b; i++) out.push(i);
+    };
+    if (c.loop) {
+      add(0, c.loop[0]);
+      for (let n = 0; n < ((_a = card.loops) != null ? _a : 2); n++) add(c.loop[0], c.loop[1]);
+      add(c.loop[1], c.frameCount);
+    } else {
+      add(0, c.frameCount);
+    }
+    const last2 = out[out.length - 1];
+    for (let n = 0; n < 10; n++) out.push(last2);
+    return out;
+  }
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var paused = reduce;
+  var speed = 1;
+  var SPEEDS = [1, 0.5, 0.25];
+  var outfit = null;
+  var main = document.getElementById("clips");
+  var R = 45;
+  var C = 2 * Math.PI * R;
+  var players = CARDS.map((card) => {
+    var _a;
+    const clip = PIXEL_CLIPS[card.clip];
+    const seq = sequence(card);
+    const room = (_a = CLIP_SCENE[card.clip]) != null ? _a : "den";
+    const el = document.createElement("article");
+    el.className = "clip";
+    const secs = ((seq.length - 10) / 12).toFixed(1);
+    el.innerHTML = `
+    <div class="stage">
+      <div class="dial">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="${R}"/><circle class="arc" cx="50" cy="50" r="${R}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/></svg>
+        <canvas role="img"></canvas>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="meta-head"><h2></h2><span class="tags"><span class="tag room">${ROOM_NAME[room]}</span><span class="tag ${card.faces ? "front" : ""}">${card.faces ? "Faces you" : "3/4 view"}</span></span></div>
+      <p class="trigger">Plays when ${card.trigger}</p>
+      <ol class="beats"></ol>
+      <div class="meta-foot"><span class="len">${clip.loop ? `${secs} s here \xB7 loops while the task runs` : `${secs} s`}</span>
+        <button class="replay" type="button">Replay</button></div>
+    </div>`;
+    el.querySelector("h2").textContent = card.title;
+    const canvas = el.querySelector("canvas");
+    canvas.setAttribute("aria-label", card.alt);
+    main.appendChild(el);
+    const labels = [...new Set(card.beats.map(([, b]) => b))];
+    const ol = el.querySelector(".beats");
+    const chips = labels.map((b) => {
+      const li = document.createElement("li");
+      li.textContent = b;
+      ol.appendChild(li);
+      return li;
+    });
+    const pl = {
+      card,
+      seq,
+      canvas,
+      chips,
+      room,
+      arc: el.querySelector(".arc"),
+      dial: el.querySelector(".dial"),
+      ms: 0,
+      shown: -1,
+      k: 0,
+      beat: ""
+    };
+    if (reduce) pl.ms = Math.max(0, seq.indexOf(card.still)) * FRAME_MS;
+    el.querySelector(".replay").addEventListener("click", () => {
+      pl.ms = 0;
+      pl.shown = -1;
+    });
+    return pl;
+  });
+  function fit(pl) {
+    const px = pl.canvas.clientWidth;
+    const dpr = window.devicePixelRatio || 1;
+    const k = Math.max(1, Math.round(px * dpr / RING2.w));
+    if (k === pl.k) return;
+    pl.k = k;
+    pl.canvas.width = RING2.w * k;
+    pl.canvas.height = RING2.h * k;
+    pl.shown = -1;
+  }
+  var ro = new ResizeObserver(() => players.forEach(fit));
+  players.forEach((pl) => {
+    ro.observe(pl.dial);
+    fit(pl);
+  });
+  function render2(pl, force = false) {
+    const pos = Math.floor(pl.ms / FRAME_MS) % pl.seq.length;
+    if (pos === pl.shown && !force) return;
+    pl.shown = pos;
+    const f = pl.seq[pos];
+    const fr = PIXEL_CLIPS[pl.card.clip].frame(f, outfit);
+    const layers = [{ p: shadowUnder(pl.room, fr.r, fr.x, fr.y), x: 0, y: 0 }, { p: fr.r, x: fr.x, y: fr.y }];
+    if (fr.fx) layers.push({ p: fr.fx, x: 0, y: 0 });
+    paint(pl.canvas, layers, RING2, backdrop(pl.room, pl.card.clip, f, RING2));
+    let beat = pl.card.beats[0][1];
+    for (const [at, b] of pl.card.beats) if (f >= at) beat = b;
+    if (beat !== pl.beat) {
+      pl.beat = beat;
+      pl.chips.forEach((li) => li.classList.toggle("on", li.textContent === beat));
+    }
+    pl.arc.style.strokeDashoffset = (C * (1 - pos / (pl.seq.length - 1))).toFixed(2);
+  }
+  var last = performance.now();
+  function tick(now) {
+    const dt = Math.min(100, now - last);
+    last = now;
+    for (const pl of players) {
+      if (!paused) pl.ms += dt * speed;
+      render2(pl);
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  var pauseBtn = document.getElementById("pauseAll");
+  var speedBtn = document.getElementById("speed");
+  pauseBtn.textContent = paused ? "Play" : "Pause";
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "Play" : "Pause";
+  });
+  speedBtn.addEventListener("click", () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    speedBtn.textContent = `Speed ${speed === 1 ? "1" : speed === 0.5 ? "\xBD" : "\xBC"}\xD7`;
+  });
+  var closet = document.getElementById("closet");
+  for (const { slot, label } of SLOTS) {
+    const wrap = document.createElement("label");
+    wrap.className = "slot";
+    wrap.htmlFor = `outfit-${slot}`;
+    wrap.textContent = label;
+    const sel = document.createElement("select");
+    sel.id = `outfit-${slot}`;
+    sel.innerHTML = `<option value="">None</option>` + ACCESSORY_IDS.filter((id) => ACCESSORIES[id].slot === slot).map((id) => `<option value="${id}">${ACCESSORIES[id].name}</option>`).join("");
+    sel.addEventListener("change", () => {
+      outfit = normalizeOutfit({ ...outfit != null ? outfit : {}, [slot]: sel.value || null });
+      players.forEach((pl) => render2(pl, true));
+    });
+    wrap.appendChild(sel);
+    closet.appendChild(wrap);
+  }
+})();
+
+</script>

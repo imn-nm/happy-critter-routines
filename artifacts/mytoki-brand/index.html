@@ -1,0 +1,1272 @@
+<title>MyToki Brand Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400&family=Bagel+Fat+One&family=Pixelify+Sans:wght@400..700&display=swap">
+<style>
+/* Layout: full-bleed bands that alternate night (navy) and day (cream), joined by a
+   bead-scallop edge; one 1120px column inside. Single look on purpose: the brand lives on navy. */
+:root{
+  color-scheme: dark;
+  --navy:#20294a; --deep:#181e36; --abyss:#0e1221; --surface:#2c3558; --raised:#3c4770;
+  --text:#f5f3ff; --muted:#bdb5f5;
+  --cream:#f9f5e1; --paper:#fffdf4; --line:#ebe3c4; --ink:#20294a; --ink-soft:#4a5688; --plum:#6e47c2;
+  --lime:#dcef70; --amber:#fab047; --lavender:#a89af0; --mint:#65cdaa; --pink:#eab5de;
+  --coral:#ff8f91; --sky:#879bff; --carrot:#f7945a; --nose:#f17097;
+  --f-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+  --f-read:"Andika","Verdana","Segoe UI",system-ui,sans-serif;
+  --f-pixel:"Pixelify Sans","Courier New",ui-monospace,monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--navy);color:var(--text);font:400 17px/1.55 var(--f-read);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--lime);outline-offset:3px;border-radius:8px}
+.wrap{max-width:1120px;margin-inline:auto;padding-inline:20px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* bands */
+.band{position:relative;padding-block:clamp(64px,9vw,112px);scroll-margin-top:56px}
+.night{background:var(--navy);color:var(--text);--edge:var(--navy);--eyebrow:var(--lime);--soft:var(--muted);--card:var(--surface)}
+.day{background:var(--cream);color:var(--ink);--edge:var(--cream);--eyebrow:var(--plum);--soft:var(--ink-soft);--card:var(--paper)}
+.edge::before{content:"";position:absolute;left:0;right:0;top:-12px;height:12px;z-index:1;
+  background:radial-gradient(circle at 12px 12px,var(--edge) 11px,transparent 11.5px) 0 0/24px 24px repeat-x}
+.eyebrow{font:600 13px/1 var(--f-pixel);letter-spacing:.14em;text-transform:uppercase;color:var(--eyebrow);margin:0}
+h2{font:400 clamp(40px,6.4vw,72px)/.98 var(--f-display);margin:14px 0 0;letter-spacing:.005em;text-wrap:balance}
+h3{font:700 21px/1.25 var(--f-read);margin:0;text-wrap:balance}
+.lede{font-size:20px;line-height:1.5;max-width:60ch;margin:18px 0 0;color:var(--soft)}
+.sec-head{margin-bottom:44px}
+.sub{font:600 13px/1 var(--f-pixel);letter-spacing:.14em;text-transform:uppercase;color:var(--soft);margin:56px 0 16px}
+p{margin:0}
+.small{font-size:15px;color:var(--soft)}
+
+/* nav */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:rgba(24,30,54,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--surface)}
+.nav .wrap{display:flex;align-items:center;gap:18px;height:56px}
+.nav-mark{display:flex;align-items:center;flex:none;text-decoration:none}
+.nav-mark svg{height:30px;width:auto;display:block}
+.nav-links{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;margin-left:auto}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{font:500 14px/1 var(--f-pixel);color:var(--muted);padding:8px 10px;border-radius:999px;white-space:nowrap;text-decoration:none;transition:background .18s,color .18s}
+.nav-links a:hover{background:var(--surface);color:var(--text)}
+
+/* hero */
+.hero{padding-block:clamp(40px,6vw,88px) clamp(76px,9vw,120px);overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:48px;align-items:center;position:relative;z-index:1}
+.wm-hero{margin-top:28px}
+.wm-hero svg{width:100%;max-width:560px;height:auto;display:block}
+.tagline{font:400 clamp(32px,4.6vw,52px)/1.02 var(--f-display);color:var(--cream);margin:30px 0 0}
+.hero .lede{font-size:19px}
+.sky{position:absolute;inset:0;pointer-events:none}
+.sky svg{position:absolute;width:var(--s);height:auto;animation:tw 3.4s ease-in-out infinite;animation-delay:var(--d)}
+@keyframes tw{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.72)}}
+.hero-pet{display:grid;justify-items:center;gap:14px;margin:0}
+.hero-pet figcaption{font:500 14px var(--f-pixel);color:var(--muted);letter-spacing:.06em}
+
+/* live wordmark */
+.live .g-eyeL,.live .g-eyeR{transform-box:fill-box;transform-origin:center;animation:peek 8s steps(1,end) infinite}
+@keyframes peek{0%,28%{transform:translateX(0) scaleY(1)}30%,44%{transform:translateX(-1px) scaleY(1)}46%,60%{transform:translateX(1px) scaleY(1)}62%,88%{transform:translateX(0) scaleY(1)}90%,93%{transform:translateX(0) scaleY(.14)}95%,100%{transform:translateX(0) scaleY(1)}}
+.live .g-sparkX{animation:tw3 2.6s infinite}
+@keyframes tw3{0%,100%{opacity:0}50%{opacity:1}}
+
+/* round device */
+.dev{width:min(300px,100%);aspect-ratio:1;border-radius:50%;background:var(--abyss);padding:4.2%;box-shadow:0 0 0 2px var(--raised),0 22px 50px rgba(8,10,20,.45);container-type:inline-size;position:relative;border:0;display:block}
+.dev-hero{width:min(380px,100%);cursor:pointer;transition:transform .26s var(--ease)}
+.dev-hero:hover{transform:translateY(-3px)}
+.dev-hero:active{transform:scale(.98)}
+.dev-screen{position:absolute;inset:4.2%;border-radius:50%;background:var(--navy);overflow:hidden}
+.dev-screen.dark{background:#111629}
+.dev-ring{position:absolute;inset:0;width:100%;height:100%}
+.ring-track{fill:none;stroke:var(--surface);stroke-width:4.2}
+.ring-arc{fill:none;stroke:var(--lavender);stroke-width:4.2;stroke-linecap:round}
+.dev .pet{position:absolute;left:50%;top:50%;width:54%;aspect-ratio:1;transform:translate(-50%,-47%);image-rendering:pixelated}
+.dev-top{position:absolute;left:50%;top:10%;transform:translate(-50%,-50%);background:var(--deep);color:var(--amber);font:600 5.4cqi/1 var(--f-pixel);padding:1.6cqi 3.4cqi;border-radius:999px;box-shadow:0 0 0 .7cqi var(--navy);display:flex;gap:1.4cqi;align-items:center;white-space:nowrap}
+.dev-title{position:absolute;left:0;right:0;top:21%;text-align:center;font:700 6.4cqi/1 var(--f-read);color:var(--text)}
+.dev-time{position:absolute;left:0;right:0;bottom:21%;text-align:center;font:500 5cqi/1 var(--f-pixel);color:var(--muted)}
+.dev-pill{position:absolute;left:50%;top:90%;transform:translate(-50%,-50%);background:var(--lime);color:var(--navy);font:700 5.2cqi/1 var(--f-read);padding:2.4cqi 4.4cqi 2.4cqi 2.6cqi;border-radius:999px;display:flex;align-items:center;gap:2cqi;white-space:nowrap;box-shadow:0 0 0 .9cqi var(--navy)}
+.tick{width:6cqi;height:6cqi;border-radius:50%;background:var(--navy);display:grid;place-items:center}
+.tick svg{width:62%;height:auto}
+.dev-dots{position:absolute;left:50%;bottom:1.6%;transform:translateX(-50%);display:flex;gap:1.6cqi}
+.dev-dots i{width:1.8cqi;height:1.8cqi;border-radius:30%;background:var(--raised)}
+.dev-dots i.on{background:var(--text)}
+.dev-go{position:absolute;left:50%;top:90%;transform:translate(-50%,-50%);width:19cqi;height:19cqi;border-radius:50%;background:var(--lime);display:grid;place-items:center;box-shadow:0 0 0 1.2cqi var(--navy)}
+.dev-go svg{width:48%;height:auto}
+.dev-steps{position:absolute;left:0;right:0;bottom:24%;display:flex;justify-content:center;gap:2.2cqi}
+.dev-steps i{width:4.2cqi;height:4.2cqi;border-radius:32%;background:var(--surface)}
+.dev-steps i.done{background:var(--mint)}
+.dev-steps i.now{background:var(--lavender)}
+.dev-icon{position:absolute;left:50%;top:22%;transform:translate(-50%,-50%) rotate(-24deg);width:26cqi}
+.dev-icon svg,.dev-moon svg{width:100%;height:auto;display:block}
+.dev-stars{position:absolute;left:50%;top:10%;transform:translate(-50%,-50%);display:flex;gap:1.2cqi;background:var(--deep);padding:1.4cqi 2.6cqi;border-radius:999px;box-shadow:0 0 0 .7cqi var(--navy)}
+.dev-stars svg{width:5.2cqi;height:auto;display:block}
+.dev-moon{position:absolute;left:24%;top:24%;width:10cqi}
+.dev-clock{position:absolute;left:0;right:0;top:15%;text-align:center;font:600 7cqi/1 var(--f-pixel);color:#8c86b8}
+.dev-hint{position:absolute;left:50%;top:90%;transform:translate(-50%,-50%);background:var(--lime);color:var(--navy);font:600 5cqi/1 var(--f-pixel);padding:2.4cqi 4.6cqi;border-radius:999px;letter-spacing:.06em;box-shadow:0 0 0 .9cqi var(--navy);white-space:nowrap}
+
+/* cards */
+.card{background:var(--card);border-radius:24px;padding:24px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.card h3{margin-bottom:8px}
+.card p{color:var(--soft);font-size:16px}
+.dot{display:block;width:18px;height:18px;border-radius:30%;background:var(--c);margin-bottom:16px;position:relative}
+.dot::after{content:"";position:absolute;left:24%;top:22%;width:24%;height:24%;border-radius:50%;background:rgba(255,255,255,.55)}
+
+/* name */
+.name-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:48px;align-items:start}
+.say{display:flex;gap:.1em;font:400 clamp(76px,12vw,150px)/.9 var(--f-display);color:var(--ink);margin:18px 0 0}
+.say span{display:inline-flex;flex-direction:column;align-items:center}
+.say span::after{content:"";width:.17em;height:.17em;border-radius:30%;background:var(--c);margin-top:.16em}
+.say-note{margin-top:22px;max-width:36ch;color:var(--ink-soft);font-size:18px}
+.chime{margin-top:40px;display:flex;flex-wrap:wrap;gap:24px 32px;align-items:center;background:var(--navy);color:var(--text);border-radius:32px;padding:26px 30px}
+.btn-round{width:76px;height:76px;flex:none;border-radius:50%;border:0;background:var(--lime);cursor:pointer;display:grid;place-items:center;transition:transform .18s var(--ease);box-shadow:0 0 0 6px var(--surface)}
+.btn-round:hover{transform:scale(1.06)}
+.btn-round:active{transform:scale(.95)}
+.btn-round svg{width:30px;height:30px;margin-left:4px}
+.chime-copy{flex:1 1 320px;min-width:0}
+.chime-copy p{color:var(--muted);margin-top:6px;max-width:62ch}
+.notes{display:flex;align-items:flex-end;gap:14px;height:70px;flex:none}
+.notes div{display:grid;justify-items:center;gap:6px;font:600 14px var(--f-pixel);color:var(--muted)}
+.notes b{display:block;width:26px;border-radius:9px;background:var(--lavender)}
+.notes div:last-child b{background:var(--lime)}
+.notes.on div:first-child b{animation:pop .3s var(--ease)}
+.notes.on div:last-child b{animation:pop .4s .13s var(--ease)}
+@keyframes pop{50%{transform:translateY(-10px)}}
+
+/* meet mytoki */
+.meet-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:40px;align-items:center}
+.anatomy{background:var(--deep);border-radius:36px;padding:28px 24px 20px}
+.ana-box{position:relative;max-width:300px;margin-inline:auto}
+.ana-box canvas{display:block;width:100%;aspect-ratio:30/46;image-rendering:pixelated}
+.pin{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:var(--lime);color:var(--navy);font:700 15px/1 var(--f-pixel);display:grid;place-items:center;box-shadow:0 0 0 4px var(--deep)}
+.own{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;margin-top:18px}
+.own span{display:flex;align-items:center;gap:8px;font:500 13px var(--f-pixel);color:var(--muted)}
+.own i{width:16px;height:16px;border-radius:30%;background:var(--c);box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.legend{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.legend li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-items:start}
+.legend b.n{width:28px;height:28px;border-radius:50%;background:var(--lime);color:var(--navy);font:700 15px/28px var(--f-pixel);text-align:center}
+.legend strong{color:var(--text)}
+.legend span{color:var(--muted)}
+.poses{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:56px}
+.pose{background:var(--surface);border-radius:28px;padding:14px 14px 18px;display:grid;gap:10px}
+.pose canvas{width:100%;aspect-ratio:1;display:block;border-radius:20px;background:var(--navy);image-rendering:pixelated}
+.pose b{font:600 15px/1 var(--f-pixel);color:var(--lime);letter-spacing:.06em;text-transform:uppercase;padding-inline:6px}
+.pose p{font-size:15px;color:var(--muted);padding-inline:6px}
+.rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.rulecard{background:var(--surface);border-radius:28px;padding:26px}
+.rulecard h3{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.rulecard h3 i{width:14px;height:14px;border-radius:30%;background:var(--c)}
+.rulecard ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.rulecard li{padding-left:22px;position:relative;color:var(--muted)}
+.rulecard li::before{content:"";position:absolute;left:2px;top:.6em;width:8px;height:8px;border-radius:30%;background:var(--c)}
+.rulecard li strong{color:var(--text);font-weight:700}
+.specs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.spec-n{background:var(--deep);border-radius:24px;padding:22px}
+.spec-n b{display:block;font:600 38px/1 var(--f-pixel);color:var(--lime);font-variant-numeric:tabular-nums}
+.spec-n span{display:block;margin-top:10px;color:var(--muted);font-size:15px}
+
+/* logo */
+.logo-panels{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:16px}
+.panel{border-radius:32px;padding:40px 30px 22px;display:flex;flex-direction:column;justify-content:space-between;gap:28px;min-height:250px}
+.panel svg{width:100%;height:auto;display:block}
+.panel>div{max-width:340px}
+.p-night{background:var(--navy)}
+.p-day{background:var(--paper);box-shadow:inset 0 0 0 2px var(--line)}
+.p-mono{background:var(--lime)}
+.cap{font:600 12px/1.3 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase}
+.p-night .cap{color:var(--muted)} .p-day .cap,.p-mono .cap{color:var(--ink-soft)}
+.p-mono .cap{color:var(--navy)}
+.construct{margin-top:16px;background:var(--navy);color:var(--text);border-radius:32px;padding:30px;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:32px;align-items:center}
+.construct .svgbox{overflow-x:auto}
+.construct svg{width:100%;min-width:420px;height:auto;display:block}
+.construct ul{margin:0;padding:0;list-style:none;display:grid;gap:14px}
+.construct li{display:grid;grid-template-columns:16px minmax(0,1fr);gap:12px;color:var(--muted)}
+.construct li i{width:14px;height:14px;border-radius:30%;background:var(--c);margin-top:5px}
+.construct li strong{color:var(--text)}
+.marks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.markcard{background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:28px;padding:26px;display:grid;gap:18px;align-content:start}
+.markcard .show{display:flex;align-items:flex-end;justify-content:center;gap:22px;min-height:150px}
+.appicon{width:132px;aspect-ratio:1;border-radius:30px;background:var(--navy);display:grid;place-items:center;box-shadow:0 10px 24px rgba(32,41,74,.25)}
+.appicon svg{width:100%;height:auto;display:block}
+.boot{width:150px;aspect-ratio:1;border-radius:50%;background:var(--abyss);padding:7px;box-shadow:0 10px 24px rgba(32,41,74,.25)}
+.boot div{width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--navy)}
+.boot svg{width:100%;height:100%;display:block}
+.tiny{display:grid;justify-items:center;gap:8px;font:500 12px var(--f-pixel);color:var(--ink-soft)}
+.tiny .appicon{box-shadow:none}
+.markcard h3{font-size:18px}
+.markcard p{font-size:15px;color:var(--ink-soft);margin-top:4px}
+.space-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-top:16px}
+.space{background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:28px;padding:26px;display:grid;gap:16px}
+.space svg{width:100%;height:auto;display:block}
+.donts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.dont{display:grid;gap:12px}
+.dont .tile{position:relative;background:var(--navy);border-radius:24px;aspect-ratio:4/3;display:grid;place-items:center;padding:18px;overflow:hidden}
+.dont .tile svg{width:100%;height:auto;display:block}
+.dont .tile .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.dont .x{position:absolute;right:12px;top:12px;width:26px;height:26px;border-radius:50%;background:var(--coral);display:grid;place-items:center}
+.dont .x svg{width:12px;height:12px}
+.dont p{font-size:15px;color:var(--ink-soft)}
+.dont p strong{color:var(--ink)}
+.squish svg{transform:scale(1.25,.72)}
+.ears{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.ears .tile{background:var(--navy);border-radius:24px;aspect-ratio:4/3;display:grid;place-items:center;padding:22px}
+.ears .tile svg{width:100%;height:auto;display:block}
+.ears-note{margin-top:14px;max-width:70ch;color:var(--ink-soft);font-size:16px}
+.ears-note strong{color:var(--ink)}
+
+/* color */
+.sw-core{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.sw-friends{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-top:14px}
+.sw{border:0;padding:0;text-align:left;border-radius:26px;overflow:hidden;background:var(--surface);cursor:pointer;display:flex;flex-direction:column;transition:transform .18s var(--ease)}
+.sw:hover{transform:translateY(-3px)}
+.sw .chip{height:128px;background:var(--c);position:relative}
+.sw-friends .chip{height:86px}
+.sw .chip.edge-in{box-shadow:inset 0 0 0 2px var(--raised)}
+.sw .meta{padding:14px 16px 18px;display:grid;gap:3px}
+.sw .nm{font-weight:700;color:var(--text)}
+.sw .hx{font:500 13px var(--f-pixel);color:var(--lime);letter-spacing:.04em}
+.sw .rl{font-size:14px;line-height:1.4;color:var(--muted);margin-top:4px}
+.ratio{display:flex;height:64px;border-radius:999px;overflow:hidden;box-shadow:0 0 0 2px var(--raised)}
+.ratio i{display:block;background:var(--c)}
+.ratio-key{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px}
+.ratio-key span{display:flex;gap:8px;align-items:center;font:500 13px var(--f-pixel);color:var(--muted)}
+.ratio-key i{width:14px;height:14px;border-radius:30%;background:var(--c);box-shadow:0 0 0 1px var(--raised)}
+.contrast{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.cpair{border-radius:22px;overflow:hidden;background:var(--surface)}
+.cpair .smp{padding:18px 16px;font:400 24px/1.1 var(--f-display);min-height:84px;display:flex;align-items:center}
+.cpair .res{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;font:500 13px var(--f-pixel);color:var(--muted)}
+.badge{font:600 12px/1 var(--f-pixel);padding:5px 8px;border-radius:999px;letter-spacing:.06em}
+.b-aaa{background:var(--mint);color:var(--navy)} .b-aa{background:var(--lavender);color:var(--navy)} .b-lg{background:var(--amber);color:var(--navy)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--lime);color:var(--navy);font:600 15px var(--f-pixel);padding:12px 18px;border-radius:999px;transition:opacity .2s,transform .26s var(--ease);z-index:40;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* type */
+.specimens{display:grid;gap:16px}
+.spec{display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px;background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:30px;padding:30px}
+.spec .who b{display:block;font:600 12px/1.3 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--plum)}
+.spec .who h3{margin-top:8px;font-size:24px}
+.spec .who p{margin-top:8px;font-size:15px;color:var(--ink-soft)}
+.spec .big{min-width:0;overflow-wrap:anywhere}
+.s-display{font:400 clamp(48px,8vw,96px)/.95 var(--f-display);color:var(--ink)}
+.s-read{font:400 clamp(26px,3.4vw,38px)/1.25 var(--f-read);color:var(--ink)}
+.s-read em{font-style:normal;background:linear-gradient(transparent 62%,rgba(220,239,112,.9) 62%)}
+.s-pixel{font:500 clamp(34px,5vw,58px)/1.1 var(--f-pixel);color:var(--ink);font-variant-numeric:tabular-nums}
+.ag{display:flex;flex-wrap:wrap;gap:12px 36px;margin-top:22px;align-items:flex-end}
+.ag div{display:grid;gap:6px}
+.ag span{font:400 64px/1 var(--f-read);color:var(--ink)}
+.ag span.serif{font-family:"Times New Roman",Times,Georgia,serif;color:#9a93b8}
+.ag small{font:500 12px var(--f-pixel);color:var(--ink-soft);letter-spacing:.06em}
+.scale{display:grid;gap:12px;margin-top:4px}
+.scale div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;align-items:baseline;border-top:2px dashed var(--line);padding-top:12px}
+.scale b{font:500 13px var(--f-pixel);color:var(--ink-soft)}
+.inter-note{margin-top:16px;display:flex;gap:14px;align-items:center;background:var(--navy);color:var(--muted);border-radius:22px;padding:18px 22px;font-size:16px}
+.inter-note strong{color:var(--text)}
+.inter-note svg,.stk svg{width:100%;height:auto;display:block}
+
+/* shapes */
+.kit{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.kit .card{padding:18px 18px 20px;display:grid;gap:10px;align-content:start}
+.kit .art{height:110px;border-radius:18px;background:var(--navy);display:grid;place-items:center}
+.kit .art svg{height:74px;width:auto;max-width:88%;display:block}
+.kit h3{font-size:18px;margin:0}
+.kit p{font-size:15px}
+.patterns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.pat{border-radius:28px;overflow:hidden;background:var(--surface)}
+.pat .fill{height:220px;background-size:160px 160px;background-repeat:repeat}
+.pat .meta{padding:16px 18px 18px}
+.pat .meta p{font-size:15px;color:var(--muted);margin-top:4px}
+
+/* kids */
+.ages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.age{background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:32px;padding:30px 26px 26px;display:grid;justify-items:center;gap:22px;text-align:center}
+.age .tag{font:600 13px/1 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;background:var(--c);color:var(--navy);padding:8px 12px;border-radius:999px}
+.age h3{font:400 34px/1 var(--f-display)}
+.age p{max-width:40ch;color:var(--ink-soft);font-size:16px}
+.tbl-wrap{overflow-x:auto;margin-top:16px;background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:28px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:16px}
+th,td{text-align:left;padding:14px 20px;border-bottom:2px dashed var(--line);vertical-align:top}
+thead th{font:600 12px/1.2 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--plum);padding-top:20px}
+tbody th{font-weight:700;color:var(--ink);width:24%}
+td{color:var(--ink-soft)}
+tr.same td{color:var(--ink)}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+.every{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;background:var(--navy);color:var(--text);border-radius:32px;padding:32px}
+.every h3{font:400 30px/1.05 var(--f-display);color:var(--cream)}
+.every p{color:var(--muted);margin-top:10px}
+.kids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:center}
+.kid{display:flex;align-items:center;gap:14px;background:var(--surface);border-radius:999px;padding:8px 18px 8px 8px}
+.kid .face{width:52px;height:52px;border-radius:50%;background:var(--c);display:grid;place-items:center;flex:none}
+.kid .face svg{width:78%;height:auto}
+.kid b{display:block;color:var(--text)}
+.kid span{font:500 13px var(--f-pixel);color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.acts span{font:500 14px var(--f-pixel);background:var(--surface);color:var(--text);padding:8px 12px;border-radius:999px}
+
+/* voice */
+.says{display:grid;gap:10px}
+.say-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.bub{border-radius:22px;padding:16px 20px;font-size:18px;display:flex;gap:12px;align-items:flex-start}
+.bub i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;margin-top:2px}
+.bub i svg{width:11px;height:11px}
+.bub.yes{background:var(--cream);color:var(--navy)} .bub.yes i{background:var(--mint)}
+.bub.no{background:var(--deep);color:#a8a2cf;box-shadow:inset 0 0 0 2px var(--surface)} .bub.no i{background:var(--coral)}
+.bub.no span{text-decoration:line-through;text-decoration-color:rgba(255,143,145,.55);text-decoration-thickness:2px}
+.say-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;font:600 12px var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-inline:6px}
+.words{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chips span{font:500 15px var(--f-pixel);padding:8px 13px;border-radius:999px}
+.chips.love span{background:var(--lime);color:var(--navy)}
+.chips.never span{background:var(--deep);color:#a8a2cf;box-shadow:inset 0 0 0 2px var(--raised);text-decoration:line-through;text-decoration-color:var(--coral)}
+.parent{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:center;margin-top:16px}
+.notif{background:var(--cream);color:var(--ink);border-radius:26px;padding:18px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;box-shadow:0 18px 40px rgba(8,10,20,.35);max-width:440px}
+.notif .appicon{width:44px;border-radius:12px;box-shadow:none}
+.notif .t{font:600 12px var(--f-pixel);color:var(--ink-soft);letter-spacing:.06em;display:flex;justify-content:space-between}
+.notif p{margin-top:4px;font-size:16px}
+.notif .acts2{display:flex;gap:8px;margin-top:12px}
+.notif .acts2 span{font:700 14px var(--f-read);padding:8px 14px;border-radius:999px;background:var(--line);color:var(--ink)}
+.notif .acts2 span.go{background:var(--navy);color:var(--lime)}
+
+/* world */
+.world{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px}
+.world .card{display:grid;gap:18px;align-content:start;background:var(--paper);box-shadow:inset 0 0 0 2px var(--line)}
+.world .card p{color:var(--ink-soft)}
+.center{display:grid;place-items:center;padding-block:10px}
+.sheet{background:#fffefa;border-radius:22px;box-shadow:inset 0 0 0 2px var(--line);padding:26px 18px;display:flex;flex-wrap:wrap;gap:14px 18px;justify-content:center;align-items:center}
+.stk{display:block;filter:drop-shadow(0 3px 3px rgba(32,41,74,.22))}
+.stk canvas{display:block;image-rendering:pixelated}
+.stk-txt{font:400 26px/1 var(--f-display);padding:12px 18px;border-radius:999px;box-shadow:0 0 0 5px #fff;display:inline-block}
+.stk-pix{font:600 24px/1 var(--f-pixel);padding:12px 16px;border-radius:14px;box-shadow:0 0 0 5px #fff;display:inline-block;letter-spacing:.06em}
+.box{border-radius:22px;overflow:hidden;background:var(--navy);display:grid;grid-template-rows:120px auto 70px;max-width:340px;margin-inline:auto;box-shadow:14px 18px 0 -2px var(--deep),0 20px 40px rgba(32,41,74,.3)}
+.box .top{background-size:120px 120px}
+.box .mid{padding:26px 26px 22px;display:grid;gap:14px}
+.box .mid svg{width:100%;height:auto;display:block}
+.box .mid p{font:400 22px/1.05 var(--f-display);color:var(--cream)}
+.box .mid span{font:500 12px var(--f-pixel);color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.box .bot{background-size:120px 120px}
+.world-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:16px}
+
+/* footer */
+.foot{padding-block:56px 64px}
+.foot .wrap{display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between}
+.foot svg{height:44px;width:auto;display:block}
+.foot p{color:var(--muted);font-size:15px;max-width:62ch}
+.foot code{font:500 13px var(--f-pixel);color:var(--text)}
+
+@media (max-width:980px){
+  .sw-core{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .sw-friends{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .kit{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .contrast{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .logo-panels{grid-template-columns:1fr}
+  .construct,.space-row,.every,.parent,.world,.world-2{grid-template-columns:1fr}
+  .donts{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:860px){
+  .hero-grid,.name-grid,.meet-grid{grid-template-columns:1fr}
+  .poses,.specs,.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .marks,.patterns,.grid3,.ears{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr;gap:16px}
+}
+@media (max-width:640px){
+  .grid2,.rules,.ages,.words,.kids,.say-row,.say-head{grid-template-columns:1fr}
+  .say-head span:last-child{display:none}
+  .sw-core,.sw-friends,.kit{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .contrast{grid-template-columns:1fr}
+  .donts{grid-template-columns:1fr}
+  .chime{padding:22px}
+  .lede{font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+</style>
+
+<nav class="nav" aria-label="Sections">
+  <div class="wrap">
+    <a class="nav-mark" href="#top" aria-label="MyToki, back to top" data-wm="nav"></a>
+    <div class="nav-links">
+      <a href="#name">Name</a><a href="#mytoki">MyToki</a><a href="#logo">Logo</a><a href="#color">Color</a><a href="#type">Type</a><a href="#shapes">Shapes</a><a href="#kids">Every kid</a><a href="#voice">Voice</a><a href="#world">In the world</a>
+    </div>
+  </div>
+</nav>
+
+<header class="band night hero" id="top">
+  <div class="sky" id="sky" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Brand book · v0.2 · October 2026</p>
+      <h1 class="sr-only">MyToki</h1>
+      <div class="wm-hero" data-wm="hero"></div>
+      <p class="tagline">One hop at a time.</p>
+      <p class="lede">MyToki is a round screen on a child's shelf with a pixel pet living inside. The pet walks them through the day one step at a time and cheers for every one. Biscuit the rabbit is the first pet, and more can move in. This book covers how MyToki looks, sounds and talks, for kids from 2 to 10.</p>
+    </div>
+    <figure class="hero-pet">
+      <button class="dev dev-hero" id="heroBtn" aria-label="Tap Biscuit to hop and hear the chime">
+        <span class="dev-screen">
+          <svg class="dev-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="ring-track"/><circle cx="50" cy="50" r="40" class="ring-arc" pathLength="100" stroke-dasharray="72 100" transform="rotate(-90 50 50)"/></svg>
+          <canvas class="pet" id="heroCanvas" style="width:62%"></canvas>
+          <span class="dev-hint">TAP ME</span>
+        </span>
+      </button>
+      <figcaption>Tap Biscuit to hop</figcaption>
+    </figure>
+  </div>
+</header>
+
+<section class="band day edge" id="name">
+  <div class="wrap name-grid">
+    <div>
+      <p class="eyebrow">Say it</p>
+      <p class="say" aria-label="My-toh-kee"><span style="--c:var(--carrot)">My</span><span style="--c:var(--plum)">To</span><span style="--c:var(--mint)">ki</span></p>
+      <p class="say-note">Three beats, like a little knock. Easy to chant, easy to call across the kitchen.</p>
+    </div>
+    <div>
+      <h2>A name a two-year-old can say</h2>
+      <div class="grid2" style="margin-top:28px">
+        <div class="card"><i class="dot" style="--c:var(--coral)"></i><h3>Early sounds</h3><p>M is made with the lips, like mama, so it's one of the first sounds babies make. T and K come soon after.</p></div>
+        <div class="card"><i class="dot" style="--c:var(--mint)"></i><h3>Three claps</h3><p>My-To-ki. Three beats to clap, two notes in the chime, two eyes in the logo.</p></div>
+        <div class="card"><i class="dot" style="--c:var(--sky)"></i><h3>Mine</h3><p>It starts with my. The screen belongs to the child, not the grown-ups, and the logo is a pair of eyes peeking out of its round window.</p></div>
+        <div class="card"><i class="dot" style="--c:var(--amber)"></i><h3>Spelled how it sounds</h3><p>Six letters, none of them silent. A kid who is learning to read can sound it out on the box.</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="chime">
+      <button class="btn-round" id="chimeBtn" aria-label="Play the MyToki chime"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.4-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z" fill="#20294a"/></svg></button>
+      <div class="notes" id="notes" aria-hidden="true"><div><b style="height:34px"></b>G</div><div><b style="height:58px"></b>C</div></div>
+      <div class="chime-copy">
+        <h3>The MyToki chime</h3>
+        <p>Two soft notes going up: a G, then the C above it. It plays when a pet says hello and when a step is done. It never plays for a warning, so kids only ever hear it for good things.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band night edge" id="mytoki">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">The pets</p>
+      <h2>Meet Biscuit, the first pet</h2>
+      <p class="lede">Every MyToki pet is a little pixel animal that keeps the child company all day and falls asleep when they do. Biscuit is a cream rabbit with one ear that won't stay up. Pets are drawn in crisp pixels, exactly as the device renders them.</p>
+    </div>
+    <div class="meet-grid">
+      <div class="anatomy">
+        <div class="ana-box" id="anaBox">
+          <canvas data-scene="anatomy" role="img" aria-label="Biscuit facing forward with arms out"></canvas>
+        </div>
+        <div class="own">
+          <span><i style="--c:#f9f5e1"></i>Fur #F9F5E1</span>
+          <span><i style="--c:#f7945a"></i>Ears #F7945A</span>
+          <span><i style="--c:#f17097"></i>Nose #F17097</span>
+          <span><i style="--c:#010101"></i>Eyes #010101</span>
+        </div>
+      </div>
+      <ol class="legend">
+        <li><b class="n">1</b><div><strong>Flop ear.</strong> <span>Always the ear on your left. It's how you know it's Biscuit.</span></div></li>
+        <li><b class="n">2</b><div><strong>Up ear</strong> <span>with a carrot-orange inside.</span></div></li>
+        <li><b class="n">3</b><div><strong>Square eyes, 4 × 4 pixels.</strong> <span>Pets blink with both eyes at once and never wink.</span></div></li>
+        <li><b class="n">4</b><div><strong>Button nose,</strong> <span>two pixels of pink.</span></div></li>
+        <li><b class="n">5</b><div><strong>Chibi arms, 6 pixels thick and 5 long.</strong> <span>Stubby on purpose, and the same on every pet.</span></div></li>
+        <li><b class="n">6</b><div><strong>Cream fur and no outline.</strong> <span>Pets sit on navy, so the edge reads without one.</span></div></li>
+      </ol>
+    </div>
+
+    <div class="poses">
+      <div class="pose"><canvas data-scene="wave" role="img" aria-label="Biscuit waving"></canvas><b>Hello</b><p>Faces the child to say hi.</p></div>
+      <div class="pose"><canvas data-scene="cheer" role="img" aria-label="Biscuit jumping with arms out"></canvas><b>Yay!</b><p>Jumps with arms out when a step is done.</p></div>
+      <div class="pose"><canvas data-scene="brush" role="img" aria-label="Biscuit brushing teeth"></canvas><b>Busy</b><p>Turns to three-quarter view to do things.</p></div>
+      <div class="pose"><canvas data-scene="sleep" role="img" aria-label="Biscuit asleep"></canvas><b>Sleepy</b><p>Flops down at bedtime and snores in Zs.</p></div>
+    </div>
+
+    <div class="rules">
+      <div class="rulecard" style="--c:var(--mint)">
+        <h3><i></i>Pets always</h3>
+        <ul>
+          <li><strong>Cheer</strong> when a step is done, however small.</li>
+          <li><strong>Talk about now and next.</strong> The day just keeps moving.</li>
+          <li><strong>Face the child</strong> to say hello or cheer, then turn back to what they're doing.</li>
+          <li><strong>Keep their one special thing.</strong> For Biscuit that's the flopped ear, in every drawing and at every size.</li>
+          <li><strong>Wear what the kid picks.</strong> Bows, caps, capes, all of it.</li>
+        </ul>
+      </div>
+      <div class="rulecard" style="--c:var(--coral)">
+        <h3><i></i>Pets never</h3>
+        <ul>
+          <li><strong>Look sad, cross or worried,</strong> even when a step gets skipped.</li>
+          <li><strong>Mention a missed step.</strong> There's no such thing on the child's screen.</li>
+          <li><strong>Hurry anyone.</strong> The ring shows time passing, so the pet doesn't need to nag.</li>
+          <li><strong>Wink.</strong> Both eyes blink together.</li>
+          <li><strong>Get called a boy or a girl.</strong> Each pet has a name. When you need a pronoun, use they.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="sub">How pets move</p>
+    <div class="specs">
+      <div class="spec-n"><b>12</b><span>frames a second, like an old handheld game</span></div>
+      <div class="spec-n"><b>3–6 s</b><span>between blinks, at random so it feels alive</span></div>
+      <div class="spec-n"><b>15</b><span>frames per hop: crouch, lift, hang, land</span></div>
+      <div class="spec-n"><b>420 ms</b><span>for screens sliding in, easing out soft</span></div>
+    </div>
+
+    <p class="sub">Rules for new pets</p>
+    <div class="grid3">
+      <div class="card"><i class="dot" style="--c:var(--lavender)"></i><h3>Same size</h3><p>About 22 × 40 pixels facing front, on the same grid as Biscuit, so every pet fits the ring and the timer.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--mint)"></i><h3>Same build</h3><p>Square 4 × 4 eyes, chibi arms 6 × 5, no outline, and soft colors that read on navy. Same poses: hello, yay, busy, sleepy.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--carrot)"></i><h3>One special thing</h3><p>Biscuit has the flopped ear. A cat might get a curly tail, a bear a round tummy. One thing, and it's always there.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band day edge" id="logo">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Logo</p>
+      <h2>The o is a window</h2>
+      <p class="lede">MyToki is spelled in soft beads, like a craft-bead picture on a pegboard. The o is the round screen, with two eyes peeking out of the dark. It doesn't say which pet is inside, so it works for Biscuit and every pet after. The i wears a star.</p>
+    </div>
+    <div class="logo-panels">
+      <div class="panel p-night"><div data-wm="primary"></div><span class="cap">Primary · on night</span></div>
+      <div class="panel p-day"><div data-wm="light"></div><span class="cap">On day · navy letters, same dark window</span></div>
+      <div class="panel p-mono"><div data-wm="mono"></div><span class="cap">One color · for stamps, embroidery, fax-quality print</span></div>
+    </div>
+    <div class="construct">
+      <div class="svgbox" data-wm="grid"></div>
+      <ul>
+        <li><i style="--c:var(--lavender)"></i><div><strong>A 25 × 14 bead grid.</strong> Each bead is a rounded square at 84% of its cell with a small shine at the top left.</div></li>
+        <li><i style="--c:var(--cream)"></i><div><strong>The o is one bead taller</strong> than the other letters at the top and the bottom, the way round letters are in a good typeface.</div></li>
+        <li><i style="--c:var(--carrot)"></i><div><strong>The ring is one bead thick</strong> around a dark screen with two square eyes, like every pet's. On the hero they blink and look around.</div></li>
+        <li><i style="--c:var(--amber)"></i><div><strong>The star over the i is Star Amber,</strong> the color of stars from parents.</div></li>
+      </ul>
+    </div>
+
+    <p class="sub">The o on its own</p>
+    <div class="marks">
+      <div class="markcard">
+        <div class="show"><div class="appicon" data-wm="icon"></div></div>
+        <div><h3>App icon</h3><p>The o on its own, on Bedtime Navy. Replaces the paw icon the app uses today.</p></div>
+      </div>
+      <div class="markcard">
+        <div class="show"><div class="boot"><div data-wm="peek"></div></div></div>
+        <div><h3>The peek</h3><p>When the device starts, the whole round screen becomes the window: two eyes blink awake in the dark, then the pet steps in.</p></div>
+      </div>
+      <div class="markcard">
+        <div class="show">
+          <div class="tiny"><div class="appicon" data-wm="icon" style="width:48px;border-radius:12px"></div>48 px</div>
+          <div class="tiny"><div class="appicon" data-wm="icon-s" style="width:32px;border-radius:8px"></div>32 px</div>
+          <div class="tiny"><div class="appicon" data-wm="icon-s" style="width:16px;border-radius:4px"></div>16 px</div>
+        </div>
+        <div><h3>Small sizes</h3><p>Below 32 px, drop the bead shine. The ring and eyes still read at 16.</p></div>
+      </div>
+    </div>
+
+    <div class="space-row">
+      <div class="space">
+        <div data-wm="space"></div>
+        <div><h3>Room to breathe</h3><p class="small">Keep 4 beads clear on every side, as much as the k rises above the other letters. The smallest wordmark is 24 px tall on screen or 10 mm in print. Below that, use the o on its own.</p></div>
+      </div>
+      <div class="space" style="align-content:start">
+        <h3>Where it goes</h3>
+        <p class="small">On Bedtime Navy whenever you can. On cream for print and packaging. On lime only in one color. Never on photos, gradients, or any friend color except lime.</p>
+        <div class="grid2" style="gap:10px">
+          <div style="background:var(--navy);border-radius:18px;padding:16px" data-wm="primary-s"></div>
+          <div style="background:var(--paper);box-shadow:inset 0 0 0 2px var(--line);border-radius:18px;padding:16px" data-wm="light-s"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="sub">Pet ears, for pet moments</p>
+    <div class="ears">
+      <div><div class="tile" data-wm="ears-rabbit"></div><p class="ears-note"><strong>Biscuit</strong> · the flop and the carrot ear</p></div>
+      <div><div class="tile" data-wm="ears-cat"></div><p class="ears-note"><strong>A future cat</strong> · placeholder</p></div>
+      <div><div class="tile" data-wm="ears-bear"></div><p class="ears-note"><strong>A future bear</strong> · placeholder</p></div>
+    </div>
+    <p class="ears-note">The plain o is the logo. When something is about one pet, like that pet's box, sticker sheet or birthday, the o can wear that pet's ears. Take them off again for anything about MyToki as a whole.</p>
+
+    <p class="sub">Please don't</p>
+    <div class="donts">
+      <div class="dont"><div class="tile"><span class="x"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#20294a" stroke-width="2.4" stroke-linecap="round"/></svg></span><div data-wm="d-petface"></div></div><p><strong>Put a pet's face in the o.</strong> The logo belongs to every pet, today's and tomorrow's.</p></div>
+      <div class="dont"><div class="tile"><span class="x"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#20294a" stroke-width="2.4" stroke-linecap="round"/></svg></span><div class="pair"><div data-wm="d-pink"></div><div data-wm="d-blue"></div></div></div><p><strong>Make a girls' and a boys' version.</strong> There's one MyToki, in lime, for everyone.</p></div>
+      <div class="dont"><div class="tile"><span class="x"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#20294a" stroke-width="2.4" stroke-linecap="round"/></svg></span><div data-wm="d-rainbow"></div></div><p><strong>Give each letter its own color.</strong> The letters stay one color, so the eyes are what you notice.</p></div>
+      <div class="dont"><div class="tile squish"><span class="x"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#20294a" stroke-width="2.4" stroke-linecap="round"/></svg></span><div data-wm="primary"></div></div><p><strong>Stretch or squish it.</strong> Beads stay square. Scale the whole thing evenly.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band night edge" id="color">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Color</p>
+      <h2>Night sky and friends</h2>
+      <p class="lede">The ground is Bedtime Navy, the navy the app already uses. It's calm at 7 am and at 7 pm, and easy on the eyes on a screen that stays on all night. The friend colors are bright but soft, and they always come in a mix. Click a color to copy it.</p>
+    </div>
+    <p class="sub" style="margin-top:0">Core</p>
+    <div class="sw-core" id="swCore"></div>
+    <p class="sub">Friends</p>
+    <div class="sw-friends" id="swFriends" style="margin-top:0"></div>
+
+    <p class="sub">How much of each</p>
+    <div class="ratio" id="ratio" role="img" aria-label="Rough proportions: navy 55%, deep night 10%, cream 15%, friends 10%, lime 5%, amber 5%"></div>
+    <div class="ratio-key" id="ratioKey"></div>
+
+    <p class="sub">Color rules</p>
+    <div class="grid4">
+      <div class="card"><i class="dot" style="--c:var(--coral)"></i><h3>Mix warm and cool</h3><p>Anything that uses friend colors mixes at least one warm (Coral, Carrot, Bubblegum) with one cool (Mint, Sky, Lavender). Then nothing reads as "for boys" or "for girls".</p></div>
+      <div class="card"><i class="dot" style="--c:var(--lime)"></i><h3>One lime per screen</h3><p>Lime marks the single thing to press: Done, Next, Play. If two things are lime, neither stands out.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--amber)"></i><h3>Amber means stars</h3><p>Star Amber is only for stars and rewards, so kids learn that yellow-orange means something good from a grown-up.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--mint)"></i><h3>Kids pick their color</h3><p>Siblings each choose a friend color for their own screen. It's never handed out by gender.</p></div>
+    </div>
+
+    <p class="sub">Text on color, checked against WCAG</p>
+    <div class="contrast" id="contrast"></div>
+  </div>
+</section>
+
+<section class="band day edge" id="type">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Type</p>
+      <h2>Letters kids can read</h2>
+      <p class="lede">Three faces, each with one job. Big friendly words, clear reading letters, and pixel numbers that match the pets.</p>
+    </div>
+    <div class="specimens">
+      <div class="spec">
+        <div class="who"><b>Headlines and big words</b><h3>Bagel Fat One</h3><p>Round, heavy and a little squishy, like a pet's cheeks. A few words at a time, never paragraphs.</p></div>
+        <div class="big"><div class="s-display">Teeth time!</div></div>
+      </div>
+      <div class="spec">
+        <div class="who"><b>Anything a child reads</b><h3>Andika</h3><p>Made for people learning to read, with letters that are hard to mix up. Use it for steps, names and short sentences.</p></div>
+        <div class="big">
+          <div class="s-read">Shoes on, then grab your bag. <em>Biscuit's ready</em> when you are.</div>
+          <div class="ag">
+            <div><span>a g</span><small>ANDIKA</small></div>
+            <div><span class="serif">a g</span><small>HOW MANY BOOKS PRINT THEM</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="who"><b>Numbers, timers, tiny labels</b><h3>Pixelify Sans</h3><p>Drawn on a pixel grid like the pets. For times, star counts and labels of a few characters.</p></div>
+        <div class="big"><div class="s-pixel">3:12 · ★ 12 · STEP 2/4</div></div>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card" style="box-shadow:inset 0 0 0 2px var(--line)">
+        <h3>Sizes on the 466 px round screen</h3>
+        <div class="scale">
+          <div><b>48 px</b><span style="font:400 40px/1 var(--f-display)">Yay!</span></div>
+          <div><b>32 px</b><span style="font:700 28px/1.1 var(--f-read)">Brush teeth</span></div>
+          <div><b>22 px</b><span style="font:500 21px/1.1 var(--f-pixel)">3 MIN LEFT</span></div>
+          <div><b>18 px</b><span style="font:400 18px/1.3 var(--f-read)">The smallest text a child sees</span></div>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:inset 0 0 0 2px var(--line);display:grid;gap:14px;align-content:start">
+        <h3>Setting it</h3>
+        <p>Sentence case everywhere. Headlines end with a full stop or an exclamation mark, never both. Pixel labels can be all caps with a little extra letter spacing.</p>
+        <p>Keep lines short: a child's step fits on one line of the round screen, around 14 characters.</p>
+      </div>
+    </div>
+    <div class="inter-note"><span data-wm="icon-s" style="width:36px;flex:none;border-radius:10px;overflow:hidden;background:var(--navy);display:block"></span><p><strong>The parent app keeps Inter,</strong> which it already uses for lists, settings and schedules. The brand faces appear there for headings and the child's own screens.</p></div>
+  </div>
+</section>
+
+<section class="band night edge" id="shapes">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Shapes and patterns</p>
+      <h2>Beads, circles and hops</h2>
+      <p class="lede">Five shapes do most of the work. Little kids see soft toys and stickers in them; big kids see a video game. Both are right.</p>
+    </div>
+    <div class="kit">
+      <div class="card"><div class="art" data-shape="bead"></div><h3>The bead</h3><p>Every pixel of the brand is a soft bead with a shine.</p></div>
+      <div class="card"><div class="art" data-shape="circle"></div><h3>The circle</h3><p>The screen, the icon and the timer ring are all round.</p></div>
+      <div class="card"><div class="art" data-shape="spark"></div><h3>The sparkle</h3><p>Means a star from a grown-up. Amber only.</p></div>
+      <div class="card"><div class="art" data-shape="hop"></div><h3>The hop</h3><p>Progress hops from step to step; it doesn't slide.</p></div>
+      <div class="card"><div class="art" data-shape="peek"></div><h3>The peek</h3><p>Two eyes in the dark. For loading, empty screens and start-up.</p></div>
+    </div>
+    <p class="sub">Patterns</p>
+    <div class="patterns">
+      <div class="pat"><div class="fill" data-pattern="sky"></div><div class="meta"><h3>Night sky</h3><p>Stars, sparkles and a moon on navy. Box insides, bedtime screens, the app's empty states.</p></div></div>
+      <div class="pat"><div class="fill" data-pattern="carrot"></div><div class="meta"><h3>Carrot patch</h3><p>Carrots and leaf beads on cream. Packaging, stickers, the printed chore chart.</p></div></div>
+      <div class="pat"><div class="fill" data-pattern="faces"></div><div class="meta"><h3>Peek parade</h3><p>The o in navy on lime. Tape, gift wrap, merch. Loud, so use a little.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="band day edge" id="kids">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Every kid</p>
+      <h2>From 2 to 10, girls and boys</h2>
+      <p class="lede">A four-year-old and an eight-year-old can share a home, so they share a brand. The look stays the same and the screen grows up. Pictures lead for little kids; words and numbers join in for big kids.</p>
+    </div>
+    <div class="ages">
+      <div class="age">
+        <span class="tag" style="--c:var(--mint)">Little · 2 to 5</span>
+        <div class="dev">
+          <div class="dev-screen">
+            <svg class="dev-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="ring-track"/><circle cx="50" cy="50" r="40" class="ring-arc" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 50 50)"/></svg>
+            <span class="dev-stars" data-stars="3"></span>
+            <span class="dev-icon" data-sprite="brush"></span>
+            <canvas class="pet" data-scene="brush"></canvas>
+            <span class="dev-steps"><i class="done"></i><i class="now"></i><i></i><i></i></span>
+            <span class="dev-go" aria-label="Done"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#20294a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="dev-dots"><i></i><i class="on"></i><i></i></span>
+          </div>
+        </div>
+        <h3>Pictures first</h3>
+        <p>A toothbrush picture, four step beads and one big lime tick. No reading needed, and the pet fills the middle of the screen.</p>
+      </div>
+      <div class="age">
+        <span class="tag" style="--c:var(--sky)">Big · 6 to 10</span>
+        <div class="dev">
+          <div class="dev-screen">
+            <svg class="dev-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="ring-track"/><circle cx="50" cy="50" r="40" class="ring-arc" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 50 50)"/></svg>
+            <span class="dev-top">★ 12</span>
+            <span class="dev-title">Brush teeth</span>
+            <canvas class="pet" data-scene="brush" style="width:46%"></canvas>
+            <span class="dev-time">3 MIN LEFT</span>
+            <span class="dev-pill"><span class="tick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#dcef70" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Top teeth · 2/4</span>
+            <span class="dev-dots"><i></i><i class="on"></i><i></i></span>
+          </div>
+        </div>
+        <h3>Words and numbers</h3>
+        <p>The step's name, minutes left and a star count. The pet moves over a bit and becomes the sidekick.</p>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th></th><th>Little · 2 to 5</th><th>Big · 6 to 10</th></tr></thead>
+        <tbody>
+          <tr><th>Words on screen</th><td>None, or one</td><td>A short step name</td></tr>
+          <tr><th>Time</th><td>A ring that empties</td><td>The ring plus minutes left</td></tr>
+          <tr><th>Stars</th><td>Star pictures, up to five</td><td>A number: ★ 12</td></tr>
+          <tr><th>The pet</th><td>Big, in the middle, cheers a lot</td><td>Smaller, the sidekick, a bit funny</td></tr>
+          <tr class="same"><th>Stays the same</th><td colspan="2">The colors, the chime, the circle, the beads and the pet</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="every">
+      <div>
+        <h3>No blue team, no pink team</h3>
+        <p>Each child picks their own friend color and dresses their own pet. Show the pets doing everything the app already animates, and show every kind of kid doing it too.</p>
+        <div class="acts"><span>Soccer</span><span>Reading</span><span>Video games</span><span>Dress-up</span><span>Bath time</span><span>Brushing teeth</span><span>Bedtime</span></div>
+      </div>
+      <div class="kids">
+        <div class="kid"><span class="face" style="--c:var(--pink)" data-wm="kidface"></span><div><b>Leo</b><span>Bubblegum</span></div></div>
+        <div class="kid"><span class="face" style="--c:var(--sky)" data-wm="kidface"></span><div><b>Maya</b><span>Sky</span></div></div>
+        <div class="kid"><span class="face" style="--c:var(--mint)" data-wm="kidface"></span><div><b>Sam</b><span>Mint</span></div></div>
+        <div class="kid"><span class="face" style="--c:var(--coral)" data-wm="kidface"></span><div><b>Noor</b><span>Coral</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band night edge" id="voice">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Voice</p>
+      <h2>How MyToki talks</h2>
+      <p class="lede">Like a friend who's doing it with you. Short, warm, and about right now. Every pet talks this way, and so does everything with MyToki on it.</p>
+    </div>
+    <div class="grid4">
+      <div class="card"><i class="dot" style="--c:var(--lime)"></i><h3>Short</h3><p>Five words or fewer on the child's screen. Pictures carry the rest.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--mint)"></i><h3>Now and next</h3><p>This step and the one after it. Never what was missed.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--pink)"></i><h3>On their side</h3><p>"Let's" instead of "you need to". The pet does it too.</p></div>
+      <div class="card"><i class="dot" style="--c:var(--sky)"></i><h3>Real words</h3><p>Teeth, shoes, bath. Not task, routine or complete.</p></div>
+    </div>
+    <p class="sub">Pets say / pets never say</p>
+    <div class="says">
+      <div class="say-head"><span>Pets say</span><span>Pets never say</span></div>
+      <div class="say-row"><div class="bub yes"><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Teeth time! Let's go.</span></div><div class="bub no"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>You haven't brushed your teeth yet.</span></div></div>
+      <div class="say-row"><div class="bub yes"><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Yay, all done! High five.</span></div><div class="bub no"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Task completed successfully.</span></div></div>
+      <div class="say-row"><div class="bub yes"><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Five more minutes, then shoes.</span></div><div class="bub no"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Hurry up, you're going to be late.</span></div></div>
+      <div class="say-row"><div class="bub yes"><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Chores are here if you want one.</span></div><div class="bub no"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>You still have chores to do.</span></div></div>
+      <div class="say-row"><div class="bub yes"><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Nighty night. See you when the sun's up.</span></div><div class="bub no"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Bedtime was ten minutes ago.</span></div></div>
+    </div>
+    <div class="words">
+      <div class="card"><h3>Words pets love</h3><div class="chips love"><span>hop</span><span>yay</span><span>let's</span><span>ready?</span><span>all done</span><span>high five</span><span>next up</span><span>nighty night</span></div></div>
+      <div class="card"><h3>Words pets never use</h3><div class="chips never"><span>late</span><span>missed</span><span>failed</span><span>wrong</span><span>should</span><span>hurry</span><span>bad</span></div></div>
+    </div>
+    <div class="parent">
+      <div>
+        <p class="sub" style="margin-top:0">Talking to parents</p>
+        <h3 style="font:400 32px/1.05 var(--f-display);color:var(--cream)">Calm, plain and specific</h3>
+        <p style="color:var(--muted);margin-top:12px;max-width:52ch">Name the child, the thing and the time. Offer the next action. Save exclamation marks for real news, like a first week of mornings done.</p>
+      </div>
+      <div class="notif" role="img" aria-label="Example notification: Maya finished the morning routine at 7:42. Give 2 stars?">
+        <div class="appicon" data-wm="icon-s"></div>
+        <div>
+          <div class="t"><span>MYTOKI</span><span>7:42</span></div>
+          <p>Maya finished the morning routine at 7:42.</p>
+          <div class="acts2"><span class="go">Give ★ 2</span><span>Later</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band day edge" id="world">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">In the world</p>
+      <h2>MyToki out and about</h2>
+      <p class="lede">What the brand looks like once it leaves the screen, and on the screen after dark.</p>
+    </div>
+    <div class="world">
+      <div class="card">
+        <div class="center">
+          <div class="dev">
+            <div class="dev-screen dark">
+              <svg class="dev-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="ring-track" style="stroke:#1b2140"/></svg>
+              <span class="dev-moon" data-sprite="moon"></span>
+              <span class="dev-clock">6:48</span>
+              <canvas class="pet" data-scene="sleep" style="width:60%;transform:translate(-50%,-38%)"></canvas>
+              <span class="dev-time" style="bottom:17%;font-family:var(--f-read);font-weight:700">Sun's not up yet</span>
+            </div>
+          </div>
+        </div>
+        <div><h3>Night light</h3><p>After bedtime the screen dims to a deeper navy and the pet sleeps. At wake-up time the room turns to dawn and the clock goes green.</p></div>
+      </div>
+      <div class="card">
+        <div class="sheet" id="sheet">
+          <span class="stk"><canvas data-scene="st-wave" data-px="4"></canvas></span>
+          <span class="stk-txt" style="background:var(--lavender);color:var(--navy);transform:rotate(-5deg)">Teeth time!</span>
+          <span class="stk"><canvas data-scene="st-star" data-px="5"></canvas></span>
+          <span class="stk" style="transform:rotate(6deg)"><span data-wm="sticker" style="display:block;width:92px"></span></span>
+          <span class="stk-pix" style="background:var(--lime);color:var(--navy);transform:rotate(4deg)">YAY!</span>
+          <span class="stk"><canvas data-scene="st-cheer" data-px="4"></canvas></span>
+          <span class="stk" style="transform:rotate(-8deg)"><canvas data-scene="st-carrot" data-px="6"></canvas></span>
+          <span class="stk-txt" style="background:var(--mint);color:var(--navy);transform:rotate(3deg)">All done</span>
+          <span class="stk"><canvas data-scene="st-sleep" data-px="3"></canvas></span>
+        </div>
+        <div><h3>Sticker sheet</h3><p>A sheet in every box for the fridge chart, the lunchbox and the bedroom door. Stickers use crisp pixels with a thick white edge.</p></div>
+      </div>
+    </div>
+    <div class="world-2">
+      <div class="card" style="background:var(--paper);box-shadow:inset 0 0 0 2px var(--line)">
+        <div class="box">
+          <div class="top" data-pattern="sky"></div>
+          <div class="mid"><div data-wm="primary"></div><p>One hop at a time.</p><span>A routine buddy for ages 2 to 10</span></div>
+          <div class="bot" data-pattern="carrot"></div>
+        </div>
+        <div><h3>The box</h3><p>Night sky on top, carrot patch on the bottom, the wordmark in the middle. The inside of the lid is all night sky.</p></div>
+      </div>
+      <div class="card" style="background:var(--paper);box-shadow:inset 0 0 0 2px var(--line)">
+        <h3>What's next for MyToki</h3>
+        <p>This is a first pass, and the name is a working title. Before it goes further:</p>
+        <ul style="margin:0;padding-left:20px;color:var(--ink-soft);display:grid;gap:8px">
+          <li>Biscuit keeps their name. Each new pet gets its own name, and MyToki stays the name of the whole thing.</li>
+          <li>Sketch the next pets on Biscuit's grid, following the rules for new pets.</li>
+          <li>Run a trademark search on MyToki in toy, app and children's electronics classes.</li>
+          <li>Try the chime and the face mark with a few kids at each end of the age range.</li>
+          <li>Swap the paw app icon and the PetPals name in the app for the MyToki ones.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="band night edge foot">
+  <div class="wrap">
+    <div data-wm="foot"></div>
+    <p>MyToki brand book · v0.2 · 12 October 2026. Colors come from the app's <code>tokens.css</code>. Biscuit's pixels come from <code>src/components/pets/pixel</code>, drawn cell for cell.</p>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const C = {navy:'#20294a',deep:'#181e36',abyss:'#0e1221',cream:'#f9f5e1',paper:'#fffdf4',lime:'#dcef70',amber:'#fab047',lavender:'#a89af0',mint:'#65cdaa',pink:'#eab5de',coral:'#ff8f91',sky:'#879bff',carrot:'#f7945a',nose:'#f17097',blush:'#f6adc3',eye:'#0e1221',text:'#f5f3ff',muted:'#bdb5f5',surface:'#2c3558'};
+
+/* ---------- Biscuit's pixels, ported from src/components/pets/pixel ---------- */
+const PAL = {W:'#f9f5e1',O:'#f7945a',o:'#d8703a',K:'#010101',P:'#f17097',R:'#f6adc3',T:'#35b8a8',t:'#1f857a',B:'#a9def6',F:'#ffffff',f:'#9fd3ef',Y:'#ffe07a',y:'#f5b544',Z:'#d9d6ff',G:'#7cc35a',g:'#4f9a3c',A:'#fab047',L:'#dcef70',N:'#20294a',V:'#a89af0',M:'#65cdaa',S:'#eab5de',C:'#ff8f91',Q:'#879bff',D:'#10152a',U:'#b0805c',u:'#8f6446'};
+class Pix{
+  constructor(){this.m=new Map()}
+  set(x,y,c){if(c&&c!=='.')this.m.set(x+','+y,c);return this}
+  clone(){const p=new Pix();p.m=new Map(this.m);return p}
+  each(fn){for(const [k,c] of this.m){const i=k.indexOf(',');fn(+k.slice(0,i),+k.slice(i+1),c)}}
+  stamp(rows,dx=0,dy=0){rows.forEach((r,y)=>{for(let x=0;x<r.length;x++)if(r[x]!=='.')this.set(x+dx,y+dy,r[x])});return this}
+  bounds(){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;this.each((x,y)=>{x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)});return{x0,y0,x1,y1}}
+}
+const rep=(s,n=2)=>Array(n).fill(s);
+const runs=(p,list,c='W')=>{for(const [y,a,b] of list)for(let x=a;x<=b;x++)p.set(x,y,c);return p};
+
+const SIDE=new Pix().stamp([
+  ...rep(".....WWWW......WWW..........."),
+  ...rep("...WWWWWWWW..WWOWWWW........."),
+  ...rep(".WWWWWWOOWW..WWOOOWW........."),
+  ...rep(".WWWWOOOOWW..WWOOOWW........."),
+  ...rep(".....OOOOWW..WWOOOWW........."),
+  ...rep(".....WWWWWWWWWWOWWW.........."),
+  ...rep("..WWWWWWWWWWWWWWWWWWW........",4),
+  ...rep("WWKKKKWWWWWKKKKWWWWWWWW......",4),
+  ...rep("WWWWWWWPPWWWWWWWWWWWWWW......"),
+  ...rep("WWWWWWWWWWWWWWWWWWWWWWW......"),
+  ...rep("..WWWWWWWWWWWWWWWWWWW........"),
+  ...rep(".......WWWWWWWWWWWWW........."),
+  ...rep(".....WWWWWWWWWWWWWWWWW......."),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWWWWW",4),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+  ...rep("...WWWWWWWWWWWWWWWWWWW......."),
+]);
+const FRONT_BASE=new Pix().stamp([
+  ...rep("....WWWW......WWWW...."),
+  ...rep("..WWWWWWWW..WWOOWWWW.."),
+  ...rep(".WWWWWOOWW..WWOOOOWW.."),
+  ...rep(".WWWOOOOWW..WWOOOOWW.."),
+  ...rep("....OOOOWW..WWOOOOWW.."),
+  ...rep("....WWWWWWWWWWOOWW...."),
+  ...rep("...WWWWWWWWWWWWWWWW...",4),
+  ...rep(".WWWKKKKWWWWWWKKKKWWW.",4),
+  ...rep(".WWWWWWWWWPPWWWWWWWWW."),
+  ...rep(".WWWWWWWWWWWWWWWWWWWW."),
+  ...rep("...WWWWWWWWWWWWWWWW..."),
+  ...rep(".....WWWWWWWWWWWW....."),
+  ...rep("....WWWWWWWWWWWWWW....",10),
+  ...rep("....WWWWWW..WWWWWW...."),
+]);
+const T_LEFT_ARM=[[3,28,33],[2,28,33],[1,28,33],[0,28,33],[-1,29,32]];
+const tiltedArm=k=>{const p=FRONT_BASE.clone();for(const [x,top,bottom] of T_LEFT_ARM){const lift=Math.round(k*(3-x));for(let y=top-lift;y<=bottom-lift;y++)p.set(x,y,'W')}return p};
+const TPOSE=runs(FRONT_BASE.clone(),[[28,0,3],[29,-1,3],[30,-1,3],[31,-1,3],[32,-1,3],[33,0,3],[28,18,21],[29,18,22],[30,18,22],[31,18,22],[32,18,22],[33,18,21]]);
+const FRONT={rest:FRONT_BASE,wave:tiltedArm(1),waveLow:tiltedArm(.5),t:TPOSE};
+const SLEEPER=new Pix().stamp([
+  ".....................WWW............",
+  ".................WWWWWWW............",
+  "............WWWWWWWWWWWWWWW.........",
+  ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+  ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWW........",
+  "..WWWWWWWWWWWWWWWWOOOOOOOOW.........",
+  "..WWWWWWWWWWWWWWWWOWWWWWWWW.........",
+  "..WWWWWWWWWWWWWWWWWWWWW.............",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWW.......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+  "WWKKKKWWWWWKKKKWWWWWWWWWWWWWWW......",
+  "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+  ".....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+  "......WWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+]);
+function eyes(p,kind,xs,top=16){
+  for(const c of xs){
+    for(let y=top;y<top+4;y++)for(let x=c;x<c+4;x++)p.set(x,y,'W');
+    const block=(y0,y1)=>{for(let y=y0;y<=y1;y++)for(let x=c;x<c+4;x++)p.set(x,y,'K')};
+    if(kind==='open')block(top,top+3);
+    else if(kind==='blink')block(top+2,top+2);
+    else if(kind==='half')block(top+2,top+3);
+    else if(kind==='happy'){p.set(c+1,top+1,'K');p.set(c+2,top+1,'K');p.set(c,top+2,'K');p.set(c+3,top+2,'K')}
+  }
+}
+function mouth(p,kind,nx,y=22){
+  const s=(x,yy,c='K')=>p.set(x,yy,c);
+  if(kind==='smile'){s(nx-1,y);s(nx+2,y);s(nx,y+1);s(nx+1,y+1)}
+  else if(kind==='yay'){for(let x=nx-1;x<=nx+2;x++)s(x,y);s(nx-1,y+1);s(nx,y+1,'P');s(nx+1,y+1,'P');s(nx+2,y+1);s(nx,y+2);s(nx+1,y+2)}
+}
+const PAW=[[27,1,3],[28,0,5],[29,0,5],[30,0,5],[31,1,5]];
+const paw=(p,dx,dy)=>{for(const [y,a,b] of PAW)for(let x=a;x<=b;x++)p.set(x+dx,y+dy,'W')};
+function brush(p,dx,dy){for(let x=5;x<=8;x++){p.set(x+dx,22+dy,'B');p.set(x+dx,23+dy,'T')}for(let i=0;i<7;i++)p.set(4-i+dx,24+i+dy,'T');paw(p,dx,dy)}
+const FOAM=[[[4,21,'f'],[3,22,'f'],[4,22,'F'],[3,21,'F']],[[9,22,'f'],[10,22,'F'],[9,21,'F'],[10,23,'f']],[[1,24,'f'],[1,25,'F'],[0,24,'f']]];
+const ZED=["ZZZZ","..Z.",".Z..","ZZZZ"];
+
+/* small bead sprites */
+const SPR={
+  star:["...A...","..AAA..","AAAAAAA",".AAAAA.","..AAA..",".AA.AA.","AA...AA"],
+  plus:[".A.","AAA",".A."],
+  moon:["..YYY",".YY..","YY...","YY...","YY...",".YY..","..YYY"],
+  carrot:[".....G.G","......GG","....OOG.","...OOOO.","..OOoO..",".OOoO...",".OO.....","O......."],
+  brush:[".B.B.B.B......",".BBBBBBB......","TTTTTTTTTTTTTT","TTTTTTTTTTTTTT"],
+};
+
+/* ---------- crisp canvas painter ---------- */
+function paint(cv,pix,st,o={}){
+  const r=cv.getBoundingClientRect();if(!r.width||!r.height)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const W=Math.round(r.width*dpr),H=Math.round(r.height*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,W,H);
+  const s=Math.max(1,Math.floor(Math.min(W/st.cols,H/st.rows)));
+  const ox=Math.round((W-s*st.cols)/2),oy=Math.round((H-s*st.rows)/2);
+  const X=x=>ox+(x-st.x0)*s,Y=y=>oy+(y-st.y0)*s,dy=o.dy||0;
+  if(o.shadow){const lift=Math.max(0,-dy);ctx.fillStyle='rgba(8,10,22,.35)';ctx.beginPath();ctx.ellipse(X(o.shadow.x),Y(o.shadow.y),s*o.shadow.w*(1-lift/22),s*1.3*(1-lift/30),0,0,Math.PI*2);ctx.fill()}
+  if(o.outline){ctx.fillStyle=o.outline;const e=o.outlineW||2;pix.each((x,y)=>{ctx.beginPath();ctx.arc(X(x)+s/2,Y(y+dy)+s/2,(e+.6)*s,0,Math.PI*2);ctx.fill()})}
+  pix.each((x,y,c)=>{ctx.fillStyle=PAL[c]||c;ctx.fillRect(X(x),Y(y+dy),s,s)});
+}
+function fitStage(pix,pad){const b=pix.bounds();return{x0:b.x0-pad,y0:b.y0-pad,cols:b.x1-b.x0+1+2*pad,rows:b.y1-b.y0+1+2*pad}}
+
+/* ---------- scenes ---------- */
+const ST={front:{x0:-4,y0:-3,cols:30,rows:46},side:{x0:-5,y0:-4,cols:36,rows:46},sleep:{x0:-3,y0:-13,cols:44,rows:36}};
+function frontFrame(pose,eyeK,mouthK){const p=FRONT[pose].clone();eyes(p,eyeK,[4,14]);if(mouthK)mouth(p,mouthK,10);return p}
+const scenes={
+  anatomy:()=>({pix:frontFrame('t','open'),st:ST.front}),
+  wave:(t,b)=>({pix:frontFrame(Math.floor(t/4)%2?'waveLow':'wave',b?'blink':'open','smile'),st:ST.front,o:{shadow:{x:11,y:40.2,w:9}}}),
+  cheer:(t)=>{const seq=[0,0,-2,-4,-5,-5,-4,-2,0,0,0,0,0,0];const dy=REDUCE?-3:seq[t%seq.length];return{pix:frontFrame(dy<0||REDUCE?'t':'rest','happy','yay'),st:ST.front,o:{dy,shadow:{x:11,y:40.2,w:9}}}},
+  brush:(t,b)=>{const p=SIDE.clone();eyes(p,b?'blink':'happy',[2,11]);const d=REDUCE?0:(t>>1)%2;brush(p,0,d);if(!REDUCE)for(const [x,y,c] of FOAM[(t>>2)%3])p.set(x,y,c);return{pix:p,st:ST.side,o:{shadow:{x:17,y:40.2,w:12}}}},
+  sleep:(t)=>{const p=SLEEPER.clone();const k=REDUCE?0:(t>>2)%6;p.stamp(ZED,29+(k>>1),-4-k);if(!REDUCE&&k>2)p.stamp(ZED,24,-7-(k-3));return{pix:p,st:ST.sleep}},
+  'st-wave':()=>{const p=frontFrame('wave','open','smile');return{pix:p,st:fitStage(p,3),o:{outline:'#ffffff',outlineW:2}}},
+  'st-cheer':()=>{const p=frontFrame('t','happy','yay');return{pix:p,st:fitStage(p,3),o:{outline:'#ffffff',outlineW:2}}},
+  'st-sleep':()=>{const p=SLEEPER.clone();p.stamp(ZED,30,-6);return{pix:p,st:fitStage(p,3),o:{outline:'#ffffff',outlineW:2}}},
+  'st-star':()=>{const p=new Pix().stamp(SPR.star);return{pix:p,st:fitStage(p,2),o:{outline:'#ffffff',outlineW:1}}},
+  'st-carrot':()=>{const p=new Pix().stamp(SPR.carrot);return{pix:p,st:fitStage(p,2),o:{outline:'#ffffff',outlineW:1}}},
+};
+const animated=new Set(['wave','cheer','brush','sleep']);
+const canvases=[...document.querySelectorAll('canvas[data-scene]')].map(cv=>({cv,name:cv.dataset.scene,t:Math.floor(Math.random()*40),blink:0,next:30+Math.random()*50|0,visible:true}));
+// Stickers size themselves from their sprite so the white edge never clips.
+for(const c of canvases){const px=+c.cv.dataset.px;if(px){const {st}=scenes[c.name](0,false);c.cv.style.width=st.cols*px+'px';c.cv.style.height=st.rows*px+'px'}}
+function draw(c){const sc=scenes[c.name](c.t,c.blink>0);paint(c.cv,sc.pix,sc.st,sc.o)}
+
+/* hero: idle blinks, a wave now and then, a hop on tap */
+const hero={cv:document.getElementById('heroCanvas'),mode:'idle',f:0,blink:0,next:40,idle:0};
+const HOP=[1,1,0,-3,-6,-8,-9,-9,-8,-6,-3,0,1,1,0];
+function heroDraw(){
+  let pose='rest',eyeK='open',mouthK=null,dy=0;
+  if(hero.mode==='wave'){pose=Math.floor(hero.f/4)%2?'waveLow':'wave';mouthK='smile';if(hero.f>36)hero.mode='idle'}
+  if(hero.mode==='hop'){dy=REDUCE?0:HOP[Math.min(hero.f,HOP.length-1)];pose=(REDUCE||(hero.f>=2&&hero.f<=12))?'t':'rest';eyeK='happy';mouthK='yay';if(hero.f>=(REDUCE?14:HOP.length))hero.mode='idle'}
+  if(hero.mode==='idle'&&hero.blink>0)eyeK='blink';
+  paint(hero.cv,frontFrame(pose,eyeK,mouthK),{x0:-4,y0:-12,cols:30,rows:54},{dy,shadow:{x:11,y:40.2,w:9}});
+}
+function heroStep(){
+  hero.f++;
+  if(hero.blink>0)hero.blink--;else if(!REDUCE&&--hero.next<=0){hero.blink=2;hero.next=36+Math.random()*36|0}
+  if(hero.mode==='idle'&&!REDUCE&&++hero.idle>110){hero.idle=0;hero.mode='wave';hero.f=0}
+  heroDraw();
+}
+
+/* ---------- the chime ---------- */
+let ac=null;
+function chime(){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+.02;
+    const note=(f,at,d)=>{const o=ac.createOscillator(),g=ac.createGain(),lp=ac.createBiquadFilter();o.type='triangle';o.frequency.value=f;lp.type='lowpass';lp.frequency.value=3200;g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.32,at+.012);g.gain.exponentialRampToValueAtTime(.0001,at+d);o.connect(lp).connect(g).connect(ac.destination);o.start(at);o.stop(at+d+.05)};
+    note(783.99,t,.18);note(1046.5,t+.14,.42);
+  }catch(e){}
+  const n=document.getElementById('notes');n.classList.remove('on');void n.offsetWidth;n.classList.add('on');
+}
+document.getElementById('chimeBtn').addEventListener('click',chime);
+document.getElementById('heroBtn').addEventListener('click',()=>{hero.mode='hop';hero.f=0;hero.idle=0;chime();if(REDUCE)heroDraw()});
+
+/* ---------- bead SVG builder ---------- */
+const f3=n=>+n.toFixed(3);
+function beadSVG(cells,o={}){
+  const pad=o.pad??.6,bead=o.bead??.84,rx=o.rx??.27,shine=o.shine!==false;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const c of cells){x0=Math.min(x0,c.x);y0=Math.min(y0,c.y);x1=Math.max(x1,c.x+1);y1=Math.max(y1,c.y+1)}
+  if(o.bounds)({x0,y0,x1,y1}=o.bounds);
+  const vb={x:x0-pad,y:y0-pad,w:x1-x0+2*pad,h:y1-y0+2*pad};
+  const order=['outline','type','ring','screen','face','ears','eyeL','eyeR','sparkX','spark'];
+  const groups={};for(const c of cells)(groups[c.g||'type']??=[]).push(c);
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f3(vb.x)} ${f3(vb.y)} ${f3(vb.w)} ${f3(vb.h)}"${o.label?` role="img" aria-label="${o.label}"`:' aria-hidden="true"'}${o.cls?` class="${o.cls}"`:''}${o.par?` preserveAspectRatio="${o.par}"`:''}>`;
+  if(o.under)s+=o.under(vb);
+  for(const g of Object.keys(groups).sort((a,b)=>order.indexOf(a)-order.indexOf(b))){
+    s+=`<g class="g-${g}">`;
+    for(const c of groups[g]){
+      const b=c.s??bead,i=(1-b)/2;
+      s+=`<rect x="${f3(c.x+i)}" y="${f3(c.y+i)}" width="${f3(b)}" height="${f3(b)}" rx="${f3(rx*b/bead)}" fill="${c.c}"/>`;
+      if(shine&&b>.6&&!c.noShine)s+=`<circle cx="${f3(c.x+i+b*.28)}" cy="${f3(c.y+i+b*.26)}" r="${f3(b*.11)}" fill="#fff" fill-opacity="${c.dark?.55:.42}"/>`;
+    }
+    s+=`</g>`;
+  }
+  if(o.over)s+=o.over(vb);
+  return s+`</svg>`;
+}
+
+/* the wordmark: 41 x 14 beads (M y T o k i); L letters, R the o's ring, D its dark screen, W an eye on the screen */
+const WM=[
+  "................................LL.......",
+  "LL...LL........LLLLLL...........LL.......",
+  "LLL.LLL........LLLLLL...........LL.......",
+  "LLLLLLL..........LL.....RRRRR...LL.......",
+  "LL.L.LL.LL..LL...LL....RRDDDRR..LL..LL.LL",
+  "LL...LL.LL..LL...LL...RRDDDDDRR.LL.LL..LL",
+  "LL...LL.LL..LL...LL...RDWWDWWDR.LLLL...LL",
+  "LL...LL.LL..LL...LL...RDWWDWWDR.LLL....LL",
+  "LL...LL.LL..LL...LL...RDDDDDDDR.LLLL...LL",
+  "LL...LL..LLLLL...LL...RRDDDDDRR.LL.LL..LL",
+  "LL...LL.....LL...LL....RRDDDRR..LL..LL.LL",
+  "............LL..........RRRRR............",
+  ".........LLLLL...........................",
+  "........LLLL.............................",
+];
+/* optional ears on the o, for one pet's own moments (cols 21-30, rows 0-2) */
+const EARS={
+  rabbit:["..WW...WW.",".WWWW..WOW","OOWW...WOW"],
+  cat:["..A.....A.","..AA...AA.","..APA.APA."],
+  bear:[".UUU...UUU",".UuU...UuU",".UUU...UUU"],
+};
+/* the rejected version: a rabbit's face as the o (cols 15-24, rows 0-10) */
+const OLD_O=["..WW...WW.",".WWWW..WOW","OOWW...WOW",".OWW...WOW","..WWWWWWW.",".WWWWWWWWW",".WKKWWWKKW",".WKKWWWKKW",".WWWWPWWWW",".WWWWWWWWW","..WWWWWWW."];
+const MARK_GROUPS=['ring','screen','eyeL','eyeR','ears'];
+function wordmark(opt={}){
+  const o={type:C.lime,screen:PAL.D,eye:C.cream,star:C.amber,...opt};
+  const cells=[],occ=new Set();
+  const add=(x,y,c,g,extra={})=>{cells.push({x,y,c,g,...extra});occ.add(x+','+y)};
+  const rainbow=[C.coral,C.amber,C.mint,C.sky];
+  WM.forEach((row,y)=>[...row].forEach((ch,x)=>{
+    if(ch==='.')return;
+    if(ch==='L'){if(!o.markOnly&&!o.windowOnly)add(x,y,o.mono||(o.rainbow?rainbow[x<7?0:x<14?1:x<21?2:3]:o.type),'type');return}
+    if(o.petFace||(o.windowOnly&&ch==='R'))return;
+    if(ch==='R'){add(x,y,o.mono||(o.rainbow?rainbow[3]:(o.ring||o.type)),'ring');return}
+    if(!o.mono)add(x,y,o.screen,'screen');
+    if(ch==='W')add(x,y,o.mono||o.eye,x<26?'eyeL':'eyeR',{noShine:!(y===6&&(x===24||x===27))});
+  }));
+  if(o.petFace)OLD_O.forEach((r,y)=>[...r].forEach((ch,i)=>{if(ch!=='.')add(21+i,y,{W:C.cream,O:C.carrot,K:C.eye,P:C.nose}[ch],'face',{dark:ch==='K'})}));
+  if(o.ears)EARS[o.ears].forEach((r,y)=>[...r].forEach((ch,i)=>{if(ch!=='.')add(21+i,y,PAL[ch],'ears')}));
+  if(!o.markOnly&&!o.windowOnly&&!o.noSpark){
+    const sc=o.mono||o.star;
+    for(const [x,y] of [[39.5,1.5],[38.5,1.5],[40.5,1.5],[39.5,.5],[39.5,2.5]])cells.push({x,y,c:sc,g:'spark'});
+    if(o.live)for(const [x,y] of [[38.5,.5],[40.5,.5],[38.5,2.5],[40.5,2.5]])cells.push({x,y,c:sc,g:'sparkX',s:.42});
+  }
+  if(o.outline){
+    const t=o.outlineW||1,seen=new Set();
+    for(const c of cells.filter(c=>MARK_GROUPS.includes(c.g)))for(let j=-t;j<=t;j++)for(let i=-t;i<=t;i++){
+      if(i*i+j*j>t*t+t)continue;
+      const x=c.x+i,y=c.y+j,k=x+','+y;
+      if(occ.has(k)||seen.has(k))continue;
+      seen.add(k);cells.push({x,y,c:o.outline,g:'outline'});
+    }
+  }
+  return cells;
+}
+const WMS={
+  hero:()=>beadSVG(wordmark({live:true}),{label:'MyToki',cls:'live',pad:.4}),
+  nav:()=>beadSVG(wordmark(),{shine:false,pad:.2}),
+  primary:()=>beadSVG(wordmark(),{label:'MyToki logo on navy'}),
+  'primary-s':()=>beadSVG(wordmark(),{label:'MyToki logo on navy'}),
+  light:()=>beadSVG(wordmark({type:C.navy}),{label:'MyToki logo on cream'}),
+  'light-s':()=>beadSVG(wordmark({type:C.navy}),{label:'MyToki logo on cream'}),
+  mono:()=>beadSVG(wordmark({mono:C.navy}),{label:'MyToki logo in one color'}),
+  foot:()=>beadSVG(wordmark(),{label:'MyToki'}),
+  'd-petface':()=>beadSVG(wordmark({petFace:true})),
+  'ears-rabbit':()=>beadSVG(wordmark({ears:'rabbit'}),{label:'MyToki logo with rabbit ears'}),
+  'ears-cat':()=>beadSVG(wordmark({ears:'cat'}),{label:'MyToki logo with cat ears'}),
+  'ears-bear':()=>beadSVG(wordmark({ears:'bear'}),{label:'MyToki logo with bear ears'}),
+  'd-pink':()=>beadSVG(wordmark({type:C.pink})),
+  'd-blue':()=>beadSVG(wordmark({type:C.sky})),
+  'd-rainbow':()=>beadSVG(wordmark({rainbow:true})),
+  icon:()=>beadSVG(wordmark({markOnly:true}),{bounds:{x0:14,y0:1,x1:27,y1:14},pad:0,label:'MyToki app icon'}),
+  'icon-s':()=>beadSVG(wordmark({markOnly:true}),{bounds:{x0:15,y0:2,x1:26,y1:13},pad:0,shine:false}),
+  peek:()=>beadSVG(wordmark({windowOnly:true}),{bounds:{x0:22.5,y0:3.5,x1:30.5,y1:11.5},pad:0,label:'Two eyes blinking awake on a dark round screen'}),
+  kidface:()=>beadSVG(wordmark({markOnly:true,ring:C.navy}),{pad:.4,shine:false}),
+  sticker:()=>beadSVG(wordmark({markOnly:true,outline:'#ffffff',outlineW:2}),{pad:.3,label:'Sticker of the o'}),
+  space:()=>beadSVG(wordmark({type:C.navy}),{pad:5,label:'Clear space around the logo',under:vb=>{
+      const gx=vb.x+5,gy=vb.y+5,gw=vb.w-10,gh=vb.h-10;
+      return `<rect x="${f3(gx-4)}" y="${f3(gy-4)}" width="${f3(gw+8)}" height="${f3(gh+8)}" rx="1" fill="#f6efd3" stroke="#a89af0" stroke-width=".12" stroke-dasharray=".45 .3"/>`+
+        `<rect x="${f3(gx)}" y="${f3(gy)}" width="${f3(gw)}" height="${f3(gh)}" fill="none" stroke="#a89af0" stroke-width=".08"/>`+
+        `<text x="${f3(gx-3.5)}" y="${f3(gy-1.5)}" font-family="Pixelify Sans, monospace" font-size="1.1" fill="#6e47c2">4 BEADS</text>`}}),
+  grid:()=>{
+    const cells=wordmark();
+    return beadSVG(cells,{pad:.6,bounds:{x0:-2.2,y0:-.8,x1:32.5,y1:14.4},label:'Wordmark construction grid',under:vb=>{
+      let g='';for(let x=0;x<=25;x++)g+=`<line x1="${x}" y1="0" x2="${x}" y2="14" stroke="#3c4770" stroke-width=".05"/>`;
+      for(let y=0;y<=14;y++)g+=`<line x1="0" y1="${y}" x2="25" y2="${y}" stroke="#3c4770" stroke-width=".05"/>`;
+      const guide=(y,label,c)=>`<line x1="-1.6" y1="${y}" x2="26" y2="${y}" stroke="${c}" stroke-width=".09" stroke-dasharray=".35 .25"/><text x="26.5" y="${y+.35}" font-family="Pixelify Sans, monospace" font-size=".95" fill="${c}">${label}</text>`;
+      return g+guide(0,'ASCENDER','#f7945a')+guide(4,'X-HEIGHT','#a89af0')+guide(11,'BASELINE','#dcef70')+guide(14,'TAIL','#bdb5f5');
+    }});
+  },
+};
+document.querySelectorAll('[data-wm]').forEach(el=>{const fn=WMS[el.dataset.wm];if(fn)el.innerHTML=fn()});
+
+/* small bead sprites in HTML */
+function spriteSVG(rows,o={}){const cells=[];rows.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch!=='.')cells.push({x,y,c:(o.map&&o.map[ch])||PAL[ch],g:'type'})}));return beadSVG(cells,{pad:o.pad??.2,shine:o.shine})}
+document.querySelectorAll('[data-sprite]').forEach(el=>{el.innerHTML=spriteSVG(SPR[el.dataset.sprite])});
+document.querySelectorAll('[data-stars]').forEach(el=>{el.innerHTML=Array.from({length:+el.dataset.stars},()=>spriteSVG(SPR.star,{shine:false})).join('')});
+
+/* shape kit */
+const SHAPES={
+  bead:()=>beadSVG([{x:0,y:0,c:C.lime}],{pad:.25}),
+  circle:()=>`<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" fill="none" stroke="${C.surface}" stroke-width="5"/><circle cx="20" cy="20" r="16" fill="none" stroke="${C.lavender}" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="68 100" transform="rotate(-90 20 20)"/></svg>`,
+  spark:()=>spriteSVG(SPR.plus,{pad:.3}),
+  hop:()=>`<svg viewBox="0 0 90 44" aria-hidden="true"><path d="M8 36 Q 26 2 44 36 Q 62 2 80 36" fill="none" stroke="${C.muted}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 7"/>${[[8,36,C.mint],[44,36,C.mint],[80,36,C.lavender]].map(([x,y,c])=>`<rect x="${x-5}" y="${y-5}" width="10" height="10" rx="3.2" fill="${c}"/>`).join('')}</svg>`,
+  peek:()=>beadSVG(wordmark({windowOnly:true}),{pad:.3}),
+};
+document.querySelectorAll('[data-shape]').forEach(el=>{el.innerHTML=SHAPES[el.dataset.shape]()});
+
+/* hero sky */
+const SKY=[[5,12,18,C.amber,0],[44,6,12,C.cream,.8],[91,14,16,C.lavender,1.6],[62,88,14,C.amber,.4],[3,78,12,C.mint,2.1],[96,70,20,C.amber,1.1],[30,92,10,C.cream,2.6],[78,4,10,C.pink,1.9]];
+document.getElementById('sky').innerHTML=SKY.map(([x,y,s,c,d])=>`<span style="position:absolute;left:${x}%;top:${y}%">${spriteSVG(SPR.plus,{map:{A:c},pad:.1}).replace('<svg ',`<svg style="--s:${s}px;--d:${d}s" `)}</span>`).join('');
+
+/* ---------- patterns ---------- */
+function beadCtx(ctx,rows,x,y,s,map){rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch==='.')return;const b=s*.84,o=(s-b)/2,px=x+i*s+o,py=y+j*s+o;ctx.fillStyle=(map&&map[ch])||PAL[ch];ctx.beginPath();if(ctx.roundRect)ctx.roundRect(px,py,b,b,b*.3);else ctx.rect(px,py,b,b);ctx.fill();ctx.fillStyle='rgba(255,255,255,.4)';ctx.beginPath();ctx.arc(px+b*.28,py+b*.26,b*.11,0,Math.PI*2);ctx.fill()}))}
+const FACE_ROWS=WM.slice(3,12).map(r=>r.slice(16).replace(/R/g,'N').replace(/L/g,'.'));
+function tile(bg,draw){const cv=document.createElement('canvas');cv.width=cv.height=320;const ctx=cv.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,320,320);draw(ctx);return cv.toDataURL('image/png')}
+const PATTERNS={
+  sky:()=>tile(C.navy,ctx=>{
+    beadCtx(ctx,SPR.star,36,30,10);beadCtx(ctx,SPR.moon,220,176,10);
+    beadCtx(ctx,SPR.plus,200,40,10,{A:C.cream});beadCtx(ctx,SPR.plus,70,220,10,{A:C.lavender});beadCtx(ctx,SPR.plus,280,280,8,{A:C.amber});
+    [[150,120,C.lavender],[20,160,C.cream],[260,110,C.mint],[130,280,C.pink],[300,20,C.lavender]].forEach(([x,y,c])=>beadCtx(ctx,['A'],x,y,10,{A:c}));
+  }),
+  carrot:()=>tile(C.cream,ctx=>{
+    beadCtx(ctx,SPR.carrot,30,40,11);beadCtx(ctx,SPR.carrot,190,180,11);
+    [[180,50,'#b6cf4a'],[250,70,C.mint],[60,210,C.pink],[120,150,'#b6cf4a'],[280,260,C.carrot],[20,290,C.mint]].forEach(([x,y,c])=>beadCtx(ctx,['A'],x,y,12,{A:c}));
+  }),
+  faces:()=>tile(C.lime,ctx=>{beadCtx(ctx,FACE_ROWS,20,24,10);beadCtx(ctx,FACE_ROWS,184,184,10);beadCtx(ctx,['N'],230,60,12);beadCtx(ctx,['N'],80,240,12)}),
+};
+const patCache={};
+document.querySelectorAll('[data-pattern]').forEach(el=>{const k=el.dataset.pattern;patCache[k]=patCache[k]||PATTERNS[k]();el.style.backgroundImage=`url(${patCache[k]})`});
+
+/* ---------- swatches, ratio, contrast ---------- */
+const CORE=[
+  ['Bedtime Navy','#20294a','The ground for everything. --focus-bg in the app.',true],
+  ['Deep Night','#181e36','Sheets, the device bezel, night mode.',true],
+  ['Cozy Cream','#f9f5e1',"Biscuit's fur, and the daytime ground for print."],
+  ['Hop Lime','#dcef70','The one thing to press. The wordmark.'],
+  ['Star Amber','#fab047','Stars and rewards. Nothing else.'],
+];
+const FRIENDS=[
+  ['Lavender','#a89af0','Selected; "you are here".'],
+  ['Mint','#65cdaa','Done ticks and ok-to-wake.'],
+  ['Bubblegum','#eab5de','Friend color.'],
+  ['Coral','#ff8f91','Friend color, warm.'],
+  ['Sky','#879bff','Friend color, cool.'],
+  ['Carrot','#f7945a',"Biscuit's ear, and carrots."],
+];
+const swHTML=([n,h,r,dark])=>`<button class="sw" data-hex="${h}" aria-label="Copy ${n} ${h.toUpperCase()}"><span class="chip${dark?' edge-in':''}" style="--c:${h}"></span><span class="meta"><span class="nm">${n}</span><span class="hx">${h.toUpperCase()}</span><span class="rl">${r}</span></span></button>`;
+document.getElementById('swCore').innerHTML=CORE.map(swHTML).join('');
+document.getElementById('swFriends').innerHTML=FRIENDS.map(swHTML).join('');
+const toast=document.getElementById('toast');let tt;
+const say=m=>{toast.textContent=m;toast.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>toast.classList.remove('show'),1600)};
+document.querySelectorAll('.sw').forEach(b=>b.addEventListener('click',()=>{const h=b.dataset.hex.toUpperCase();
+  try{navigator.clipboard.writeText(h).then(()=>say('Copied '+h),()=>say(h))}catch(e){say(h)}}));
+const RATIO=[['Navy',55,C.navy],['Deep Night',10,C.deep],['Cream',15,C.cream],['Friends',10,`linear-gradient(90deg,${C.mint},${C.sky},${C.lavender},${C.pink},${C.coral},${C.carrot})`],['Lime',5,C.lime],['Amber',5,C.amber]];
+document.getElementById('ratio').innerHTML=RATIO.map(([n,w,c])=>`<i style="width:${w}%;--c:${c}"></i>`).join('');
+document.getElementById('ratioKey').innerHTML=RATIO.map(([n,w,c])=>`<span><i style="--c:${c}"></i>${n} ${w}%</span>`).join('');
+function lum(hex){return[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0)}
+function ratio(a,b){const [x,y]=[lum(a),lum(b)].sort((m,n)=>n-m);return(x+.05)/(y+.05)}
+const PAIRS=[[C.cream,C.navy,'Cream on Navy'],[C.lime,C.navy,'Lime on Navy'],[C.navy,C.lime,'Navy on Lime'],[C.muted,C.navy,'Soft lilac on Navy'],[C.navy,C.amber,'Navy on Amber'],[C.navy,C.mint,'Navy on Mint'],[C.lavender,C.navy,'Lavender on Navy'],[C.navy,C.cream,'Navy on Cream']];
+document.getElementById('contrast').innerHTML=PAIRS.map(([fg,bg,n])=>{const r=ratio(fg,bg);const b=r>=7?['AAA','b-aaa']:r>=4.5?['AA','b-aa']:['Big text','b-lg'];return`<div class="cpair"><div class="smp" style="background:${bg};color:${fg}">Teeth time!</div><div class="res"><span>${n} · ${r.toFixed(1)}:1</span><span class="badge ${b[1]}">${b[0]}</span></div></div>`}).join('');
+
+/* ---------- anatomy pins (stage cells → % of the canvas box) ---------- */
+const PINS=[[1,-1,6],[2,20,1],[3,16,13],[4,12.5,23],[5,23.5,27],[6,3,37]];
+document.getElementById('anaBox').insertAdjacentHTML('beforeend',PINS.map(([n,x,y])=>`<span class="pin" aria-hidden="true" style="left:${((x-ST.front.x0)/ST.front.cols*100).toFixed(1)}%;top:${((y-ST.front.y0)/ST.front.rows*100).toFixed(1)}%">${n}</span>`).join(''));
+
+/* ---------- draw + animate ---------- */
+function drawAll(){for(const c of canvases)draw(c);heroDraw()}
+if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{for(const e of es){const c=canvases.find(k=>k.cv===e.target);if(c)c.visible=e.isIntersecting}});canvases.forEach(c=>io.observe(c.cv))}
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(drawAll,80)});
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(drawAll);
+drawAll();
+let last=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(ts-last<1000/12)return;last=ts;
+  heroStep();
+  if(REDUCE)return;
+  for(const c of canvases){
+    if(!c.visible||!animated.has(c.name))continue;
+    c.t++;if(c.blink>0)c.blink--;else if(--c.next<=0){c.blink=2;c.next=36+Math.random()*36|0}
+    draw(c);
+  }
+}
+requestAnimationFrame(loop);
+})();
+</script>

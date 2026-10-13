@@ -1,0 +1,1125 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyToki Market Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400&family=Bagel+Fat+One&family=Pixelify+Sans:wght@400..700&display=swap">
+<style>
+/* Layout: a stack of 16:9 slides on a night-sky page, alternating night (navy) and day (cream)
+   like the MyToki brand book; type and spacing scale with each slide's own width.
+   Single look on purpose: the brand lives on navy. */
+:root{
+  color-scheme: dark;
+  --abyss:#0e1221; --navy:#20294a; --deep:#181e36; --surface:#2c3558; --raised:#3c4770;
+  --text:#f5f3ff; --muted:#bdb5f5;
+  --cream:#f9f5e1; --paper:#fffdf4; --line:#e6ddbb; --plum-tint:#ebe3fa; --ink:#20294a; --ink-soft:#4a5688; --plum:#6e47c2;
+  --lime:#dcef70; --amber:#fab047; --lavender:#a89af0; --mint:#65cdaa; --coral:#ff8f91; --sky:#879bff; --carrot:#f7945a;
+  --f-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+  --f-read:"Andika","Verdana","Segoe UI",system-ui,sans-serif;
+  --f-pixel:"Pixelify Sans","Courier New",ui-monospace,monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-snap-type:y proximity}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--abyss);color:var(--text);font:400 16px/1.5 var(--f-read);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+p,h1,h2,h3,ul,ol,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+:focus-visible{outline:3px solid var(--lime);outline-offset:3px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* deck */
+.deck{max-width:1280px;margin-inline:auto;padding-inline:16px;padding-block:20px 104px;display:grid;gap:26px}
+.slide{container-type:inline-size;border-radius:28px;overflow:hidden;position:relative;scroll-snap-align:start;scroll-margin-top:16px}
+.night{background:var(--navy);color:var(--text);--eyebrow:var(--lime);--soft:var(--muted);--card:var(--surface);--rule:var(--raised);--acc:var(--lime);--acc-ink:var(--navy);--mark:#56608f;--band:rgba(245,243,255,.05);--band-hi:rgba(220,239,112,.1)}
+.day{background:var(--cream);color:var(--ink);--eyebrow:var(--plum);--soft:var(--ink-soft);--card:var(--paper);--rule:var(--line);--acc:var(--plum);--acc-ink:#ffffff;--mark:#8a84a8;--band:rgba(32,41,74,.04);--band-hi:rgba(110,71,194,.09)}
+.in{padding:clamp(22px,5cqw,64px);display:flex;flex-direction:column;gap:clamp(14px,2.2cqw,28px);position:relative}
+@container (min-width:860px){.in{aspect-ratio:16/9}}
+.foot{margin-top:auto;display:flex;justify-content:space-between;gap:12px;font:500 clamp(11px,1cqw,13px)/1 var(--f-pixel);letter-spacing:.08em;color:var(--soft);text-transform:uppercase}
+
+/* type */
+.eyebrow{font:600 clamp(11px,1.05cqw,14px)/1 var(--f-pixel);letter-spacing:.14em;text-transform:uppercase;color:var(--eyebrow)}
+h2{font:400 clamp(26px,3.5cqw,48px)/1.02 var(--f-display);text-wrap:balance;letter-spacing:.005em}
+h3{font:700 clamp(15px,1.45cqw,19px)/1.25 var(--f-read);text-wrap:balance}
+.lede{font-size:clamp(15px,1.45cqw,19px);line-height:1.5;color:var(--soft);max-width:64ch}
+.head{display:grid;gap:clamp(8px,1cqw,12px)}
+.small{font-size:clamp(13px,1.15cqw,15px);color:var(--soft)}
+.num{font:600 clamp(28px,3.6cqw,48px)/1 var(--f-pixel);font-variant-numeric:tabular-nums}
+
+table{color:inherit;font-family:inherit;font-size:inherit;line-height:inherit}
+
+/* layout helpers */
+.cols{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));gap:clamp(10px,1.5cqw,20px)}
+.split{display:grid;grid-template-columns:minmax(0,var(--a,1.4fr)) minmax(0,var(--b,1fr));gap:clamp(16px,2.4cqw,36px);align-items:start}
+@container (max-width:760px){.cols,.split{grid-template-columns:minmax(0,1fr)}}
+@container (min-width:520px) and (max-width:760px){.cols.keep2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:1000px){.cols.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container (max-width:760px){.cols.five{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:480px){.cols.five{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border-radius:18px;padding:clamp(14px,1.6cqw,22px);display:grid;gap:8px;align-content:start}
+.card p:not([class]){font-size:clamp(13.5px,1.2cqw,16px);color:var(--soft)}
+.card.hi{background:var(--acc);color:var(--acc-ink)}
+.card.hi p,.card.hi .qlabel{color:var(--acc-ink);opacity:.86}
+.qlabel{font:600 clamp(11px,1cqw,13px)/1.2 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--eyebrow)}
+.answer{font:400 clamp(22px,2.4cqw,32px)/1.05 var(--f-display)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 clamp(11px,.95cqw,12.5px)/1 var(--f-pixel);letter-spacing:.06em;padding:6px 10px;border-radius:999px;white-space:nowrap;color:var(--navy);background:var(--c,var(--lavender))}
+.pill.strong{--c:var(--mint)} .pill.medium{--c:var(--lavender)} .pill.partial{--c:var(--sky)} .pill.risk{--c:var(--coral)}
+.chart{overflow-x:auto;min-width:0}
+.chart svg{display:block;width:100%;height:auto;min-width:560px}
+.chart .t{fill:currentColor}
+.chart .q{fill:currentColor;opacity:.72}
+.chart .bar{fill:var(--mark)} .chart .bar.hi{fill:var(--acc)}
+.chart .dot{fill:var(--mark)} .chart .dot.hi{fill:var(--acc)}
+.chart .ring2{fill:var(--card);stroke:var(--mark);stroke-width:2}
+.chart .stem{stroke:var(--mark);stroke-width:2}
+.chart .axis{stroke:var(--rule);stroke-width:1.5}
+.chart .band{fill:var(--band)} .chart .band.hi{fill:var(--band-hi)}
+.srcline{font-size:clamp(12px,1.05cqw,13.5px);color:var(--soft)}
+.srcline a{color:inherit}
+
+/* 1 title */
+.title .in{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);align-items:center;gap:clamp(18px,4cqw,56px)}
+@container (max-width:760px){.title .in{grid-template-columns:minmax(0,1fr)}}
+.t-copy{display:grid;gap:clamp(14px,2cqw,24px)}
+.wm svg{width:100%;max-width:clamp(220px,34cqw,440px);height:auto;display:block}
+.t-head{font:400 clamp(30px,4.3cqw,58px)/1.02 var(--f-display);color:var(--cream);text-wrap:balance}
+.t-meta{font:500 clamp(11px,1cqw,13px)/1.4 var(--f-pixel);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.live .g-eyeL,.live .g-eyeR{transform-box:fill-box;transform-origin:center;animation:peek 8s steps(1,end) infinite}
+@keyframes peek{0%,28%{transform:translateX(0) scaleY(1)}30%,44%{transform:translateX(-1px) scaleY(1)}46%,60%{transform:translateX(1px) scaleY(1)}62%,88%{transform:translateX(0) scaleY(1)}90%,93%{transform:translateX(0) scaleY(.14)}95%,100%{transform:translateX(0) scaleY(1)}}
+@media (prefers-reduced-motion:reduce){.live .g-eyeL,.live .g-eyeR{animation:none}}
+.t-art{display:grid;justify-items:center;gap:10px}
+.t-art figcaption{font:500 clamp(11px,1cqw,13px) var(--f-pixel);color:var(--muted);letter-spacing:.06em}
+
+/* round device + dock */
+.dev{width:min(320px,100%);aspect-ratio:1;border-radius:50%;background:var(--abyss);box-shadow:0 0 0 2px var(--raised),0 22px 50px rgba(8,10,20,.45);container-type:inline-size;position:relative;z-index:1}
+.dev-screen{position:absolute;inset:4.2%;border-radius:50%;background:var(--navy);overflow:hidden}
+.dev-ring{position:absolute;inset:0;width:100%;height:100%}
+.ring-track{fill:none;stroke:var(--surface);stroke-width:4.2}
+.ring-arc{fill:none;stroke:var(--lavender);stroke-width:4.2;stroke-linecap:round}
+.dev .pet{position:absolute;left:50%;top:50%;width:52%;aspect-ratio:1;transform:translate(-50%,-50%);image-rendering:pixelated}
+.dev-title{position:absolute;left:0;right:0;top:19%;text-align:center;font:700 6.4cqi/1 var(--f-read);color:var(--text)}
+.dev-pill{position:absolute;left:50%;top:86%;transform:translate(-50%,-50%);background:var(--lime);color:var(--navy);font:700 5.2cqi/1 var(--f-read);padding:2.4cqi 4.4cqi 2.4cqi 2.6cqi;border-radius:999px;display:flex;align-items:center;gap:2cqi;white-space:nowrap;box-shadow:0 0 0 .9cqi var(--navy)}
+.tick{width:6cqi;height:6cqi;border-radius:50%;background:var(--navy);display:grid;place-items:center}
+.tick svg{width:62%;height:auto}
+.dev-btn{position:absolute;right:6%;top:6%;width:9%;aspect-ratio:1;border-radius:50%;background:var(--raised);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+.dock{width:min(290px,90%);height:clamp(40px,6cqw,64px);margin-top:calc(-1 * clamp(22px,3.4cqw,38px));border-radius:48% 48% 18px 18px/70% 70% 18px 18px;background:linear-gradient(180deg,var(--raised),var(--surface));position:relative;box-shadow:0 14px 30px rgba(8,10,20,.35)}
+.dock::after{content:"";position:absolute;left:50%;bottom:22%;transform:translateX(-50%);width:16%;height:10%;border-radius:999px;background:var(--lavender);box-shadow:0 0 12px var(--lavender)}
+
+/* 3 day timeline */
+.day-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(8px,1.2cqw,16px);position:relative}
+.day-row::before{content:"";position:absolute;left:4%;right:4%;top:clamp(46px,6.2cqw,76px);height:2px;background:repeating-linear-gradient(90deg,var(--raised) 0 8px,transparent 8px 14px)}
+@container (max-width:760px){.day-row{grid-template-columns:repeat(2,minmax(0,1fr))}.day-row::before{display:none}}
+.stop{display:grid;gap:8px;align-content:start;position:relative}
+.stop .frame{width:clamp(76px,11cqw,132px);aspect-ratio:1;border-radius:50%;background:var(--deep);box-shadow:0 0 0 3px var(--surface);position:relative;overflow:hidden;justify-self:start}
+.stop .frame.docked{box-shadow:0 0 0 3px var(--lavender)}
+.stop canvas{position:absolute;left:50%;top:50%;width:74%;aspect-ratio:1;transform:translate(-50%,-50%);image-rendering:pixelated}
+.stop .frame svg{position:absolute;inset:16%;width:68%;height:68%}
+.when{font:600 clamp(11px,1cqw,13px)/1 var(--f-pixel);letter-spacing:.1em;text-transform:uppercase;color:var(--lime)}
+.where{font:600 clamp(11px,1cqw,13px)/1.2 var(--f-pixel);letter-spacing:.06em;color:var(--muted)}
+.stop p:not([class]){font-size:clamp(13px,1.15cqw,15px);color:var(--muted)}
+.stop h3{color:var(--text)}
+.strip{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;background:var(--deep);border-radius:16px;padding:12px 16px;font-size:clamp(13px,1.15cqw,15px);color:var(--muted)}
+.strip b{color:var(--text)}
+
+/* 4 market */
+.stats{display:grid;gap:clamp(10px,1.4cqw,16px)}
+.stat{background:var(--card);border-radius:18px;padding:clamp(14px,1.6cqw,20px);display:grid;gap:6px}
+.stat .num{color:var(--plum)}
+.stat p:not([class]){font-size:clamp(13px,1.15cqw,15px);color:var(--soft)}
+
+/* 5 trends */
+.tw h3{display:flex;gap:10px;align-items:center;font:600 clamp(12px,1.1cqw,14px)/1 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--soft);margin-bottom:10px}
+.tw h3 i{width:12px;height:12px;border-radius:30%;background:var(--c)}
+.tw ul{display:grid;gap:8px}
+.tw li{background:var(--card);border-radius:14px;padding:10px 14px;display:grid;gap:2px}
+.tw li b{font-size:clamp(14px,1.3cqw,17px)}
+.tw li span{font-size:clamp(12.5px,1.1cqw,14.5px);color:var(--soft)}
+
+/* 6 landscape map */
+.map-wrap{overflow-x:auto}
+.map{width:100%;min-width:620px;border-collapse:separate;border-spacing:clamp(6px,.8cqw,10px);table-layout:fixed}
+.map th{font:600 clamp(11px,1.05cqw,14px)/1.2 var(--f-pixel);letter-spacing:.08em;text-transform:uppercase;color:var(--plum);text-align:left;padding:4px 6px;vertical-align:bottom}
+.map th[scope=row]{text-transform:none;letter-spacing:0;font:700 clamp(13px,1.25cqw,16px)/1.2 var(--f-read);color:var(--ink);vertical-align:middle;width:17%}
+.map td{background:var(--paper);border:1.5px solid var(--line);border-radius:14px;padding:clamp(8px,1cqw,14px);vertical-align:top;font-size:clamp(12.5px,1.1cqw,14.5px);line-height:1.45}
+.map td.hot{background:var(--plum-tint);border:2px solid var(--plum)}
+.map td.empty{background:transparent;border-style:dashed}
+.chip{display:inline-block;font:700 clamp(12px,1.05cqw,14px)/1 var(--f-read);color:#fff;background:var(--plum);padding:5px 9px;border-radius:999px;margin-top:4px}
+
+/* 7 competitors */
+.rival h3{font:400 clamp(18px,1.9cqw,24px)/1.05 var(--f-display)}
+.rival .names{font:600 clamp(11.5px,1.05cqw,13.5px)/1.4 var(--f-pixel);letter-spacing:.04em;color:var(--muted)}
+.rival .miss{display:flex;gap:8px;align-items:flex-start;font-size:clamp(13px,1.15cqw,15px);color:var(--text)}
+.rival .miss i{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;background:var(--coral);display:grid;place-items:center}
+.rival .miss i svg{width:60%;height:auto}
+.card.hi .names{color:var(--navy);opacity:.8}
+
+/* 8 matrix */
+.mx-wrap{overflow-x:auto}
+.mx{width:100%;min-width:720px;border-collapse:collapse;font-size:clamp(12px,1.05cqw,14px)}
+.mx th,.mx td{padding:clamp(6px,.75cqw,9px) 8px;border-bottom:1.5px solid var(--line);text-align:center}
+.mx thead th{font:600 clamp(10.5px,.95cqw,12.5px)/1.2 var(--f-pixel);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);vertical-align:bottom}
+.mx thead th.mytoki{color:var(--plum)}
+.mx tbody th{text-align:left;font-weight:700;color:var(--ink)}
+.mx td{position:relative}
+.mx td.mytoki{background:var(--plum-tint)}
+.mx td i{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle}
+.mx .y i{background:var(--plum)}
+.mx .p i{background:conic-gradient(var(--plum) 0 180deg,transparent 180deg);box-shadow:inset 0 0 0 2px var(--plum)}
+.mx .n i{box-shadow:inset 0 0 0 2px #b9b39a}
+.mx .na i{width:12px;height:2px;border-radius:2px;background:#b9b39a}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:clamp(12px,1.05cqw,13.5px);color:var(--soft)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%}
+
+/* 9 needs */
+.callout{display:flex;gap:clamp(14px,2cqw,28px);align-items:center;flex-wrap:wrap}
+.callout .num{color:var(--lime)}
+.needs{display:grid;gap:8px;counter-reset:need}
+.need{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px 14px;align-items:center;background:var(--card);border-radius:14px;padding:10px 14px}
+.need::before{counter-increment:need;content:counter(need);font:600 clamp(13px,1.2cqw,16px)/1 var(--f-pixel);color:var(--muted);width:1.6em}
+.need b{display:block;font-size:clamp(14px,1.3cqw,16.5px)}
+.need span{display:block;font-size:clamp(12.5px,1.1cqw,14.5px);color:var(--muted)}
+@container (max-width:520px){.need{grid-template-columns:auto minmax(0,1fr)}.need .pill{grid-column:2;justify-self:start}}
+
+/* 10 radar */
+.room svg{width:100%;height:auto;display:block}
+.room .wall{fill:var(--paper);stroke:var(--ink-soft);stroke-width:3}
+.room .bed{fill:#ece4c6;stroke:var(--ink-soft);stroke-width:1.5}
+.room .pillow{fill:var(--paper);stroke:var(--ink-soft);stroke-width:1.2}
+.room .cone{fill:rgba(110,71,194,.08);stroke:var(--plum);stroke-width:1.2;stroke-dasharray:5 5}
+.room .zone{fill:none;stroke:var(--plum);stroke-width:2;stroke-dasharray:7 5}
+.room .unit{fill:var(--ink)}
+.room .t{fill:var(--ink);font:700 13px var(--f-read)}
+.room .q{fill:var(--ink-soft);font:500 11.5px var(--f-pixel);letter-spacing:.04em}
+.room .okdot{fill:var(--mint)} .room .updot{fill:var(--carrot)}
+.room .mytoki{fill:var(--abyss);stroke:var(--lavender);stroke-width:2}
+.room .door{fill:none;stroke:var(--ink-soft);stroke-width:1.5;stroke-dasharray:3 3}
+.rules{display:grid;gap:8px}
+.rules li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;font-size:clamp(13px,1.2cqw,15.5px)}
+.rules li i{width:18px;height:18px;border-radius:50%;background:var(--plum);display:grid;place-items:center;margin-top:2px}
+.rules li i svg{width:62%}
+.pricebox{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pricebox .card .num{font-size:clamp(22px,2.6cqw,34px)}
+.pricebox .card.hi .num{color:#fff}
+
+/* 11 buy */
+.score{display:grid;gap:6px}
+.score li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 0;border-bottom:1.5px solid var(--raised);font-size:clamp(13.5px,1.2cqw,16px)}
+.pitch{font:400 clamp(20px,2.3cqw,32px)/1.12 var(--f-display);color:var(--cream);text-wrap:balance}
+.seg{display:grid;gap:8px;counter-reset:seg}
+.seg li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;background:var(--card);border-radius:14px;padding:10px 14px;font-size:clamp(13px,1.15cqw,15px);color:var(--muted)}
+.seg li::before{counter-increment:seg;content:counter(seg);font:600 15px/1.4 var(--f-pixel);color:var(--lime)}
+.seg li b{color:var(--text)}
+
+/* 12 pricing */
+.plist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.plist div{background:var(--card);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
+.plist div.hi{background:var(--plum);color:#fff}
+.plist b{font:600 clamp(18px,1.9cqw,24px)/1 var(--f-pixel);font-variant-numeric:tabular-nums}
+.plist span{font-size:clamp(12px,1.05cqw,13.5px);color:var(--soft)}
+.plist div.hi span{color:#fff;opacity:.85}
+
+/* 13 subscription */
+.lists li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;font-size:clamp(13.5px,1.25cqw,16px);padding:6px 0}
+.lists li i{width:18px;height:18px;border-radius:50%;background:var(--mint);display:grid;place-items:center;margin-top:3px}
+.lists li i svg{width:62%}
+.plus li i{background:var(--lime)}
+.models{width:100%;border-collapse:collapse;font-size:clamp(12.5px,1.1cqw,14.5px)}
+.models th,.models td{text-align:left;padding:8px 10px;border-bottom:1.5px solid var(--raised);vertical-align:top}
+.models thead th{font:600 clamp(10.5px,.95cqw,12.5px)/1.2 var(--f-pixel);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.models tr.rec td,.models tr.rec th{background:rgba(220,239,112,.08)}
+.models td.n{font-family:var(--f-pixel);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* 14 add-ons */
+.addon{display:grid;gap:4px;align-content:start}
+.addon .pr{font:600 clamp(15px,1.5cqw,19px)/1 var(--f-pixel);color:var(--plum)}
+.lock{display:flex;flex-wrap:wrap;gap:8px}
+.lock span{background:var(--ink);color:var(--cream);font:600 clamp(11.5px,1.05cqw,13.5px)/1 var(--f-pixel);letter-spacing:.04em;padding:9px 12px;border-radius:999px}
+
+/* 15 risks */
+.rm{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);gap:10px}
+.rm .ax{font:600 clamp(10.5px,.95cqw,12.5px)/1.2 var(--f-pixel);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);align-self:end;text-align:center}
+.rm .ay{writing-mode:vertical-rl;transform:rotate(180deg);align-self:center;text-align:center}
+.rm .cell{background:var(--card);border-radius:16px;padding:12px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+.rm .cell.hot{background:var(--deep);box-shadow:inset 0 0 0 2px var(--lime)}
+.rk{font-size:clamp(12px,1.05cqw,14px);background:var(--raised);color:var(--text);padding:6px 10px;border-radius:10px}
+.rk.top{background:var(--lime);color:var(--navy);font-weight:700}
+@container (max-width:560px){.rm{grid-template-columns:minmax(0,1fr)}.rm .ax,.rm .ay{display:none}}
+
+/* 16 next */
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,1.2cqw,14px);counter-reset:st}
+@container (max-width:760px){.steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:480px){.steps{grid-template-columns:minmax(0,1fr)}}
+.step{background:var(--card);border-radius:16px;padding:clamp(12px,1.4cqw,18px);display:grid;gap:6px;align-content:start}
+.step::before{counter-increment:st;content:counter(st);font:600 clamp(18px,1.8cqw,24px)/1 var(--f-pixel);color:var(--plum)}
+.step p:not([class]){font-size:clamp(12.5px,1.1cqw,14.5px);color:var(--soft)}
+.step .pass{font:600 clamp(11px,1cqw,12.5px)/1.35 var(--f-pixel);letter-spacing:.03em;color:var(--ink)}
+.step.last{background:var(--ink);color:var(--cream)}
+.step.last p:not([class]),.step.last .pass{color:var(--cream)}
+.step.last::before{color:var(--lime)}
+
+/* 17 sources */
+.src{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,2cqw,28px)}
+@container (max-width:760px){.src{grid-template-columns:minmax(0,1fr)}}
+.src h3{font:600 clamp(11px,1cqw,13px)/1.2 var(--f-pixel);letter-spacing:.12em;text-transform:uppercase;color:var(--lime);margin-bottom:8px}
+.src li{font-size:clamp(12.5px,1.1cqw,14px);padding:3px 0;color:var(--muted)}
+.src a{color:var(--text);text-decoration-color:var(--raised);text-underline-offset:3px}
+.close{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.close .wm svg{max-width:clamp(140px,18cqw,220px)}
+.close p{font:400 clamp(20px,2.4cqw,30px)/1 var(--f-display);color:var(--cream)}
+
+/* time squeeze */
+.night.deep{background:var(--deep)}
+.deep .card{background:var(--navy)}
+.sq{display:grid;gap:14px;align-content:start}
+.sq-row{display:grid;gap:6px}
+.sq-lab{font:600 clamp(11px,1cqw,13px)/1.2 var(--f-pixel);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sq-bar{display:flex;gap:3px;height:clamp(34px,4cqw,46px)}
+.sq-bar span{flex:var(--m) 1 0;min-width:0;border-radius:8px;background:var(--surface);color:var(--text);font:700 clamp(11px,1.05cqw,13.5px)/1.1 var(--f-read);display:flex;align-items:center;justify-content:center;text-align:center;padding:0 3px;overflow:hidden;white-space:nowrap}
+.sq-bar .over{background:repeating-linear-gradient(135deg,var(--coral) 0 6px,#ffb3b4 6px 12px);color:var(--navy)}
+.sq-bar .free{background:var(--mint);color:var(--navy)}
+.sq-bar .free.more{box-shadow:inset 0 0 0 3px var(--lime)}
+.sq-scale{font-size:clamp(12px,1.05cqw,13.5px);color:var(--muted)}
+/* contribution table */
+.ctb{width:100%;border-collapse:collapse;font:400 clamp(12.5px,1.1cqw,14.5px)/1.4 var(--f-read);color:var(--ink)}
+.ctb th,.ctb td{padding:6px 8px;border-bottom:1.5px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.ctb td{font-family:var(--f-pixel)}
+.ctb thead th{font:600 clamp(10.5px,.95cqw,12.5px)/1.2 var(--f-pixel);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.ctb th:first-child{text-align:left}
+.ctb tbody th{font-weight:700}
+.ctb td.hot{background:var(--plum-tint);font-weight:700;color:var(--plum)}
+.mx .u i{border:2px dotted #b9b39a}
+
+/* controls */
+.ctrl{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;align-items:center;gap:6px;background:rgba(24,30,54,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--surface);border-radius:999px;padding:6px}
+.ctrl button{width:40px;height:40px;border-radius:50%;border:0;background:var(--surface);color:var(--text);display:grid;place-items:center;cursor:pointer;transition:background .18s}
+.ctrl button:hover{background:var(--raised)}
+.ctrl button svg{width:18px;height:18px}
+.ctrl .count{font:600 14px/1 var(--f-pixel);color:var(--muted);min-width:64px;text-align:center;font-variant-numeric:tabular-nums}
+</style>
+
+<main class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide night title" id="s1" aria-labelledby="h1">
+  <div class="in">
+    <div class="t-copy">
+      <p class="eyebrow">Market study · 30 Sep 2026</p>
+      <div class="wm live" id="wmHero"></div>
+      <h1 class="t-head" id="h1">A pet that runs your child's day, then docks as their bedside clock.</h1>
+      <p class="lede">Who else is out there, what parents still need, what to charge, and whether a subscription makes sense for MyToki, a Tamagotchi-style buddy that gets kids aged 3 to 8 through their day.</p>
+      <p class="t-meta">We're thinking $79 with the dock. Numbers have sources; guesses are labelled. The hardware is designed, not built.</p>
+    </div>
+    <figure class="t-art">
+      <div class="dev" role="img" aria-label="MyToki's round screen showing Biscuit brushing his teeth, step 2 of 4">
+        <span class="dev-btn" aria-hidden="true"></span>
+        <span class="dev-screen">
+          <svg class="dev-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="ring-track"/><circle cx="50" cy="50" r="40" class="ring-arc" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 50 50)"/></svg>
+          <span class="dev-title">Brush teeth</span>
+          <canvas class="pet" data-scene="brush"></canvas>
+          <span class="dev-pill"><span class="tick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#dcef70" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Top teeth · 2/4</span>
+        </span>
+      </div>
+      <div class="dock" aria-hidden="true"></div>
+      <figcaption>Carried by day, docked by the bed at night</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide day" id="s2" aria-labelledby="h2">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">The short answer</p>
+      <h2 id="h2">Worth testing properly. Too early to say people will buy it.</h2>
+      <p class="lede">Parents already pay for routine apps, virtual pets and ok-to-wake clocks. Nobody has paid for MyToki yet. What makes it stand out is simple: kids can see that dawdling on one thing leaves less time for the next.</p>
+    </div>
+    <div class="cols five" style="--n:5">
+      <div class="card"><p class="qlabel">Is it different?</p><p class="answer">Yes, narrowly</p><p>Kids see their time all day, on a pet they carry. PawPal, Brili and Cozyla each do one piece of that.</p></div>
+      <div class="card"><p class="qlabel">Unmet needs?</p><p class="answer">Yes</p><p>Mornings, nagging and switching off screens come up most. Parents want the reminders to come from something other than them, and not from a tablet.</p></div>
+      <div class="card"><p class="qlabel">Would they buy?</p><p class="answer">Not yet proven</p><p>Let people reserve at $59, $79 or $89, and see if kids stick with MyToki better than the same app on a tablet.</p></div>
+      <div class="card hi"><p class="qlabel">Price</p><p class="answer">$79</p><p>Dock included. Try $59 and $89 too, and $69 for a brother or sister.</p></div>
+      <div class="card"><p class="qlabel">Subscription?</p><p class="answer">Optional</p><p>MyToki Assist, $39 a year. AI sets up routines and plans the week, plus new pets. Everything else stays free.</p></div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>02</span></p>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide night" id="s3" aria-labelledby="h3">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">What MyToki is</p>
+      <h2 id="h3">With them from wake-up to lights-out</h2>
+    </div>
+    <ol class="day-row">
+      <li class="stop">
+        <div class="frame docked"><canvas data-scene="wave" role="img" aria-label="Biscuit waving good morning"></canvas></div>
+        <p class="when">7:00</p><p class="where">In the dock</p>
+        <h3>Wake up</h3>
+        <p>The light turns green when it's OK to get up, and the alarm plays. Biscuit waves good morning.</p>
+      </li>
+      <li class="stop">
+        <div class="frame"><canvas data-scene="brush" role="img" aria-label="Biscuit brushing his teeth"></canvas></div>
+        <p class="when">7:10</p><p class="where">In their hand</p>
+        <h3>Morning routine</h3>
+        <p>Teeth, clothes, shoes, one at a time. Press the button when each one's done.</p>
+      </li>
+      <li class="stop">
+        <div class="frame"><canvas data-scene="cheer" role="img" aria-label="Biscuit jumping for joy"></canvas></div>
+        <p class="when">3:30</p><p class="where">In their hand</p>
+        <h3>After school</h3>
+        <p>Homework, chores, then a countdown to get ready for soccer. Dawdle and playtime shrinks; finish early and it grows.</p>
+      </li>
+      <li class="stop">
+        <div class="frame docked"><canvas data-scene="sleep" role="img" aria-label="Biscuit asleep"></canvas></div>
+        <p class="when">7:30</p><p class="where">Back in the dock</p>
+        <h3>Bedtime</h3>
+        <p>Bedtime checklist, a story, then the screen dims to a night light.</p>
+      </li>
+      <li class="stop">
+        <div class="frame"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="14" y="5" width="12" height="6" rx="2" fill="#a89af0"/><path d="M13 15q7 5 14 0M9 19.5q11 8 22 0" fill="none" stroke="#a89af0" stroke-width="2.2" stroke-linecap="round"/><rect x="5" y="28" width="12" height="7" rx="2" fill="#65cdaa"/><rect x="23" y="28" width="12" height="7" rx="2" fill="#f7945a"/></svg></div>
+        <p class="when">Maybe later</p><p class="where">Radar add-on</p>
+        <h3>Who's in bed</h3>
+        <p>A radar with no camera could tell each MyToki whether its kid is in bed or up. Not in the first version.</p>
+      </li>
+    </ol>
+    <p class="strip"><span><b>Parents</b> set up routines, rewards and events on their phone.</span><span><b>Stars</b> only come from them.</span><span><b>Biscuit</b> never gets sad, and nothing is ever marked as failed.</span></p>
+    <p class="foot"><span>MyToki market study</span><span>03</span></p>
+  </div>
+</section>
+
+<!-- 3b -->
+<section class="slide night deep" id="s3b" aria-labelledby="h3b">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">The big idea</p>
+      <h2 id="h3b">Kids can see what dawdling costs them</h2>
+      <p class="lede">Every task has its slot in the day. If brushing teeth runs long, the extra minutes come out of whatever's next, starting with free time. Finish early and the leftover minutes become free time. No punishment, no lost stars, no sad pet.</p>
+    </div>
+    <div class="split" style="--a:1.5fr;--b:1fr">
+      <div class="sq" role="img" aria-label="The same 35-minute morning three ways. On time: 15 minutes of free time. Teeth take 6 extra minutes: free time shrinks to 9 minutes. Dressed 4 minutes early: free time grows to 19 minutes.">
+        <div class="sq-row"><p class="sq-lab">On time</p><div class="sq-bar"><span style="--m:5">Teeth</span><span style="--m:10">Get dressed</span><span style="--m:5">Shoes</span><span class="free" style="--m:15">Free time 15m</span></div></div>
+        <div class="sq-row"><p class="sq-lab">Teeth take 6 extra minutes</p><div class="sq-bar"><span style="--m:5">Teeth</span><span class="over" style="--m:6">+6m</span><span style="--m:10">Get dressed</span><span style="--m:5">Shoes</span><span class="free" style="--m:9">Free 9m</span></div></div>
+        <div class="sq-row"><p class="sq-lab">Dressed 4 minutes early</p><div class="sq-bar"><span style="--m:5">Teeth</span><span style="--m:6">Dressed</span><span style="--m:5">Shoes</span><span class="free more" style="--m:19">Free time 19m</span></div></div>
+        <p class="sq-scale">One 35-minute morning, drawn to scale.</p>
+      </div>
+      <div style="display:grid;gap:12px;align-content:start">
+        <div class="card"><p class="qlabel">Parents decide what gives</p><p>For each task, they pick: keep it, shorten it, or skip it if time runs out. Must-dos never lose time.</p></div>
+        <div class="card"><p class="qlabel">Does anyone else do this?</p><p>Brili shrinks free time within a single routine, on a tablet. MyToki does it all day, on a pet your kid carries.</p></div>
+        <div class="card"><p class="qlabel">How we'd know it works</p><p>In the trial, mornings should get quicker once kids watch their free time shrink.</p></div>
+      </div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>04</span></p>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide day" id="s4" aria-labelledby="h4">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">How big is this?</p>
+      <h2 id="h4">25,000–50,000 families by year 3 is under 1% of likely buyers</h2>
+    </div>
+    <div class="split" style="--a:1.55fr;--b:1fr">
+      <div class="chart" id="buyerChart" role="img" aria-label="Households with a child aged 3 to 8, in millions: US, UK, Canada and Australia 19; US 14; US families likely to buy 4.9; US with ADHD or autism 1.5; already seeing a therapist 0.75; year-3 goal 25 to 50 thousand"></div>
+      <div class="stats">
+        <div class="stat"><p class="num">$130</p><p>What a family spends over two years: one and a half MyTokis on average, plus Assist in one home in five.</p></div>
+        <div class="stat"><p class="num">$640M</p><p>What that adds up to across the 4.9M US families likely to buy. There's a lot of guesswork in it.</p></div>
+        <div class="stat"><p class="num">$108K</p><p>First-year sales from the first 1,000 families. Win those before worrying about the rest.</p></div>
+      </div>
+    </div>
+    <p class="srcline">Our estimates, built from CDC birth data and government family counts in the US, UK, Canada and Australia. We're assuming 35% of families are likely buyers (two incomes or $100k+). Where to start: 7M US kids have ADHD, and 1 in 31 have autism.</p>
+    <p class="foot"><span>MyToki market study</span><span>05</span></p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide night" id="s5" aria-labelledby="h5">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Trends</p>
+      <h2 id="h5">Most of what's happening works in MyToki's favour</h2>
+    </div>
+    <div class="cols tw">
+      <div>
+        <h3><i style="--c:var(--mint)"></i>Going our way</h3>
+        <ul>
+          <li><b>Screen limits are normal now</b><span>39+ US states limit phones at school, and 75% of parents of kids under 9 worry about screens.</span></li>
+          <li><b>Virtual pets are back</b><span>Tamagotchi passed 100M sold in 2025, with six new Paradise versions in a year.</span></li>
+          <li><b>More kids are diagnosed with ADHD and autism</b><span>7M US kids have ADHD; autism is now 1 in 31, up from 1 in 36.</span></li>
+          <li><b>Screen-free kids' gadgets are selling</b><span>tonies made €630M in 2025 (up 36%); Yoto made £94.8M in 2024 (up 86%).</span></li>
+          <li><b>Parents don't trust AI toys</b><span>The FTC is looking into AI companions (Sep 2025), and Fairplay tells parents not to buy AI toys.</span></li>
+          <li><b>Parents worry about sleep</b><span>18.5% of 5–9-year-olds have taken melatonin.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3><i style="--c:var(--coral)"></i>Working against us</h3>
+        <ul>
+          <li><b>Competitors showed up in 2026</b><span>Cozyla Routie on the nightstand, PawPal's pet clock, chores on Garmin's watch.</span></li>
+          <li><b>It's still a screen in a kid's hand</b><span>Lots of schools banned Tamagotchis in the late 1990s.</span></li>
+          <li><b>People are tired of subscriptions</b><span>US adults waste $205 a year on ones they don't use.</span></li>
+          <li><b>People don't trust connected gadgets</b><span>Moxie stopped working when its maker closed; Masimo switched off its Stork app in June 2026.</span></li>
+          <li><b>Tariffs and privacy rules</b><span>New 13% duties on goods from China, and kids' privacy law now covers body data.</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>06</span></p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide day" id="s6" aria-labelledby="h6">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Who does what</p>
+      <h2 id="h6">Only MyToki puts the routine and a pet in your kid's hand, then docks by the bed</h2>
+    </div>
+    <div class="map-wrap">
+      <table class="map">
+        <thead><tr><td style="background:none;border:0"></td><th scope="col">Goes with the kid</th><th scope="col">Stays in one spot</th><th scope="col">App on a tablet or phone</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Daily routine and tasks</th><td class="hot"><span class="chip">MyToki</span><br>Octopus by Joy watch<br>Garmin Bounce 2 watch</td><td>Cozyla Routie<br>Hearth, Skylight<br>Charts, Time Timer</td><td>Goally (its own tablet)<br>Joon, Brili<br>Choiceworks</td></tr>
+          <tr><th scope="row">Pets and play</th><td>Tamagotchi Paradise<br>Bitzee<br>Gabb Go (watch pet)<br><span class="chip">MyToki</span></td><td>PawPal (pet + reminders)<br>Miko, Loona robots</td><td>Joon's pet<br>Finch (adults)</td></tr>
+          <tr><th scope="row">Waking up and bedtime</th><td>Yoto Mini 4th gen<br>Watch alarms</td><td>Hatch Rest, Mella<br>Groclock, Yoto Player<br><span class="chip">MyToki in its dock</span></td><td class="empty"></td></tr>
+          <tr><th scope="row">Knowing who's in bed, no camera</th><td>Garmin Bounce 2<br>(sleep, if worn to bed)</td><td><span class="chip">MyToki radar (maybe later)</span><br>Nothing else for kids</td><td class="empty"></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="srcline">Each product sits where its maker says it belongs. MyToki shows up wherever it does the job: in your kid's hand by day, in its dock at night.</p>
+    <p class="foot"><span>MyToki market study</span><span>07</span></p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide night" id="s7" aria-labelledby="h7">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Closest competitors</p>
+      <h2 id="h7">Each one does a piece of it</h2>
+    </div>
+    <div class="cols keep2" style="--n:3">
+      <div class="card rival"><p class="names">PawPal · $69.99 on sale, $99.99 normally · sold out</p><h3>A pet clock by the bed</h3><p class="miss"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i>Sends reminders at set times, but it never leaves the bedroom. Reviewers say kids get bored fast.</p></div>
+      <div class="card rival"><p class="names">Tamagotchi Paradise $44.99 · Bitzee ~$30</p><h3>Pets you carry</h3><p class="miss"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i>No routine. And Tamagotchi pets get sick or die if you forget them.</p></div>
+      <div class="card rival"><p class="names">Octopus $49 + plan · Garmin Bounce 2 ~$299 + plan</p><h3>Routines on the wrist</h3><p class="miss"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i>No pet, and you have to pay every month.</p></div>
+      <div class="card rival"><p class="names">Goally $295–395 · Joon $89.99/yr · Brili</p><h3>Routines on a screen</h3><p class="miss"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i>It's a tablet, so there are fights when it's time to turn it off. Brili shrinks free time, but only within one routine.</p></div>
+      <div class="card rival"><p class="names">Cozyla Routie $169.99 + plan</p><h3>Stuck on the nightstand</h3><p class="miss"><i><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i>You pay monthly to use stars, and it has an AI voice and a microphone.</p></div>
+      <div class="card rival hi"><p class="names">MyToki · $79 with its dock</p><h3>All of it</h3><p>Kids see their time all day and carry their pet everywhere. Stars from parents are free, and it docks as the bedside clock at night.</p></div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>08</span></p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide day" id="s8" aria-labelledby="h8">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">How MyToki compares</p>
+      <h2 id="h8">Every piece exists somewhere. Nobody has put them together.</h2>
+    </div>
+    <div class="mx-wrap">
+      <table class="mx">
+        <thead><tr><th scope="col" style="text-align:left">What it does</th><th scope="col" class="mytoki">MyToki</th><th scope="col">PawPal</th><th scope="col">Tamagotchi</th><th scope="col">Octopus / Garmin</th><th scope="col">Goally</th><th scope="col">Joon</th><th scope="col">Cozyla Routie</th></tr></thead>
+        <tbody id="mxBody"></tbody>
+      </table>
+    </div>
+    <div class="legend"><span><i style="background:var(--plum)"></i>Yes</span><span><i style="background:conic-gradient(var(--plum) 0 180deg,transparent 180deg);box-shadow:inset 0 0 0 2px var(--plum)"></i>Partly</span><span><i style="box-shadow:inset 0 0 0 2px #b9b39a"></i>No</span><span><i style="width:12px;height:2px;border-radius:2px;background:#b9b39a"></i>No pet</span><span><i style="border:2px dotted #b9b39a"></i>Not stated</span></div>
+    <p class="foot"><span>MyToki market study</span><span>09</span></p>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide night" id="s9" aria-labelledby="h9">
+  <div class="in">
+    <div class="split" style="--a:1fr;--b:1.5fr">
+      <div class="head">
+        <p class="eyebrow">What parents still need</p>
+        <h2 id="h9">Parents want someone else to do the reminding</h2>
+        <div class="callout"><p class="num">86%</p><p class="small">of US parents with kids under 12 say managing screen time is a daily job. Only 19% always stick to their own rules (Pew, Oct 2025).</p></div>
+        <p class="small">Ranked by how often parents bring each one up in reviews, forums and studies.</p>
+      </div>
+      <ol class="needs">
+        <li class="need"><div><b>Mornings without a parent calling out every step</b><span>Biscuit does the reminding, right from the kid's hand.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>Help that isn't a tablet</b><span>One button, no apps, no browser. It's still a screen, though.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>The routine goes where the kid goes</b><span>Bedroom to bathroom to front door.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>Seeing what dawdling costs</b><span>Drag your feet and free time shrinks; finish early and it grows. All day.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>Pictures for kids who can't read yet</b><span>Icons on every screen, and reminders read out loud.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>Bedtime without stalling, and staying in bed</b><span>Checklist, story and night light in the dock, and a green light when it's OK to get up.</span></div><span class="pill strong">Good fit</span></li>
+        <li class="need"><div><b>Not much work for parents</b><span>Routines repeat on their own and Assist can write new ones. Stars still need a parent's tap.</span></div><span class="pill partial">Partly</span></li>
+        <li class="need"><div><b>More than one kid without paying per kid</b><span>$69 for a sibling's MyToki (to test), and up to three kids side by side on an iPad.</span></div><span class="pill partial">Partly</span></li>
+      </ol>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>10</span></p>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide day" id="s10" aria-labelledby="h10">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Maybe later: a radar for the bedroom</p>
+      <h2 id="h10">One radar could tell who's in bed, with no camera</h2>
+      <p class="lede">Not in the first version. It won't tell us whether families want the routine, and it adds costs a $79 product can't cover yet.</p>
+    </div>
+    <div class="split" style="--a:1.1fr;--b:1fr">
+      <figure class="room">
+        <svg viewBox="0 0 520 330" role="img" aria-label="A shared bedroom seen from above. A radar on the far wall covers two beds, each inside its own zone. Maya is in bed; Leo got up at 5:40.">
+          <rect class="wall" x="10" y="10" width="500" height="310" rx="6"/>
+          <path class="door" d="M510 110 v70"/>
+          <text class="q" x="498" y="100" text-anchor="end">door</text>
+          <polygon class="cone" points="260,34 22,300 498,300"/>
+          <rect class="unit" x="236" y="14" width="48" height="16" rx="4"/>
+          <text class="t" x="260" y="52" text-anchor="middle">Radar, on the far wall</text>
+          <rect class="bed" x="40" y="196" width="160" height="104" rx="8"/>
+          <rect class="pillow" x="52" y="206" width="44" height="84" rx="8"/>
+          <rect class="zone" x="30" y="186" width="180" height="124" rx="10"/>
+          <rect class="bed" x="320" y="196" width="160" height="104" rx="8"/>
+          <rect class="pillow" x="424" y="206" width="44" height="84" rx="8"/>
+          <rect class="zone" x="310" y="186" width="180" height="124" rx="10"/>
+          <circle class="mytoki" cx="236" cy="286" r="10"/><circle class="mytoki" cx="284" cy="286" r="10"/>
+          <text class="q" x="260" y="266" text-anchor="middle">two MyTokis, docked</text>
+          <circle class="okdot" cx="44" cy="170" r="7"/><text class="t" x="58" y="175">Maya · in bed</text>
+          <circle class="updot" cx="324" cy="170" r="7"/><text class="t" x="338" y="175">Leo · up at 5:40</text>
+          <text class="q" x="400" y="140" text-anchor="middle">only Leo's MyToki says</text>
+          <text class="q" x="400" y="155" text-anchor="middle">"still sleepy time"</text>
+        </svg>
+      </figure>
+      <div style="display:grid;gap:14px">
+        <ul class="rules">
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></i><span>Parents draw a box around each bed when they set it up.</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></i><span>Bunk beds need a radar that can tell height.</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></i><span>It ignores parents checking in and the dog, and only watches this room.</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></i><span>It only says in bed, moving or up. Never breathing or health.</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></i><span>Live status and alerts are free and work without internet.</span></li>
+        </ul>
+        <div class="pricebox">
+          <div class="card hi"><p class="qlabel">MyToki radar, if we build it</p><p class="num">$59–79</p><p>per room, no matter how many kids share it</p></div>
+          <div class="card"><p class="qlabel">Nanit</p><p class="num">$290</p><p>for a camera, plus $100 a year for its out-of-bed alerts</p></div>
+        </div>
+        <p class="srcline">70% of US homes with 2+ kids have kids sharing a room (Sleep Foundation). 43% of autism parents have lost sleep worrying their child will wander at night (Kennedy Krieger).</p>
+      </div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>11</span></p>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide night" id="s11" aria-labelledby="h11">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Would people buy it?</p>
+      <h2 id="h11">We won't know until families pay, but it's worth finding out</h2>
+    </div>
+    <div class="split" style="--a:1fr;--b:1fr">
+      <ul class="score">
+        <li><span>Parents feel this pain often, and badly</span><span class="pill strong">Strong</span></li>
+        <li><span>They already pay to fix it</span><span class="pill strong">Strong</span></li>
+        <li><span>You can explain it in one line</span><span class="pill strong">Strong</span></li>
+        <li><span>It beats what families use now</span><span class="pill medium">Medium–strong</span></li>
+        <li><span>It stays useful once the newness wears off</span><span class="pill medium">Medium</span></li>
+        <li><span>One per kid is affordable</span><span class="pill medium">Medium</span></li>
+        <li><span>We know how to reach buyers</span><span class="pill medium">Medium</span></li>
+        <li><span>It's hard to copy</span><span class="pill medium">Medium</span></li>
+        <li><span>Parents trust it</span><span class="pill medium">Medium</span></li>
+      </ul>
+      <div style="display:grid;gap:16px">
+        <p class="pitch">"A Tamagotchi that runs your child's day, then docks as their bedside clock."</p>
+        <ol class="seg">
+          <li><span><b>Families with ADHD or autism, kids 4–8.</b> They struggle most, and already pay for Goally and Joon.</span></li>
+          <li><span><b>Other 4–7-year-olds with working parents.</b> Mornings, getting out the door, bedtime. A good holiday gift, too.</span></li>
+          <li><span><b>Families with 2–3 kids.</b> A sibling price, and all the kids side by side on an iPad.</span></li>
+          <li><span><b>Early risers.</b> Families with a Hatch or Mella who want more than a light.</span></li>
+        </ol>
+      </div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>12</span></p>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide day" id="s12" aria-labelledby="h12">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Pricing</p>
+      <h2 id="h12">$79 with the dock: about what PawPal costs, far less than Goally</h2>
+    </div>
+    <div class="split" style="--a:1.5fr;--b:1fr">
+      <div class="chart" id="priceChart" role="img" aria-label="Price to buy and two-year cost of 13 kids' products. MyToki with dock $79; MyToki with Assist $157 over two years; PawPal $70; Cozyla Routie $170 rising to $290; Goally $295 rising to $403."></div>
+      <div style="display:grid;gap:12px;align-content:start">
+        <div class="plist">
+          <div class="hi"><b>$79</b><span>MyToki with its dock</span></div>
+          <div><b>$59 / $89</b><span>Other prices to test</span></div>
+          <div><b>$69</b><span>Each extra kid (to test)</span></div>
+          <div><b>$19</b><span>Extra dock</span></div>
+          <div><b>$39/yr</b><span>MyToki Assist, optional</span></div>
+          <div><b>$59–65</b><span>Early backers</span></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="ctb">
+            <thead><tr><th scope="col">If it costs us</th><th scope="col">Sell at $59</th><th scope="col">At $79</th><th scope="col">At $89</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">$28</th><td>$15</td><td>$34</td><td>$44</td></tr>
+              <tr><th scope="row">$38 (our guess)</th><td>$5</td><td class="hot">$24</td><td>$34</td></tr>
+              <tr><th scope="row">$44 (with tariffs)</th><td>−$1</td><td>$18</td><td>$28</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="srcline">What's left from a MyToki sold online, before paying to find the customer (estimates). Finding each family likely costs $40–80, so $79 only works if MyToki costs us about $30 to make and ship, and families buy more than one.</p>
+      </div>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>13</span></p>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide night" id="s13" aria-labelledby="h13">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Subscription</p>
+      <h2 id="h13">Keep the basics free. Charge for help that saves parents time.</h2>
+    </div>
+    <div class="cols" style="--n:3">
+      <div class="lists">
+        <p class="qlabel">Free for as long as you own it</p>
+        <ul>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Routines, events and chores</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Free time that shrinks and grows</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Stars and rewards</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Biscuit and Playtime</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Wake-up and the ok-to-wake light</span></li>
+        </ul>
+      </div>
+      <div class="lists plus">
+        <p class="qlabel">MyToki Assist · $4.99 a month or $39 a year</p>
+        <ul>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Describe a routine in a sentence and AI sets it up</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>AI plans the week from school emails and calendars</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>Tips based on how long things really take</span></li>
+          <li><i><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" fill="none" stroke="#20294a" stroke-width="2" stroke-linecap="round"/></svg></i><span>New pets, outfits and seasonal games</span></li>
+        </ul>
+        <p class="small" style="margin-top:10px">Parents OK everything the AI writes. No chatbot for kids.</p>
+      </div>
+      <div style="display:grid;gap:10px;align-content:start">
+        <div class="stat" style="background:var(--surface)"><p class="num" style="color:var(--lime)">$0.30–1</p><p class="small">What the AI costs us per subscriber each month at today's Claude prices (a guess).</p></div>
+        <div class="stat" style="background:var(--surface)"><p class="num" style="color:var(--lime)">$5–7</p><p class="small">What we'd make per buyer each year if 1 in 5 sign up. Good for new content, but it won't make up for thin hardware profits.</p></div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="models">
+        <thead><tr><th scope="col">Option</th><th scope="col">Two kids</th><th scope="col">Ongoing</th><th scope="col">Profit before marketing</th><th scope="col">Our take</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A. Just the hardware</th><td>$79 + $69</td><td>None</td><td class="n">~$47</td><td>Simple, but nothing pays for new content</td></tr>
+          <tr class="rec"><th scope="row">B. Hardware + optional Assist</th><td>$79 + $69</td><td>$39/yr, about 1 in 5 sign up</td><td class="n">~$47 + $12 over 2 years</td><td>Our pick: it saves parents time</td></tr>
+          <tr><th scope="row">C. Cheap hardware, required plan</th><td>$49 + $39</td><td>$6.99/mo, required</td><td class="n">Loses money on hardware</td><td>Feels like it stops working if you stop paying</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>14</span></p>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="slide day" id="s14" aria-labelledby="h14">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Add-ons</p>
+      <h2 id="h14">Made for accessories, but not yet</h2>
+      <p class="lede">Only a lanyard and an extra dock make the first version. Collectibles can wait until MyToki sells, as long as the hardware leaves room for them.</p>
+    </div>
+    <div class="cols keep2" style="--n:3">
+      <div class="card addon"><p class="pr">$19 · later</p><h3>Pet ear shells</h3><p>Snap one on and that pet comes to the screen.</p></div>
+      <div class="card addon"><p class="pr">$12–15 · later</p><h3>Pet figures</h3><p>Set one on the dock and a new pet moves in, like tonies.</p></div>
+      <div class="card addon"><p class="pr">$6 · later</p><h3>Outfit charms</h3><p>Tap one to dress the pet, then clip it to a lanyard or backpack.</p></div>
+      <div class="card addon"><p class="pr">$9–12 · v1</p><h3>Lanyard and strap</h3><p>Keeps MyToki with the child and off the floor.</p></div>
+      <div class="card addon"><p class="pr">$19 · v1</p><h3>Extra dock</h3><p>For a second home, the grandparents or the kitchen.</p></div>
+      <div class="card addon"><p class="pr">$12 / $15 · later</p><h3>Bumper and case</h3><p>Handhelds get dropped.</p></div>
+    </div>
+    <div class="lock" aria-label="Decide these before the case mold is made"><span>Decide before making the mold:</span><span>Room for an NFC reader</span><span>Charging pins for the dock</span><span>One standard shell edge</span><span>Strap loop</span><span>New pets over Wi-Fi</span></div>
+    <p class="foot"><span>MyToki market study</span><span>15</span></p>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="slide night" id="s15" aria-labelledby="h15">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Risks</p>
+      <h2 id="h15">The big three: kids get bored, parents see a screen, and it costs too much to make</h2>
+    </div>
+    <div class="rm" role="group" aria-label="Risks by likelihood and impact">
+      <span></span><span class="ax">Could happen</span><span class="ax">Likely</span>
+      <span class="ax ay">Hurts a lot</span>
+      <div class="cell"><span class="rk top">Parents see a screen in their kid's hand</span><span class="rk">Finding each family costs $40–80</span><span class="rk">Battery doesn't last the day</span><span class="rk">A competitor adds the missing piece</span><span class="rk">Fear of paywalls or the device dying</span><span class="rk">Molds, battery safety, tariffs</span></div>
+      <div class="cell hot"><span class="rk top">Kids stop carrying it after 4–8 weeks</span><span class="rk top">It costs over $35 to make and ship</span></div>
+      <span class="ax ay">Hurts some</span>
+      <div class="cell"><span class="rk">Schools ban it</span><span class="rk">Apps copy the shrinking free time</span><span class="rk">Cost adds up with each kid</span><span class="rk">"Companion" sounds like an AI toy</span><span class="rk">Kids outgrow it at 8–9</span></div>
+      <div class="cell"><span class="rk">Parents stop giving stars</span><span class="rk">Lost, dropped or broken</span><span class="rk">Half of sales come at the holidays</span></div>
+    </div>
+    <p class="small">What we'd do about them: keep new pets and games coming, with the routine and dock keeping MyToki useful; say clearly on the box that there are no apps, videos or browser; and get real supplier quotes and cut costs before paying for molds.</p>
+    <p class="foot"><span>MyToki market study</span><span>16</span></p>
+  </div>
+</section>
+
+<!-- 16 -->
+<section class="slide day" id="s16" aria-labelledby="h16">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Next steps</p>
+      <h2 id="h16">Prove people use it and pay for it before paying for molds</h2>
+      <p class="lede">Each step is cheap next to $25–60K for molds and $20–50K for safety certification.</p>
+    </div>
+    <ol class="steps">
+      <li class="step"><h3>Talk to parents</h3><p>15–20 parents, including some who gave up on routine apps, walk us through yesterday morning.</p><p class="pass">Keep going if the same painful problem keeps coming up</p></li>
+      <li class="step"><h3>Test the price</h3><p>About 1,000 visitors each see $59, $79 or $89 and can reserve for a refundable $10.</p><p class="pass">Pass at $79: 3%+ reserve, and half of them buy</p></li>
+      <li class="step"><h3>Eight-week trial</h3><p>30 families try MyToki and the same app on their own tablet, taking turns.</p><p class="pass">Pass: 60%+ use it 4+ days in week 8, parents nag a quarter less, mornings get quicker</p></li>
+      <li class="step"><h3>Try PawPal side by side</h3><p>Two PawPals next to MyToki in five homes.</p><p class="pass">Does carrying the routine beat a pet clock by the bed?</p></li>
+      <li class="step"><h3>Charge for Assist</h3><p>Free for a month, then paid.</p><p class="pass">Pass: 10+ families pay, and 60%+ renew</p></li>
+      <li class="step"><h3>Get supplier quotes</h3><p>Price a cheaper round screen, a smaller battery and a basic dock.</p><p class="pass">Pass: MyToki and dock cost $30 or less to make and ship</p></li>
+      <li class="step"><h3>Find cheap ways to reach buyers</h3><p>Track what each order costs to win, by channel.</p><p class="pass">Pass: under about $25 per first order</p></li>
+      <li class="step last"><h3>Crowdfunding</h3><p>Only after steps 1–7. Early backers pay about $59–65.</p><p class="pass">Goal: 1,500–2,500 backers</p></li>
+    </ol>
+    <p class="foot"><span>MyToki market study</span><span>17</span></p>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="slide night" id="s17" aria-labelledby="h17">
+  <div class="in">
+    <div class="head">
+      <p class="eyebrow">Sources</p>
+      <h2 id="h17">Where the numbers come from</h2>
+    </div>
+    <div class="src">
+      <div>
+        <h3>Parents and market</h3>
+        <ul>
+          <li><a href="https://www.pewresearch.org/internet/2025/10/08/how-parents-approach-their-kids-screen-time/" target="_blank" rel="noopener">Pew, kids' screen time (Oct 2025)</a></li>
+          <li><a href="https://www.cdc.gov/adhd/data/index.html" target="_blank" rel="noopener">CDC, ADHD data</a> · <a href="https://www.cdc.gov/autism/data-research/index.html" target="_blank" rel="noopener">CDC, autism data</a></li>
+          <li><a href="https://www.sleepfoundation.org/sleep-news/kids-who-do-not-share-bedrooms-get-more-sleep" target="_blank" rel="noopener">Sleep Foundation, room sharing</a></li>
+          <li><a href="https://jamanetwork.com/journals/jamapediatrics/fullarticle/2811895" target="_blank" rel="noopener">JAMA Pediatrics, melatonin use</a></li>
+          <li><a href="https://www.japantimes.co.jp/business/2025/09/02/companies/tamagotchi-100-million/" target="_blank" rel="noopener">Japan Times, Tamagotchi 100M</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Competitors and prices</h3>
+        <ul>
+          <li><a href="https://shop.thethinkacademy.com/products/paw-pal-alarm" target="_blank" rel="noopener">PawPal</a> · <a href="https://support.brili.co/support/solutions/articles/14000043181-setting-up-a-routine" target="_blank" rel="noopener">Brili routines</a></li>
+          <li><a href="https://getgoally.com/pricing/" target="_blank" rel="noopener">Goally pricing</a> · <a href="https://www.cozyla.com/products/routie" target="_blank" rel="noopener">Cozyla Routie</a></li>
+          <li><a href="https://www.heyjoy.io/" target="_blank" rel="noopener">Octopus by Joy</a> · <a href="https://tamagotchi-official.com/us/series/paradise/" target="_blank" rel="noopener">Tamagotchi Paradise</a></li>
+          <li><a href="https://us.yotoplay.com/press/en-US/270385-yoto-launches-yoto-player-4th-gen-and-yoto-mini-4th-gen-its-biggest-hardware-upgrade-yet/" target="_blank" rel="noopener">Yoto 4th gen launch</a></li>
+          <li><a href="https://www.nanit.com/blogs/parent-confidently/nanit-insights-plan-guide" target="_blank" rel="noopener">Nanit plans</a> · <a href="https://us.aqara.com/products/presence-sensor-fp2" target="_blank" rel="noopener">Aqara FP2</a></li>
+          <li><a href="https://www.sec.gov/Archives/edgar/data/0001816708/000181670826000082/ex-991q226earningspressrel.htm" target="_blank" rel="noopener">Owlet Q2 2026 results</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Our estimates</h3>
+        <ul>
+          <li>Household counts come from CDC births and government family data.</li>
+          <li>The 35% likely-buyer share and 1-in-5 Assist sign-up are assumptions.</li>
+          <li>Costs and profits are our estimates, not supplier quotes.</li>
+          <li>A second, independent review came to the same conclusion.</li>
+          <li>Full detail: <a href="https://claude.ai/code/artifact/25be0a9a-372d-4acf-81f9-fefabbe5a5db" target="_blank" rel="noopener">MyToki Market Study</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="close">
+      <div class="wm" id="wmClose"></div>
+      <p>One hop at a time.</p>
+    </div>
+    <p class="foot"><span>MyToki market study</span><span>18</span></p>
+  </div>
+</section>
+
+</main>
+
+<nav class="ctrl" aria-label="Slides">
+  <button type="button" id="prevBtn" aria-label="Previous slide"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <span class="count" id="count" aria-live="polite">1 / 18</span>
+  <button type="button" id="nextBtn" aria-label="Next slide"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+</nav>
+
+<script>
+(() => {
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const C = {navy:'#20294a',cream:'#f9f5e1',lime:'#dcef70',amber:'#fab047',coral:'#ff8f91',mint:'#65cdaa',sky:'#879bff',eye:'#0e1221',nose:'#f17097',carrot:'#f7945a'};
+
+/* ---------- Biscuit's pixels, from the MyToki brand book (ported from src/components/pets/pixel) ---------- */
+const PAL = {W:'#f9f5e1',O:'#f7945a',o:'#d8703a',K:'#010101',P:'#f17097',R:'#f6adc3',T:'#35b8a8',t:'#1f857a',B:'#a9def6',F:'#ffffff',f:'#9fd3ef',Z:'#d9d6ff',D:'#10152a'};
+class Pix{
+  constructor(){this.m=new Map()}
+  set(x,y,c){if(c&&c!=='.')this.m.set(x+','+y,c);return this}
+  clone(){const p=new Pix();p.m=new Map(this.m);return p}
+  each(fn){for(const [k,c] of this.m){const i=k.indexOf(',');fn(+k.slice(0,i),+k.slice(i+1),c)}}
+  stamp(rows,dx=0,dy=0){rows.forEach((r,y)=>{for(let x=0;x<r.length;x++)if(r[x]!=='.')this.set(x+dx,y+dy,r[x])});return this}
+}
+const rep=(s,n=2)=>Array(n).fill(s);
+const runs=(p,list,c='W')=>{for(const [y,a,b] of list)for(let x=a;x<=b;x++)p.set(x,y,c);return p};
+const SIDE=new Pix().stamp([
+  ...rep(".....WWWW......WWW..........."),
+  ...rep("...WWWWWWWW..WWOWWWW........."),
+  ...rep(".WWWWWWOOWW..WWOOOWW........."),
+  ...rep(".WWWWOOOOWW..WWOOOWW........."),
+  ...rep(".....OOOOWW..WWOOOWW........."),
+  ...rep(".....WWWWWWWWWWOWWW.........."),
+  ...rep("..WWWWWWWWWWWWWWWWWWW........",4),
+  ...rep("WWKKKKWWWWWKKKKWWWWWWWW......",4),
+  ...rep("WWWWWWWPPWWWWWWWWWWWWWW......"),
+  ...rep("WWWWWWWWWWWWWWWWWWWWWWW......"),
+  ...rep("..WWWWWWWWWWWWWWWWWWW........"),
+  ...rep(".......WWWWWWWWWWWWW........."),
+  ...rep(".....WWWWWWWWWWWWWWWWW......."),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWWWWW",4),
+  ...rep(".....WWWWWWWWWWWWWWWWWWWWW..."),
+  ...rep("...WWWWWWWWWWWWWWWWWWW......."),
+]);
+const FRONT_BASE=new Pix().stamp([
+  ...rep("....WWWW......WWWW...."),
+  ...rep("..WWWWWWWW..WWOOWWWW.."),
+  ...rep(".WWWWWOOWW..WWOOOOWW.."),
+  ...rep(".WWWOOOOWW..WWOOOOWW.."),
+  ...rep("....OOOOWW..WWOOOOWW.."),
+  ...rep("....WWWWWWWWWWOOWW...."),
+  ...rep("...WWWWWWWWWWWWWWWW...",4),
+  ...rep(".WWWKKKKWWWWWWKKKKWWW.",4),
+  ...rep(".WWWWWWWWWPPWWWWWWWWW."),
+  ...rep(".WWWWWWWWWWWWWWWWWWWW."),
+  ...rep("...WWWWWWWWWWWWWWWW..."),
+  ...rep(".....WWWWWWWWWWWW....."),
+  ...rep("....WWWWWWWWWWWWWW....",10),
+  ...rep("....WWWWWW..WWWWWW...."),
+]);
+const T_LEFT_ARM=[[3,28,33],[2,28,33],[1,28,33],[0,28,33],[-1,29,32]];
+const tiltedArm=k=>{const p=FRONT_BASE.clone();for(const [x,top,bottom] of T_LEFT_ARM){const lift=Math.round(k*(3-x));for(let y=top-lift;y<=bottom-lift;y++)p.set(x,y,'W')}return p};
+const TPOSE=runs(FRONT_BASE.clone(),[[28,0,3],[29,-1,3],[30,-1,3],[31,-1,3],[32,-1,3],[33,0,3],[28,18,21],[29,18,22],[30,18,22],[31,18,22],[32,18,22],[33,18,21]]);
+const FRONT={rest:FRONT_BASE,wave:tiltedArm(1),waveLow:tiltedArm(.5),t:TPOSE};
+const SLEEPER=new Pix().stamp([
+  ".....................WWW............",
+  ".................WWWWWWW............",
+  "............WWWWWWWWWWWWWWW.........",
+  ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+  ".....WWWWWWWWWWWWWWWWWWWWWWW........",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWW........",
+  "..WWWWWWWWWWWWWWWWOOOOOOOOW.........",
+  "..WWWWWWWWWWWWWWWWOWWWWWWWW.........",
+  "..WWWWWWWWWWWWWWWWWWWWW.............",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWW.......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+  "WWKKKKWWWWWKKKKWWWWWWWWWWWWWWW......",
+  "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWPPWWWWWWWWWWWWWWWWWWWWW......",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+  "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+  "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+  ".....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+  "......WWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+]);
+function eyes(p,kind,xs,top=16){
+  for(const c of xs){
+    for(let y=top;y<top+4;y++)for(let x=c;x<c+4;x++)p.set(x,y,'W');
+    const block=(y0,y1)=>{for(let y=y0;y<=y1;y++)for(let x=c;x<c+4;x++)p.set(x,y,'K')};
+    if(kind==='open')block(top,top+3);
+    else if(kind==='blink')block(top+2,top+2);
+    else if(kind==='happy'){p.set(c+1,top+1,'K');p.set(c+2,top+1,'K');p.set(c,top+2,'K');p.set(c+3,top+2,'K')}
+  }
+}
+function mouth(p,kind,nx,y=22){
+  const s=(x,yy,c='K')=>p.set(x,yy,c);
+  if(kind==='smile'){s(nx-1,y);s(nx+2,y);s(nx,y+1);s(nx+1,y+1)}
+  else if(kind==='yay'){for(let x=nx-1;x<=nx+2;x++)s(x,y);s(nx-1,y+1);s(nx,y+1,'P');s(nx+1,y+1,'P');s(nx+2,y+1);s(nx,y+2);s(nx+1,y+2)}
+}
+const PAW=[[27,1,3],[28,0,5],[29,0,5],[30,0,5],[31,1,5]];
+const paw=(p,dx,dy)=>{for(const [y,a,b] of PAW)for(let x=a;x<=b;x++)p.set(x+dx,y+dy,'W')};
+function brush(p,dx,dy){for(let x=5;x<=8;x++){p.set(x+dx,22+dy,'B');p.set(x+dx,23+dy,'T')}for(let i=0;i<7;i++)p.set(4-i+dx,24+i+dy,'T');paw(p,dx,dy)}
+const FOAM=[[[4,21,'f'],[3,22,'f'],[4,22,'F'],[3,21,'F']],[[9,22,'f'],[10,22,'F'],[9,21,'F'],[10,23,'f']],[[1,24,'f'],[1,25,'F'],[0,24,'f']]];
+const ZED=["ZZZZ","..Z.",".Z..","ZZZZ"];
+
+function paint(cv,pix,st,o={}){
+  const r=cv.getBoundingClientRect();if(!r.width||!r.height)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const W=Math.round(r.width*dpr),H=Math.round(r.height*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,W,H);
+  const s=Math.max(1,Math.floor(Math.min(W/st.cols,H/st.rows)));
+  const ox=Math.round((W-s*st.cols)/2),oy=Math.round((H-s*st.rows)/2);
+  const X=x=>ox+(x-st.x0)*s,Y=y=>oy+(y-st.y0)*s,dy=o.dy||0;
+  if(o.shadow){const lift=Math.max(0,-dy);ctx.fillStyle='rgba(8,10,22,.35)';ctx.beginPath();ctx.ellipse(X(o.shadow.x),Y(o.shadow.y),s*o.shadow.w*(1-lift/22),s*1.3*(1-lift/30),0,0,Math.PI*2);ctx.fill()}
+  pix.each((x,y,c)=>{ctx.fillStyle=PAL[c]||c;ctx.fillRect(X(x),Y(y+dy),s,s)});
+}
+const ST={front:{x0:-4,y0:-3,cols:30,rows:46},side:{x0:-5,y0:-4,cols:36,rows:46},sleep:{x0:-3,y0:-13,cols:44,rows:36}};
+function frontFrame(pose,eyeK,mouthK){const p=FRONT[pose].clone();eyes(p,eyeK,[4,14]);if(mouthK)mouth(p,mouthK,10);return p}
+const scenes={
+  wave:(t,b)=>({pix:frontFrame(Math.floor(t/4)%2?'waveLow':'wave',b?'blink':'open','smile'),st:ST.front,o:{shadow:{x:11,y:40.2,w:9}}}),
+  cheer:(t)=>{const seq=[0,0,-2,-4,-5,-5,-4,-2,0,0,0,0,0,0];const dy=REDUCE?-3:seq[t%seq.length];return{pix:frontFrame(dy<0||REDUCE?'t':'rest','happy','yay'),st:ST.front,o:{dy,shadow:{x:11,y:40.2,w:9}}}},
+  brush:(t,b)=>{const p=SIDE.clone();eyes(p,b?'blink':'happy',[2,11]);const d=REDUCE?0:(t>>1)%2;brush(p,0,d);if(!REDUCE)for(const [x,y,c] of FOAM[(t>>2)%3])p.set(x,y,c);return{pix:p,st:ST.side,o:{shadow:{x:17,y:40.2,w:12}}}},
+  sleep:(t)=>{const p=SLEEPER.clone();const k=REDUCE?0:(t>>2)%6;p.stamp(ZED,29+(k>>1),-4-k);if(!REDUCE&&k>2)p.stamp(ZED,24,-7-(k-3));return{pix:p,st:ST.sleep}},
+};
+const pets=[...document.querySelectorAll('canvas[data-scene]')].map(cv=>({cv,name:cv.dataset.scene,t:Math.floor(Math.random()*40),blink:0,next:30+Math.random()*50|0,on:true}));
+function draw(c){const sc=scenes[c.name](c.t,c.blink>0);paint(c.cv,sc.pix,sc.st,sc.o)}
+function drawAll(){for(const c of pets)draw(c)}
+if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{for(const e of es){const c=pets.find(p=>p.cv===e.target);if(c)c.on=e.isIntersecting}});pets.forEach(c=>io.observe(c.cv))}
+let last=0;
+function loop(ts){
+  if(ts-last>=125){last=ts;for(const c of pets){if(!c.on)continue;c.t++;if(c.blink>0)c.blink--;else if(--c.next<=0){c.blink=2;c.next=36+Math.random()*36|0}draw(c)}}
+  requestAnimationFrame(loop);
+}
+if('ResizeObserver' in window){const ro=new ResizeObserver(()=>drawAll());pets.forEach(c=>ro.observe(c.cv))}
+drawAll();
+if(!REDUCE)requestAnimationFrame(loop);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawAll);
+
+/* ---------- bead wordmark, from the brand book ---------- */
+const f3=n=>+n.toFixed(3);
+function beadSVG(cells,o={}){
+  const pad=o.pad??.6,bead=.84,rx=.27;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const c of cells){x0=Math.min(x0,c.x);y0=Math.min(y0,c.y);x1=Math.max(x1,c.x+1);y1=Math.max(y1,c.y+1)}
+  const vb={x:x0-pad,y:y0-pad,w:x1-x0+2*pad,h:y1-y0+2*pad};
+  const order=['type','ring','screen','eyeL','eyeR','spark'];
+  const groups={};for(const c of cells)(groups[c.g||'type']??=[]).push(c);
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f3(vb.x)} ${f3(vb.y)} ${f3(vb.w)} ${f3(vb.h)}" role="img" aria-label="MyToki">`;
+  for(const g of Object.keys(groups).sort((a,b)=>order.indexOf(a)-order.indexOf(b))){
+    s+=`<g class="g-${g}">`;
+    for(const c of groups[g]){
+      const b=c.s??bead,i=(1-b)/2;
+      s+=`<rect x="${f3(c.x+i)}" y="${f3(c.y+i)}" width="${f3(b)}" height="${f3(b)}" rx="${f3(rx*b/bead)}" fill="${c.c}"/>`;
+      if(b>.6&&!c.noShine)s+=`<circle cx="${f3(c.x+i+b*.28)}" cy="${f3(c.y+i+b*.26)}" r="${f3(b*.11)}" fill="#fff" fill-opacity=".42"/>`;
+    }
+    s+=`</g>`;
+  }
+  return s+`</svg>`;
+}
+const WM=[
+  "................................LL.......",
+  "LL...LL........LLLLLL...........LL.......",
+  "LLL.LLL........LLLLLL...........LL.......",
+  "LLLLLLL..........LL.....RRRRR...LL.......",
+  "LL.L.LL.LL..LL...LL....RRDDDRR..LL..LL.LL",
+  "LL...LL.LL..LL...LL...RRDDDDDRR.LL.LL..LL",
+  "LL...LL.LL..LL...LL...RDWWDWWDR.LLLL...LL",
+  "LL...LL.LL..LL...LL...RDWWDWWDR.LLL....LL",
+  "LL...LL.LL..LL...LL...RDDDDDDDR.LLLL...LL",
+  "LL...LL..LLLLL...LL...RRDDDDDRR.LL.LL..LL",
+  "LL...LL.....LL...LL....RRDDDRR..LL..LL.LL",
+  "............LL..........RRRRR............",
+  ".........LLLLL...........................",
+  "........LLLL.............................",
+];
+function wordmark(){
+  const cells=[];
+  WM.forEach((row,y)=>[...row].forEach((ch,x)=>{
+    if(ch==='.')return;
+    if(ch==='L'){cells.push({x,y,c:C.lime,g:'type'});return}
+    if(ch==='R'){cells.push({x,y,c:C.lime,g:'ring'});return}
+    cells.push({x,y,c:PAL.D,g:'screen'});
+    if(ch==='W')cells.push({x,y,c:C.cream,g:x<26?'eyeL':'eyeR',noShine:!(y===6&&(x===24||x===27))});
+  }));
+  for(const [x,y] of [[39.5,1.5],[38.5,1.5],[40.5,1.5],[39.5,.5],[39.5,2.5]])cells.push({x,y,c:C.amber,g:'spark'});
+  return cells;
+}
+const wmSvg=beadSVG(wordmark());
+document.getElementById('wmHero').innerHTML=wmSvg;
+document.getElementById('wmClose').innerHTML=wmSvg;
+
+/* ---------- charts ---------- */
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function buyerChart(el){
+  const rows=[
+    {seg:'US, UK, Canada and Australia',v:19},
+    {seg:'US, child aged 3–8',v:14},
+    {seg:'US families likely to buy (two incomes or $100k+)',v:4.9,hi:true},
+    {seg:'US, child 3–8 with ADHD or autism',v:1.5},
+    {seg:'…already seeing a therapist or in special ed',v:.75},
+    {seg:'Year-3 goal: 0.5–1% of likely buyers',v:.0375,lab:'25k–50k households',goal:true},
+  ];
+  const W=760,x0=330,w=330,step=46,top=18,max=Math.max(...rows.map(r=>r.v));
+  const H=top+step*rows.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" font-size="13.5" aria-hidden="true">`;
+  s+=`<line class="axis" x1="${x0}" x2="${x0}" y1="${top-10}" y2="${H-8}"/>`;
+  rows.forEach((r,i)=>{
+    const y=top+i*step+step/2, bw=Math.max(r.v/max*w,3);
+    const lab=r.lab||`${r.v}M households`;
+    s+=`<g><text class="t" x="${x0-12}" y="${y+5}" text-anchor="end" font-family="Andika, Verdana, sans-serif" font-weight="${r.hi?700:400}">${esc(r.seg)}</text>`;
+    s+=`<rect class="bar${r.hi?' hi':''}" x="${x0}" y="${y-12}" width="${bw}" height="24" rx="4"><title>${esc(r.seg)}: ${esc(lab)}</title></rect>`;
+    s+=`<text class="t" x="${x0+bw+8}" y="${y+5}" font-family="Pixelify Sans, monospace" font-weight="${r.hi||r.goal?700:500}">${esc(lab)}</text></g>`;
+  });
+  el.innerHTML=s+`</svg>`;
+}
+function priceChart(el){
+  const rows=[
+    {n:'Goally 8-inch tablet',up:295,two:403,note:'apps $6/mo after 6 free months'},
+    {n:'Garmin Bounce 2 watch',up:299,two:299,plan:true,note:'LTE plan required, not included'},
+    {n:'Cozyla Routie + Super',up:170,two:290,note:'Routie Super $59.99/yr needed for stars'},
+    {n:'Octopus by Joy watch',up:49,two:265,note:'required plan from $9/mo'},
+    {n:'Joon app',up:0,two:180,note:'$89.99/yr on a tablet you own'},
+    {n:'MyToki + Assist',up:79,two:157,hi:true,note:'optional Assist at $39/yr; core features free'},
+    {n:'Yoto Player 4th gen',up:150,two:150,note:'Club optional'},
+    {n:'Yoto Mini 4th gen',up:110,two:110,note:'Club optional'},
+    {n:'Hatch Rest+ 2nd gen',up:90,two:90,note:'Hatch+ optional'},
+    {n:'MyToki with dock',up:79,two:79,hi:true,note:'lead price; core features free'},
+    {n:'PawPal pet clock',up:70,two:70,note:'$69.99 sale, $99.99 list; sold out Sep 2026'},
+    {n:'Tamagotchi Paradise',up:45,two:45,note:'no app'},
+    {n:'Bitzee',up:30,two:30,note:'often discounted'},
+  ];
+  const W=760,x0=236,w=420,max=500,top=86,step=27;
+  const X=v=>x0+v/max*w, H=top+step*(rows.length-1)+30;
+  const bands=[{l:'Toy',a:0,b:50,y:30},{l:'Our range $50–90',a:50,b:90,y:46,hi:true},{l:'Gift $90–150',a:90,b:150,y:62},{l:'Premium $150+',a:150,b:500,y:30}];
+  const money=v=>v===0?'Free':'$'+Math.round(v);
+  let s=`<svg viewBox="0 0 ${W} ${H}" font-size="13" aria-hidden="true">`;
+  for(const b of bands){s+=`<rect class="band${b.hi?' hi':''}" x="${X(b.a)}" y="12" width="${X(b.b)-X(b.a)}" height="${H-18}"/><text class="q" x="${X(b.a)+6}" y="${b.y}" font-family="Pixelify Sans, monospace" font-size="12">${esc(b.l)}</text>`}
+  rows.forEach((r,i)=>{
+    const y=top+i*step;
+    s+=`<g><text class="t" x="${x0-14}" y="${y+4.5}" text-anchor="end" font-family="Andika, Verdana, sans-serif" font-weight="${r.hi?700:400}">${esc(r.n)}</text>`;
+    if(r.two>r.up){s+=`<line class="stem" x1="${X(r.up)}" x2="${X(r.two)}" y1="${y}" y2="${y}"/><circle class="ring2" cx="${X(r.two)}" cy="${y}" r="5.5"><title>${esc(r.n)}: ${money(r.two)} over two years (${esc(r.note)})</title></circle>`}
+    s+=`<circle class="dot${r.hi?' hi':''}" cx="${X(r.up)}" cy="${y}" r="${r.hi?8:6}"><title>${esc(r.n)}: ${money(r.up)} to buy (${esc(r.note)})</title></circle>`;
+    const lab=r.plan?`$${r.up} + plan`:(r.two>r.up?`${money(r.up)} → $${r.two}`:money(r.up));
+    s+=`<text class="t" x="${X(Math.max(r.up,r.two))+13}" y="${y+4.5}" font-family="Pixelify Sans, monospace" font-weight="${r.hi?700:500}">${esc(lab)}</text></g>`;
+  });
+  s+=`<text class="q" x="${x0}" y="${H-2}" font-size="11.5" font-family="Andika, Verdana, sans-serif">Dot: what it costs to buy. Circle: what it costs over two years, with any plan you need. US$.</text>`;
+  el.innerHTML=s+`</svg>`;
+}
+buyerChart(document.getElementById('buyerChart'));
+priceChart(document.getElementById('priceChart'));
+
+/* ---------- capability matrix ---------- */
+const MX=[
+  ['Dawdling shrinks later time, all day','y','n','n','n','n','n','n'],
+  ['Kids carry it all day','y','n','y','y','n','n','n'],
+  ['Shows now and next, with countdowns','y','n','n','p','p','n','p'],
+  ['Picture routines for kids who can\'t read yet','y','n','n','p','y','n','y'],
+  ['Pet reacts to real routine steps','y','p','n','na','na','y','p'],
+  ['Pet never gets sad; nothing ever fails','y','u','n','na','na','n','na'],
+  ['Stars from parents at no extra cost','y','n','n','p','p','p','n'],
+  ['Bedside clock and ok-to-wake light','y','y','n','p','n','n','y'],
+  ['No AI chat, videos or web browser','y','y','y','p','p','n','n'],
+  ['Works fully without a subscription','y','y','y','n','n','n','n'],
+]
+const WORD={y:'Yes',p:'Partly',n:'No',na:'No pet',u:'Not stated'};
+document.getElementById('mxBody').innerHTML=MX.map(r=>`<tr><th scope="row">${esc(r[0])}</th>${r.slice(1).map((v,i)=>`<td class="${v}${i===0?' mytoki':''}"><i aria-hidden="true"></i><span class="sr-only">${WORD[v]}</span></td>`).join('')}</tr>`).join('');
+
+/* ---------- slide navigation ---------- */
+const slides=[...document.querySelectorAll('.slide')];
+const count=document.getElementById('count');
+let cur=0;
+function setCur(i){cur=i;count.textContent=`${i+1} / ${slides.length}`}
+if('IntersectionObserver' in window){
+  const vis=new Map();
+  const io=new IntersectionObserver(es=>{for(const e of es)vis.set(e.target,e.intersectionRatio);let best=0,bi=cur;slides.forEach((s,i)=>{const v=vis.get(s)||0;if(v>best){best=v;bi=i}});setCur(bi)},{threshold:[0,.25,.5,.75,1]});
+  slides.forEach(s=>io.observe(s));
+}
+function go(d){const i=Math.max(0,Math.min(slides.length-1,cur+d));slides[i].scrollIntoView({behavior:REDUCE?'auto':'smooth',block:'start'});setCur(i)}
+document.getElementById('prevBtn').addEventListener('click',()=>go(-1));
+document.getElementById('nextBtn').addEventListener('click',()=>go(1));
+document.addEventListener('keydown',e=>{
+  if(e.target.closest&&e.target.closest('input,textarea,select'))return;
+  if(['ArrowRight','ArrowDown','PageDown'].includes(e.key)||(e.key===' '&&!e.shiftKey)){e.preventDefault();go(1)}
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)||(e.key===' '&&e.shiftKey)){e.preventDefault();go(-1)}
+  else if(e.key==='Home'){e.preventDefault();cur=1;go(-1)}
+  else if(e.key==='End'){e.preventDefault();cur=slides.length-2;go(1)}
+});
+})();
+</script>

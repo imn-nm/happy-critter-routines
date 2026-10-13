@@ -1,17 +1,12 @@
 import { useEffect, useRef } from "react";
-import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { useMotionPrefs, durations } from "@/lib/motion";
 
 export type TimerStatus = "on-track" | "behind" | "ahead" | "critical" | "overtime";
 
 interface CircularTimerProps {
   totalSeconds: number;
   remainingSeconds: number;
-  /**
-   * Size in pixels. Defaults to 293 to match the Figma spec
-   * (Child Dashboard 78:50 uses a 293×293 timer with a 6px stroke).
-   */
+  /** Size in pixels of the whole ring (dots included). */
   sizePx?: number;
   className?: string;
   isRunning?: boolean;
@@ -19,18 +14,23 @@ interface CircularTimerProps {
   status?: TimerStatus;
   /**
    * Optional content rendered centered inside the ring (e.g. a looping video,
-   * pet avatar, etc.). Clipped to a circle that fits within the stroke.
+   * pet avatar, etc.). Clipped to the disc inside the dots.
    */
   children?: React.ReactNode;
   /** Let a frame-aware scene place paws over the rim. */
   frameContent?: boolean;
 }
 
-// Figma "Child / Focus — redesigned" (339:133): 220 diameter, 5px
-// focus-lavender ring around a focus-sunken disc.
-const DEFAULT_SIZE = 293;
-const STROKE_PX = 5;
-const SUNKEN = "#0E1221"; // focus-sunken
+// The MyToki time ring (Figma "Time ring", 2026-10-12): 49 dots on an open arc, the
+// gap at the bottom where "Next" sits. On the device the dots sit 160 px out on a
+// 466 screen round a 286 px disc; the same proportions here, at any size.
+const DEFAULT_SIZE = 260;
+const DOTS = 49;                 // 60 positions round the clock, the 11 at the bottom left out
+const RING_TO_DISC = 143 / 160;  // the disc's radius against the dots' radius
+const DOT_TO_RING = 3.55 / 160;  // a dot's radius against the dots' radius
+const SUNKEN = "#0E1221";        // focus-sunken, the stage the pet sits on
+const DIM = "#2C3558";           // surface/line: a dot that has been used up
+const RIM = "#040605";           // the ink edge round every dot, so it reads over the pet
 
 const CircularTimer = ({
   totalSeconds,
@@ -43,7 +43,6 @@ const CircularTimer = ({
   children,
   frameContent = false,
 }: CircularTimerProps) => {
-  const { t } = useMotionPrefs();
   const allowNegative = status === "overtime";
   // Presentational: the ring is derived straight from the `remainingSeconds`
   // prop, which the parent recomputes from the wall clock every second. We do
@@ -57,33 +56,29 @@ const CircularTimer = ({
   const prevRemainingRef = useRef(initialRemainingSeconds);
 
   // Compute the SVG in its own viewBox so the ring stays crisp at any scale.
-  // strokeAlign=CENTER in Figma means the stroke straddles the ellipse edge,
-  // so the bounding radius is (size - STROKE) / 2.
   const viewBox = sizePx;
-  const radius = (viewBox - STROKE_PX) / 2;
   const center = viewBox / 2;
-  const circumference = 2 * Math.PI * radius;
-
-  const progress =
-    totalSeconds > 0
-      ? Math.min(1, Math.max(0, (totalSeconds - remainingSeconds) / totalSeconds))
-      : 0;
-  const strokeDashoffset = circumference * (1 - progress);
-
-  // Progress ring colour — matches Figma CircularTimer state variants.
-  // Hex literals (not CSS vars) so Motion can tween the color smoothly.
-  const getProgressColor = () => {
-    switch (status) {
-      case "on-track": return "#A89AF0"; // focus-lavender
-      case "ahead":    return "#65CDAA"; // focus-mint: free time
-      case "behind":
-      case "critical": return "#EAB5DE"; // focus-pink: gentle, never alarming
-      case "overtime": return "#FAB047"; // focus-amber: time ran out, not a failure
-      default:         return "#A89AF0";
-    }
-  };
+  const dotR = Math.max(2, (viewBox / 2) * DOT_TO_RING * (160 / 166));
+  const ringR = viewBox / 2 - dotR - 2;   // the dots' centres, just inside the box
+  const discR = ringR * RING_TO_DISC;
 
   const isOvertime = status === "overtime";
+  const fraction =
+    totalSeconds > 0 ? Math.min(1, Math.max(0, remainingSeconds / totalSeconds)) : 0;
+  // Lit dots are the time left, counted from the bottom-left end clockwise.
+  const lit = isOvertime ? DOTS : Math.round(fraction * DOTS);
+
+  // The lit colour follows the MyToki Circle roles: lime = your time, mint = free
+  // time, amber = nearly over, coral = running over.
+  const litColor = (() => {
+    switch (status) {
+      case "ahead":    return "#65CDAA";
+      case "behind":
+      case "critical": return "#FAB047";
+      case "overtime": return "#FF8F91";
+      default:         return "#DCEF70";
+    }
+  })();
 
   // Fire onComplete exactly once, when the parent-driven value crosses from
   // positive to zero/negative while running. Reset when a fresh task pushes
@@ -101,6 +96,13 @@ const CircularTimer = ({
     }
   }, [initialRemainingSeconds, isRunning, onComplete]);
 
+  const dots = Array.from({ length: DOTS }, (_, i) => {
+    // dot 0 sits at 7 o'clock; 6° a step, clockwise, up over the top and down to 5 o'clock
+    const a = ((216 + 6 * i) * Math.PI) / 180;
+    return { x: center + ringR * Math.sin(a), y: center - ringR * Math.cos(a), on: i < lit };
+  });
+  const innerPct = `${((discR * 2) / viewBox) * 100}%`;
+
   return (
     <div
       className={cn("relative", className)}
@@ -108,55 +110,35 @@ const CircularTimer = ({
       // shrink on narrow screens while the height stayed put, squashing the
       // ring into an ellipse.
       style={{ width: sizePx, maxWidth: "100%", aspectRatio: "1 / 1" }}
+      role="img"
+      aria-label={isOvertime ? "Time is up" : `${Math.round(fraction * 100)}% of the time left`}
     >
       <svg
-        className="w-full h-full -rotate-90"
+        className="w-full h-full"
         viewBox={`0 0 ${viewBox} ${viewBox}`}
         shapeRendering="geometricPrecision"
       >
         {/* Disc — focus-sunken, the stage the pet sits on. */}
-        <circle cx={center} cy={center} r={radius} fill={SUNKEN} />
-        {/* Track — lavender @ 22%. Hidden for overtime since that state
-            shows a full coloured ring instead. */}
-        {!isOvertime && (
+        <circle cx={center} cy={center} r={discR} fill={SUNKEN} />
+        {dots.map((d, i) => (
           <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            stroke="#A89AF0"
-            strokeOpacity={0.22}
-            strokeWidth={STROKE_PX}
-            fill="transparent"
+            key={i}
+            cx={d.x}
+            cy={d.y}
+            r={dotR}
+            fill={d.on ? litColor : DIM}
+            stroke={RIM}
+            strokeWidth={3}
+            paintOrder="stroke"
+            className="transition-[fill] duration-500 ease-out"
           />
-        )}
-        {/* Progress (or full coral ring for overtime) — stroke color tweens
-            between states via Motion; dashoffset still uses CSS for the
-            once-per-second progress sweep. */}
-        <motion.circle
-          cx={center}
-          cy={center}
-          r={radius}
-          strokeWidth={STROKE_PX}
-          fill="transparent"
-          className="transition-[stroke-dashoffset] duration-1000 ease-linear"
-          strokeDasharray={circumference}
-          strokeDashoffset={isOvertime ? 0 : strokeDashoffset}
-          strokeLinecap="round"
-          animate={{ stroke: getProgressColor() }}
-          transition={t({ duration: durations.base })}
-        />
+        ))}
       </svg>
       {children && (
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-        >
+        <div className="absolute inset-0 flex items-center justify-center">
           <div
-            className={frameContent ? "relative w-full h-full" : "rounded-full overflow-hidden"}
-            style={{
-              // Sit comfortably inside the ring with a little breathing room.
-              width: frameContent ? "100%" : `calc(100% - ${STROKE_PX * 6}px)`,
-              height: frameContent ? "100%" : `calc(100% - ${STROKE_PX * 6}px)`,
-            }}
+            className={frameContent ? "relative" : "rounded-full overflow-hidden"}
+            style={{ width: innerPct, height: innerPct }}
           >
             {children}
           </div>

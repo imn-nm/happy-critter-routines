@@ -1,0 +1,47 @@
+menu "MyToki"
+
+    config MYTOKI_WIFI_SSID
+        string "Wi-Fi network name"
+        default ""
+
+    config MYTOKI_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+
+    config MYTOKI_DAY_URL
+        string "Day plan URL"
+        default ""
+        help
+            HTTPS endpoint that returns today's plan as JSON (device/docs/day-plan.md).
+            Leave empty to run the built-in demo day (platform/sim/web/demo/school-day.json).
+
+    config MYTOKI_EVENTS_URL
+        string "Events URL"
+        default ""
+        help
+            HTTPS endpoint the device POSTs to when a task, chore or reward request happens.
+            Leave empty to keep them on the device only.
+
+    config MYTOKI_DEVICE_TOKEN
+        string "Device token"
+        default ""
+        help
+            Sent as "Authorization: Bearer <token>" with every request.
+
+    config MYTOKI_TIMEZONE
+        string "Time zone (POSIX TZ)"
+        default "PST8PDT,M3.2.0,M11.1.0"
+        help
+            The household's time zone. The web app runs on Pacific time.
+
+    config MYTOKI_BUTTON_GPIO
+        int "GPIO of the button at 1 o'clock"
+        default 0
+        help
+            The BOOT button (GPIO0) until the enclosure's own button is wired.
+
+    config MYTOKI_SOUND
+        bool "Chimes on the speaker"
+        default y
+
+endmenu

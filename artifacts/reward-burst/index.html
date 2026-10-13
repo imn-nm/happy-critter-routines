@@ -1,0 +1,613 @@
+<title>Reward Unlocked</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiko:wght@400;600;700&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: the device sits on a cutting mat (like the Figma board); the player and the beat sheet sit beside it and stack on phones. */
+:root{
+  --page:#D4D8D0; --mat:#C6CBC3; --grid:rgba(27,36,32,.08); --grid-major:rgba(27,36,32,.15);
+  --ink:#1B2420; --muted:#55605A; --line:rgba(27,36,32,.16); --panel:#E2E5DE; --track:#B7BDB4;
+  --accent:#00714B; --accent-ink:#F3F6F1; --chip:#CFD5CC;
+  --display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --body:"Amiko","Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0F1311; --mat:#151A17; --grid:rgba(226,234,228,.045); --grid-major:rgba(226,234,228,.085);
+  --ink:#E4E9E3; --muted:#98A39C; --line:rgba(226,234,228,.13); --panel:#181E1A; --track:#2B3530;
+  --accent:#65CDAA; --accent-ink:#04110C; --chip:#222A25; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --page:#0F1311; --mat:#151A17; --grid:rgba(226,234,228,.045); --grid-major:rgba(226,234,228,.085);
+  --ink:#E4E9E3; --muted:#98A39C; --line:rgba(226,234,228,.13); --panel:#181E1A; --track:#2B3530;
+  --accent:#65CDAA; --accent-ink:#04110C; --chip:#222A25; color-scheme:dark;}
+body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:clamp(16px,4vw,40px);padding-block:28px 48px;display:grid;gap:22px}
+header h1{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.4vw,34px);line-height:1.15;margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
+header p{margin:0;color:var(--muted);max-width:62ch}
+.layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:880px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+/* stage */
+.stage{position:relative;aspect-ratio:1;max-width:100%;border-radius:22px;overflow:hidden;background-color:var(--mat);
+  background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:100px 100px,100px 100px,20px 20px,20px 20px;background-position:-1px -1px}
+.ruler{position:absolute;inset:0 0 auto 0;height:14px;background-image:linear-gradient(90deg,var(--grid-major) 1px,transparent 1px);background-size:10px 100%;opacity:.9}
+.device{position:absolute;left:50%;top:50%;width:600px;height:600px;transform-origin:50% 50%}
+.housing{position:absolute;inset:0;width:600px;height:600px;overflow:visible}
+.ripple{position:absolute;left:23px;top:23px;width:554px;height:554px;border-radius:50%;border:2px solid #2C3558;opacity:0;pointer-events:none}
+.screen{position:absolute;left:67px;top:67px;width:466px;height:466px;border-radius:50%;overflow:hidden;background:#040605}
+.screen canvas{position:absolute;inset:0;width:466px;height:466px}
+.title{position:absolute;left:0;top:34px;width:466px;margin:0;text-align:center;font-family:var(--display);font-weight:600;font-size:16px;line-height:20px;color:#DCEF70}
+.title .line{display:block;white-space:nowrap}
+.title .w{display:inline-block;will-change:transform,opacity}
+.title .shine{background:linear-gradient(100deg,#DCEF70 0 42%,#FFFFF2 50%,#DCEF70 58% 100%);background-size:320% 100%;background-position:120% 0;-webkit-background-clip:text;background-clip:text;color:transparent}
+.msg{position:absolute;left:118px;top:412px;width:230px;margin:0;text-align:center;font-family:"Amiko","Segoe UI",system-ui,sans-serif;font-size:16px;line-height:17px;color:#8E9C94}
+
+/* player */
+.side{display:grid;gap:18px;min-width:0}
+.player{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:14px}
+.buttons{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px/1 var(--body);color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:10px 14px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+button svg{width:16px;height:16px;flex:none}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+button[aria-pressed="true"]{background:var(--ink);color:var(--page);border-color:transparent}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scrub{display:grid;gap:6px}
+.scrub-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;color:var(--muted)}
+.time{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.ticks{position:relative;height:18px;font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.ticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.ticks span::before{content:"";position:absolute;left:50%;top:-6px;width:1px;height:5px;background:var(--muted)}
+.hint{margin:0;font-size:12.5px;color:var(--muted)}
+.note{margin:0;font-size:13px;color:var(--ink);background:var(--chip);border-radius:10px;padding:8px 10px}
+
+/* beat sheet */
+.beats h2,.build h2{font-family:var(--display);font-weight:500;font-size:15px;margin:0 0 8px;letter-spacing:.01em}
+.beats ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.beat{display:grid;grid-template-columns:5.6em minmax(0,1fr);gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:12px;padding:9px 10px;min-height:0;font:inherit;color:inherit;cursor:pointer}
+.beat:hover{background:var(--panel)}
+.beat.on{background:var(--panel);box-shadow:inset 3px 0 0 var(--accent)}
+.beat .t{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);padding-top:2px}
+.beat b{display:block;font-weight:700;font-size:14.5px}
+.beat small{display:block;font-size:13.5px;color:var(--muted);line-height:1.45}
+.build ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.5px;display:grid;gap:4px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Reward Unlocked</h1>
+    <p>Motion mock for the Rewards &middot; Approved! screen: the moment a grown-up says yes and the reward opens on MyToki. Everything is drawn live, so you can scrub, slow it down or step frame by frame.</p>
+  </header>
+
+  <div class="layout">
+    <div class="stage" id="stage" aria-label="MyToki device playing the reward celebration">
+      <div class="ruler" aria-hidden="true"></div>
+      <div class="device" id="device">
+        <div class="ripple" id="rip1"></div><div class="ripple" id="rip2"></div>
+        <svg class="housing" viewBox="0 0 600 600" aria-hidden="true">
+          <defs>
+            <linearGradient id="shell" x1="0.15" y1="0" x2="0.55" y2="1"><stop offset="0" stop-color="#36406A"/><stop offset=".45" stop-color="#2C3558"/><stop offset="1" stop-color="#20294A"/></linearGradient>
+            <linearGradient id="btn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#65CDAA"/><stop offset="1" stop-color="#00714B"/></linearGradient>
+            <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".22"/><stop offset=".5" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+            <filter id="drop" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#0b1210" flood-opacity=".42"/></filter>
+          </defs>
+          <path id="nub" fill="url(#btn)"/>
+          <circle cx="300" cy="300" r="277" fill="url(#shell)" filter="url(#drop)"/>
+          <circle cx="300" cy="300" r="275.5" fill="none" stroke="url(#rim)" stroke-width="2.5"/>
+          <circle cx="300" cy="300" r="246" fill="#181E36"/>
+          <circle cx="300" cy="300" r="241" fill="#020303"/>
+        </svg>
+        <div class="screen" id="screen">
+          <canvas id="cv"></canvas>
+          <p class="title" id="title" aria-label="Ice Cream Trip Rewarded!">
+            <span class="line"><span class="w">Ice</span> <span class="w">Cream</span> <span class="w">Trip</span></span>
+            <span class="line"><span class="w shine">Rewarded!</span></span>
+          </p>
+          <p class="msg" id="msg">Biscuit is so happy for you, Amira!</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <section class="player" aria-label="Player">
+        <div class="buttons">
+          <button class="primary" id="replay" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Replay</button>
+          <button id="play" type="button" aria-label="Pause"><svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><span id="playText">Pause</span></button>
+          <button id="slow" type="button" aria-pressed="false">Slow-mo &frac14;&times;</button>
+          <button id="sound" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>Sound</button>
+        </div>
+        <div class="scrub">
+          <div class="scrub-top"><label for="scrubber">Timeline</label><span><span class="time" id="clock">0.00 s</span></span></div>
+          <input type="range" id="scrubber" min="0" max="3200" step="1" value="0">
+          <div class="ticks" id="ticks" aria-hidden="true"></div>
+        </div>
+        <p class="note" id="rmNote" hidden>Your system asks for reduced motion, so this opens on the settled screen. Press Replay to watch the full sequence.</p>
+        <p class="hint">Space: play or pause &middot; R: replay &middot; &larr; &rarr;: step one frame while paused</p>
+      </section>
+
+      <section class="beats">
+        <h2>Beats</h2>
+        <ol id="beatList"></ol>
+      </section>
+
+      <section class="build">
+        <h2>For the device build</h2>
+        <ul>
+          <li>Biscuit is the app&rsquo;s own pixel art and only moves in whole pixels, so his jumps stay crisp and cost almost nothing to draw.</li>
+          <li>Everything else is dots, lines and a few hundred confetti shapes: fine at 30 fps on the round 466 &times; 466 screen.</li>
+          <li>Chime at the burst: G5 then C6, the MyToki chime. Turn on Sound to hear it.</li>
+          <li>The loop keeps going until the child swipes the screen away.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- constants ----------
+  const W = 466, C = 233, R = 116, P = 3.8;          // screen, centre, Biscuit window radius, LED pitch
+  const COL = { lime:'#DCEF70', salmon:'#F59A76', lav:'#A89AF0', mint:'#5FD9A0', sky:'#5BB4FF', bone:'#EEE9DA', butter:'#F7D35C', black:'#040605', unlit:'#1B2721', dimDot:'#2A3A31' };
+  const APP = { W:'#f9f5e1', O:'#f7945a', K:'#010101', P:'#f17097', R:'#f6adc3' };   // the live app's palette (pets/pixel/pix.ts)
+  const CHEER = ".....WWWW......WWWW.....|.....WWWW......WWWW.....|...WWWWWWWW..WWOOWWWW...|...WWWWWWWW..WWOOWWWW...|..WWWWWOOWW..WWOOOOWW...|..WWWWWOOWW..WWOOOOWW...|..WWWOOOOWW..WWOOOOWW...|..WWWOOOOWW..WWOOOOWW...|.....OOOOWW..WWOOOOWW...|.....OOOOWW..WWOOOOWW...|.....WWWWWWWWWWOOWW.....|.....WWWWWWWWWWOOWW.....|....WWWWWWWWWWWWWWWW....|....WWWWWWWWWWWWWWWW....|....WWWWWWWWWWWWWWWW....|....WWWWWWWWWWWWWWWW....|..WWWWWWWWWWWWWWWWWWWW..|..WWWWKKWWWWWWWWKKWWWW..|..WWWKWWKWWWWWWKWWKWWW..|..WWWWWWWWWWWWWWWWWWWW..|..WWWWWWWWWPPWWWWWWWWW..|..WWRRWWWWWPPWWWWWRRWW..|..WWWWWWWWKKKKWWWWWWWW..|..WWWWWWWWKPPKWWWWWWWW..|....WWWWWWWKKWWWWWWW....|....WWWWWWWWWWWWWWWW....|......WWWWWWWWWWWW......|......WWWWWWWWWWWW......|.WWWWWWWWWWWWWWWWWWWWWW.|WWWWWWWWWWWWWWWWWWWWWWWW|WWWWWWWWWWWWWWWWWWWWWWWW|WWWWWWWWWWWWWWWWWWWWWWWW|WWWWWWWWWWWWWWWWWWWWWWWW|.WWWWWWWWWWWWWWWWWWWWWW.|.....WWWWWWWWWWWWWW.....|.....WWWWWWWWWWWWWW.....|.....WWWWWWWWWWWWWW.....|.....WWWWWWWWWWWWWW.....|.....WWWWWW..WWWWWW.....|.....WWWWWW..WWWWWW.....".split('|');
+  const PW = 24, PH = 40, I0 = -12, JB = 19, J0 = JB - PH + 1;  // same grid placement as the Figma component
+  // Between jumps the app's cheer flaps the arms up a pixel (front({ flap: true })).
+  const CHEER_FLAP = (() => {
+    const src = CHEER.map(r => r.split('')), out = CHEER.map(r => r.split(''));
+    const arm = (x, y) => y >= 28 && y <= 33 && (x <= 4 || x >= 19) && src[y][x] !== '.';
+    for (let y = 28; y <= 33; y++) for (let x = 0; x < 24; x++) if (arm(x, y)) out[y][x] = '.';
+    for (let y = 28; y <= 33; y++) for (let x = 0; x < 24; x++) if (arm(x, y)) out[y - 1][x] = src[y][x];
+    return out.map(r => r.join(''));
+  })();
+  const ICON = [new Path2D("m7 11 4.08 10.35a1 1 0 0 0 1.84 0L17 11"), new Path2D("M17 7A5 5 0 0 0 7 7"), new Path2D("M17 7a2 2 0 0 1 0 4H7a2 2 0 0 1 0-4")];
+  const HEADER = { x: C, y: 17, size: 18 };
+  const BURST = 0.70, LOOP = 2.6, SCRUB_MAX = 3.2;
+
+  const BEATS = [
+    { t:0.00, end:0.70, name:'Arrive', text:'The ice cream draws itself in the middle while 24 dots charge around it, then everything squeezes in for a breath.' },
+    { t:0.70, end:1.12, name:'Burst', text:'Flash, two dot shockwaves and a burst of confetti. The device bounces, the chime plays and the ice cream flies up to become the header icon.' },
+    { t:0.70, end:1.76, name:'Biscuit springs out', text:'His window switches on under the flash, so he is there the instant it hits and launches straight out of the burst. On his second hop he throws more confetti.' },
+    { t:0.86, end:1.40, name:'Halo', text:'Three dot rings spring into place around him in lime, salmon and lavender.' },
+    { t:1.15, end:1.80, name:'Title', text:'Each word pops in 60 ms after the last. \u201cRewarded!\u201d lands biggest, and a shine runs across it.' },
+    { t:1.95, end:2.35, name:'Message', text:'Biscuit\u2019s line fades up underneath.' },
+    { t:2.60, end:null, name:'Party loop', text:'A double hop every 1.9 s with sparks from his paws. His ears flick up as he crouches, trail behind on take-off and flop when he lands. The rings drift and twinkle, and a little confetti keeps falling.' },
+  ];
+
+  // ---------- helpers ----------
+  const clamp = (v, a=0, b=1) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeOut = t => 1 - Math.pow(1 - clamp(t), 3);
+  const easeIn = t => Math.pow(clamp(t), 3);
+  const easeInOut = t => { t = clamp(t); return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; };
+  const easeOutExpo = t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * clamp(t));
+  const easeOutBack = (t, s=1.7) => { t = clamp(t) - 1; return t*t*((s+1)*t + s) + 1; };
+  function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+
+  // ---------- DOM ----------
+  const stage = document.getElementById('stage'), device = document.getElementById('device');
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const words = [...document.querySelectorAll('#title .w')];
+  const shine = document.querySelector('#title .shine');
+  const msg = document.getElementById('msg');
+  const rip = [document.getElementById('rip1'), document.getElementById('rip2')];
+  const scrubber = document.getElementById('scrubber'), clock = document.getElementById('clock');
+  const playBtn = document.getElementById('play'), playText = document.getElementById('playText'), playIcon = document.getElementById('playIcon');
+  const slowBtn = document.getElementById('slow'), soundBtn = document.getElementById('sound');
+
+  // button nub: an arc of the shell at 1 o'clock
+  (() => { const pt = (r, a) => [300 + r*Math.cos(a*Math.PI/180), 300 + r*Math.sin(a*Math.PI/180)];
+    const [a0, a1] = [-67, -53], o0 = pt(288, a0), o1 = pt(288, a1), i1 = pt(262, a1), i0 = pt(262, a0);
+    document.getElementById('nub').setAttribute('d', `M${o0} A288 288 0 0 1 ${o1} L${i1} A262 262 0 0 0 ${i0}Z`); })();
+
+  // ---------- sizing ----------
+  let scale = 1, dpr = 1, field = null;
+  function resize(){
+    scale = stage.clientWidth * 0.92 / 600;
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const px = Math.round(W * scale * dpr);
+    cv.width = px; cv.height = px;
+    field = prerenderField(px);
+  }
+  // the unlit LED grid of Biscuit's window never changes, so draw it once
+  function prerenderField(px){
+    const off = document.createElement('canvas'); off.width = px; off.height = px;
+    const g = off.getContext('2d'); const k = px / W; g.setTransform(k,0,0,k,0,0);
+    g.fillStyle = COL.unlit; g.beginPath();
+    const n = Math.ceil(R / P);
+    for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+      const x = C + i*P, y = C + j*P, d = Math.hypot(x - C, y - C);
+      if (d > R - P*0.55) continue;
+      const r = P * (0.19 + 0.1 * (1 - d / R));
+      g.moveTo(x + r, y); g.arc(x, y, r, 0, Math.PI*2);
+    }
+    g.fill(); return off;
+  }
+
+  // ---------- particles (seeded, so scrubbing is exact) ----------
+  const PALETTE = [COL.lime, COL.salmon, COL.lav, COL.mint, COL.sky, COL.bone];
+  function makeParticles(seed, count, spawn){
+    const r = rng(seed), out = [];
+    for (let i = 0; i < count; i++) {
+      const p = spawn(r, i);
+      const kind = r();
+      p.shape = p.shape || (kind < 0.12 ? 'star' : kind < 0.55 ? 'dot' : 'strip');
+      p.color = p.shape === 'star' ? COL.butter : (p.color || PALETTE[Math.floor(r() * PALETTE.length)]);
+      p.size = p.shape === 'star' ? 4.5 + r()*2.5 : p.shape === 'dot' ? 1.8 + r()*2 : 1;
+      p.rot = r() * Math.PI * 2; p.spin = (r() - .5) * 14; p.flip = 6 + r() * 10;
+      p.k = p.k || 2.1; p.g = p.g ?? 520; p.life = p.life || (1.3 + r() * 1.1);
+      out.push(p);
+    }
+    return out;
+  }
+  const mainBurst = makeParticles(7, 130, r => { const a = r()*Math.PI*2, s = 240 + r()*380;
+    return { t0: BURST, x0: C + Math.cos(a)*10, y0: C + Math.sin(a)*10, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 90 }; });
+  const pawY = C + (J0 + 30) * P, pawL = C + I0 * P, pawR = C + (I0 + PW - 1) * P;
+  const pawBurst = makeParticles(21, 32, (r, i) => { const left = i % 2 === 0, a = (-90 + (left ? -1 : 1) * (20 + r()*45)) * Math.PI/180, s = 200 + r()*170;
+    return { t0: 1.36, x0: left ? pawL : pawR, y0: pawY, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1.0 + r()*0.7 }; });
+
+  function drawParticle(p, t){
+    const tau = t - p.t0; if (tau < 0 || tau > p.life) return;
+    const e = Math.exp(-p.k * tau);
+    const x = p.x0 + p.vx / p.k * (1 - e);
+    const y = p.y0 + p.vy / p.k * (1 - e) + p.g / p.k * (tau - (1 - e) / p.k);
+    const a = tau > p.life - 0.4 ? clamp((p.life - tau) / 0.4) : 1;
+    ctx.globalAlpha = a * (p.alpha ?? 1); ctx.fillStyle = p.color;
+    if (p.shape === 'dot') { ctx.beginPath(); ctx.arc(x, y, p.size, 0, Math.PI*2); ctx.fill(); }
+    else if (p.shape === 'strip') { ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot + p.spin * tau); ctx.scale(1, Math.cos(p.flip * tau)); ctx.fillRect(-1.7, -4.5, 3.4, 9); ctx.restore(); }
+    else { star(x, y, p.size, p.rot + p.spin * tau * 0.4); }
+    ctx.globalAlpha = 1;
+  }
+  function star(x, y, r, rot){
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * 0.45 : r, a = rot + i * Math.PI / 5 - Math.PI/2; ctx.lineTo(x + Math.cos(a)*rr, y + Math.sin(a)*rr); }
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ---------- Biscuit's hops ----------
+  const INTRO_HOPS = [{ t0:0.62, H:9, D:0.62 }, { t0:1.30, H:5, D:0.46 }];   // the first jump takes off right as the burst hits
+  const PERIOD = 1.9;
+  function loopHops(k){ const b = LOOP + k * PERIOD; return [{ t0:b, H:6, D:0.50 }, { t0:b + 0.56, H:4, D:0.42 }]; }
+  function activeHop(t){
+    for (const h of INTRO_HOPS) if (t >= h.t0 && t < h.t0 + h.D) return h;
+    if (t >= LOOP) { const k = Math.floor((t - LOOP) / PERIOD); for (const h of loopHops(k)) if (t >= h.t0 && t < h.t0 + h.D) return h; }
+    return null;
+  }
+  function hopState(t){
+    const h = activeHop(t), st = { lift:0, sx:1, sy:1, impact:0 };
+    if (!h) return st;
+    const s = (t - h.t0) / h.D;
+    if (s < 0.14) { const q = easeOut(s / 0.14); st.sy = 1 - 0.14*q; st.sx = 1 + 0.10*q; }
+    else if (s < 0.86) { const u = (s - 0.14) / 0.72, m = Math.abs(1 - 2*u); st.lift = Math.round(h.H * 4 * u * (1 - u)); st.sy = 1 + 0.07*m; st.sx = 1 - 0.05*m; }
+    else { const q = easeOut((s - 0.86) / 0.14); st.sy = 0.86 + 0.14*q; st.sx = 1.10 - 0.10*q; st.impact = 1 - q; }
+    return st;
+  }
+  // Ears hang off the head on a soft spring. Crouching flicks them up, take-off and
+  // landing make them trail down and outwards, then they wobble back to rest.
+  // Positive = flopped down and out, negative = perked up.
+  const flop = tau => tau <= 0 ? 0 : Math.exp(-7.5 * tau) * Math.sin(19 * tau);
+  function earDroop(t, side){
+    const tt = t - (side ? 0.035 : 0), gain = side ? 0.92 : 1;   // the right ear trails a touch, so they never move as one block
+    if (tt < 0.6) return 0;
+    const hops = [...INTRO_HOPS];
+    let k1 = -1; if (tt >= LOOP) { k1 = Math.floor((tt - LOOP) / PERIOD); for (let k = Math.max(0, k1 - 1); k <= k1; k++) hops.push(...loopHops(k)); }
+    let d = 0;
+    for (const h of hops) {
+      const s = 0.55 + 0.45 * h.H / 9;
+      d += -0.45 * s * flop(tt - h.t0);
+      d +=  0.85 * s * flop(tt - (h.t0 + 0.14 * h.D));
+      d +=  0.95 * s * flop(tt - (h.t0 + 0.86 * h.D));
+    }
+    // a little twitch of one ear while he rests between double hops
+    for (let k = Math.max(0, k1 - 1); k <= k1; k++) if (k % 2 === side) d += 0.35 * flop(tt - (LOOP + k * PERIOD + 1.35));
+    return clamp(d * gain, -0.6, 0.8);
+  }
+  function hopTimesBetween(a, b){
+    const out = []; for (const h of INTRO_HOPS) if (h.t0 > a && h.t0 <= b) out.push(h.t0);
+    if (b >= LOOP) { const k0 = Math.max(0, Math.floor((a - LOOP) / PERIOD) - 1), k1 = Math.floor((b - LOOP) / PERIOD);
+      for (let k = k0; k <= k1; k++) for (const h of loopHops(k)) if (h.t0 > a && h.t0 <= b) out.push(h.t0); }
+    return out;
+  }
+  // little sparks from his paws on every loop hop
+  const sparkCache = new Map();
+  function sparksFor(t0, idx){
+    if (!sparkCache.has(idx)) sparkCache.set(idx, makeParticles(100 + idx, 8, (r, i) => { const left = i % 2 === 0, a = (-90 + (left ? -1 : 1) * (35 + r()*40)) * Math.PI/180, s = 120 + r()*90;
+      return { t0, x0: left ? pawL : pawR, y0: pawY, vx: Math.cos(a)*s, vy: Math.sin(a)*s, shape:'dot', life: 0.55 + r()*0.25, g: 380, k: 2.6, color: [COL.lime, COL.salmon, COL.lav][i % 3] }; }));
+    return sparkCache.get(idx);
+  }
+
+  // ---------- drawing ----------
+  // Biscuit as the live app draws him: solid pixels painted at 1x, then scaled up with no smoothing.
+  const RGB = Object.fromEntries(Object.entries(APP).map(([k, h]) => [k, [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))]));
+  const pixCanvas = document.createElement('canvas'), pixCtx = pixCanvas.getContext('2d');
+  function drawBiscuit(t){
+    const st = hopState(t);
+    if (t < BURST) return st;                                    // there the instant the burst hits
+    const pose = (!activeHop(t) && t > 1.8 && Math.floor(t * 6) % 2) ? CHEER_FLAP : CHEER;
+    const ax = PW / 2, ay = PH, cells = [];
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    const droop = [earDroop(t, 0), earDroop(t, 1)], BASE = 12;   // row 12 is the top of the head; ears hang above it
+    for (let ty = -8; ty < PH; ty++) for (let tx = -6; tx < PW + 6; tx++) {
+      // every screen cell looks up which cell of the drawing it shows, so bending never leaves a gap
+      const bx = ax + (tx + 0.5 - ax) / st.sx, by = ay + (ty + 0.5 - ay) / st.sy;
+      let sx, sy;
+      if (by < BASE) {
+        const side = bx < PW / 2 ? 0 : 1, d = droop[side], out = side ? 1 : -1;
+        const ey = BASE - (BASE - by) / (1 - 0.1 * d);                // flopped ears get a bit shorter, perked ones a bit taller
+        const f = Math.pow(clamp((BASE - ey) / BASE), 1.6);          // the base stays put, the tips swing the most
+        sx = Math.floor(bx - out * 1.8 * d * f); sy = Math.floor(ey);
+        if ((side === 0 && sx >= PW / 2) || (side === 1 && sx < PW / 2)) continue;
+      } else { sx = Math.floor(bx); sy = Math.floor(by); }
+      if (sx < 0 || sx >= PW || sy < 0 || sy >= PH) continue;
+      const c = pose[sy][sx]; if (c === '.') continue;
+      const row = ty - st.lift;
+      cells.push(tx, row, c);
+      if (tx < x0) x0 = tx; if (tx > x1) x1 = tx; if (row < y0) y0 = row; if (row > y1) y1 = row;
+    }
+    if (!cells.length) return st;
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    pixCanvas.width = w; pixCanvas.height = h;
+    const img = pixCtx.createImageData(w, h);
+    for (let i = 0; i < cells.length; i += 3) {
+      const o = ((cells[i + 1] - y0) * w + (cells[i] - x0)) * 4, rgb = RGB[cells[i + 2]];
+      img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+    }
+    pixCtx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(pixCanvas, C + (I0 + x0) * P - P / 2, C + (J0 + y0) * P - P / 2, w * P, h * P);
+    ctx.imageSmoothingEnabled = true;
+    return st;
+  }
+  function drawFloor(st, on){
+    if (on <= 0) return;
+    const air = 1 - Math.min(1, st.lift / 9) * 0.55, glow = on * air * (0.75 + 0.25 * st.impact);
+    ctx.fillStyle = COL.mint; ctx.globalAlpha = 0.85 * glow; ctx.beginPath();
+    for (let dj = 1; dj <= 5; dj++) for (let di = -20; di <= 20; di++) {
+      if (Math.abs(di) > 20 - dj*2) continue;
+      const r = Math.max(P*0.12, P*(0.40 - dj*0.045) * (1 - Math.abs(di)/26) * (1 + 0.15*st.impact));
+      const x = C + di*P, y = C + (JB + dj)*P; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI*2);
+    }
+    ctx.fill(); ctx.globalAlpha = 1;
+  }
+  const SPARKLES = [[-15,-16],[14,-18],[0,-23],[-18,-4],[17,-2]];
+  function drawSparkles(t){
+    const on = clamp((t - 0.95) / 0.2); if (on <= 0) return;
+    ctx.fillStyle = COL.lime;
+    SPARKLES.forEach(([i, j], k) => {
+      const ph = t * 3.2 + k * 1.9, big = Math.sin(ph) > -0.2;
+      ctx.globalAlpha = on * (0.55 + 0.45 * Math.sin(ph * 1.3));
+      const cells = big ? [[0,0],[1,0],[-1,0],[0,1],[0,-1]] : [[0,0]];
+      ctx.beginPath();
+      for (const [di, dj] of cells) { const x = C + (i+di)*P - P/2, y = C + (j+dj)*P - P/2; ctx.rect(x - 0.1, y - 0.1, P + 0.2, P + 0.2); }   // solid pixels, like Biscuit
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // Three full rings, evenly spaced and centred on the display. Dots keep one size;
+  // the twinkle is brightness only, so the circles always read as true circles.
+  const RINGS = [{ r:132, n:48, d:5.6, c:COL.lime, a:1, w:0.10 }, { r:144, n:60, d:4.2, c:COL.salmon, a:1, w:-0.07 }, { r:156, n:72, d:3.2, c:COL.lav, a:0.9, w:0.05 }];
+  function drawHalo(t){
+    RINGS.forEach((ring, ri) => {
+      const tau = t - (0.86 + ri * 0.07); if (tau < 0) return;
+      const s = 1 - 0.45 * Math.exp(-6.5 * tau) * Math.cos(13 * tau);
+      const rot = ring.w * Math.max(0, t - 1.2), wave = Math.max(0, t - 1.4) * 2.2 * (ri % 2 ? -1 : 1);
+      const appear = ring.a * clamp(tau / 0.15), sz = ring.d / 2;
+      ctx.fillStyle = ring.c;
+      for (let band = 0; band < 3; band++) {                       // three brightness levels, drawn as three batches
+        ctx.globalAlpha = appear * [0.45, 0.72, 1][band]; ctx.beginPath();
+        for (let k = 0; k < ring.n; k++) {
+          const glow = 0.5 + 0.5 * Math.sin(k * Math.PI * 6 / ring.n - wave + ri);
+          if (Math.min(2, Math.floor(glow * 3)) !== band) continue;
+          const a = -Math.PI/2 + k * 2*Math.PI/ring.n + rot, x = C + ring.r * s * Math.cos(a), y = C + ring.r * s * Math.sin(a);
+          ctx.moveTo(x + sz, y); ctx.arc(x, y, sz, 0, Math.PI*2);
+        }
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+  function drawCharge(t){
+    if (t >= BURST + 0.02) return;
+    const wind = easeIn((t - 0.55) / 0.15), r = 56 - 8 * wind, n = 24;
+    for (let k = 0; k < n; k++) {
+      const a = -Math.PI/2 + k * 2*Math.PI/n, x = C + r*Math.cos(a), y = C + r*Math.sin(a);
+      const litAt = 0.12 + k * 0.018, lit = t >= litAt, pop = lit ? 1 + 0.6 * Math.exp(-(t - litAt) * 22) : 0;
+      ctx.globalAlpha = lit ? 1 : clamp((t - 0.03) / 0.2) * 0.9;
+      ctx.fillStyle = lit ? (wind > 0 ? mix(COL.lime, '#FFFFF0', wind) : COL.lime) : COL.dimDot;
+      ctx.beginPath(); ctx.arc(x, y, lit ? 2.8 * pop : 1.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawIcon(t){
+    if (t < 0.03) return;
+    let x = C, y = C, size = 64, rot = 0;
+    const squeeze = easeIn((t - 0.55) / 0.15);
+    if (t < BURST) { size = 64 * (1 - 0.14 * squeeze) * (0.9 + 0.1 * easeOutBack((t - 0.03) / 0.35, 2.2)); rot = Math.sin(clamp((t - 0.42) / 0.13) * Math.PI * 2) * 0.06; }
+    else { const q = clamp((t - BURST) / 0.42); size = lerp(64 * 0.86, HEADER.size, easeInOut(q)); y = lerp(C, HEADER.y, easeOutBack(q, 1.25)); rot = -0.25 * Math.sin(q * Math.PI) * (1 - q); }
+    const draw = clamp((t - 0.05) / 0.4), k = size / 24;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(k, k); ctx.translate(-12, -12);
+    ctx.strokeStyle = COL.lime; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = lerp(3.0, 1.55, clamp((64 - size) / (64 - HEADER.size))) / k;
+    if (draw < 1) { ctx.setLineDash([draw * 30, 30]); }
+    for (const p of ICON) ctx.stroke(p);
+    ctx.restore();
+  }
+  function drawRays(t){
+    const tau = t - BURST; if (tau < 0 || tau > 1.4) return;
+    const r2 = 60 + 190 * easeOut(tau / 0.45), a = 0.28 * (1 - easeIn(tau / 1.4));
+    ctx.strokeStyle = COL.lime; ctx.globalAlpha = a; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let k = 0; k < 16; k++) { const ang = k * Math.PI / 8 + tau * 0.35; ctx.moveTo(C + 70*Math.cos(ang), C + 70*Math.sin(ang)); ctx.lineTo(C + r2*Math.cos(ang), C + r2*Math.sin(ang)); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  function drawShockwaves(t){
+    const waves = [{ t0:BURST, r0:48, n:24, c:'#FFFFF0', d:3.6 }, { t0:BURST + 0.06, r0:30, n:64, c:COL.lime, d:3.0 }, { t0:BURST + 0.12, r0:30, n:40, c:COL.salmon, d:2.6 }];
+    ctx.globalCompositeOperation = 'lighter';
+    for (const w of waves) {
+      const q = (t - w.t0) / 0.6; if (q < 0 || q > 1) continue;
+      const r = w.r0 + 300 * easeOutExpo(q), sz = w.d * (1 - q) + 0.6;
+      ctx.fillStyle = w.c; ctx.globalAlpha = 1 - Math.pow(q, 1.5); ctx.beginPath();
+      for (let k = 0; k < w.n; k++) { const a = -Math.PI/2 + k * 2*Math.PI/w.n; const x = C + r*Math.cos(a), y = C + r*Math.sin(a); ctx.moveTo(x + sz, y); ctx.arc(x, y, sz, 0, Math.PI*2); }
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  }
+  function drawFlash(t){
+    const tau = t - BURST; if (tau < 0 || tau > 0.42) return;
+    const q = tau / 0.42, r = 30 + 260 * easeOut(q);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(C, C, 0, C, C, r);
+    g.addColorStop(0, `rgba(255,255,240,${0.9 * (1 - q)})`); g.addColorStop(0.45, `rgba(220,239,112,${0.45 * (1 - q)})`); g.addColorStop(1, 'rgba(220,239,112,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
+    if (tau < 0.12) { ctx.fillStyle = `rgba(255,255,255,${0.16 * (1 - tau / 0.12)})`; ctx.fillRect(0, 0, W, W); }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  function drawDrizzle(t){
+    if (t < 2.4) return;
+    const j1 = Math.floor((t - 2.4) / 0.28), j0 = Math.max(0, j1 - 22);
+    for (let j = j0; j <= j1; j++) {
+      const tau = t - (2.4 + j * 0.28), y = -8 + tau * (42 + hash(j) * 34); if (y > 480) continue;
+      const x = C + (hash(j + 9.1) * 2 - 1) * 175 + Math.sin(tau * 2.2 + j) * 9;
+      const shape = hash(j + 3.3) < 0.12 ? 'star' : hash(j + 5.7) < 0.55 ? 'dot' : 'strip';
+      ctx.globalAlpha = 0.7 * clamp(tau / 0.4) * clamp((470 - y) / 60);
+      ctx.fillStyle = shape === 'star' ? COL.butter : PALETTE[Math.floor(hash(j + 1.7) * PALETTE.length)];
+      if (shape === 'dot') { ctx.beginPath(); ctx.arc(x, y, 1.6 + hash(j + 2.2) * 1.4, 0, Math.PI*2); ctx.fill(); }
+      else if (shape === 'strip') { ctx.save(); ctx.translate(x, y); ctx.rotate(tau * 1.7 + j); ctx.scale(1, Math.cos(tau * 5 + j)); ctx.fillRect(-1.5, -4, 3, 8); ctx.restore(); }
+      else star(x, y, 4.2, tau * 0.8 + j);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function mix(a, b, t){ const p = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16)); const A = p(a), B = p(b); return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], clamp(t)))).join(',')})`; }
+
+  function render(t){
+    const k = W > 0 ? cv.width / W : 1;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.fillStyle = COL.black; ctx.fillRect(0, 0, W, W);
+    drawRays(t);
+    drawHalo(t);
+    // LED window switches on from the centre outwards
+    const boot = clamp((t - BURST) / 0.12);
+    if (boot > 0 && field) {
+      const rr = (R + 4) * easeOut(boot);
+      ctx.save(); ctx.beginPath(); ctx.arc(C, C, rr, 0, Math.PI*2); ctx.clip();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(field, 0, 0); ctx.setTransform(k, 0, 0, k, 0, 0); ctx.restore();
+      if (boot < 1) { ctx.strokeStyle = COL.lime; ctx.globalAlpha = 0.45 * (1 - boot); ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(C, C, rr, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1; }
+    }
+    const st = hopState(t);
+    drawFloor(st, clamp((t - BURST) / 0.1));
+    drawBiscuit(t);
+    drawSparkles(t);
+    drawCharge(t);
+    drawIcon(t);
+    drawShockwaves(t);
+    for (const p of mainBurst) drawParticle(p, t);
+    for (const p of pawBurst) drawParticle(p, t);
+    if (t >= LOOP) { const k0 = Math.max(0, Math.floor((t - LOOP) / PERIOD) - 1), k1 = Math.floor((t - LOOP) / PERIOD);
+      for (let kk = k0; kk <= k1; kk++) loopHops(kk).forEach((h, i) => sparksFor(h.t0, kk*2 + i).forEach(p => drawParticle(p, t))); }
+    drawDrizzle(t);
+    drawFlash(t);
+
+    // title: each word springs in
+    const starts = [1.15, 1.21, 1.27, 1.38];
+    words.forEach((w, i) => {
+      const tau = t - starts[i];
+      if (tau < 0) { w.style.opacity = 0; w.style.transform = 'translateY(8px) scale(.4)'; return; }
+      const amp = i === 3 ? 0.75 : 0.6, s = 1 - amp * Math.exp(-8 * tau) * Math.cos(15 * tau);
+      w.style.opacity = clamp(tau / 0.12); w.style.transform = `translateY(${(8 * Math.exp(-10 * tau)).toFixed(2)}px) scale(${s.toFixed(4)})`;
+    });
+    shine.style.backgroundPosition = `${lerp(120, -20, easeInOut((t - 1.75) / 0.55)).toFixed(1)}% 0`;
+    const m = easeOut((t - 1.95) / 0.4);
+    msg.style.opacity = m.toFixed(3); msg.style.transform = `translateY(${(6 * (1 - m)).toFixed(2)}px)`;
+
+    // the whole device bounces at the burst, and the haptic rings spread on the mat
+    const tau = t - BURST; let ds = 1, dr = 0;
+    if (tau > 0 && tau < 1) { ds = 1 + 0.035 * Math.exp(-7 * tau) * Math.sin(26 * tau); dr = 0.9 * Math.exp(-6 * tau) * Math.sin(34 * tau); }
+    device.style.transform = `translate(-50%,-50%) scale(${(scale * ds).toFixed(5)}) rotate(${dr.toFixed(3)}deg)`;
+    rip.forEach((el, i) => { const q = (tau - i * 0.1) / 0.7; if (q < 0 || q > 1) { el.style.opacity = 0; return; }
+      el.style.opacity = (0.5 * (1 - q)).toFixed(3); el.style.transform = `scale(${(1 + 0.2 * easeOut(q)).toFixed(4)})`; });
+  }
+
+  // ---------- sound (off until asked for) ----------
+  let audio = null, soundOn = false;
+  function tone(freq, start, dur, gain, type='sine', glideTo){
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, start); if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, start + dur);
+    g.gain.setValueAtTime(0.0001, start); g.gain.exponentialRampToValueAtTime(gain, start + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    o.connect(g).connect(audio.destination); o.start(start); o.stop(start + dur + 0.05);
+  }
+  function sparkle(start){
+    const len = Math.floor(audio.sampleRate * 0.35), buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    src.buffer = buf; f.type = 'highpass'; f.frequency.value = 5200; g.gain.value = 0.07; src.connect(f).connect(g).connect(audio.destination); src.start(start);
+  }
+  const SOUND_EVENTS = [];
+  for (let k = 0; k < 24; k += 2) SOUND_EVENTS.push({ t: 0.12 + k * 0.018, fn: now => tone(620 + k * 26, now, 0.05, 0.035, 'triangle') });
+  SOUND_EVENTS.push({ t: BURST, fn: now => { tone(783.99, now, 0.7, 0.13, 'triangle'); tone(1046.5, now + 0.12, 0.9, 0.12, 'triangle'); sparkle(now); } });
+  function fireSounds(a, b){
+    if (!soundOn || !audio || speed !== 1) return;
+    const now = audio.currentTime;
+    for (const e of SOUND_EVENTS) if (e.t > a && e.t <= b) e.fn(now);
+    for (const h of hopTimesBetween(a, b)) if (h > BURST) tone(330, now, 0.11, 0.05, 'sine', 560);
+  }
+
+  // ---------- clock + controls ----------
+  let t = 0, playing = true, speed = 1, last = performance.now();
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { t = 3.0; playing = false; document.getElementById('rmNote').hidden = false; }
+
+  function setPlaying(p){
+    playing = p; last = performance.now();
+    playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play'); playText.textContent = p ? 'Pause' : 'Play';
+    playIcon.innerHTML = p ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>' : '<path d="M7 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L8.5 4.64A1 1 0 0 0 7 5.5Z"/>';
+  }
+  function replay(){ t = 0; sparkCache.clear(); setPlaying(true); }
+  document.getElementById('replay').addEventListener('click', replay);
+  playBtn.addEventListener('click', () => setPlaying(!playing));
+  slowBtn.addEventListener('click', () => { speed = speed === 1 ? 0.25 : 1; slowBtn.setAttribute('aria-pressed', String(speed !== 1)); });
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn; soundBtn.setAttribute('aria-pressed', String(soundOn));
+    if (soundOn && !audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { soundOn = false; soundBtn.setAttribute('aria-pressed', 'false'); } }
+    if (audio && audio.state === 'suspended') audio.resume();
+  });
+  scrubber.addEventListener('input', () => { t = scrubber.value / 1000; setPlaying(false); });
+  window.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input')) return;
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === 'r' || e.key === 'R') replay();
+    else if (!playing && e.key === 'ArrowRight') { t += 1/60; }
+    else if (!playing && e.key === 'ArrowLeft') { t = Math.max(0, t - 1/60); }
+  });
+
+  // beat list + timeline ticks
+  const list = document.getElementById('beatList'), ticks = document.getElementById('ticks');
+  BEATS.forEach((b, i) => {
+    const li = document.createElement('li'), btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'beat'; btn.dataset.i = i;
+    btn.innerHTML = `<span class="t">${b.t.toFixed(2)}${b.end ? '\u2013' + b.end.toFixed(2) : ' \u2192'} s</span><span><b>${b.name}</b><small>${b.text}</small></span>`;
+    btn.addEventListener('click', () => { t = Math.max(0, b.t - 0.15); setPlaying(true); });
+    li.appendChild(btn); list.appendChild(li);
+  });
+  [['Arrive',0],['Burst',BURST],['Title',1.15],['Message',1.95],['Loop',LOOP]].forEach(([label, at], i) => {
+    const s = document.createElement('span'); s.textContent = label; s.style.left = `${(at / SCRUB_MAX) * 100}%`;
+    if (i === 0) s.style.transform = 'none'; ticks.appendChild(s);
+  });
+  const beatBtns = [...list.querySelectorAll('.beat')];
+
+  function frame(now){
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (playing) { const prev = t; t += dt * speed; fireSounds(prev, t); }
+    render(t);
+    scrubber.value = Math.round(Math.min(t, SCRUB_MAX) * 1000);
+    clock.textContent = `${t.toFixed(2)} s`;
+    beatBtns.forEach((b, i) => { const be = BEATS[i]; b.classList.toggle('on', t >= be.t && (be.end == null || t < be.end)); });
+    requestAnimationFrame(frame);
+  }
+  resize();
+  new ResizeObserver(resize).observe(stage);
+  setPlaying(playing);
+  const start = () => { last = performance.now(); requestAnimationFrame(frame); };
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(start, start);
+})();
+</script>

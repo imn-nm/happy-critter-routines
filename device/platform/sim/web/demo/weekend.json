@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "child": { "id": "demo-amira", "name": "Amira", "pet": "Biscuit", "stars": 30, "wake": "08:30" },
+  "tasks": [
+    { "id": "wake", "title": "Wake Up", "icon": "sunrise", "start": "08:30", "end": "08:45", "system": "wake" },
+    { "id": "breakfast", "title": "Pancake Breakfast", "icon": "utensils", "start": "09:00", "end": "09:45", "system": "breakfast" },
+    { "id": "swim", "title": "Swim Lesson", "icon": "swim", "start": "10:30", "end": "11:30", "event": true, "event_start": "10:45",
+      "steps": [ { "id": "w1", "text": "Pack your towel" }, { "id": "w2", "text": "Pack your goggles" } ] },
+    { "id": "lunch", "title": "Lunch", "icon": "utensils", "start": "12:00", "end": "12:45", "system": "lunch" },
+    { "id": "garden", "title": "Help in the Garden", "icon": "plant", "start": "14:00", "end": "15:00", "done_at": "14:40" }
+  ],
+  "chores": [ { "id": "bed", "title": "Make Your Bed", "icon": "bed" }, { "id": "dog", "title": "Walk the Dog", "icon": "pet" } ],
+  "rewards": [ { "id": "icecream", "title": "Ice Cream Trip", "icon": "icecream", "color": "#F59A76", "cost": 20 } ],
+  "wheel": ["Draw", "Lego", "Read", "Outside", "Puzzle", "Dance"]
+}

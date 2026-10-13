@@ -1,4 +1,4 @@
-# PetPals
+# MyToki
 
 A routine app for kids with a pet companion. Parents plan the day: tasks,
 chores, events like a soccer game, and rewards. Each child follows their day

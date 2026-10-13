@@ -32,3 +32,14 @@ dist-ssr
 assets/
 .codex/
 AGENTS.md
+
+# 3D pet experiments and PDF/deck scratch (big binaries, not part of the app)
+artifacts/chibi-critter/
+artifacts/cream-critter/
+artifacts/dino-rig/
+artifacts/spotted-dino/
+artifacts/reference-pet/
+*.blend
+*.blend1
+output/
+tmp/

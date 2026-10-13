@@ -156,7 +156,7 @@ land. `C` = found by Claude, `X` = found by Codex, `CX` = both.
 
 - [ ] **Words** — onboarding: Daily routine / Must finish / Chores / nice to
   have; form: Task|Chore, Normal / Must finish / Free time (hidden under More
-  options). Product name: PetPals / Happy Critter Routines / Taskie. (CX)
+  options). Product name: now MyToki everywhere since 2026-10-12 (was PetPals / Happy Critter Routines / Taskie). (CX)
 - [ ] **Timezone fixed to Los Angeles** — show the family's timezone; decide
   what happens when travelling. (X)
 - [ ] **Errors titled "Conflict"** for any save failure. (C)

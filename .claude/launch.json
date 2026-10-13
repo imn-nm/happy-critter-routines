@@ -43,6 +43,54 @@
         "assets/pets/rabbit/retro/gummy"
       ],
       "port": 8099
+    },
+    {
+      "name": "mytoki-brand",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5181",
+        "--directory",
+        "artifacts/mytoki-brand"
+      ],
+      "port": 5181
+    },
+    {
+      "name": "mytoki-deck",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5182",
+        "--directory",
+        "artifacts/mytoki-market-deck"
+      ],
+      "port": 5182
+    },
+    {
+      "name": "reward-burst",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5183",
+        "--directory",
+        "artifacts/reward-burst"
+      ],
+      "port": 5183
+    },
+    {
+      "name": "mytoki-sim",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5190",
+        "--directory",
+        "device/platform/sim/web"
+      ],
+      "port": 5190
     }
   ]
 }

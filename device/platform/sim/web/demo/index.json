@@ -1,0 +1,7 @@
+[
+  { "file": "school-day.json", "title": "School day" },
+  { "file": "running-late.json", "title": "Running late (must-finish tasks)" },
+  { "file": "weekend.json", "title": "Weekend (swim lesson, all done early)" },
+  { "file": "free-day.json", "title": "A free day (nothing planned)" },
+  { "file": "rest-day.json", "title": "Cozy rest day" }
+]
