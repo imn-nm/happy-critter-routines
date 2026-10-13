@@ -63,9 +63,11 @@ const ProtectedRoutes = () => (
     <Route path="/dashboard" element={<Navigate to="/parent" replace />} />
     {/* Up to three children side by side on an iPad or computer. */}
     <Route path="/child/together" element={<ChildrenTogether />} />
-    <Route path="/child/:childId" element={<ChildInterface />} />
-    {/* The same day on the MyToki Circle: the handheld's round screen, run by its firmware. */}
-    <Route path="/child/:childId/circle" element={<ChildCircle />} />
+    {/* The child's screen is the MyToki Circle: the handheld's round screen, run by its
+        firmware on the child's real day. The older list view is a tap away. */}
+    <Route path="/child/:childId" element={<ChildCircle />} />
+    <Route path="/child/:childId/circle" element={<Navigate to=".." replace relative="path" />} />
+    <Route path="/child/:childId/list" element={<ChildInterface />} />
     {/* Grown-up side: behind the parent PIN once a child's screen has been
         open on this device. */}
     <Route element={<ParentGate />}>

@@ -995,7 +995,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         {!propChildId && !isPreview && (
           <button
             type="button"
-            onClick={() => navigate(`/child/${child.id}/circle`)}
+            onClick={() => navigate(`/child/${child.id}`)}
             aria-label="Show the day on the MyToki Circle"
             title="MyToki Circle"
             className="absolute -top-2 right-0 z-10 w-9 h-9 rounded-full bg-focus-surface/80 flex items-center justify-center text-focus-muted hover:text-focus-text"

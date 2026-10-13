@@ -31,7 +31,7 @@ device/
 
 ## On the web app
 
-The same firmware runs inside the child view: `/child/:childId/circle` (the round button at the top of the child's screen) draws the Circle on a canvas and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit) is saved the way the list view saves it. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
+The same firmware is the child view: `/child/:childId` draws the Circle on a canvas (the older list view is at `/child/:childId/list`) and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit) is saved the way the list view saves it. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
 
 ## Run the simulator
 

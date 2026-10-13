@@ -1,5 +1,5 @@
 /**
- * /child/:childId/circle: the child's day on the MyToki Circle, the round screen
+ * /child/:childId: the child's day on the MyToki Circle, the round screen
  * of the handheld, running the device firmware in the browser on the real plan.
  * What the child does on it (a task done, a chore, a reward asked for, an
  * outfit) is saved exactly as the list view saves it.
@@ -98,7 +98,7 @@ const ChildCircle = () => {
       <CircleDevice childId={child.id} planJson={planJson} failed={!!loadError} onEvent={onEvent} size={size} />
       <button
         type="button"
-        onClick={() => navigate(`/child/${child.id}`)}
+        onClick={() => navigate(`/child/${child.id}/list`)}
         className="inline-flex items-center gap-2 rounded-full bg-focus-surface px-4 py-2 text-14 font-semibold text-focus-muted hover:text-focus-text"
       >
         <List className="w-4 h-4" aria-hidden /> List view
