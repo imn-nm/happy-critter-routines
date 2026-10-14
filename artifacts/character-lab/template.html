@@ -1,0 +1,158 @@
+<title>MyToki Dress-Up Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Poppins:wght@400;500;600&display=swap">
+<style>
+  /* Layout: the MyToki Circle on the left (sticky), the wardrobe on the right; one column on phones.
+     A single dark look, the app's own Focus palette. */
+  :root {
+    --bg: #20294a;        /* focus-bg */
+    --sheet: #181e36;     /* focus-sheet */
+    --surface: #2c3558;   /* focus-surface */
+    --raised: #3c4770;    /* focus-raised */
+    --sunken: #0e1221;    /* focus-sunken: the device bezel */
+    --text: #f5f3ff;
+    --muted: #bdb5f5;
+    --lime: #dcef70;      /* action */
+    --lavender: #a89af0;  /* system message */
+    --on-lime: #20294a;
+    --display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+    --ui: "Poppins", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { background: var(--bg); color: var(--text); }
+  body { font-family: var(--ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 40px; }
+  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  header { display: flex; flex-direction: column; gap: 4px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 4vw, 32px); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  main { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .viewer { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+  /* The device: a round screen in a dark bezel, with the button arc at one o'clock. */
+  .device { position: relative; width: 100%; max-width: 420px; aspect-ratio: 1; border-radius: 50%; background: var(--sunken); padding: 14px; box-shadow: 0 18px 40px rgb(0 0 0 / 0.35); }
+  .device::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; border: 5px solid transparent; border-top-color: var(--lime); transform: rotate(32deg); clip-path: polygon(50% 50%, 62% 0, 92% 0); pointer-events: none; }
+  #stage { display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--sheet); image-rendering: pixelated; }
+  .caption { margin: 0; text-align: center; font-weight: 500; max-width: 40ch; text-wrap: balance; }
+  .note { margin: 0; text-align: center; color: var(--muted); font-size: 12.5px; max-width: 44ch; }
+
+  .panel { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+  section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  section[data-off] { opacity: 0.45; }
+  section[data-off] button { pointer-events: none; }
+  .label { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .sub { display: flex; flex-direction: column; gap: 8px; }
+  .sub .label { color: var(--lavender); letter-spacing: 0.06em; }
+  .hint { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+  .tiles.big { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .tiles.colours { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tiles.colours .tile canvas { width: 72px; height: 72px; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .chip { background: var(--surface); border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 500; transition: background-color 0.12s; }
+  .chip:hover { background: var(--raised); }
+  .chip[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); font-weight: 600; }
+
+  .tile { background: var(--surface); border: 2px solid transparent; border-radius: 14px; padding: 8px 6px 7px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 92px; justify-content: flex-end; text-align: center; transition: background-color 0.12s, border-color 0.12s; }
+  .tile:hover { background: var(--raised); }
+  .tile[aria-pressed="true"] { border-color: var(--lime); background: var(--raised); }
+  .tile canvas { width: 52px; height: 52px; image-rendering: pixelated; }
+  .tiles.big .tile canvas { width: 88px; height: 88px; }
+  .tile span { font-size: 12px; line-height: 1.25; }
+  .tile:not(:has(canvas)) { justify-content: center; color: var(--muted); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .primary { background: var(--lime); color: var(--on-lime); border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; }
+  .secondary { background: var(--surface); border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 500; }
+  .primary:hover { filter: brightness(1.05); }
+  .secondary:hover { background: var(--raised); }
+
+  .toggle { display: inline-flex; align-items: center; gap: 10px; font-weight: 500; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--lime); }
+
+  button:focus-visible, .toggle input:focus-visible { outline: 2px solid var(--lavender); outline-offset: 2px; }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .viewer { top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 10px 12px; margin-inline: -16px; padding-inline: 16px; box-shadow: 0 10px 18px -12px rgb(0 0 0 / 0.6); }
+    .device { width: min(62vw, 300px); padding: 10px; }
+    .note { display: none; }
+  }
+  @media (max-width: 560px) {
+    .tiles.big { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tiles.big .tile canvas { width: 64px; height: 64px; }
+    .tiles.colours .tile canvas { width: 52px; height: 52px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>MyToki Dress-Up Lab</h1>
+    <p>Try Biscuit and her friends in every colour, outfit piece, prop and room. Everything is drawn by the app's own pixel code, cell for cell, on the round MyToki screen.</p>
+  </header>
+
+  <main>
+    <div class="viewer">
+      <div class="device"><canvas id="stage" width="480" height="480" role="img" aria-label="The character on the MyToki screen"></canvas></div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+      <p class="note" id="fitnote" hidden>Outfit pieces and props are placed for Biscuit and moved to fit this character, so a piece may sit a pixel off.</p>
+    </div>
+
+    <div class="panel">
+      <section>
+        <h2 class="label">Character</h2>
+        <div class="tiles big" id="chars"></div>
+      </section>
+
+      <section>
+        <h2 class="label">Colour</h2>
+        <div class="tiles colours" id="colours"></div>
+      </section>
+
+      <section>
+        <h2 class="label">Pose</h2>
+        <div class="chips" id="poses"></div>
+      </section>
+
+      <section>
+        <h2 class="label">Wearing</h2>
+        <div class="actions">
+          <button type="button" class="primary" id="shuffle">Shuffle outfit</button>
+          <button type="button" class="secondary" id="undress">Take everything off</button>
+        </div>
+        <div class="sub"><h3 class="label">Head</h3><div class="tiles" id="slot-head"></div></div>
+        <div class="sub"><h3 class="label">Face</h3><div class="tiles" id="slot-face"></div></div>
+        <div class="sub"><h3 class="label">Neck</h3><div class="tiles" id="slot-neck"></div></div>
+      </section>
+
+      <section id="hold-block">
+        <h2 class="label">Holding</h2>
+        <p class="hint" id="hold-note"></p>
+        <div class="tiles" id="props"></div>
+      </section>
+
+      <section id="face-block">
+        <h2 class="label">Face</h2>
+        <div class="sub"><h3 class="label">Eyes</h3><div class="chips" id="eyes"></div></div>
+        <div class="sub" id="mouth-row"><h3 class="label">Mouth</h3><div class="chips" id="mouths"></div></div>
+        <label class="toggle" id="blush-row"><input type="checkbox" id="blush"> Rosy cheeks</label>
+        <label class="toggle"><input type="checkbox" id="autoblink"> Blink now and then</label>
+      </section>
+
+      <section>
+        <h2 class="label">Room</h2>
+        <div class="chips" id="scenes"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+/*SCRIPT*/
+</script>
