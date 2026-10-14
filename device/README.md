@@ -118,7 +118,7 @@ What the board layer does (`main/hal_esp32.c`):
 ## How it's put together
 
 - **Biscuit is the web app's rabbit, frame for frame.** `tools/pet_export.mjs` bundles `src/components/pets/pixel` with esbuild and exports two things as C data (`app/pet/pet_data.c`, about 450 KB of flash):
-  - every frame of the 15 clips, plus a per-frame overlay for each of the 18 outfit items;
+  - every frame of the 15 clips, plus a per-frame overlay for each of the 15 outfit items;
   - 36 Playtime poses and the three Playtime rooms.
 
   `pet/pet.c` ports SpritePet's behaviour engine: moods, habits, intro/loop/outro, taps, personality from the child's id. `pet/led.c` draws the Field Kit LED field: unlit dots, lit room features, Biscuit solid, a mint glow under his feet, and the lime sparkles when he cheers.

@@ -54,14 +54,11 @@ typedef enum {
     PET_ACC_SPECS = 8,
     PET_ACC_HEARTS = 9,
     PET_ACC_SHADES = 10,
-    PET_ACC_STARS = 11,
-    PET_ACC_NOSE = 12,
-    PET_ACC_SCARF = 13,
-    PET_ACC_BOWTIE = 14,
-    PET_ACC_LEI = 15,
-    PET_ACC_MEDAL = 16,
-    PET_ACC_CAPE = 17,
-    PET_ACC_COUNT = 18
+    PET_ACC_SCARF = 11,
+    PET_ACC_BOWTIE = 12,
+    PET_ACC_MEDAL = 13,
+    PET_ACC_CAPE = 14,
+    PET_ACC_COUNT = 15
 } pet_acc_t;
 
 typedef struct {

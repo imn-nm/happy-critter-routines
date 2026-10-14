@@ -32,9 +32,8 @@ static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = { { "P
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
     [PET_ACC_HAT] = "party", [PET_ACC_STRAW] = "sun", [PET_ACC_CAP] = "cap", [PET_ACC_CROWN] = "crown",
     [PET_ACC_BOW] = "ribbon", [PET_ACC_BEANIE] = "snowflake", [PET_ACC_TIARA] = "sparkles", [PET_ACC_WIZARD] = "wand",
-    [PET_ACC_SPECS] = "glasses", [PET_ACC_HEARTS] = "heart", [PET_ACC_SHADES] = "eye", [PET_ACC_STARS] = "star-fill",
-    [PET_ACC_NOSE] = "circle-dot", [PET_ACC_SCARF] = "wind", [PET_ACC_BOWTIE] = "ribbon", [PET_ACC_LEI] = "yoga",
-    [PET_ACC_MEDAL] = "medal", [PET_ACC_CAPE] = "shield",
+    [PET_ACC_SPECS] = "glasses", [PET_ACC_HEARTS] = "heart", [PET_ACC_SHADES] = "eye",
+    [PET_ACC_SCARF] = "wind", [PET_ACC_BOWTIE] = "ribbon", [PET_ACC_MEDAL] = "medal", [PET_ACC_CAPE] = "shield",
 };
 
 static stage_t stage;

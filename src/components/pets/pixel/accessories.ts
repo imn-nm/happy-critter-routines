@@ -9,23 +9,32 @@ import type { Pix } from "./pix";
 export type AccessorySlot = "head" | "face" | "neck";
 export type AccessoryId =
   | "hat" | "straw" | "cap" | "crown" | "bow" | "beanie" | "tiara" | "wizard"
-  | "specs" | "hearts" | "shades" | "stars" | "nose"
-  | "scarf" | "bowtie" | "lei" | "medal" | "cape";
+  | "specs" | "hearts" | "shades"
+  | "scarf" | "bowtie" | "medal" | "cape";
 export type PetOutfit = Partial<Record<AccessorySlot, AccessoryId | null>>;
 export type PetView = "front" | "side" | "sleep";
 
-const PARTY_HAT = ["...NN...", "...NN...", "..GGGG..", "..GGGG..", ".NNNNNN.", ".NNNNNN.", "GGGGGGGG", "gggggggg"];
+// Hats sit on top of the head (its top is row 12) and rise above it, the ears
+// either side, rather than squeezing into the gap between the ears.
+// A striped party cone with a pom-pom; the bottom row sits on row 12.
+const PARTY_HAT = [
+  "....YY....", "...YYYY...", "....YY....", "....NN....", "...NNNN...", "...GGGG...", "..GGGGGG..",
+  "..NNNNNN..", ".NNNNNNNN.", ".GGGGGGGG.", "GGGGGGGGGG", "NNNNNNNNNN", "gggggggggg",
+];
 // A big two-loop bow with a dark outline so it stands out on the ear.
-const BOW = ["MM...MM", "MRM.MRM", "MPPMPPM", "MPM.MPM", "MM...MM"];
+const BOW = ["MM.....MM", "MRM...MRM", "MRPM.MPRM", "MPPPMPPPM", "MRPM.MPRM", "MRM...MRM", "MM.....MM"];
 const HEART = [".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..."];
 const BOWTIE = ["XX..XX", "XXxxXX", "XX..XX"];
-const STAR_LENS = ["...Y...", "..YYY..", "YYYFYYY", ".YYYYY.", ".YY.YY."];
-const CLOWN_NOSE = [".XX.", "XFXX", ".XX."];
-// A wizard's hat: a tall cone with a bent tip and stars, over a wide brim.
+// A tall wizard's cone with its tip bent back, stars on it; the brim is drawn under it.
 const WIZARD = [
-  "......NN..", ".....NN...", "....NNN...", "....NNNN..", "...NNYNN..", "...NNNNN..",
-  "..NNNNNNN.", "..NNNNYNN.", ".NNYNNNNN.", ".NNNNNNNNN",
+  "..........NN", "........NNN.", ".......NNN..", "......NNNN..", "......NNYN..", ".....NNNNNN.",
+  ".....NNNNNN.", "....NNNYNNN.", "....NNNNNNNN", "...NNNNNNNNN", "...NNYNNNNNN",
 ];
+const TIARA = [
+  ".....YY.....", ".....YY.....", "....YPPY....", ".Y..YPPY..Y.", ".YY.YYYY.YY.", "YBYYYYYYYYBY",
+  "YYYYYYYYYYYY", "yyyyyyyyyyyy",
+];
+const FLOWER = [".cc.", "cYYc", "cYYc", ".cc."];
 const MEDAL = [".yyy.", "yYYYy", "yYFYy", "yYYYy", ".yyy."];
 // Dress-up tile pictures for things that only make sense on the rabbit.
 const CAPE_ICON = ["XXYYXX", "XXXXXX", ".XXXXXX", ".XXXXXX", "XXXXXXX", "XXXXXXXX", "xXxXxXxX"];
@@ -54,95 +63,92 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     slot: "head",
     name: "Party hat",
     draw(p, v) {
-      if (v === "sleep") p.stamp(PARTY_HAT, PILE.head, 13);
-      else p.stamp(PARTY_HAT, v === "front" ? 7 : 8, 4);
+      if (v === "sleep") p.stamp(PARTY_HAT, PILE.head, 8);
+      else p.stamp(PARTY_HAT, 6, 0);
     },
   },
-  // A low crown sits over the ear bases, so the ears poke up through the hat,
-  // with a wide woven brim and a red ribbon.
+  // A tall woven crown with a red ribbon over a wide brim.
   straw: {
     slot: "head",
     name: "Straw hat",
     draw(p, v) {
       if (v === "sleep") {
-        straw(p, 18, PILE.head + 2, PILE.head + 6);
-        for (let x = PILE.head + 2; x <= PILE.head + 6; x++) p.set(x, 19, "X");
+        straw(p, 17, PILE.head + 2, PILE.head + 6);
+        for (let x = PILE.head + 2; x <= PILE.head + 6; x++) { p.set(x, 18, "X"); p.set(x, 19, "X"); }
         straw(p, 20, PILE.head - 1, PILE.head + 9);
         return;
       }
-      const [c0, c1, b0, b1] = v === "front" ? [4, 17, -3, 24] : [5, 19, -3, 25];
-      straw(p, 8, c0 + 1, c1 - 1);
-      straw(p, 9, c0, c1);
-      for (let x = c0; x <= c1; x++) p.set(x, 10, "X");
+      const [c0, c1, b0, b1] = v === "front" ? [4, 17, -3, 24] : [3, 17, -5, 23];
+      straw(p, 5, c0 + 2, c1 - 2);
+      for (let y = 6; y <= 8; y++) straw(p, y, c0 + 1, c1 - 1);
+      row(p, 9, c0 + 1, c1 - 1, "X");
+      row(p, 10, c0 + 1, c1 - 1, "x");
       straw(p, 11, b0 + 1, b1 - 1);
       straw(p, 12, b0, b1, true);
     },
   },
+  // A rounded crown with a button on top and a white patch; the peak faces the way the rabbit does.
   cap: {
     slot: "head",
     name: "Baseball cap",
     draw(p, v) {
-      const run = (y: number, a: number, b: number, c: string) => { for (let x = a; x <= b; x++) p.set(x, y, c); };
       if (v === "sleep") {
-        run(18, PILE.head + 1, PILE.head + 4, "X");
-        run(19, PILE.head, PILE.head + 5, "X");
-        run(20, PILE.head, PILE.head + 8, "x");
+        row(p, 17, PILE.head + 1, PILE.head + 4, "X");
+        row(p, 18, PILE.head, PILE.head + 5, "X");
+        row(p, 19, PILE.head, PILE.head + 5, "X");
+        row(p, 20, PILE.head, PILE.head + 8, "x");
         return;
       }
+      const dx = 0;
+      p.set(10 + dx, 4, "x"); p.set(11 + dx, 4, "x");
+      row(p, 5, 7 + dx, 14 + dx, "X");
+      row(p, 6, 5 + dx, 16 + dx, "X");
+      row(p, 7, 4 + dx, 17 + dx, "X");
+      for (let y = 8; y <= 11; y++) row(p, y, 3 + dx, 18 + dx, "X");
+      for (const [x, y] of [[9, 8], [10, 8], [9, 9], [10, 9]]) p.set(x + dx, y, "F");
       if (v === "front") {
-        run(7, 10, 11, "x");
-        run(8, 5, 16, "X");
-        run(9, 4, 17, "X");
-        run(10, 3, 18, "X");
-        run(11, 3, 18, "X");
-        p.set(10, 9, "F"); p.set(11, 9, "F"); p.set(10, 10, "F"); p.set(11, 10, "F");
-        run(12, 2, 19, "x");
-        run(13, 3, 18, "x");
+        row(p, 12, 2, 19, "x");
+        row(p, 13, 3, 18, "x");
         return;
       }
       // 3/4: the peak sticks out past the face.
-      run(7, 11, 12, "x");
-      run(8, 6, 17, "X");
-      run(9, 5, 18, "X");
-      run(10, 4, 19, "X");
-      run(11, 4, 19, "X");
-      run(11, -2, 3, "x");
-      run(12, -4, 6, "x");
+      row(p, 11, -2, 4, "x");
+      row(p, 12, -4, 6, "x");
     },
   },
+  // Big flowers on a leafy band.
   crown: {
     slot: "head",
     name: "Flower crown",
     draw(p, v) {
-      if (v === "sleep") { p.stamp(["P.Y.B.R", "GGGGGGG"], PILE.head, 19); return; }
-      const [a, b, cs] = v === "front" ? [3, 18, [4, 8, 13, 17]] : [2, 20, [3, 8, 13, 18]];
-      for (let x = a; x <= b; x++) p.set(x, 12, "G");
-      ["P", "Y", "B", "R"].forEach((c, i) => {
-        const x = cs[i];
-        p.set(x, 10, c); p.set(x - 1, 11, c); p.set(x + 1, 11, c); p.set(x, 12, c);
-        p.set(x, 11, c === "Y" ? "O" : "Y");
-      });
+      if (v === "sleep") { p.stamp(["P.Y.B", "GGGGG"], PILE.head, 19); return; }
+      const [a, b, xs] = v === "front" ? [3, 18, [3, 9, 15]] : [2, 20, [2, 9, 16]];
+      row(p, 11, a, b, "G");
+      row(p, 12, a, b, "g");
+      // petals in the flower's colour round a yellow middle (orange for the yellow flower)
+      ["P", "Y", "B"].forEach((c, i) => p.stamp(FLOWER.map(r => r.replace(/Y/g, c === "Y" ? "O" : "Y").replace(/c/g, c)), xs[i], 8));
     },
   },
   bow: {
     slot: "head",
     name: "Ear bow",
-    draw(p, v) { p.stamp(BOW, v === "sleep" ? PILE.head + 1 : v === "front" ? 1 : 2, v === "sleep" ? 16 : 8); },
+    draw(p, v) { p.stamp(BOW, v === "sleep" ? PILE.head : v === "front" ? 0 : 1, v === "sleep" ? 14 : 6); },
   },
-  // A knitted beanie with a pom-pom; the ears poke out above it.
+  // A tall knitted dome with a ribbed band and a pom-pom; the ears poke out either side.
   beanie: {
     slot: "head",
     name: "Beanie",
     draw(p, v) {
       if (v === "sleep") { p.stamp([".YY..", "NNNN.", "NnNnN", "nnnnn"], PILE.head + 1, 16); return; }
-      const [a, b, pom] = v === "front" ? [3, 18, 9] : [2, 20, 10];
-      p.stamp([".YY.", "YYYY", ".YY."], pom, 5);
-      row(p, 8, pom - 1, pom + 4, "N");
-      row(p, 9, a + 2, b - 2, "N");
-      for (let x = a + 1; x <= b - 1; x++) p.set(x, 10, x % 3 === 0 ? "n" : "N");
-      for (let x = a; x <= b; x++) p.set(x, 11, (x + 1) % 3 === 0 ? "n" : "N");
-      row(p, 12, a, b, "n");
-      for (let x = a; x <= b; x += 2) p.set(x, 13, "n");
+      const dx = v === "front" ? 0 : 1;
+      const [a, b] = v === "front" ? [3, 18] : [2, 20];
+      p.stamp([".YY.", "YYYY", ".YY."], 9 + dx, 1);
+      row(p, 4, 8 + dx, 13 + dx, "N");
+      row(p, 5, 6 + dx, 15 + dx, "N");
+      row(p, 6, 5 + dx, 16 + dx, "N");
+      for (let y = 7; y <= 9; y++) for (let x = 4 + dx; x <= 17 + dx; x++) p.set(x, y, (x + y) % 3 === 0 ? "n" : "N");
+      row(p, 10, a, b, "N");
+      for (let y = 11; y <= 13; y++) for (let x = a; x <= b; x++) p.set(x, y, x % 2 ? "n" : "N");
     },
   },
   tiara: {
@@ -150,11 +156,7 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     name: "Tiara",
     draw(p, v) {
       if (v === "sleep") { p.stamp(["Y.B.Y", "YYYYY", "yyyyy"], PILE.head + 1, 18); return; }
-      const [a, b, peaks] = v === "front" ? [5, 16, [6, 10, 15]] : [5, 17, [6, 11, 16]];
-      row(p, 12, a, b, "y");
-      row(p, 11, a, b, "Y");
-      for (const x of peaks) { p.set(x, 10, "Y"); p.set(x, 9, x === peaks[1] ? "P" : "B"); }
-      p.set(peaks[1] + 1, 10, "Y"); p.set(peaks[1] + 1, 9, "P"); p.set(peaks[1], 8, "Y"); p.set(peaks[1] + 1, 8, "Y");
+      p.stamp(TIARA, v === "front" ? 5 : 6, 5);
     },
   },
   wizard: {
@@ -162,8 +164,8 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     name: "Wizard hat",
     draw(p, v) {
       if (v === "sleep") { p.stamp(["..NN..", ".NYNN.", "NNNNNN", "nnnnnnn"], PILE.head, 17); return; }
-      const [x0, a, b] = v === "front" ? [6, 1, 20] : [7, 1, 22];
-      p.stamp(WIZARD, x0, 1);
+      const [x0, a, b] = v === "front" ? [4, 1, 20] : [5, 1, 22];
+      p.stamp(WIZARD, x0, 0);
       row(p, 11, a + 1, b - 1, "n");
       row(p, 12, a, b, "n");
     },
@@ -208,26 +210,6 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
       if (v === "side") row(p, 16, r + 6, 21, "k");
     },
   },
-  stars: {
-    slot: "face",
-    name: "Star glasses",
-    draw(p, v) {
-      if (v === "sleep") { p.stamp([".Y..Y.", "YYYYYY"], PILE.face - 1, 19); return; }
-      const [l, r] = v === "front" ? [2, 13] : [0, 10];
-      p.stamp(STAR_LENS, l, 14);
-      p.stamp(STAR_LENS, r, 14);
-      row(p, 16, l + 7, r - 1, "y");
-      if (v === "side") row(p, 16, r + 7, 21, "y");
-    },
-  },
-  nose: {
-    slot: "face",
-    name: "Clown nose",
-    draw(p, v) {
-      if (v === "sleep") { p.stamp([".XX", "XFX"], PILE.face + 1, 19); return; }
-      p.stamp(CLOWN_NOSE, v === "front" ? 9 : 6, 19);
-    },
-  },
   scarf: {
     slot: "neck",
     name: "Cozy scarf",
@@ -249,22 +231,6 @@ export const ACCESSORIES: Record<AccessoryId, Accessory> = {
     draw(p, v) {
       if (v === "sleep") p.stamp(BOWTIE, PILE.neck, 18);
       else p.stamp(BOWTIE, v === "front" ? 8 : 7, 26);
-    },
-  },
-  // A ring of flowers round the neck, dipping lower in front.
-  lei: {
-    slot: "neck",
-    name: "Flower lei",
-    draw(p, v) {
-      if (v === "sleep") { p.stamp(["PGYGB", "GPGYG"], PILE.neck, 19); return; }
-      const [a, b] = v === "front" ? [4, 17] : [5, 20];
-      const cols = ["P", "Y", "B", "R"];
-      const mid = (a + b) / 2;
-      for (let x = a; x <= b; x++) {
-        const y = 26 + (Math.abs(x - mid) < 4 ? 1 : 0);
-        p.set(x, y, x % 2 ? cols[(x >> 1) % 4] : "G");
-        p.set(x, y + 1, x % 2 ? "G" : cols[((x + 1) >> 1) % 4]);
-      }
     },
   },
   medal: {
