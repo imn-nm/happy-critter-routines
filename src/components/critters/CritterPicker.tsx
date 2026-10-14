@@ -1,52 +1,82 @@
 import { cn } from "@/lib/utils";
-import SpritePet from "@/components/pets/SpritePet";
-import { PETS, resolvePetId, type PetId } from "@/components/pets/petCatalog";
+import PetPortrait from "@/components/pets/PetPortrait";
+import {
+  PETS, petColourName, petColours, petNick, resolvePetColour, resolvePetId, type PetId,
+} from "@/components/pets/petCatalog";
 
 interface CritterPickerProps {
+  /** The character (children.pet_type). */
   value: string;
-  onChange: (id: PetId) => void;
-  /** Sprite size in px for each tile. */
-  spriteSize?: number;
+  /** Its colour (children.pet_color); null for the character's own. */
+  colour?: string | null;
+  onChange: (id: PetId, colour: string | null) => void;
+  /** Whose buddy it is, for screen readers. */
+  childName?: string;
   className?: string;
-  /** Show the pet's short name under each sprite. */
-  showNames?: boolean;
 }
 
+const tileClass = (on: boolean) => cn(
+  "min-w-0 flex flex-col items-center gap-1 rounded-[14px] border-[1.5px] bg-focus-surface px-1 pt-1.5 pb-2 transition-colors",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+  on ? "border-focus-lavender bg-focus-lavender/10" : "border-transparent hover:bg-focus-raised",
+);
+
 /**
- * Selectable pet tiles, shared by the parent setup and edit flows. There is
- * one pet today; the grid is kept so more can be added without touching the
- * forms that use it.
+ * Which character the child has and in which colour: a row of characters,
+ * then the chosen one's four colours. Changing character starts it in its
+ * own colours.
  */
-const CritterPicker = ({ value, onChange, spriteSize = 72, className, showNames = true }: CritterPickerProps) => {
+const CritterPicker = ({ value, colour = null, onChange, childName, className }: CritterPickerProps) => {
   const selected = resolvePetId(value);
+  const chosenColour = resolvePetColour(selected, colour);
+  const whose = childName ? `${childName}'s buddy` : "Buddy";
 
   return (
-    <div className={cn("grid grid-cols-3 gap-sp-2", className)}>
-      {PETS.map((p) => {
-        const isSelected = p.id === selected;
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onChange(p.id)}
-            aria-pressed={isSelected}
-            aria-label={`Choose ${p.name}`}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-2xl border-2 p-sp-2 transition-colors",
-              isSelected
-                ? "border-iris-400 bg-iris-400/[0.14]"
-                : "border-iris-400/15 hover:border-iris-400/40 hover:bg-iris-400/[0.06]",
-            )}
-          >
-            <SpritePet size={spriteSize} mood={isSelected ? "happy" : "idle"} label={p.name} />
-            {showNames && (
-              <span className="text-11 font-medium text-fog-100 leading-tight text-center">
-                {p.name.split(" ")[0]}
+    <div className={cn("flex flex-col gap-2", className)}>
+      <div role="radiogroup" aria-label={whose} className="grid grid-cols-5 gap-1.5">
+        {PETS.map(p => {
+          const on = p.id === selected;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={p.name}
+              onClick={() => { if (!on) onChange(p.id, null); }}
+              className={tileClass(on)}
+            >
+              <PetPortrait look={{ id: p.id, colour: on ? chosenColour : null }} size={48} />
+              <span className={cn("text-12 leading-[16px] truncate max-w-full", on ? "font-semibold text-focus-text" : "text-focus-muted")}>
+                {petNick(p.id)}
               </span>
-            )}
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
+      </div>
+      <div role="radiogroup" aria-label={`${petNick(selected)}'s colour`} className="grid grid-cols-4 gap-1.5">
+        {petColours(selected).map((o, i) => {
+          const stored = i === 0 ? null : o.name.toLowerCase();
+          const on = stored === chosenColour;
+          return (
+            <button
+              key={o.name}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={`${petNick(selected)}, ${o.name}`}
+              onClick={() => onChange(selected, stored)}
+              className={tileClass(on)}
+            >
+              <PetPortrait look={{ id: selected, colour: stored }} size={56} />
+              <span className={cn("text-12 leading-[16px] truncate max-w-full", on ? "font-semibold text-focus-text" : "text-focus-muted")}>
+                {o.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <span className="sr-only" aria-live="polite">{petNick(selected)}, {petColourName(selected, chosenColour)}</span>
     </div>
   );
 };

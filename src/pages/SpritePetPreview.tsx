@@ -4,6 +4,8 @@ import CircularTimer from "@/components/CircularTimer";
 import TimerRabbitScene, { RING_INSET } from "@/components/pets/TimerRabbitScene";
 import { CLIPS, MOOD_PLAN, type ClipName, type PetMood } from "@/components/pets/spriteClips";
 import { ACCESSORIES, ACCESSORY_IDS, SLOTS, normalizeOutfit, type AccessorySlot, type PetOutfit } from "@/components/pets/pixel/accessories";
+import CritterPicker from "@/components/critters/CritterPicker";
+import { petLook, type PetId } from "@/components/pets/petCatalog";
 
 const CLIP_NAMES = Object.keys(CLIPS) as ClipName[];
 const MOODS = Object.keys(MOOD_PLAN) as PetMood[];
@@ -21,6 +23,8 @@ const SpritePetPreview = () => {
   const [replay, setReplay] = useState(0);
   const [outfit, setOutfit] = useState<PetOutfit | null>(null);
   const wear = (slot: AccessorySlot, id: string) => setOutfit(o => normalizeOutfit({ ...(o ?? {}), [slot]: id || null }));
+  const [pet, setPet] = useState<{ id: PetId; colour: string | null }>({ id: "rabbit", colour: null });
+  const look = petLook(pet.id, pet.colour);
 
   return (
     <div className="min-h-dvh bg-slate-900 text-slate-100 p-8">
@@ -44,6 +48,10 @@ const SpritePetPreview = () => {
           </label>
         ))}
       </div>
+      <div className="mt-4 max-w-md rounded-xl bg-slate-800/60 p-4">
+        <span className="text-sm text-slate-400">Character on every pet below:</span>
+        <CritterPicker className="mt-2" value={pet.id} colour={pet.colour} onChange={(id, colour) => setPet({ id, colour })} />
+      </div>
       <h2 className="mt-8 text-lg font-medium">Inside the timer frame</h2>
       <p className="mt-2 text-sm text-slate-400">The rabbit chases a leaf now and then. The scene lasts ten seconds.</p>
       <div className="my-4 flex flex-wrap gap-3">
@@ -52,7 +60,7 @@ const SpritePetPreview = () => {
         </button>
       </div>
       <CircularTimer totalSeconds={100} remainingSeconds={30} sizePx={293} frameContent>
-        <TimerRabbitScene key={replay} outfit={outfit} />
+        <TimerRabbitScene key={replay} outfit={outfit} look={look} />
       </CircularTimer>
       <p className="mt-1 text-sm text-slate-400">
         Clips are drawn in <code className="text-slate-300">src/components/pets/pixel/clips.ts</code>; moods and habits live in{" "}
@@ -75,7 +83,7 @@ const SpritePetPreview = () => {
       </div>
       <div className="mt-6 flex items-end gap-10">
         <div className="rounded-2xl bg-slate-800/60 p-6">
-          <SpritePet clip={selected} size={320} outfit={outfit} />
+          <SpritePet clip={selected} size={320} outfit={outfit} look={look} />
         </div>
         <div className="text-sm text-slate-400">
           <div>frames: <span className="text-slate-200">{CLIPS[selected].frameCount}</span></div>
@@ -89,7 +97,7 @@ const SpritePetPreview = () => {
         {[152, 293].map((px) => (
           <CircularTimer key={px} totalSeconds={100} remainingSeconds={60} sizePx={px} frameContent>
             <div className={RING_INSET}>
-              <SpritePet clip={selected} framing="ring" outfit={outfit} />
+              <SpritePet clip={selected} framing="ring" outfit={outfit} look={look} />
             </div>
           </CircularTimer>
         ))}
@@ -111,7 +119,7 @@ const SpritePetPreview = () => {
       </div>
       <div className="mt-6 flex items-end gap-10">
         <div className="rounded-2xl bg-slate-800/60 p-6">
-          <SpritePet mood={mood} size={240} interactive outfit={outfit} />
+          <SpritePet mood={mood} size={240} interactive outfit={outfit} look={look} />
         </div>
         <div className="text-sm text-slate-400">
           <div>base: <span className="text-slate-200">{MOOD_PLAN[mood].base}</span></div>
@@ -128,7 +136,7 @@ const SpritePetPreview = () => {
       <div className="mt-4 flex flex-wrap items-end gap-6 rounded-xl bg-[#271447] p-5">
         {SIZES.map((px) => (
           <div key={px} className="text-center">
-            <SpritePet clip={selected} size={px} outfit={outfit} />
+            <SpritePet clip={selected} size={px} outfit={outfit} look={look} />
             <div className="mt-1 text-xs text-slate-400">{px}px</div>
           </div>
         ))}
@@ -138,7 +146,7 @@ const SpritePetPreview = () => {
       <div className="mt-4 flex flex-wrap gap-6">
         {CLIP_NAMES.map((name) => (
           <div key={name} className="rounded-xl bg-slate-800/60 p-3 text-center">
-            <SpritePet clip={name} size={168} outfit={outfit} />
+            <SpritePet clip={name} size={168} outfit={outfit} look={look} />
             <div className="mt-1 text-xs text-slate-400">{name}</div>
           </div>
         ))}

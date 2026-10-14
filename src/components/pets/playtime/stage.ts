@@ -1,5 +1,9 @@
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { PAL, type Pix } from "../pixel/pix";
+import { withLook, type Look } from "../pixel/cast";
+
+/** The child's character and colour, for every game drawn on a pixel stage. */
+export const PlayLook = createContext<Look | null>(null);
 
 /** Playtime stage: 96 x 64 pixels, feet on row 57. */
 export const LW = 96;
@@ -53,6 +57,9 @@ export function usePixelStage(onFrame: (g: Gfx, dt: number) => void) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef(onFrame);
   frameRef.current = onFrame;
+  const look = useContext(PlayLook);
+  const lookRef = useRef(look);
+  lookRef.current = look;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -92,7 +99,8 @@ export function usePixelStage(onFrame: (g: Gfx, dt: number) => void) {
       last = t;
       if (document.visibilityState !== "hidden") {
         octx.clearRect(0, 0, LW, LH);
-        frameRef.current(g, dt);
+        // Whatever the game draws of the pet this frame is the child's own character.
+        withLook(lookRef.current, () => frameRef.current(g, dt));
         ctx.imageSmoothingEnabled = false;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(off, 0, 0, canvas.width, canvas.height);

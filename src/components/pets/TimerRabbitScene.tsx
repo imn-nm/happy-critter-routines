@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useReducedMotion } from "motion/react";
 import SpritePet from "./SpritePet";
 import type { PetOutfit } from "./pixel/accessories";
+import type { Look } from "./pixel/cast";
 
 export const TIMER_ROUTINE_MS = 10000;
 
@@ -9,9 +10,11 @@ export const TIMER_ROUTINE_MS = 10000;
 export const RING_INSET = "absolute inset-[6px]";
 
 /** The leaf chase, framed exactly like the resting pet so nothing jumps. */
-export default function TimerRabbitScene({ onComplete, outfit }: {
+export default function TimerRabbitScene({ onComplete, outfit, look, label = "Biscuit chasing a leaf" }: {
   onComplete?: () => void;
   outfit?: PetOutfit | null;
+  look?: Look | null;
+  label?: string;
 }) {
   const reduced = useReducedMotion();
   useEffect(() => {
@@ -20,6 +23,6 @@ export default function TimerRabbitScene({ onComplete, outfit }: {
   }, [onComplete, reduced]);
 
   return <div className={`pointer-events-none ${RING_INSET}`}>
-    <SpritePet clip="LeafChase" framing="ring" label="Biscuit chasing a leaf" outfit={outfit} />
+    <SpritePet clip="LeafChase" framing="ring" label={label} outfit={outfit} look={look} />
   </div>;
 }

@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
 import TimerRabbitScene, { RING_INSET } from "@/components/pets/TimerRabbitScene";
-import { getPet } from "@/components/pets/petCatalog";
+import { getPet, petLook } from "@/components/pets/petCatalog";
 import type { ClipName, PetActivity, PetMood } from "@/components/pets/spriteClips";
 import type { PetOutfit } from "@/components/pets/pixel/accessories";
 import { personalityFor } from "@/components/pets/personality";
@@ -12,6 +12,8 @@ export type { PetMood as CritterMood };
 
 interface CritterPetProps {
   petType: string;
+  /** The character's colour (children.pet_color); its own colours when missing. */
+  petColor?: string | null;
   mood?: PetMood;
   /** What the pet is doing with the child; wins over the mood's base clip. */
   activity?: PetActivity;
@@ -36,16 +38,17 @@ interface CritterPetProps {
 
 /**
  * A child's pet at a given mood, centered in its box. Used for the big timer
- * companion where the pet reacts to task state. `petType` is kept for the
- * call sites; every value renders the rabbit for now.
+ * companion where the pet reacts to task state. `petType` and `petColor`
+ * pick the character and its colours.
  */
 const TAP_HINT_KEY = "petpals:pet-tap-discovered";
 const TAP_MESSAGES = ["Hi!", "We’ve got this!", "Happy to see you!", "What’s next?"];
 const PICTURE_TAP_MESSAGES = ["👋", "💜", "😊", "⭐"];
 
-const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit, picture = false, seed }: CritterPetProps) => {
+const CritterPet = ({ petType, petColor, mood = "idle", activity, size = 128, interactive, onTap, prompt, reaction, reactionKey, className, timerFrame = false, outfit, picture = false, seed }: CritterPetProps) => {
   const reduced = useReducedMotion();
   const personality = useMemo(() => personalityFor(seed), [seed]);
+  const look = useMemo(() => petLook(petType, petColor), [petType, petColor]);
   // Now and then the rabbit chases a leaf around the timer ring.
   const [routine, setRoutine] = useState(false);
   const finishRoutine = useCallback(() => setRoutine(false), []);
@@ -124,12 +127,13 @@ const CritterPet = ({ petType, mood = "idle", activity, size = 128, interactive,
         reaction={reaction}
         reactionKey={reactionKey}
         outfit={outfit}
+        look={look}
         paused={!!(routine && canPlay)}
         personality={personality}
       />
       </div>
       {routine && canPlay && <>
-        <TimerRabbitScene onComplete={finishRoutine} outfit={outfit} />
+        <TimerRabbitScene onComplete={finishRoutine} outfit={outfit} look={look} label={`${getPet(petType).name} chasing a leaf`} />
         {interactive && <button type="button" aria-label={`${getPet(petType).name}. Tap to say hi.`}
           className="absolute inset-8 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-iris-300"
           onClick={handleTap} />}

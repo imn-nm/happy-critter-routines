@@ -6,7 +6,7 @@ import { useMotionPrefs } from "@/lib/motion";
 import { sounds } from "@/lib/sounds";
 import { speak } from "@/lib/speech";
 import { getTaskIcon } from "@/utils/taskIcon";
-import { petNick } from "../petCatalog";
+import { petLook, petNick } from "../petCatalog";
 import { Pix } from "../pixel/pix";
 import { ACCESSORIES, type PetOutfit } from "../pixel/accessories";
 import PixelIcon from "./PixelIcon";
@@ -16,10 +16,13 @@ import CarrotCatch from "./CarrotCatch";
 import BubblePop from "./BubblePop";
 import { BUBBLE_ICON } from "./scenes";
 import Peekaboo from "./Peekaboo";
+import { PlayLook } from "./stage";
 
 interface PlaytimeProps {
   childId: string;
   petType: string;
+  /** The character's colour (children.pet_color). */
+  petColor?: string | null;
   /** Seconds of play left. At zero the rabbit waves goodbye and Playtime closes. */
   secondsLeft: number;
   /** What's next ("Soccer"), for the goodbye. */
@@ -51,9 +54,10 @@ const GOODBYE_MS = 8000;
  * itself. Nothing here pays stars and nothing can be failed: it's just for
  * fun, and the outfit picked in dress-up follows the rabbit everywhere.
  */
-const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, outfit, onOutfitChange, picture }: PlaytimeProps) => {
+const Playtime = ({ childId, petType, petColor, secondsLeft, nextName, nextIcon, onClose, outfit, onOutfitChange, picture }: PlaytimeProps) => {
   const { t } = useMotionPrefs();
   const nick = petNick(petType);
+  const look = useMemo(() => petLook(petType, petColor), [petType, petColor]);
   const [mode, setMode] = useState<Mode>("menu");
   const leaving = secondsLeft <= 0;
 
@@ -153,6 +157,7 @@ const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, 
           >
             <CritterPet
               petType={petType}
+              petColor={petColor}
               outfit={outfit} seed={childId}
               mood="happy"
               size={192}
@@ -215,7 +220,7 @@ const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, 
           >
             {mode === "menu" && (
               <div className="flex flex-1 flex-col items-center justify-center gap-sp-6">
-                <CritterPet petType={petType} outfit={outfit} seed={childId} mood="happy" size={192} interactive picture={picture} prompt={picture ? null : "Let's play!"} />
+                <CritterPet petType={petType} petColor={petColor} outfit={outfit} seed={childId} mood="happy" size={192} interactive picture={picture} prompt={picture ? null : "Let's play!"} />
                 <div className="grid w-full grid-cols-3 gap-sp-3">
                   {activities.map(a =>
                     picture ? (
@@ -244,11 +249,13 @@ const Playtime = ({ childId, petType, secondsLeft, nextName, nextIcon, onClose, 
                 </div>
               </div>
             )}
-            {mode === "dress" && <DressUp outfit={outfit} onChange={onOutfitChange} nick={nick} picture={picture} />}
-            {mode === "bath" && <BathTime nick={nick} picture={picture} />}
-            {mode === "catch" && <CarrotCatch childId={childId} outfit={outfit} nick={nick} picture={picture} />}
-            {mode === "bubbles" && <BubblePop outfit={outfit} nick={nick} picture={picture} />}
-            {mode === "peek" && <Peekaboo outfit={outfit} nick={nick} picture={picture} />}
+            <PlayLook.Provider value={look}>
+              {mode === "dress" && <DressUp outfit={outfit} onChange={onOutfitChange} nick={nick} picture={picture} />}
+              {mode === "bath" && <BathTime nick={nick} picture={picture} />}
+              {mode === "catch" && <CarrotCatch childId={childId} outfit={outfit} nick={nick} picture={picture} />}
+              {mode === "bubbles" && <BubblePop outfit={outfit} nick={nick} picture={picture} />}
+              {mode === "peek" && <Peekaboo outfit={outfit} nick={nick} picture={picture} />}
+            </PlayLook.Provider>
           </motion.div>
         </AnimatePresence>
         </>

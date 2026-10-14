@@ -8,7 +8,7 @@ import type { Child } from '@/hooks/useChildren';
 import type { TaskCompletion } from '@/hooks/useTasks';
 import type { Reward, RewardPurchase } from '@/hooks/useRewards';
 import { isApprovedStatus } from '@/hooks/useRewards';
-import { petNick } from '@/components/pets/petCatalog';
+import { DEFAULT_PET_ID, petNick } from '@/components/pets/petCatalog';
 import { displayModeFor } from '@/utils/displayMode';
 import { isBedtimeRoutine } from '@/utils/dayTies';
 import { systemTaskKey } from '@/utils/systemTasks';
@@ -140,7 +140,9 @@ export function buildDayPlan({ child, schedule, chores, completions, rewards, pu
     child: {
       id: child.id,
       name: child.name,
-      pet: petNick(child.petType),
+      // The device draws Biscuit only so far, so its lines ("Find Biscuit") name her
+      // whichever character the child has in the app.
+      pet: petNick(DEFAULT_PET_ID),
       picture: displayModeFor(child) === 'picture',
       stars: child.currentCoins ?? 0,
       wake,

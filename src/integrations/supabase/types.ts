@@ -41,6 +41,7 @@ export type Database = {
           name: string
           parent_id: string
           pet_happiness: number
+          pet_color: string | null
           pet_outfit: Json | null
           pet_type: string
           rest_dates: string[]
@@ -84,6 +85,7 @@ export type Database = {
           name: string
           parent_id: string
           pet_happiness?: number
+          pet_color?: string | null
           pet_outfit?: Json | null
           pet_type: string
           rest_dates?: string[]
@@ -127,6 +129,7 @@ export type Database = {
           name?: string
           parent_id?: string
           pet_happiness?: number
+          pet_color?: string | null
           pet_outfit?: Json | null
           pet_type?: string
           rest_dates?: string[]

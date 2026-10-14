@@ -696,6 +696,8 @@ export interface FriendOpts {
   eyes?: Eyes;
   mouth?: Mouth;
   blush?: boolean;
+  /** Waving: how far the arm is tilted up, 1 at the top of the wave (Biscuit's waveLow is 0.5). */
+  armTilt?: number;
 }
 
 /** A friend in a pose, cells coloured (as "#rrggbb"). */
@@ -707,7 +709,7 @@ export function friend(id: FriendId, o: FriendOpts = {}) {
   const colourOf = (part: string) => option.colours[part] ?? f.parts[part]?.colour ?? part;
   const p = new Pix();
   a.grid.forEach((row, y) => [...row].forEach((c, x) => p.set(x + a.left, y + a.top, c === "." ? null : c)));
-  if (pose === "cheer" || pose === "wave") addArms(p, f.arms, f.fur, pose === "wave" ? 1 : 0);
+  if (pose === "cheer" || pose === "wave") addArms(p, f.arms, f.fur, pose === "wave" ? o.armTilt ?? 1 : 0);
   // Close or move the eyes with the rabbit's shapes.
   const kind = o.eyes ?? "open";
   if (kind !== "open" && a.eyes.length) {

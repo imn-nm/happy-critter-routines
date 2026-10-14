@@ -1,11 +1,13 @@
 import { Pix, squash } from "./pix";
 import type { PetOutfit } from "./accessories";
 import {
-  bigStar, butterfly, crumbs, dust, fallingLeaves, front, heart, leaf, risingBubbles, side, sleeper,
+  bigStar, butterfly, crumbs, dust, fallingLeaves, heart, leaf, risingBubbles,
   sparkles, starBurst, winStars, zzz, ball, goal, tv, easel, floatingBubbles, strokeColour, PICTURE_CELLS,
   type FrontOpts, type SideOpts, type SleepOpts, type TvScreen,
 } from "./sprites";
 import type { ClipName } from "../spriteClips";
+// Biscuit, or the child's own character in her place (see cast.ts).
+import { castShift, front, side, sleeper, zzzFrom } from "./cast";
 
 /**
  * The rabbit's clips, drawn procedurally at 12 fps on a 77 x 56 stage (the
@@ -178,7 +180,7 @@ const asleep = (l: number, o: PetOutfit | null): PixelFrame => {
   const bubble = g < 30 ? 1 + Math.min(4, Math.floor(g / 6)) : g < 33 ? 5 : g === 33 ? "pop" : undefined;
   return withFx(
     Z({ inhale: g < ASLEEP / 2, twitch: g === 20 || g === 21, bubble }, o),
-    fx => zzz(fx, g, LX + 10, LY - 2, ASLEEP),
+    fx => { const [zx, zy] = zzzFrom(LX + 10, LY - 2); zzz(fx, g, zx, zy, ASLEEP); },
   );
 };
 const SLEEPY_INTRO = 4 + 13 + 21 + 5;
@@ -213,13 +215,16 @@ const munch = (L: number, j: number, o: PetOutfit | null): PixelFrame => {
     : j === 1
       ? S({ carrot: [Math.max(0, L - 2), 0, 0] }, o)
       : S({ carrot: [Math.max(0, L - 2), 0, 1], cheek: j % 2 === 0, sniff: j % 2 === 1, eyes: j >= 5 ? "happy" : "open" }, o);
-  return j >= 1 ? withFx(base, fx => crumbs(fx, j - 1, SX + 5, SY + 24, FLOOR)) : base;
+  const [hx, hy] = castShift("hold");
+  return j >= 1 ? withFx(base, fx => crumbs(fx, j - 1, SX + 5 + hx, SY + 24 + hy, FLOOR)) : base;
 };
 // In the loop the carrot never runs out: each bite is shown against a whole one.
-const loopMunch = (j: number, o: PetOutfit | null): PixelFrame =>
-  j === 0 ? S({ carrot: [5, 0, 0], mouth: "o" }, o)
-    : withFx(S({ carrot: [5, 0, j === 1 ? 0 : 1], cheek: j >= 2 && j % 2 === 0, sniff: j >= 2 && j % 2 === 1, eyes: j >= 5 ? "happy" : "open" }, o),
-      fx => crumbs(fx, j - 1, SX + 5, SY + 24, FLOOR));
+const loopMunch = (j: number, o: PetOutfit | null): PixelFrame => {
+  if (j === 0) return S({ carrot: [5, 0, 0], mouth: "o" }, o);
+  const [hx, hy] = castShift("hold");
+  return withFx(S({ carrot: [5, 0, j === 1 ? 0 : 1], cheek: j >= 2 && j % 2 === 0, sniff: j >= 2 && j % 2 === 1, eyes: j >= 5 ? "happy" : "open" }, o),
+    fx => crumbs(fx, j - 1, SX + 5 + hx, SY + 24 + hy, FLOOR));
+};
 const EAT_INTRO = 5;
 const Eating = build([
   [2, neutral],
@@ -287,10 +292,13 @@ const Gaming = build([
 // ---------- BrushingTeeth: side to side, up and down, then a sparkly grin ----------
 const SCRUB = 24;
 const BRUSH_INTRO = 5;
-const scrub = (l: number, o: PetOutfit | null) => withFx(
-  S({ eyes: "happy", foam: 3, brush: l < 12 ? [[0, -1, 0, 1][l % 4], 0] : [0, (l >> 1) % 2] }, o),
-  fx => risingBubbles(fx, l, SX + 2, SY + 19, SCRUB),
-);
+const scrub = (l: number, o: PetOutfit | null) => {
+  const [mx, my] = castShift("face");
+  return withFx(
+    S({ eyes: "happy", foam: 3, brush: l < 12 ? [[0, -1, 0, 1][l % 4], 0] : [0, (l >> 1) % 2] }, o),
+    fx => risingBubbles(fx, l, SX + 2 + mx, SY + 19 + my, SCRUB),
+  );
+};
 const BrushingTeeth = build([
   [2, neutral],
   [2, (_l, _i, o) => S({ brush: [0, 3] }, o)],
@@ -462,7 +470,8 @@ const blowing = (l: number, o: PetOutfit | null): PixelFrame => {
     : blow
       ? { wand: [0, false], mouth: "o", eyes: "happy" }
       : { wand: [0, true], eyes: l === 40 || l === 41 ? "blink" : "up", mouth: l >= 32 ? "smile" : undefined, blush: l >= 32, perk: l === 14 || l === 15 || l === 34 || l === 35 };
-  return withFx(S(opts, o), fx => floatingBubbles(fx, l, WAND_X, WAND_Y, BLOWN));
+  const [hx, hy] = castShift("hold");
+  return withFx(S(opts, o), fx => floatingBubbles(fx, l, WAND_X + hx, WAND_Y + hy, BLOWN));
 };
 const Bubbles = build([
   [1, neutral],

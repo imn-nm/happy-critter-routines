@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { MoveHorizontal, Play, Pointer, RotateCcw, Trophy } from "lucide-react";
 import { useMotionPrefs } from "@/lib/motion";
 import { Pix, squash } from "../pixel/pix";
-import { front, side } from "../pixel/sprites";
+import { front, side } from "../pixel/cast";
 import type { PetOutfit } from "../pixel/accessories";
 import { Actor, blinking, cheerFrames, drawPose, frontXFor, seq, turnToYou, type Pose } from "./actions";
 import { Particles } from "./particles";

@@ -12,6 +12,7 @@ import {
   type SpriteClip,
 } from "./spriteClips";
 import { outfitKey, type PetOutfit } from "./pixel/accessories";
+import { withLook, type Look } from "./pixel/cast";
 import type { Personality } from "./personality";
 import { paint } from "./pixel/render";
 import { CLIP_SCENE, backdrop, shadowUnder, type SceneName } from "./pixel/scenes";
@@ -66,6 +67,8 @@ interface SpritePetProps {
   framing?: "stage" | "avatar" | "ring";
   /** What the rabbit is wearing (dress-up). Drawn in every clip. */
   outfit?: PetOutfit | null;
+  /** The child's character and colour; Biscuit in her own colours when missing. */
+  look?: Look | null;
   /** Hold the current frame, e.g. while a wrapper hides the pet. */
   paused?: boolean;
   /** This child's rabbit's own pace and habits (see personality.ts). */
@@ -138,6 +141,7 @@ const SpritePet = ({
   reactionKey,
   framing = "stage",
   outfit = null,
+  look = null,
   paused = false,
   personality = null,
   className,
@@ -290,6 +294,9 @@ const SpritePet = ({
   const cropRef = useRef(CROP);
   cropRef.current = CROP;
   const oKey = outfitKey(outfit);
+  const lookRef = useRef(look);
+  lookRef.current = look;
+  const lookKey = look ? `${look.id}|${look.colour ?? ""}` : "";
 
   // In the timer the rabbit is in a room. An activity keeps its own room from
   // picking up the props to putting them down; anything else (resting, a
@@ -305,7 +312,7 @@ const SpritePet = ({
     const c = canvasRef.current;
     if (!c) return;
     const name = playingRef.current.name;
-    const fr = CLIPS[name].frame(f, outfitRef.current ?? null);
+    const fr = withLook(lookRef.current, () => CLIPS[name].frame(f, outfitRef.current ?? null));
     const room = sceneRef.current;
     const layers = [];
     if (room) layers.push({ p: shadowUnder(room, fr.r, fr.x, fr.y), x: 0, y: 0 });
@@ -321,10 +328,10 @@ const SpritePet = ({
     draw(frameRef.current);
   }, [playing.n, still, stillFrame, from, draw]);
 
-  // New outfit, size, framing or room: repaint where we are.
+  // New outfit, character, size, framing or room: repaint where we are.
   useLayoutEffect(() => {
     draw(frameRef.current);
-  }, [oKey, k, framing, scene, draw]);
+  }, [oKey, lookKey, k, framing, scene, draw]);
 
   // Only animate while it can be seen.
   const [inView, setInView] = useState(true);

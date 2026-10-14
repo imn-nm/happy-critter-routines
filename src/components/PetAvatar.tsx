@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import SpritePet from "@/components/pets/SpritePet";
-import { getPet, type PetId } from "@/components/pets/petCatalog";
+import { getPet, petLook, type PetId } from "@/components/pets/petCatalog";
 import type { PetMood } from "@/components/pets/spriteClips";
 import type { PetOutfit } from "@/components/pets/pixel/accessories";
 
@@ -9,6 +9,8 @@ export type PetEmotion = "encouraging" | "happy" | "excited" | "resting";
 
 interface PetAvatarProps {
   petType: string;
+  /** The character's colour (children.pet_color); its own colours when missing. */
+  petColor?: string | null;
   happiness: number; // 0-100
   emotion?: PetEmotion;
   size?: "sm" | "md" | "lg" | "xl";
@@ -34,7 +36,7 @@ const moodFromEmotion = (emotion?: PetEmotion, happiness = 70): PetMood => {
 };
 
 /** Small avatar of the child's pet for lists, headers and the setup flow. */
-const PetAvatar = ({ petType, happiness, emotion, size = "md", className, outfit }: PetAvatarProps) => (
+const PetAvatar = ({ petType, petColor, happiness, emotion, size = "md", className, outfit }: PetAvatarProps) => (
   <div className={cn("relative flex items-center justify-center", className)}>
     <SpritePet
       size={sizePx[size]}
@@ -43,6 +45,7 @@ const PetAvatar = ({ petType, happiness, emotion, size = "md", className, outfit
       // Small avatars frame the body tightly; large ones keep room for props and Zs.
       framing={size === "sm" || size === "md" ? "avatar" : "stage"}
       outfit={outfit}
+      look={petLook(petType, petColor)}
     />
   </div>
 );

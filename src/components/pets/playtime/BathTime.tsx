@@ -1,23 +1,22 @@
-import { useMemo, useRef, useState } from "react";
+import { useContext, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Heart, Pointer, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionPrefs } from "@/lib/motion";
 import { Pix, keyOf, squash, xOf, yOf } from "../pixel/pix";
-import { FRONT_POSES, front, type FrontOpts } from "../pixel/sprites";
+import type { FrontOpts } from "../pixel/sprites";
+import { bodyCell, front, withLook, type Look } from "../pixel/cast";
 import { Actor, blinking, seq, type Pose } from "./actions";
 import { Particles } from "./particles";
 import { bubble, textWidth } from "./pixelText";
 import { bathScene, drawTub } from "./scenes";
-import { LW, usePixelStage, type Gfx } from "./stage";
+import { LW, PlayLook, usePixelStage, type Gfx } from "./stage";
 import PixelIcon from "./PixelIcon";
 
-// The rabbit sits in the tub facing the child; rows 31 and below are under water.
+// The pet sits in the tub facing the child; rows 31 and below are under water.
 const BX = 37;
 const BY = 13;
-const VIS: [number, number][] = [];
-FRONT_POSES.rest.each((x, y) => { if (y <= 30) VIS.push([x, y]); });
-const VKEY = new Set(VIS.map(([x, y]) => keyOf(x, y)));
+// Muddy spots, placed for Biscuit; on another character only those on its body.
 const MUD: [number, number][] = [
   [5, 6], [6, 6], [6, 7], [17, 3], [18, 3], [18, 4], [8, 13], [9, 13], [9, 14], [18, 22], [19, 22], [19, 23],
   [2, 22], [3, 22], [7, 28], [8, 28], [8, 29], [13, 27], [14, 27],
@@ -45,10 +44,14 @@ const STEPS: { phase: Exclude<Phase, "done">; label: string }[] = [
 ];
 
 class BathGame {
+  /** The cells above the water, and whether a colour is the pet's body (where mud and soap show). */
+  vis: [number, number][] = [];
+  vkey: Set<number>;
+  body: (c: string) => boolean;
   phase: Phase = "scrub";
   soap = new Set<number>();
   wet = new Set<number>();
-  mud = new Set(MUD.map(([x, y]) => keyOf(x, y)));
+  mud: Set<number>;
   soapStart = 1;
   busy = 0;
   dropT = 0;
@@ -63,10 +66,22 @@ class BathGame {
   /** Picture view: speech bubbles show a heart instead of words. */
   picture = false;
 
+  constructor(look: Look | null) {
+    this.body = bodyCell(look);
+    const onBody = new Set<number>();
+    withLook(look, () => front()).each((x, y, c) => {
+      if (y > 30) return;
+      this.vis.push([x, y]);
+      if (this.body(c)) onBody.add(keyOf(x, y));
+    });
+    this.vkey = new Set(this.vis.map(([x, y]) => keyOf(x, y)));
+    this.mud = new Set(MUD.map(([x, y]) => keyOf(x, y)).filter(k => onBody.has(k)));
+  }
+
   progress() {
-    if (this.phase === "scrub") return Math.min(1, this.soap.size / VIS.length / 0.7) * (this.mud.size ? 0.95 : 1);
+    if (this.phase === "scrub") return Math.min(1, this.soap.size / this.vis.length / 0.7) * (this.mud.size ? 0.95 : 1);
     if (this.phase === "rinse") return 1 - this.soap.size / Math.max(1, this.soapStart);
-    if (this.phase === "dry") return 1 - this.wet.size / VIS.length;
+    if (this.phase === "dry") return 1 - this.wet.size / this.vis.length;
     return 1;
   }
 
@@ -75,7 +90,7 @@ class BathGame {
     for (let yy = Math.floor(cy - r); yy <= cy + r; yy++) {
       for (let xx = Math.floor(cx - r); xx <= cx + r; xx++) {
         const k = keyOf(xx, yy);
-        if ((xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2 <= r * r && VKEY.has(k)) fn(k);
+        if ((xx + 0.5 - cx) ** 2 + (yy + 0.5 - cy) ** 2 <= r * r && this.vkey.has(k)) fn(k);
       }
     }
   }
@@ -112,7 +127,7 @@ class BathGame {
         this.busy = 350;
         if (Math.random() < 0.25) this.parts.add({ kind: "bubble", x: x + Math.random() * 6 - 3, y, vx: Math.random() * 6 - 3, vy: -14, life: 1300 });
       }
-      if (this.soap.size >= VIS.length * 0.7 && this.mud.size === 0) {
+      if (this.soap.size >= this.vis.length * 0.7 && this.mud.size === 0) {
         this.phase = "rinse";
         this.soapStart = this.soap.size;
         this.down = false;
@@ -121,7 +136,7 @@ class BathGame {
       let hit = false;
       this.around(x, y, 3, k => { if (this.wet.delete(k)) hit = true; });
       if (hit) this.busy = 350;
-      if (this.wet.size <= VIS.length * 0.03) this.finish();
+      if (this.wet.size <= this.vis.length * 0.03) this.finish();
     }
   }
 
@@ -166,11 +181,11 @@ class BathGame {
       }
     }
     this.drops = this.drops.filter(d => d.y < 999);
-    if (this.phase === "rinse" && this.soap.size <= Math.max(4, VIS.length * 0.03)) {
+    if (this.phase === "rinse" && this.soap.size <= Math.max(4, this.vis.length * 0.03)) {
       this.phase = "dry";
       this.soap.clear();
       this.down = false;
-      for (const [x, y] of VIS) this.wet.add(keyOf(x, y));
+      for (const [x, y] of this.vis) this.wet.add(keyOf(x, y));
     }
   }
 
@@ -183,13 +198,13 @@ class BathGame {
       : this.phase === "rinse" ? (busy ? { eyes: "blink", mouth: "smile" } : { eyes: blink ? "blink" : "open", mouth: "smile" })
       : busy ? { eyes: "happy", mouth: "smile" } : { eyes: blink ? "blink" : "open", mouth: "o" };
     const p = front(o);
-    for (const [x, y] of VIS) {
+    for (const [x, y] of this.vis) {
       const k = keyOf(x, y);
       const base = p.get(x, y);
-      if (base !== "W" && base !== "O") continue;
+      if (!base || !this.body(base)) continue;
       if (this.mud.has(k)) p.set(x, y, (x + y) % 2 ? "u" : "U");
       else if (this.soap.has(k)) {
-        const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => VKEY.has(keyOf(x + dx, y + dy)) && !this.soap.has(keyOf(x + dx, y + dy)));
+        const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.vkey.has(keyOf(x + dx, y + dy)) && !this.soap.has(keyOf(x + dx, y + dy)));
         p.set(x, y, edge || (x * 3 + y * 5) % 11 === 0 ? "f" : "F");
       } else if (this.wet.has(k)) p.set(x, y, (x * 5 + y * 3) % 7 === 0 ? "f" : "w");
     }
@@ -238,8 +253,9 @@ const HINTS: Record<Phase, (nick: string) => string> = {
 };
 
 const BathTime = ({ nick, picture }: { nick: string; picture?: boolean }) => {
+  const look = useContext(PlayLook);
   const game = useRef<BathGame>();
-  if (!game.current) game.current = new BathGame();
+  if (!game.current) game.current = new BathGame(look);
   game.current.picture = !!picture;
   const [ui, setUi] = useState<{ phase: Phase; progress: number }>({ phase: "scrub", progress: 0 });
   const { t } = useMotionPrefs();
@@ -259,7 +275,7 @@ const BathTime = ({ nick, picture }: { nick: string; picture?: boolean }) => {
   });
 
   const again = () => {
-    game.current = new BathGame();
+    game.current = new BathGame(look);
     game.current.picture = !!picture;
     setUi({ phase: "scrub", progress: 0 });
   };

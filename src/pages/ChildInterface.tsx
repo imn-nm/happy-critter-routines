@@ -12,7 +12,7 @@ import StatusBadge from "@/components/StatusBadge";
 import VisualTimeline from "@/components/VisualTimeline";
 import CritterPet from "@/components/critters/CritterPet";
 import Playtime from "@/components/pets/playtime/Playtime";
-import { petNick } from "@/components/pets/petCatalog";
+import { petLook, petNick } from "@/components/pets/petCatalog";
 import { SLEEP_RE, SPORTS_RE, WIND_DOWN_RE, activityForTask, type PetActivity } from "@/components/pets/spriteClips";
 import { personalityFor, pickFreeTimeActivity } from "@/components/pets/personality";
 import PetFace from "@/components/pets/PetFace";
@@ -1078,7 +1078,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
+            <CritterPet petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood="happy" activity="reading" size={168} interactive picture={picture} prompt={say("Cozy day!", "🛋️")} />
             {picture && <Sofa className="w-12 h-12 text-focus-lavender" aria-hidden />}
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>Cozy rest day</h2>
             <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
@@ -1114,7 +1114,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   Goodnight, {child.name}! 🌙
                 </h2>
                 {!picture && <StatusBadge variant="info">Time to Rest</StatusBadge>}
-                <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+                <CritterPet petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={168} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
                 <p className={cn("text-14 text-focus-muted text-center max-w-xs", words)}>
                   {petNick(child.petType)} is going to sleep too. See you tomorrow!
                 </p>
@@ -1185,7 +1185,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 // must-do task; on time, or on any other task, nothing is eaten.
                 reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
                 overdue={!isFrozen && !!displayTask.is_important && isActiveTaskOverdue()}
-                companion={<CritterPet timerFrame petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood={petMood}
+                companion={<CritterPet timerFrame petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood={petMood}
                   activity={petCelebrating || phase === 'prep' ? undefined : activityForTask(displayTask.name)}
                   size={112} interactive picture={picture}
                   prompt={greeting ?? petPrompt}
@@ -1306,8 +1306,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         className="mt-2 flex items-center gap-2 min-h-11 px-4 rounded-[16px] bg-focus-sheet text-14 text-focus-muted hover:text-focus-text transition-colors"
                       >
                         {picture
-                          ? <PetFace outfit={child.pet_outfit} scale={2} />
-                          : <><PetFace outfit={child.pet_outfit} scale={1} />Show {petNick(child.petType)}</>}
+                          ? <PetFace outfit={child.pet_outfit} look={petLook(child.petType, child.pet_color)} scale={2} />
+                          : <><PetFace outfit={child.pet_outfit} look={petLook(child.petType, child.pet_color)} scale={1} />Show {petNick(child.petType)}</>}
                       </button>
                     </motion.div>
                   ) : (
@@ -1329,7 +1329,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                       >
                         <CritterPet
                           timerFrame
-                          petType={child.petType}
+                          petType={child.petType} petColor={child.pet_color}
                           outfit={child.pet_outfit}
                           mood={petCelebrating ? "celebrate" : beforeWake ? "sleep" : petIsCheckingClock ? "excited" : drowsy ? "drowsy" : "happy"}
                           activity={petCelebrating || beforeWake || petIsCheckingClock || drowsy ? undefined : freeTimeActivityRef.current.activity}
@@ -1362,7 +1362,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                           aria-label={picture ? `Play with ${petNick(child.petType)}` : undefined}
                           className={cn("flex items-center justify-center gap-2 rounded-[16px] bg-focus-lavender text-focus-sheet font-semibold hover:bg-focus-lavender/90 transition-colors", picture ? "min-h-[72px] px-7 text-24" : "min-h-12 px-4 text-14")}
                         >
-                          <PetFace outfit={child.pet_outfit} scale={picture ? 2 : 1} />
+                          <PetFace outfit={child.pet_outfit} look={petLook(child.petType, child.pet_color)} scale={picture ? 2 : 1} />
                           {picture ? "Play" : <>Play With {petNick(child.petType)}</>}
                         </button>
                         {canSpin && (
@@ -1403,7 +1403,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           >
             <AmbientClock picture={picture} next={{ name: upcomingTasks[0].name, time: displayStart(upcomingTasks[0]), icon: upcomingTasks[0].icon }} />
             <CritterPet
-              petType={child.petType}
+              petType={child.petType} petColor={child.pet_color}
               outfit={child.pet_outfit} seed={child.id}
               mood={petCelebrating ? "celebrate" : drowsy ? "drowsy" : "happy"}
               size={168}
@@ -1437,7 +1437,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             animate={{ opacity: 1, scale: 1 }}
             transition={tMotion(springs.gentle)}
           >
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
+            <CritterPet petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Zzz…", "💤")} />
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Still sleepy time, {child.name}
             </h2>
@@ -1461,7 +1461,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
             transition={tMotion(springs.gentle)}
           >
             {/* The lying-down clip carries its own breathing and Zs; no extra motion. */}
-            <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
+            <CritterPet petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood="sleep" size={192} interactive picture={picture} prompt={say("Sweet dreams!", "💤")} />
             {picture && <Moon className="w-12 h-12 text-focus-lavender" aria-hidden />}
             <h2 className={cn("text-24 font-semibold text-focus-text text-center leading-tight", words)}>
               Goodnight, {child.name}! 🌙
@@ -1483,7 +1483,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           >
             <AmbientClock next={null} picture={picture} />
             <CritterPet
-              petType={child.petType}
+              petType={child.petType} petColor={child.pet_color}
               outfit={child.pet_outfit} seed={child.id}
               mood="excited"
               activity={freeTimeActivityRef.current.activity}
@@ -1651,7 +1651,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           <Playtime
             picture={picture}
             childId={child.id}
-            petType={child.petType}
+            petType={child.petType} petColor={child.pet_color}
             secondsLeft={Math.max(0, playSecondsLeft)}
             nextName={freeTimeCountdown.nextTask.name}
             nextIcon={freeTimeCountdown.nextTask.icon}
@@ -1673,7 +1673,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           windowKey={playKey}
           remaining={freeTimeCountdown.remaining}
           nextName={freeTimeCountdown.nextTask.name}
-          petType={child.petType}
+          petType={child.petType} petColor={child.pet_color}
           outfit={child.pet_outfit}
           reminded={remindedFor.current}
         />
@@ -1714,7 +1714,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               animate={{ scale: 1 }}
               transition={tMotion(springs.bouncy)}
             >
-              <CritterPet petType={child.petType} outfit={child.pet_outfit} seed={child.id} mood="celebrate" size={192} />
+              <CritterPet petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood="celebrate" size={192} />
             </motion.div>
             {picture && <Gift className="w-12 h-12 text-focus-lime" aria-hidden />}
             <p className={cn("text-24 font-semibold text-focus-text text-center", words)}>You got your reward!</p>
@@ -1742,7 +1742,7 @@ const GET_READY_SECONDS = 5 * 60;
  * window, on top of the wheel, with a gentle chime. Closes itself after a
  * while, when the child taps OK, or when free time ends.
  */
-function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, petType, outfit, reminded, speakPrompt, quiet }: {
+function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, petType, petColor, outfit, reminded, speakPrompt, quiet }: {
   /** Picture view: say it out loud, and show pictures instead of a sentence. */
   speakPrompt?: boolean;
   /** The child is in Playtime, whose own goodbye says it: count it as said. */
@@ -1754,6 +1754,7 @@ function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, 
   remaining: number;
   nextName: string;
   petType: string;
+  petColor?: string | null;
   outfit?: Parameters<typeof CritterPet>[0]['outfit'];
   /** Windows already reminded; kept by the parent so a remount can't repeat it. */
   reminded: Set<string>;
@@ -1789,7 +1790,7 @@ function GetReadyReminder({ windowKey, remaining, nextName, nextIcon, nextTime, 
         >
           <div role="status" aria-live="polite" className="w-full max-w-sm rounded-[24px] bg-focus-sheet/95 border border-focus-lavender/40 shadow-xl p-sp-3 flex items-center gap-sp-3">
             <div className="w-16 h-14 shrink-0 flex items-center justify-center">
-              <CritterPet petType={petType} outfit={outfit} mood="excited" size={56} reaction="Wave" reactionKey={windowKey} />
+              <CritterPet petType={petType} petColor={petColor} outfit={outfit} mood="excited" size={56} reaction="Wave" reactionKey={windowKey} />
             </div>
             {speakPrompt ? (
               <div className="flex-1 min-w-0 flex items-center gap-2" aria-label={`${minutes} minute${minutes === 1 ? '' : 's'} until ${nextName}. Time to get ready.`}>

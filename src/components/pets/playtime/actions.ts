@@ -1,5 +1,6 @@
 import { Pix, squash } from "../pixel/pix";
-import { front, side, type FrontOpts } from "../pixel/sprites";
+import type { FrontOpts } from "../pixel/sprites";
+import { front, side } from "../pixel/cast";
 import type { PetOutfit } from "../pixel/accessories";
 import { FLOOR, LW, SY, type Gfx } from "./stage";
 import { bubble, textWidth } from "./pixelText";

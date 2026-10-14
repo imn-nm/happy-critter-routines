@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Pix, squash } from "../pixel/pix";
-import { front, side } from "../pixel/sprites";
+import { front, side } from "../pixel/cast";
 import { ACCESSORIES, ACCESSORY_IDS, SLOTS, normalizeOutfit, type AccessoryId, type PetOutfit } from "../pixel/accessories";
 import { Actor, blinking, drawPose, seq } from "./actions";
 import { Particles } from "./particles";

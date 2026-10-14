@@ -9,7 +9,8 @@ import { Settings } from "lucide-react";
 import { toast } from "sonner";
 import { Child, useChildren } from "@/hooks/useChildren";
 import PetAvatar from "@/components/PetAvatar";
-import { getPet } from "@/components/pets/petCatalog";
+import { getPet, petColourName } from "@/components/pets/petCatalog";
+import CritterPicker from "@/components/critters/CritterPicker";
 import { WEEKEND_KEYS, overridesField, updateAllSystemTaskInstances, weekendDaysLabel, weekendTimeOf, withWeekendTime, type RoutineKey, type WeekendKey } from "@/utils/systemTasks";
 import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +48,7 @@ const formFromChild = (child: Child) => ({
   name: child.name,
   age: child.age?.toString() || "",
   petType: child.petType,
+  pet_color: child.pet_color ?? null,
   // Unset means "suggested by age"; it's only saved once the parent picks.
   display_mode: displayModeFor(child) as DisplayMode,
   wake_time: child.wake_time || "07:00",
@@ -203,6 +205,7 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
         name: formData.name,
         age: formData.age ? parseInt(formData.age) : undefined,
         petType: formData.petType,
+        pet_color: formData.pet_color,
         display_mode: formData.display_mode,
         wake_time: formData.wake_time,
         wake_duration: parseInt(formData.wake_duration) || 15,
@@ -298,16 +301,24 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
         <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full min-w-0">
           <SheetHeader title={`${child.name}'s Profile`} onClose={() => setIsOpen(false)} />
 
-          {/* Pet — one companion today, so this is a row, not a picker. */}
-          <div className="flex items-center gap-3 rounded-[18px] bg-focus-surface p-3.5">
-            <div className="shrink-0 w-12 h-12 rounded-[14px] bg-focus-sunken flex items-center justify-center overflow-hidden">
-              <PetAvatar petType={formData.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
+          {/* Buddy: which character keeps them company, and in which colour. */}
+          <section className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 w-12 h-12 rounded-[14px] bg-focus-sunken flex items-center justify-center overflow-hidden">
+                <PetAvatar petType={formData.petType} petColor={formData.pet_color} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
+              </div>
+              <div className="min-w-0 flex flex-col gap-0.5">
+                <SectionHeading id="q-buddy">{formData.name.trim() || child.name}'s Buddy</SectionHeading>
+                <Caption>{getPet(formData.petType).name}, {petColourName(formData.petType, formData.pet_color)}</Caption>
+              </div>
             </div>
-            <div className="min-w-0 flex flex-col gap-0.5">
-              <p className="text-16 font-semibold leading-[21px] text-focus-text">{getPet(formData.petType).name}</p>
-              <p className="text-12 leading-[17px] text-focus-muted">{child.name}'s buddy. More pets are coming.</p>
-            </div>
-          </div>
+            <CritterPicker
+              value={formData.petType}
+              colour={formData.pet_color}
+              onChange={(petType, pet_color) => setFormData({ ...formData, petType, pet_color })}
+              childName={formData.name.trim() || child.name}
+            />
+          </section>
 
           {/* Name + age */}
           <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">

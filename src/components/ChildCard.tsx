@@ -76,7 +76,7 @@ const ChildCard = ({ child, isSelected, onClick, className, completedTasks = 0, 
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-[14px] bg-focus-sunken overflow-hidden flex items-center justify-center flex-shrink-0">
           <PetAvatar
-            petType={child.petType}
+            petType={child.petType} petColor={child.pet_color}
             happiness={calculateHappiness()}
             size="sm"
             completedTasks={completed}

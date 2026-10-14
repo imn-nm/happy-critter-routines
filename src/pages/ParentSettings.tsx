@@ -174,7 +174,7 @@ const ParentSettings = () => {
                   className="flex items-center gap-sp-3 p-sp-3 rounded-[20px] bg-focus-bg/60"
                 >
                   <div className="shrink-0 w-12 h-12 rounded-[20px] bg-focus-sunken flex items-center justify-center overflow-hidden">
-                    <PetAvatar petType={child.petType} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
+                    <PetAvatar petType={child.petType} petColor={child.pet_color} happiness={child.petHappiness} outfit={child.pet_outfit} size="sm" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-16 font-semibold text-focus-text truncate">{child.name}</p>
@@ -382,6 +382,7 @@ function EditChildDialog({
   const [name, setName] = useState("");
   const [age, setAge] = useState<string>("");
   const [petType, setPetType] = useState<PetId>("rabbit");
+  const [petColor, setPetColor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -390,6 +391,7 @@ function EditChildDialog({
       setName(child.name);
       setAge(child.age != null ? String(child.age) : "");
       setPetType(child.petType);
+      setPetColor(child.pet_color ?? null);
       setErr(null);
     }
   }, [child]);
@@ -403,6 +405,7 @@ function EditChildDialog({
         name: name.trim(),
         age: age ? parseInt(age, 10) : undefined,
         petType,
+        pet_color: petColor,
       });
     } catch (e: any) {
       setErr(e?.message ?? "Failed to save.");
@@ -439,8 +442,13 @@ function EditChildDialog({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-12 text-focus-muted">Pet</Label>
-            <CritterPicker value={petType} onChange={setPetType} />
+            <Label className="text-12 text-focus-muted">Buddy</Label>
+            <CritterPicker
+              value={petType}
+              colour={petColor}
+              onChange={(id, colour) => { setPetType(id); setPetColor(colour); }}
+              childName={name.trim() || child?.name}
+            />
           </div>
           {err && <p className="text-12 text-focus-coral">{err}</p>}
           <DialogFooter className="gap-sp-2 pt-sp-2">

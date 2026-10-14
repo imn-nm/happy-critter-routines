@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { resolvePetId, type PetId } from "@/components/pets/petCatalog";
+import { resolvePetColour, resolvePetId, type PetId } from "@/components/pets/petCatalog";
 import { broadcastCoins, onCoinsChanged } from "@/utils/coinSync";
 import { realtimeChannel } from "@/lib/realtime";
 import { getMyHouseholdId } from "@/utils/household";
@@ -55,6 +55,8 @@ export interface Child {
   wake_schedule_overrides?: Record<string, { time: string; duration: number }>;
   // Free-time spinning wheel activity options (array of strings).
   spinning_wheel_options?: string[] | null;
+  /** The character's colour: its name in lower case, null for its own colours (see petCatalog). */
+  pet_color?: string | null;
   // What the rabbit is wearing (Playtime dress-up); null for nothing.
   pet_outfit?: PetOutfit | null;
   /** Picture or detailed child screen; null = suggested by age (see utils/displayMode). */
@@ -108,12 +110,10 @@ export const useChildren = () => {
       const mappedData = (data || []).map(child => {
         const convertedPetType = convertPetType(child.pet_type);
 
-        if (child.pet_type !== convertedPetType) {
-        }
-
         return {
           ...child,
           petType: convertedPetType,
+          pet_color: resolvePetColour(convertedPetType, child.pet_color),
           currentCoins: child.current_coins,
           petHappiness: child.pet_happiness,
           pet_outfit: normalizeOutfit(child.pet_outfit),
@@ -191,6 +191,7 @@ export const useChildren = () => {
       const mappedChild = {
         ...data,
         petType: convertPetType(data.pet_type),
+        pet_color: resolvePetColour(data.pet_type, data.pet_color),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
         pet_outfit: normalizeOutfit(data.pet_outfit),
@@ -281,6 +282,7 @@ export const useChildren = () => {
       const mappedChild = {
         ...data,
         petType: convertPetType(data.pet_type),
+        pet_color: resolvePetColour(data.pet_type, data.pet_color),
         currentCoins: data.current_coins,
         petHappiness: data.pet_happiness,
         pet_outfit: normalizeOutfit(data.pet_outfit),
@@ -402,6 +404,7 @@ export const useChildren = () => {
             const mappedChild = {
               ...payload.new,
               petType: convertPetType(payload.new.pet_type),
+              pet_color: resolvePetColour(payload.new.pet_type, payload.new.pet_color),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
               pet_outfit: normalizeOutfit(payload.new.pet_outfit),
@@ -418,6 +421,7 @@ export const useChildren = () => {
             const mappedChild = {
               ...payload.new,
               petType: convertPetType(payload.new.pet_type),
+              pet_color: resolvePetColour(payload.new.pet_type, payload.new.pet_color),
               currentCoins: payload.new.current_coins,
               petHappiness: payload.new.pet_happiness,
               pet_outfit: normalizeOutfit(payload.new.pet_outfit),
