@@ -129,7 +129,7 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     strcpy(rw.sig, sig);
     char s[24];
     snprintf(s, sizeof s, "%d to spend", stars);
-    header_set(&rw.head, ui_clock(), "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);
+    header_set(&rw.head, NULL, "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* Figma: no clock in the shop */
     (void)items_same;
     lv_obj_clean(rw.items);
     /* two shelves, two rewards each (Figma: the shop holds four), centred at x 150 and 316 */
@@ -143,12 +143,11 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
 }
 
 /* ================================================================ chores */
-/* Figma "My day · Chores": the header with how many are done, then the chores as a wheel (finished
- * ones above, the next one to do on the line, the later ones below, smaller and fainter), the page
- * dots. Tap a chore to tick it. */
-#define CH_TOP 124
-#define CH_FOCUS 238
-#define CH_ROW 86
+/* Figma "My day · Chores": the header with how many are done, then equal rows from y 130, the ones
+ * to do first and the finished ones after; more scroll up. Tap a chore to tick it. */
+#define CH_TOP 104
+#define CH_FOCUS 166
+#define CH_ROW 82
 
 static struct {
     page_cb_t on_done;
@@ -179,10 +178,10 @@ void chores_page_create(lv_obj_t *page, page_cb_t cb)
     ch.just = -1;
     ch.page = page;
     wheel_list_create(page, &ch.wl, 0, CH_TOP, SCREEN_W, SCREEN_H - CH_TOP, CH_FOCUS - CH_TOP, CH_ROW);
+    ch.wl.shrink = ch.wl.fade = 0;
     header_create(page, &ch.head);
     ch.empty = note_create(page, 200);
     ui_set_text(ch.empty, "Nothing to do right now.\nBiscuit says thanks!");
-    page_dots_create(page, 2);
 }
 
 /* Chores whose window covers now (getActiveWindowChores); done ones stay. */
@@ -282,11 +281,10 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
     for (int i = 0; i < p->nchores; i++) if (chore_now(&p->chores[i], now_min)) order[shown++] = i;
     sort_plan = p;
     qsort(order, (size_t)shown, sizeof(int), cmp_due);
-    /* finished ones first (above the line), then the rest by when they're due */
+    /* the ones to do by when they're due, then the finished ones */
     int sorted[DAY_MAX_CHORES], k = 0, focus = 0;
-    for (int i = 0; i < shown; i++) if (p->chores[order[i]].done) { sorted[k++] = order[i]; done++; }
-    focus = k < shown ? k : (shown ? shown - 1 : 0);
     for (int i = 0; i < shown; i++) if (!p->chores[order[i]].done) sorted[k++] = order[i];
+    for (int i = 0; i < shown; i++) if (p->chores[order[i]].done) { sorted[k++] = order[i]; done++; }
 
     char s[24];
     snprintf(s, sizeof s, "%d of %d done", done, shown);

@@ -30,6 +30,7 @@
 #define DONE_HOLD_MS 3000
 #define DONE_OFFER_MS 5000         /* done early: "Press for Homework" while the ring at the button shrinks */
 #define SAY_MS 7000
+#define PET_VIEW_MS 6000            /* the spin's result stays this long, then Biscuit plays it */
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
 #define IDLE_HOME_MS 45000
@@ -70,6 +71,7 @@ static struct {
     uint32_t say_until;
     int32_t free_window;
     bool free_pet_view, reminded;
+    uint32_t pet_view_at;       /* after a spin: when the result gives way to Biscuit playing (0 = none) */
     pet_activity_t free_act;
     int last_current;
     state_t last_state;
@@ -150,6 +152,7 @@ static pet_activity_t activity_for(const day_task_t *t)
     if (strstr(n, "brush") || strstr(n, "teeth") || strstr(n, "tooth")) return PET_ACT_BRUSHING;
     for (const char *const *w = MEALS; *w; w++) if (strstr(n, *w)) return PET_ACT_EATING;
     if (is_sports(n)) return PET_ACT_SPORTS;
+    if (strstr(n, "homework") || strstr(n, "study")) return PET_ACT_NONE;
     for (const char *const *w = LEARN; *w; w++) if (strstr(n, *w)) return PET_ACT_READING;
     if (any(n, ART, false) || strstr(n, "colo")) return PET_ACT_DRAWING;
     if (strstr(n, "bubble")) return PET_ACT_BUBBLES;
@@ -533,6 +536,20 @@ static void on_other_done(int task)
     others_refresh(app.plan, &app.now);
 }
 
+/* A wheel option as Biscuit's activity ("Draw" -> drawing). */
+static pet_activity_t activity_for_option(const char *opt)
+{
+    char k[24];
+    lower(k, sizeof k, opt);
+    if (any(k, ART, false) || strstr(k, "draw") || strstr(k, "colo")) return PET_ACT_DRAWING;
+    if (strstr(k, "read") || strstr(k, "book")) return PET_ACT_READING;
+    if (strstr(k, "bubble")) return PET_ACT_BUBBLES;
+    for (const char *const *w = OUT; *w; w++) if (strstr(k, *w)) return PET_ACT_OUTSIDE;
+    if (is_sports(k) || strstr(k, "dance")) return PET_ACT_SPORTS;
+    if (any(k, GAME, false)) return PET_ACT_GAMING;
+    return pet_pick_free_time_activity();
+}
+
 static void on_home(home_event_t ev, int arg)
 {
     switch (ev) {
@@ -552,7 +569,11 @@ static void on_home(home_event_t ev, int arg)
         else say(NULL, HI[hal_random() % 4], 2500);
         break;
     }
-    case HOME_WHEEL_RESULT: (void)arg; break;
+    case HOME_WHEEL_RESULT:
+        app.free_act = activity_for_option(app.plan->wheel[arg]);
+        app.pet_view_at = now_ms() + PET_VIEW_MS;
+        if (!app.pet_view_at) app.pet_view_at = 1;
+        break;
     case HOME_TAP_SPEAKER: read_out(); break;
     case HOME_TAP_PLAYTIME: mytoki_open_playtime(); break;
     }
@@ -649,7 +670,7 @@ static void night_clock(home_view_t *v)
     v->pet_dim = 128;
     v->sides = v->dots = false;
     v->bottom = BOTTOM_NOTE;
-    snprintf(v->note, sizeof v->note, "Charging \xC2\xB7 ready by morning");
+    snprintf(v->note, sizeof v->note, "Charging - %d%%", hal_battery());
 }
 
 static void next_from(home_view_t *v, int first)
@@ -767,14 +788,6 @@ static void button_note(home_view_t *v, const char *icon, const char *text)
     v->card_end = CARD_END_BUTTON;
 }
 
-static void plain_note(home_view_t *v, const char *icon, const char *text)
-{
-    v->card = CARDPOS_LOW;
-    snprintf(v->card_icon, sizeof v->card_icon, "%s", icon ? icon : "");
-    snprintf(v->card_text, sizeof v->card_text, "%s", text);
-    v->card_end = CARD_END_NONE;
-}
-
 static void build_view(home_view_t *v)
 {
     memset(v, 0, sizeof *v);
@@ -803,6 +816,8 @@ static void build_view(home_view_t *v)
         v->mood = t->system == SYS_WAKE || strstr(k, "wake") || strstr(k, "morning") ? PET_MOOD_EXCITED
                 : act == PET_ACT_SLEEPING ? PET_MOOD_SLEEP : n->drowsy ? PET_MOOD_DROWSY : PET_MOOD_HAPPY;
         v->activity = act;
+        for (const char *const *w = WIND_DOWN; *w; w++)
+            if (strstr(k, *w)) { v->activity = PET_ACT_NONE; v->mood = PET_MOOD_DROWSY; v->wake = true; }   /* his bedroom (Figma Wind down) */
         if (n->paused >= 0) {
             char low[48];
             sentence(low, sizeof low, p->tasks[n->paused].title);
@@ -837,7 +852,9 @@ static void build_view(home_view_t *v)
                 rem = logic_run_remaining(n, p, app.focus, app.now_s);
             }
             timed(v, left, rem, total, PILL_CALM);
+            if (left < 10) v->sides = false;
         }
+        if (n->overdue) v->sides = false;
         if (t->nsteps && app.steps[app.focus] < t->nsteps) {
             /* the step to do now, as a Step note over the room (Figma Morning · Get dressed); the button ticks it */
             int done = app.steps[app.focus];
@@ -846,7 +863,9 @@ static void build_view(home_view_t *v)
             v->steps_done = (int8_t)done;
         }
         next_from(v, -1);
-        if (!n->overdue && v->card == CARDPOS_NONE) {
+        /* Figma: his greeting at wake-up and dinner only, as the task starts */
+        bool greets = t->system == SYS_WAKE || t->system == SYS_DINNER || strstr(k, "wake") || strstr(k, "morning") || strstr(k, "dinner") || t->say[0];
+        if (!n->overdue && v->card == CARDPOS_NONE && v->graphic == GRAPHIC_FULL && greets) {
             snprintf(buf, sizeof buf, "task:%s", t->id);
             char tmp[64];
             say(buf, prompt_for(t, tmp, sizeof tmp), SAY_MS);
@@ -857,8 +876,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
-        if (app.done_saved > 0) snprintf(v->status, sizeof v->status, "Done! %d min saved", app.done_saved);
-        else snprintf(v->status, sizeof v->status, "Done!");
+        snprintf(v->status, sizeof v->status, "Done!");
         snprintf(v->status_icon, sizeof v->status_icon, "check");
         v->pill_tone = PILL_DONE;
         v->force_clip = PET_CLIP_CELEBRATE;
@@ -910,9 +928,9 @@ static void build_view(home_view_t *v)
         int mins = t->event_start - now_m;
         snprintf(v->icon, sizeof v->icon, "backpack");
         snprintf(v->title, sizeof v->title, ready ? "You\xE2\x80\x99re ready!" : "Get ready");
-        snprintf(v->status, sizeof v->status, "%s starts in %d min", shortname, mins);
+        snprintf(v->status, sizeof v->status, "%s in %d min", shortname, mins);
         v->below = BELOW_TIME;
-        snprintf(v->status_icon, sizeof v->status_icon, ready ? "check" : "timer");
+        snprintf(v->status_icon, sizeof v->status_icon, "%s", ready ? "check" : t->icon);
         int32_t total = (t->event_start - n->start[app.focus]) * 60, rem = t->event_start * 60 - app.now_s;
         timed(v, mins, rem, total, PILL_CALM);
         if (ready) v->pill_tone = PILL_DONE;
@@ -921,9 +939,12 @@ static void build_view(home_view_t *v)
         if (ready && (int32_t)(now_ms() - app.ready_until) < 0) v->force_clip = PET_CLIP_CELEBRATE;
         else if (!ready) v->force_clip = PET_CLIP_ENCOURAGE;
         if (!ready && t->nsteps) {
-            button_note(v, NULL, t->steps[app.steps[app.focus]].text);
+            /* the checklist turns like a wheel: the step done above, this one, the next below */
+            v->mid = MID_STEPS;
+            v->sides = false;
             v->steps_total = (int8_t)t->nsteps;
             v->steps_done = (int8_t)app.steps[app.focus];
+            for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
         }
         app.say[0] = 0;   /* Figma Going out: no bubble; the note and the pill say it */
         next_from(v, app.focus);
@@ -940,9 +961,6 @@ static void build_view(home_view_t *v)
         timed(v, left, rem, total, PILL_CALM);
         v->activity = activity_for(t);
         if (n->nstill) v->chores_left = (int8_t)(n->nstill > 99 ? 99 : n->nstill);   /* the note opens Other things to finish */
-        snprintf(buf, sizeof buf, "event:%s", t->id);
-        char tmp[64];
-        if (!v->chores_left) say(buf, prompt_for(t, tmp, sizeof tmp), SAY_MS);
         next_from(v, -1);
         break;
     }
@@ -962,29 +980,21 @@ static void build_view(home_view_t *v)
             /* the last five minutes (Figma Free time · Last 5 minutes) */
             v->mood = PET_MOOD_EXCITED;
             v->force_clip = PET_CLIP_CURIOUS;
-            if (nx) {
-                char low[48];
-                lower(low, sizeof low, nx->title);
-                snprintf(buf, sizeof buf, "Get ready for %s", low);
-                plain_note(v, "alarm", buf);
-            }
-        } else if (total > WHEEL_MIN_S) {
-            /* the two sides of the switch on the hill: the wheel (Spin) or Biscuit to tap (Play) */
+            (void)nx;
+        } else if (total > WHEEL_MIN_S && !app.free_pet_view) {
+            /* Figma Free time · Spin: the pill alone over the wheel, Games on the hill */
             v->hide_title = true;
-            v->bottom = app.free_pet_view ? BOTTOM_PLAY : BOTTOM_WHEEL;
-            if (!app.free_pet_view) {
-                v->mid = MID_WHEEL;
-            } else {
-                v->activity = app.free_act;
-                v->tap_ring = true;
-                say("free:tap", "Tap me to play!", 600000);
-            }
+            v->clock_line[0] = 0;
+            v->mid = MID_WHEEL;
+            v->bottom = BOTTOM_GAMES;
+            v->dots = false;
         } else {
+            /* Figma Free time · Play with Biscuit: the clock and the pill, his room, tap him to play */
+            v->hide_title = true;
             v->activity = app.free_act;
-            v->tap_ring = true;
-            say("free:tap", "Tap me to play!", 600000);
+            snprintf(v->say, sizeof v->say, "Tap to play!");
         }
-        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !v->hide_title) {
+        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !v->hide_title && can_play) {
             snprintf(buf, sizeof buf, "Press to start %s", nx->title);
             button_note(v, "timer", buf);
         }
@@ -1006,8 +1016,6 @@ static void build_view(home_view_t *v)
         v->mood = PET_MOOD_DROWSY;
         v->wake = true;
         v->sides = v->dots = false;
-        snprintf(buf, sizeof buf, "Morning, %s!", p->child.name);
-        say("alarm", buf, 600000);
         break;
     }
     case ST_SNOOZE: {
@@ -1020,8 +1028,8 @@ static void build_view(home_view_t *v)
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
         timed(v, (int)(left / 60), left, SNOOZE_S, PILL_CALM);
         v->mood = PET_MOOD_EXCITED;
+        v->wake = true;
         v->sides = v->dots = false;
-        say("snooze", "I\xE2\x80\x99ll wait right here!", 600000);
         break;
     }
     case ST_IM_UP:
@@ -1043,7 +1051,6 @@ static void build_view(home_view_t *v)
         snprintf(v->status, sizeof v->status, "See you at %s", e);
         snprintf(v->status_icon, sizeof v->status_icon, "house");
         v->force_clip = PET_CLIP_WAVE;
-        v->sides = v->dots = false;
         say("school-off", "Bye! Have a great day!", 600000);
         next_from(v, -1);
         break;
@@ -1058,7 +1065,6 @@ static void build_view(home_view_t *v)
         snprintf(v->status, sizeof v->status, "Back at %s", e);
         snprintf(v->status_icon, sizeof v->status_icon, "house");
         v->activity = PET_ACT_READING;
-        v->sides = v->dots = false;
         next_from(v, -1);
         break;
     }
@@ -1079,10 +1085,8 @@ static void build_view(home_view_t *v)
         snprintf(v->status, sizeof v->status, "Starts in %d min", mins);
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
         timed(v, mins, left, BED_SOON_S, PILL_CALM);
-        snprintf(buf, sizeof buf, "Finish up and find %s", p->child.pet);
-        plain_note(v, "bed", buf);
         v->mood = PET_MOOD_DROWSY;
-        v->sides = v->dots = false;
+        v->wake = true;   /* his bedroom */
         next_from(v, nx);
         break;
     }
@@ -1096,8 +1100,7 @@ static void build_view(home_view_t *v)
         v->mood = PET_MOOD_SLEEP;
         v->pet_dim = over ? 90 : 0;
         if (!over) snprintf(v->say, sizeof v->say, "See you tomorrow!");
-        if (over) { v->sides = false; v->dots = false; }
-        else v->rewards_only = true;
+        v->sides = v->dots = false;
         break;
     }
     case ST_SLEEPY: {
@@ -1109,17 +1112,14 @@ static void build_view(home_view_t *v)
         v->pill_tone = PILL_NIGHT;
         snprintf(v->status, sizeof v->status, "Wake up at %s", w);
         snprintf(v->status_icon, sizeof v->status_icon, "alarm");
-        v->bottom = BOTTOM_NOTE;
         if (to_wake > 60) {
             /* picked up in the night (Figma Wind down · Woke in the night) */
             snprintf(v->icon, sizeof v->icon, "cloudmoon");
             snprintf(v->title, sizeof v->title, "Still night");
-            snprintf(v->note, sizeof v->note, "%s is sleeping too", p->child.pet);
             v->pet_dim = 90;
         } else {
             snprintf(v->icon, sizeof v->icon, "moon");
             snprintf(v->title, sizeof v->title, "Still sleepy time");
-            snprintf(v->note, sizeof v->note, "%s is still asleep", p->child.pet);
         }
         v->mood = PET_MOOD_SLEEP;
         v->sides = v->dots = false;
@@ -1138,7 +1138,7 @@ static void build_view(home_view_t *v)
         /* Figma Quiet days: his words beside him; a free day is a tap away from Playtime */
         if (rest) snprintf(v->say, sizeof v->say, "Take it easy today");
         else if (all) snprintf(v->say, sizeof v->say, "You did it, %s!", p->child.name);
-        else { v->tap_ring = true; say("freeday", "Tap me to play!", 600000); }
+        else snprintf(v->say, sizeof v->say, "Tap me to play!");
         break;
     }
     default:
@@ -1274,10 +1274,12 @@ static void tick(lv_timer_t *timer)
         if (labs(win - app.free_window) > 90) {
             app.free_window = win;
             app.free_pet_view = false;
+            app.pet_view_at = 0;
             app.reminded = false;
             app.free_act = pet_pick_free_time_activity();
             home_wheel_reset();
         }
+        if (app.pet_view_at && (int32_t)(now_ms() - app.pet_view_at) >= 0) { app.pet_view_at = 0; app.free_pet_view = true; }
         /* once per window, five minutes before the next thing */
         if (!app.reminded && app.now.free_remaining <= GET_READY_S && app.now.free_total > GET_READY_S && app.now.nupcoming) {
             app.reminded = true;
@@ -1590,4 +1592,5 @@ void mytoki_open_playtime(void)
     char at[8] = "";
     if (nx) ui_fmt_time(at, sizeof at, nx->event ? nx->event_start : app.now.start[app.now.upcoming[0]]);
     play_open(left, nx ? nx->title : "", nx ? nx->icon : "", at, app.plan->child.pet, on_outfit);
+    if (app.state == ST_FREE) play_set_time_total(app.now.free_total - GET_READY_S);
 }

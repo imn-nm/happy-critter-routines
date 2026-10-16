@@ -58,14 +58,12 @@ static void fmt_duration(char *buf, size_t n, int minutes)
 }
 
 /* ---- MyToki 2 parts on an overlay ---- */
-/* The Header: the clock (when `clock`), the title, then a pill or a quiet line. With no clock it
- * sits a little lower (y 40). */
+/* The Header: the clock (when `clock`), the title, then a pill or a quiet line. */
 static header_t *ov_header_in(header_t *h, lv_obj_t *o, bool clock, const char *title, header_below_t below, pill_tone_t tone,
                               const char *icon, const char *text)
 {
     header_create(o, h);
     header_set(h, clock ? ui_clock() : NULL, title, below, tone, icon, text);
-    if (!clock) lv_obj_set_y(h->root, 40);
     return h;
 }
 
@@ -95,12 +93,12 @@ static void ov_note(lv_obj_t *o, const char *icon, const char *text, int32_t y)
     lv_obj_update_layout(c.root);
     if (lv_obj_get_width(c.root) > 340) { lime_card_wrap(&c, 280); lv_obj_update_layout(c.root); }
     int32_t h = lv_obj_get_height(c.root);
-    if (y + h > 360) y = 360 - h;
+    if (y + h > 410) y = 410 - h;
     lv_obj_align(c.root, LV_ALIGN_TOP_MID, 0, y);
     fx_rise(c.root, 14, 220);
 }
 
-/* The hill with one lime button (Figma Hill · Button). */
+/* One lime outline button at the bottom, no curve (Figma Hill · Button). */
 static void ov_hill_button(lv_obj_t *o, const char *icon, const char *label, hill_cb_t cb)
 {
     hill_t hl;
@@ -154,9 +152,38 @@ typedef enum { ROW_DONE, ROW_NOW, ROW_NEXT, ROW_FREE, ROW_CHORE, ROW_CHORE_DONE 
 typedef struct { int task, chore; int16_t start, end; row_state_t state; } srow_t;
 
 #define SCHED_TOP 92         /* the list starts under the header */
-#define SCHED_FOCUS 218      /* the focus line, on the screen */
-#define SCHED_ROW 92         /* a row's slot */
-#define SCHED_PIC_ROW 124    /* picture view: the bigger cards */
+#define SCHED_FOCUS 233      /* the focus line, on the screen */
+#define SCHED_ROW 89         /* a row's slot */
+#define SCHED_PIC_FOCUS 241  /* picture view: the card now */
+#define SCHED_PIC_ROW 118    /* picture view: the bigger cards */
+
+/* Figma "Schedule row": Center is 400 x 84 with the detail line; Edge (one row away) is 360 x 66,
+ * the title alone. A row's parts remember where they sit on the Center card (packed in their user
+ * data) and move with it as it turns. */
+enum { PART_PLAIN, PART_TITLE, PART_DETAIL };
+#define PART(kind, x, y) ((void *)(intptr_t)(((kind) << 20) | ((x) << 10) | (y)))
+
+static void sched_style(lv_obj_t *card, float d)
+{
+    float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
+    int32_t w = (int32_t)lroundf(400 - 40 * k), h = (int32_t)lroundf(84 - 18 * k);
+    if (lv_obj_get_width(card) != w || lv_obj_get_height(card) != h) {
+        lv_obj_set_size(card, w, h);
+        int32_t dy = (int32_t)lroundf(9 * k), dx = (int32_t)lroundf(40 * k);
+        uint32_t n = lv_obj_get_child_count(card);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(card, i);
+            if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1)) { lv_obj_set_size(c, w, h); continue; }   /* the dashed outline */
+            intptr_t u = (intptr_t)lv_obj_get_user_data(c);
+            int kind = (int)(u >> 20), x = (int)((u >> 10) & 0x3FF), y = (int)(u & 0x3FF);
+            if (kind == PART_TITLE) { lv_obj_set_pos(c, x, y + dy); continue; }   /* 9 -> 18: the middle of an Edge row */
+            lv_obj_set_pos(c, x > 300 ? x - dx : x, y - dy);
+            if (kind == PART_DETAIL) lv_obj_set_style_opa(c, (lv_opa_t)(255 * (1.0f - k)), 0);
+        }
+    }
+    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.2f * k) * fmaxf(0.0f, 1.0f - far / 0.6f));
+    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
+}
 
 static struct {
     const day_plan_t *p;
@@ -246,6 +273,7 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         ui_style_card(card, C_RAISED, 24, 0, 0);
         lv_obj_t *o = dotted_outline_create(card, C_DONE, 24);
         lv_obj_set_size(o, 400, 84);
+        lv_obj_add_flag(o, LV_OBJ_FLAG_USER_1);   /* its user data is its own: marked by the flag */
         fg = sub = C_DONE;
         break;
     }
@@ -284,28 +312,36 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
     }
     lv_obj_t *tl = ui_label(card, F_ITEM, fg, time);
     lv_obj_set_pos(tl, 16, 12);
+    lv_obj_set_user_data(tl, PART(PART_PLAIN, 16, 12));
     lv_obj_t *ap = ui_label(card, F_DETAIL, sub, ampm);
     lv_obj_set_pos(ap, 16, 42);
+    lv_obj_set_user_data(ap, PART(PART_PLAIN, 16, 42));
     lv_obj_t *ic = ui_icon(card, icon, 24, fg);
     lv_obj_set_pos(ic, 82, 30);
+    lv_obj_set_user_data(ic, PART(PART_PLAIN, 82, 30));
     lv_obj_t *tt = ui_label(card, F_ITEM, fg, task);
     lv_label_set_long_mode(tt, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(tt, r->state == ROW_NOW ? 200 : 228, lv_font_get_line_height(F_ITEM));
+    lv_obj_set_size(tt, r->state == ROW_NOW ? 200 : 210, lv_font_get_line_height(F_ITEM));
     lv_obj_set_pos(tt, 120, 9);
+    lv_obj_set_user_data(tt, PART(PART_TITLE, 120, 9));
     lv_obj_t *dt = ui_label(card, F_DETAIL, sub, detail);
     lv_label_set_long_mode(dt, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(dt, 228, lv_font_get_line_height(F_DETAIL));
+    lv_obj_set_size(dt, 210, lv_font_get_line_height(F_DETAIL));
     lv_obj_set_pos(dt, 120, 43);
+    lv_obj_set_user_data(dt, PART(PART_DETAIL, 120, 43));
     if (r->state == ROW_DONE || r->state == ROW_CHORE_DONE) {
         lv_obj_t *c = ui_icon(card, "check", 24, C_DONE);
         lv_obj_set_pos(c, 360, 30);
+        lv_obj_set_user_data(c, PART(PART_PLAIN, 360, 30));
     } else if (r->state == ROW_NOW) {
         lv_obj_t *now = ui_label(card, F_LABEL, C_ACTION, "Now");
         lv_obj_set_pos(now, 336, 28);
+        lv_obj_set_user_data(now, PART(PART_PLAIN, 336, 28));
     } else if (r->state == ROW_CHORE) {
         lv_obj_t *ring = ui_box(card);
         lv_obj_set_size(ring, 26, 26);
         lv_obj_set_pos(ring, 356, 29);
+        lv_obj_set_user_data(ring, PART(PART_PLAIN, 356, 29));
         lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_width(ring, 2, 0);
         lv_obj_set_style_border_color(ring, COL(C_ON_COLOR), 0);
@@ -314,6 +350,20 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         lv_obj_set_ext_click_area(ring, 16);
         lv_obj_add_event_cb(ring, on_row_chore, LV_EVENT_CLICKED, (void *)(intptr_t)r->chore);
     }
+}
+
+/* Figma "Today's schedule · Younger": 300 x 110 now, 236 x 80 either side (a 0.79 turn), pulled in
+ * a little; the done ones are already muted, further rows fade out. */
+static void sched_tile_style(lv_obj_t *card, float d)
+{
+    float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
+    int32_t s = (int32_t)(256 * (1.0f - 0.21f * k - 0.08f * far));
+    int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * 9.0f * ad * ad);
+    float base = lv_obj_has_flag(card, LV_OBJ_FLAG_USER_2) ? 0.6f : 1.0f;   /* done: faded */
+    lv_opa_t o = (lv_opa_t)(255 * base * fmaxf(0.0f, 1.0f - far / 0.6f));
+    if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
+    if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
+    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
 }
 
 static void on_tile_say(lv_event_t *e)
@@ -342,6 +392,7 @@ static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
     lv_obj_set_style_transform_pivot_y(tile, 55, 0);
     ui_style_card(tile, C_RAISED, 44, C_ACTION, now ? LV_OPA_COVER : 0);
     if (now) lv_obj_set_style_border_width(tile, 3, 0);
+    if (done) lv_obj_add_flag(tile, LV_OBJ_FLAG_USER_2);
     uint32_t fg = done ? C_TEXT_MUTED : C_TEXT;
     lv_obj_t *ic = ui_icon(tile, icon && *icon ? icon : "star-line", 48, fg);
     lv_obj_set_pos(ic, 28, 31);
@@ -439,7 +490,8 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     memset(&sc, 0, sizeof sc);
     sc.p = p; sc.n = n; sc.now_min = now_min; sc.picture = picture; sc.on_chore = on_chore;
     int32_t row = picture ? SCHED_PIC_ROW : SCHED_ROW;
-    wheel_list_create(o, &sc.wl, 0, SCHED_TOP, SCREEN_W, SCREEN_H - SCHED_TOP, SCHED_FOCUS - SCHED_TOP + (picture ? 20 : 0), row);
+    wheel_list_create(o, &sc.wl, 0, SCHED_TOP, SCREEN_W, SCREEN_H - SCHED_TOP, (picture ? SCHED_PIC_FOCUS : SCHED_FOCUS) - SCHED_TOP, row);
+    sc.wl.style = picture ? sched_tile_style : sched_style;
     sched_rows();
     sched_fill(sc.focus);
     /* the header on top, so the rows turn under it */
@@ -497,16 +549,21 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
         lv_obj_t *card = ui_row(slot, 14);
         lv_obj_set_size(card, 360, 72);
         lv_obj_center(card);
-        lv_obj_set_style_transform_pivot_x(card, 180, 0);
-        lv_obj_set_style_transform_pivot_y(card, 36, 0);
         ui_style_card(card, C_SYSTEM, 24, 0, 0);
         lv_obj_set_style_pad_hor(card, 16, 0);
         lv_obj_set_style_bg_color(card, COL(C_TEXT), LV_STATE_PRESSED);
         ui_icon(card, t->icon[0] ? t->icon : "clock", 24, C_ON_COLOR);
-        lv_obj_t *name = ui_label(card, F_ITEM, C_ON_COLOR, t->title);
+        lv_obj_t *col = ui_box(card);
+        lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_grow(col, 1);
+        lv_obj_t *name = ui_label(col, F_ITEM, C_ON_COLOR, t->title);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-        lv_obj_set_height(name, lv_font_get_line_height(F_ITEM));
-        lv_obj_set_flex_grow(name, 1);
+        lv_obj_set_size(name, 250, lv_font_get_line_height(F_ITEM));
+        char by[24], when[16];
+        if (t->bedtime_routine || t->system == SYS_BEDTIME) snprintf(by, sizeof by, "Before bedtime");
+        else { fmt_hour(when, sizeof when, t->end); snprintf(by, sizeof by, "Before %s", when); }
+        ui_label(col, F_DETAIL, C_ON_COLOR, by);
         lv_obj_t *ring = ui_box(card);
         lv_obj_set_size(ring, 24, 24);
         lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
@@ -524,7 +581,9 @@ void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done
 {
     others_cb = on_done;
     lv_obj_t *o = open_overlay(&others, true);
-    wheel_list_create(o, &others_wl, 0, 150, SCREEN_W, SCREEN_H - 150, 50, 86);
+    /* Figma: two equal rows, centres at 213 and 298; more scroll up under the header */
+    wheel_list_create(o, &others_wl, 0, 150, SCREEN_W, SCREEN_H - 150, 63, 85);
+    others_wl.shrink = others_wl.fade = 0;
     ov_header(o, true, "Other things to finish", HEADER_TEXT, PILL_CALM, NULL, "You can do it!");
     others_refresh(p, n);
     overlay_enter_push(o);
@@ -566,7 +625,10 @@ void reminder_open(const char *next_icon, const char *next_title, const char *ne
     hill_t hl;
     hill_create(o, &hl, NULL);
     hill_set_next(&hl, next_icon, next_title, next_time);
-    ov_note(o, next_icon && *next_icon ? next_icon : "alarm", picture ? "" : ready, 322);
+    hill_set_dots(&hl, 1);
+    (void)ready;
+    /* Figma keeps Home's side buttons; a tap on one (or anywhere) puts the reminder away */
+    for (int i = 0; i < 2; i++) lv_obj_add_flag(side_button_create(o, i == 0, i == 0 ? "star-line" : "list"), LV_OBJ_FLAG_EVENT_BUBBLE);
     rem_head = ov_header_in(&rem_header, o, true, picture ? "" : title, HEADER_PILL, PILL_HURRY, "timer", "Starts in 5 min");
     reminder_update(seconds_left);
     hal_play(HAL_SOUND_SOON);
@@ -664,11 +726,12 @@ void denied_open(const day_reward_t *r, const char *note, overlay_cb_t on_shop)
     faint_circle_create(o);
     ov_reward_art(o, r, 100, 110);
     ov_line(o, F_ITEM, C_TEXT, r->title, 218, 320);
+    /* the grown-up's words in quotes (Figma Rewards · Not this time) */
     char copy[120];
-    if (note && *note) snprintf(copy, sizeof copy, "Your %d stars are back. %s", r->cost, note);
-    else snprintf(copy, sizeof copy, "Your %d stars are back. Maybe another day!", r->cost);
-    ov_line(o, F_BODY_P, C_TEXT_MUTED, copy, 252, 250);
-    ov_hill_button(o, "gift", "Back to shop", on_back_to_shop);
+    if (note && *note) snprintf(copy, sizeof copy, "\xE2\x80\x9C%s\xE2\x80\x9D", note);
+    else snprintf(copy, sizeof copy, "Your %d stars are back", r->cost);
+    ov_line(o, F_BODY_P, C_TEXT_MUTED, copy, 252, 220);
+    ov_hill_button(o, NULL, "Back to shop", on_back_to_shop);
     ov_header(o, true, "Not this time", HEADER_NONE, PILL_CALM, NULL, NULL);
     auto_close(&denied, 20000);
     overlay_enter_rise(o);
@@ -682,8 +745,8 @@ void reward_asked_open(const day_reward_t *r)
     faint_circle_create(o);
     ov_reward_art(o, r, 120, 150);
     ov_line(o, F_ITEM, C_TEXT, r->title, 284, 320);
-    ov_hill_button(o, "gift", "Back to shop", on_back_to_shop);
-    ov_header(o, true, "Request sent!", HEADER_PILL, PILL_CALM, "clock", "Waiting for a grown-up");
+    ov_hill_button(o, NULL, "Back to shop", on_back_to_shop);
+    ov_header(o, false, "Request sent!", HEADER_PILL, PILL_CALM, "clock", "Waiting for a grown-up");
     overlay_enter_push(o);
 }
 
@@ -720,11 +783,11 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
         lv_obj_update_layout(no);
         lv_obj_align(no, LV_ALIGN_TOP_MID, 0, 306);
     }
-    ov_hill_button(o, "gift", ask_enough ? "Ask for this" : "Back to shop", on_ask_hill);
+    ov_hill_button(o, NULL, ask_enough ? "Ask for this" : "Back to shop", on_ask_hill);
     char cost[24];
     if (ask_enough) snprintf(cost, sizeof cost, "%d stars", r->cost);
     else snprintf(cost, sizeof cost, "%d more stars", r->cost - stars);
-    ov_header(o, true, "Want this reward?", HEADER_PILL, PILL_STAR, "star-fill", cost);
+    ov_header(o, false, "Buy this?", HEADER_PILL, PILL_STAR, "star-line", cost);
     overlay_enter_push(o);
 }
 
@@ -762,7 +825,7 @@ static void sx_halo(lv_obj_t *o, void *u)
     static const lv_opa_t O[3] = { LV_OPA_COVER, 153, 89 };
     fx_halo(o, C, O, 0, 0);
 }
-static void sx_note(lv_obj_t *o, void *u) { (void)u; if (sx.note[0]) ov_note(o, "star-fill", sx.note, 322); }
+static void sx_note(lv_obj_t *o, void *u) { (void)u; if (sx.note[0]) ov_note(o, "star-line", sx.note, 348); }
 static void sx_party(lv_obj_t *o, void *u) { (void)u; fx_drizzle(o, 0, FX_BRAND, 7); }
 
 void stars_open(int delta, int total, const char *note)
@@ -782,7 +845,7 @@ void stars_open(int delta, int total, const char *note)
     ov_hill_empty(o);
     char count[24];
     snprintf(count, sizeof count, "%d stars", sx.from);
-    header_t *h = ov_header(o, true, sx.title, HEADER_PILL, PILL_STAR, "star-fill", count);
+    header_t *h = ov_header(o, true, sx.title, HEADER_PILL, PILL_STAR, "star-line", count);
     lv_obj_update_layout(h->root);
     sx.pill = h->pill.root;
     sx.pill_icon = h->pill.icon;
@@ -836,13 +899,15 @@ void battery_open(int percent)
 {
     char left[16];
     snprintf(left, sizeof left, "%d%% left", percent);
-    if (battery && bat_head) { pill_set(&bat_head->pill, PILL_LATE, NULL, left); return; }
+    if (battery && bat_head) { pill_set(&bat_head->pill, PILL_LATE, "battery", left); return; }
     lv_obj_t *o = open_overlay(&battery, true);
     lv_obj_t *pet = ov_graphic(o, true);
     pet_set_mood(pet, PET_MOOD_DROWSY);
-    ov_hill_empty(o);
-    ov_note(o, "house", "Put me on my dock", 322);
-    bat_head = ov_header_in(&bat_header, o, true, "Battery low", HEADER_PILL, PILL_LATE, NULL, left);
+    pet_wake_up(pet);   /* his bedroom (Figma Connection · Battery low) */
+    hill_t hl;
+    hill_create(o, &hl, NULL);
+    hill_set_text(&hl, "Put me on my dock");
+    bat_head = ov_header_in(&bat_header, o, true, "Battery low", HEADER_PILL, PILL_LATE, "battery", left);
     hal_play(HAL_SOUND_SOON);
     auto_close(&battery, 20000);
     overlay_enter_rise(o);
@@ -880,15 +945,16 @@ void system_show(sys_screen_t which, const char *detail, overlay_cb_t cb)
         /* Figma "Connection · Loading": the room, a hello, "Just a moment…" */
         lv_obj_t *pet = ov_graphic(o, true);
         pet_set_mood(pet, PET_MOOD_IDLE);
-        ov_hill_empty(o);
-        ov_note(o, "clock", "Just a moment\xE2\x80\xA6", 322);
+        hill_t hl;
+        hill_create(o, &hl, NULL);
+        hill_set_text(&hl, "Just a moment\xE2\x80\xA6");
         ov_header(o, ui_clock()[0], detail && *detail ? detail : "Hello!", HEADER_TEXT, PILL_CALM, NULL, "Getting your day ready");
     } else if (which == SYS_SCREEN_OFFLINE) {
         /* Figma "Connection · Can't reach the internet" */
         lv_obj_t *pet = ov_graphic(o, true);
         pet_set_mood(pet, PET_MOOD_HAPPY);
         pet_force_clip(pet, PET_CLIP_CURIOUS);
-        ov_hill_button(o, "retry", "Try again", on_retry_hill);
+        ov_hill_button(o, NULL, "Try again", on_retry_hill);
         ov_header(o, ui_clock()[0], "Let\xE2\x80\x99s reconnect", HEADER_TEXT, PILL_CALM, NULL, "We can\xE2\x80\x99t connect right now");
     } else if (which == SYS_SCREEN_PAIRING) {
         /* Figma "First start · Pairing": no clock yet, the code in the faint circle */
@@ -896,14 +962,14 @@ void system_show(sys_screen_t which, const char *detail, overlay_cb_t cb)
         ov_line(o, F_DETAIL, C_TEXT_MUTED, "Code for the app", 194, 260);
         ov_line(o, F_CLOCK, C_TEXT, detail && *detail ? detail : "", 222, 260);
         ov_hill_empty(o);
-        ov_header(o, false, "Hello!", HEADER_TEXT, PILL_CALM, NULL, "Ask a grown-up to open the app");
+        header_t *h = ov_header(o, false, "Hello!", HEADER_TEXT, PILL_CALM, NULL, "Ask a grown-up to open the app");
+        lv_obj_set_y(h->root, 40);   /* Figma First start: a little lower */
     } else {
         /* Figma "Connection · Something went wrong" */
         lv_obj_t *pet = ov_graphic(o, true);
         pet_set_mood(pet, PET_MOOD_HAPPY);
         pet_force_clip(pet, PET_CLIP_CURIOUS);
-        ov_hill_button(o, "retry", "Try again", on_retry_hill);
-        ov_note(o, "alert", "Biscuit hit a little bump", 322);
+        ov_hill_button(o, NULL, "Try again", on_retry_hill);
         ov_header(o, ui_clock()[0], "Let\xE2\x80\x99s try again", HEADER_TEXT, PILL_CALM, NULL, "Your day didn\xE2\x80\x99t load");
     }
     overlay_enter_rise(o);

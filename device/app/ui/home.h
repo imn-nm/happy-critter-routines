@@ -10,8 +10,11 @@
 #include "widgets.h"
 #include "../pet/pet.h"
 
-typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE } home_mid_t;
-typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS } home_bottom_t;
+/* MID_STEPS: a checklist that turns like a wheel instead of the room (Figma Going out · Get ready) */
+typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE, MID_STEPS } home_mid_t;
+#define HOME_STEPS_MAX 10
+/* BOTTOM_GAMES: the outline Games button that opens Playtime (Figma Free time · Spin) */
+typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS, BOTTOM_GAMES } home_bottom_t;
 typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;   /* MyToki 2: every note sits at y 322 */
 typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;
 /* MyToki 2 Graphic: Full = the room fills the screen; Small = the 298 circle (under 10 min left);
@@ -70,6 +73,7 @@ typedef struct {
     int8_t steps_total, steps_done;
     bool steps_list;
     char step_prev[56], step_next[56];
+    char step_text[HOME_STEPS_MAX][56];   /* MID_STEPS: every step, in order */
     /* bottom: the hill */
     home_bottom_t bottom;
     char next_icon[20], next_title[44], next_time[8];

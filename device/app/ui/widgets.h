@@ -32,7 +32,7 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
  * the Spin / Play switch, and the carousel's page dots ---- */
 typedef enum { HILL_EMPTY, HILL_NEXT, HILL_BUTTON, HILL_TEXT, HILL_SWITCH } hill_kind_t;
 typedef struct {
-    lv_obj_t *root, *col;
+    lv_obj_t *root, *curve, *col;
     lv_obj_t *next, *next_time, *next_icon, *next_task;
     lv_obj_t *button, *button_icon, *button_label;
     lv_obj_t *text;
@@ -109,6 +109,7 @@ typedef struct {
     lv_obj_t *root, *icon, *steps, *text, *spacer, *end, *end_dot, *end_label;
     card_end_t end_kind;
     int done_shown;
+    bool step_look;
 } lime_card_t;
 void lime_card_create(lv_obj_t *parent, lime_card_t *c, int32_t width);
 void lime_card_set(lime_card_t *c, const char *icon, const char *text, card_end_t end);
@@ -164,6 +165,9 @@ typedef struct {
     lv_obj_t *list;          /* the scrolling column; add rows with wheel_list_add */
     int32_t focus_y;         /* the focus line, in the list's coordinates */
     int32_t row_h;           /* the slot every row sits in */
+    float shrink, fade;      /* per row away from the line (0.16 and 0.30 unless changed) */
+    /* when set, it styles each row instead: d is how many rows the row is from the line (signed) */
+    void (*style)(lv_obj_t *card, float d);
 } wheel_list_t;
 void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, int32_t width, int32_t height,
                        int32_t focus_y, int32_t row_h);

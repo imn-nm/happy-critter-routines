@@ -143,7 +143,7 @@ void pill_set(pill_t *p, pill_tone_t tone, const char *icon, const char *text)
 {
     uint32_t bg, fg;
     pill_colors(tone, &bg, &fg);
-    bool has_icon = icon && *icon && tone != PILL_LATE;
+    bool has_icon = icon && *icon;
     ui_show(p->icon, has_icon);
     if (has_icon) ui_icon_set(p->icon, icon, 20);
     lv_obj_set_style_pad_left(p->root, has_icon ? 12 : 16, 0);
@@ -305,10 +305,14 @@ static lv_obj_t *tap_target(lv_obj_t *o, hill_cb_t cb, hill_tap_t tap)
 void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
 {
     memset(h, 0, sizeof(*h));
-    h->root = lv_image_create(parent);
-    lv_image_set_src(h->root, hill_image());
+    /* a clear 466 x 98 strip at y 368; only Next and Switch draw the curve (Figma Hill variants) */
+    h->root = ui_box(parent);
     lv_obj_set_pos(h->root, 0, HILL_Y);
     lv_obj_set_size(h->root, SCREEN_W, HILL_H);
+    h->curve = lv_image_create(h->root);
+    lv_image_set_src(h->curve, hill_image());
+    lv_obj_set_pos(h->curve, 0, 0);
+    lv_obj_remove_flag(h->curve, LV_OBJ_FLAG_CLICKABLE);
     h->col = ui_box(h->root);
     lv_obj_set_size(h->col, SCREEN_W, HILL_H);
     lv_obj_set_flex_flow(h->col, LV_FLEX_FLOW_COLUMN);
@@ -329,21 +333,25 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
     lv_obj_set_style_max_width(h->next_task, 250, 0);
     tap_target(h->root, cb, HILL_TAP_NEXT);
     lv_obj_set_ext_click_area(h->root, 0);
-    /* Button: one lime action */
-    h->button = button_create(h->col, BTN_PRIMARY, false, "retry", "");
+    /* Button: one lime outline button, no curve (Figma Hill · Button, secondary, 52 high) */
+    h->button = button_create(h->col, BTN_SECONDARY, false, "retry", "");
+    lv_obj_set_height(h->button, 52);
     h->button_icon = lv_obj_get_child(h->button, 0);
     h->button_label = lv_obj_get_child(h->button, 1);
     tap_target(h->button, cb, HILL_TAP_BUTTON);
-    /* Text: a quiet line */
-    h->text = ui_label(h->col, F_DETAIL, C_TEXT_MUTED, "");
+    /* Text: a cream line in Body 22, no curve */
+    h->text = ui_label(h->col, F_BODY_P, C_TEXT, "");
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_max_width(h->text, 300, 0);
     /* Switch: Spin | Play on a night pill (Figma "Mode switch") */
     h->sw = tab_bar_create(h->col);
     h->sw_spin = tab_create(h->sw, "wheel", "Spin");
     h->sw_play = tab_create(h->sw, NULL, "Play");
     tap_target(h->sw_spin, cb, HILL_TAP_SPIN);
     tap_target(h->sw_play, cb, HILL_TAP_PLAY);
-    h->dots = dots_build(h->col);
+    /* the page dots sit at y 80 of the hill (448 on the screen), whatever is above them */
+    h->dots = dots_build(h->root);
+    lv_obj_set_pos(h->dots, CENTER - 21, 80);
     h->page = -1;
     hill_set_empty(h);
     hill_set_dots(h, -1);
@@ -356,7 +364,8 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     ui_show(h->button, kind == HILL_BUTTON);
     ui_show(h->text, kind == HILL_TEXT);
     ui_show(h->sw, kind == HILL_SWITCH);
-    static const int32_t PAD[] = { 30, 9, 14, 9, 10 };
+    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH);
+    static const int32_t PAD[] = { 0, 9, 14, 24, 23 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
     if (kind == HILL_NEXT) lv_obj_add_flag(h->root, LV_OBJ_FLAG_CLICKABLE);
     else lv_obj_remove_flag(h->root, LV_OBJ_FLAG_CLICKABLE);
@@ -700,6 +709,12 @@ void lime_card_set_color(lime_card_t *c, uint32_t bg)
 void lime_card_set(lime_card_t *c, const char *icon, const char *text, card_end_t end)
 {
     ui_show(c->steps, false);
+    if (c->step_look) {   /* back to Note · Plain: lavender, Detail 20 */
+        c->step_look = false;
+        lv_obj_set_style_bg_color(c->root, COL(C_SYSTEM), 0);
+        lv_obj_set_style_pad_ver(c->root, 6, 0);
+        lv_obj_set_style_text_font(c->text, F_DETAIL, 0);
+    }
     ui_show(c->icon, icon != NULL && *icon);
     if (icon && *icon) ui_icon_set(c->icon, icon, 20);
     ui_set_text(c->text, text);
@@ -748,12 +763,18 @@ void lime_card_set_steps(lime_card_t *c, int total, int done)
 {
     char s[12];
     lv_snprintf(s, sizeof s, "%d/%d", done + 1 > total ? total : done + 1, total);
+    if (!c->step_look) {   /* Note · Step: lime, 8 px high padding, the words in Body 22 */
+        c->step_look = true;
+        lv_obj_set_style_bg_color(c->root, COL(C_ACTION), 0);
+        lv_obj_set_style_pad_ver(c->root, 8, 0);
+        lv_obj_set_style_text_font(c->text, F_BODY_P, 0);
+    }
     ui_show(c->icon, false);
     ui_show(c->steps, true);
     ui_set_text(c->steps, s);
     if (done == c->done_shown + 1) {
         fx_pop(c->steps, 0);
-        fx_ripple_from(c->end, 12, 34, C_SYSTEM);
+        fx_ripple_from(c->end, 12, 34, C_ACTION);
     }
     c->done_shown = done;
 }
@@ -1006,11 +1027,12 @@ static void wheel_apply(lv_obj_t *list)
         lv_area_t a;
         lv_obj_get_coords(slot, &a);
         float d = ((a.y1 + a.y2) / 2.0f - line) / (float)w->row_h;
+        if (w->style) { w->style(card, d); continue; }
         float ad = fminf(fabsf(d), WHEEL_FAR);
-        float scale = 1.0f - WHEEL_SHRINK * ad;
+        float scale = 1.0f - w->shrink * ad;
         int32_t s = (int32_t)(256 * scale);
-        lv_opa_t opa = (lv_opa_t)(255 * (1.0f - WHEEL_FADE * ad));
-        int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * w->row_h * (WHEEL_SHRINK / 2) * ad * ad);
+        lv_opa_t opa = (lv_opa_t)(255 * fmaxf(0.0f, 1.0f - w->fade * ad));
+        int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * w->row_h * (w->shrink / 2) * ad * ad);
         if (lv_obj_get_style_transform_scale_x(card, 0) != s) {
             lv_obj_set_style_transform_scale(card, s, 0);
         }
@@ -1026,6 +1048,9 @@ void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, 
 {
     w->focus_y = focus_y;
     w->row_h = row_h;
+    w->shrink = WHEEL_SHRINK;
+    w->fade = WHEEL_FADE;
+    w->style = NULL;
     w->list = ui_box(parent);
     lv_obj_set_pos(w->list, x, y);
     lv_obj_set_size(w->list, width, height);

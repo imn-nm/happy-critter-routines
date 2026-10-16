@@ -13,6 +13,8 @@ typedef void (*play_outfit_cb_t)(void);
 void play_open(int32_t seconds_left, const char *next_title, const char *next_icon, const char *next_time, const char *pet_name, play_outfit_cb_t on_outfit);
 /* Called every tick while open: play time left (free time minus the 5-minute get-ready). */
 void play_set_time_left(int32_t seconds_left);
+/* The whole play time (for the timer round the rim); call after play_open. */
+void play_set_time_total(int32_t seconds);
 bool play_is_open(void);
 void play_close(void);
 /* The hardware button while Playtime is open (Biscuit says: "Button"; the goodbye: close). */

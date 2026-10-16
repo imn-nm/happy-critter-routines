@@ -3,6 +3,7 @@
 #include "wheel.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 /* The worm (Figma "Free time eaten"): coral pixel art, 3.8 px cells. */
 static const char *const WORM[] = {
@@ -22,7 +23,11 @@ static const char *const WORM[] = {
 #define FULL_D SCREEN_W
 #define SMALL_D 298
 #define SMALL_XY 84
-#define NOTE_Y 322
+#define NOTE_Y 311
+/* the Get ready checklist: rows 59 apart round the centre line */
+#define STEPS_Y 120
+#define STEPS_H 230
+#define STEPS_ROW 59
 
 static struct {
     home_cb_t cb;
@@ -34,6 +39,10 @@ static struct {
     pill_t bigclock_pill;
     header_t hdr;
     hill_t hill;
+    home_bottom_t bottom;
+    wheel_list_t steps;
+    char steps_sig[64];
+    int8_t steps_at;
     lime_card_t card;
     bubble_t bubble;
     uint8_t worm_eaten;
@@ -52,7 +61,7 @@ static void on_hill(hill_tap_t tap)
     case HILL_TAP_NEXT: h.cb(HOME_TAP_NEXT, 0); break;
     case HILL_TAP_SPIN: h.cb(HOME_TAP_WHEEL, 0); break;
     case HILL_TAP_PLAY: h.cb(HOME_TAP_PLAY, 0); break;
-    case HILL_TAP_BUTTON: h.cb(HOME_TAP_CARD, 0); break;
+    case HILL_TAP_BUTTON: h.cb(h.bottom == BOTTOM_GAMES ? HOME_TAP_PLAYTIME : HOME_TAP_CARD, 0); break;
     }
 }
 
@@ -95,6 +104,54 @@ static void worm_draw(lv_event_t *e)
 
 static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
 
+/* Figma Going out · Get ready: the step now is a lime row 348 x 46 on the centre line; the one
+ * above (done) is mint at 30%, the one below lime at 50%, both a little smaller. */
+static void steps_style(lv_obj_t *card, float d)
+{
+    float ad = fabsf(d), near = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
+    /* the fill fades to 30% (done) or 50% (to do); the words stay, dimmed a little */
+    float base = (intptr_t)lv_obj_get_user_data(card) ? 0.30f : 0.50f;
+    lv_opa_t bg = (lv_opa_t)(255 * (1.0f - (1.0f - base) * near));
+    if (lv_obj_get_style_bg_opa(card, 0) != bg) lv_obj_set_style_bg_opa(card, bg, 0);
+    float opa = (1.0f - 0.25f * near) * fmaxf(0.0f, 1.0f - 0.6f * far);
+    int32_t s = (int32_t)(256 * (1.0f - 0.09f * near - 0.05f * far));
+    int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * 4.0f * far * far);
+    if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
+    lv_opa_t o = (lv_opa_t)(255 * opa);
+    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
+    if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
+}
+
+static void steps_build(const home_view_t *v)
+{
+    wheel_list_clear(&h.steps);
+    for (int i = 0; i < v->steps_total && i < HOME_STEPS_MAX; i++) {
+        bool done = i < v->steps_done;
+        lv_obj_t *slot = wheel_list_add(&h.steps);
+        lv_obj_t *row = ui_row(slot, 8);
+        lv_obj_set_size(row, 348, 46);
+        lv_obj_center(row);
+        ui_style_card(row, done ? C_DONE : C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_set_style_pad_left(row, 18, 0);
+        lv_obj_set_style_pad_right(row, 11, 0);
+        lv_obj_set_style_transform_pivot_x(row, 174, 0);
+        lv_obj_set_style_transform_pivot_y(row, 23, 0);
+        lv_obj_set_user_data(row, (void *)(intptr_t)done);
+        char line[64];
+        snprintf(line, sizeof line, "%d. %s", i + 1, v->step_text[i]);
+        lv_obj_t *l = ui_label(row, F_BODY_P, done ? C_TEXT_MUTED : C_ON_COLOR, line);   /* light words on the faded mint */
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        lv_obj_set_height(l, lv_font_get_line_height(F_BODY_P));
+        lv_obj_set_flex_grow(l, 1);
+        lv_obj_t *ring = ui_box(row);
+        lv_obj_set_size(ring, 24, 24);
+        lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_border_width(ring, 2, 0);
+        lv_obj_set_style_border_color(ring, COL(C_ON_COLOR), 0);
+        lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
+    }
+}
+
 void home_create(lv_obj_t *page, home_cb_t cb)
 {
     memset(&h, 0, sizeof h);
@@ -125,6 +182,11 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_obj_set_size(h.worm, 214, 46);
     lv_obj_set_pos(h.worm, 126, 252);
     lv_obj_add_event_cb(h.worm, worm_draw, LV_EVENT_DRAW_MAIN, NULL);
+
+    /* Get ready: the checklist */
+    wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, CENTER - STEPS_Y, STEPS_ROW);
+    h.steps.style = steps_style;
+    h.steps_at = -1;
 
     h.scrim = scrim_create(page);
     h.timer = timer_create(page);
@@ -210,7 +272,7 @@ void home_render(const home_view_t *v)
     /* ---- the graphic ---- */
     home_graphic_t g = v->graphic;
     if (v->mid == MID_OVERDUE) g = GRAPHIC_EMPTY;
-    else if (v->mid == MID_WHEEL || v->mid == MID_NONE) g = GRAPHIC_NONE;
+    else if (v->mid == MID_WHEEL || v->mid == MID_NONE || v->mid == MID_STEPS) g = GRAPHIC_NONE;
     set_graphic(g);
     bool pet_on = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
     pet_set_paused(h.pet, !pet_on);
@@ -227,6 +289,24 @@ void home_render(const home_view_t *v)
         if (v->wake) pet_wake_up(h.pet);
     }
     ui_show(h.wheel, v->mid == MID_WHEEL);
+    ui_show(h.steps.list, v->mid == MID_STEPS);
+    if (v->mid == MID_STEPS) {
+        char sig[64];
+        snprintf(sig, sizeof sig, "%d/%d:%.40s", v->steps_done, v->steps_total, v->step_text[0]);
+        bool fresh = strcmp(sig, h.steps_sig) != 0;
+        if (fresh) {
+            bool next_step = h.steps_at >= 0 && v->steps_done == h.steps_at + 1;
+            snprintf(h.steps_sig, sizeof h.steps_sig, "%s", sig);
+            steps_build(v);
+            /* a step ticked: start on the old one and turn to the new one */
+            wheel_list_focus(&h.steps, next_step ? h.steps_at : v->steps_done, false);
+            if (next_step) wheel_list_focus(&h.steps, v->steps_done, true);
+            h.steps_at = v->steps_done;
+        }
+    } else if (h.steps_sig[0]) {
+        h.steps_sig[0] = 0;
+        h.steps_at = -1;
+    }
     ui_show(h.overdue, v->mid == MID_OVERDUE);
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
@@ -254,12 +334,12 @@ void home_render(const home_view_t *v)
                              : v->status[0] ? HEADER_TEXT : HEADER_NONE;
         pill_tone_t tone = v->late_chip ? PILL_LATE : v->pill_tone;
         const char *text = v->late_chip ? "Late" : v->status;
-        header_set(&h.hdr, v->clock_line, v->hide_title ? NULL : v->title, below, tone, v->status_icon, text);
+        header_set(&h.hdr, v->clock_line, v->hide_title ? NULL : v->title, below, tone, v->late_chip ? NULL : v->status_icon, text);
         if (strcmp(h.title_sig, v->title)) { snprintf(h.title_sig, sizeof h.title_sig, "%s", v->title); fx_slide(h.hdr.root, 10, 0); }   /* a new screen */
     }
 
     /* ---- the note ---- */
-    bool card = v->card != CARDPOS_NONE || (v->chores_left > 0 && pet_on);
+    bool card = (v->card != CARDPOS_NONE && v->mid != MID_STEPS) || (v->chores_left > 0 && pet_on);
     ui_show(h.card.root, card);
     if (card) {
         if (v->card != CARDPOS_NONE) {
@@ -280,7 +360,9 @@ void home_render(const home_view_t *v)
     else bubble_hide(&h.bubble);
 
     /* ---- the hill ---- */
+    h.bottom = v->bottom;
     switch (v->bottom) {
+    case BOTTOM_GAMES: hill_set_button(&h.hill, NULL, "Games"); break;
     case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->next_time); break;
     case BOTTOM_NOTE: hill_set_text(&h.hill, v->note); break;
     case BOTTOM_PLAY:

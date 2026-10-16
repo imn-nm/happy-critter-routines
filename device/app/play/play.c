@@ -17,14 +17,14 @@
  * the bottom one). "%s" in a title or label is the pet's name. */
 #define MENU_PAGES 2
 static const struct { const char *title, *label, *icon; int32_t x, y; int page; } MENU[GAME_COUNT] = {
-    [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 6, 151, 0 },
-    [GAME_BATH] = { "Bath time", "Bath\ntime", "droplets", 363, 151, 0 },
-    [GAME_CARROT] = { "Carrot catch", "Carrot\ncatch", "carrot", 47, 293, 0 },
-    [GAME_BUBBLES] = { "Bubble pop", "Bubble\npop", "bubble", 327, 293, 0 },
-    [GAME_PEEKABOO] = { "Peekaboo", "Peeka\nboo", "eye", 182, 362, 0 },
-    [GAME_ROLL] = { "Roll home", "Roll\nhome", "move", 6, 151, 1 },
-    [GAME_SAYS] = { "%s says", "%s\nsays", "megaphone", 363, 151, 1 },
-    [GAME_STACK] = { "Carrot stack", "Carrot\nstack", "layers", 182, 362, 1 },
+    [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 56, 126, 0 },
+    [GAME_BATH] = { "Bath time", "Bath time", "droplets", 184, 126, 0 },
+    [GAME_CARROT] = { "Carrot catch", "Carrot catch", "carrot", 312, 126, 0 },
+    [GAME_BUBBLES] = { "Bubble pop", "Bubble pop", "bubble", 120, 250, 0 },
+    [GAME_PEEKABOO] = { "Peekaboo", "Peekaboo", "eye", 248, 250, 0 },
+    [GAME_ROLL] = { "Roll home", "Roll home", "move", 56, 126, 1 },
+    [GAME_SAYS] = { "%s says", "%s says", "megaphone", 184, 126, 1 },
+    [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 312, 126, 1 },
 };
 static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = { { "Play with %s", "kite" }, { "Move with %s", "move" } };
 
@@ -39,7 +39,8 @@ static const char *const ACC_ICON[PET_ACC_COUNT] = {
 static stage_t stage;
 
 static struct {
-    lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue;
+    lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
+    int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
     header_t head;
     char left_text[16];
@@ -282,8 +283,7 @@ static void on_game(lv_event_t *e)
     pl.slot = 0;
     game_start(g, pl.pet);
     ui_show(pl.menu, false);
-    ui_show(pl.menu_pet, false);
-    pet_set_paused(pl.menu_pet, true);
+    if (pl.menu_pet) { ui_show(pl.menu_pet, false); pet_set_paused(pl.menu_pet, true); }
     ui_show(pl.canvas, true);
     ui_show(pl.shade_top, true);
     ui_show(pl.shade_low, true);
@@ -378,7 +378,7 @@ static void see_you_later(void)
     pl.see_you = true;
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
-    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = NULL;
+    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = pl.timer = NULL;
     pl.head.root = NULL;
     pl.chev_l = pl.chev_r = NULL;
     memset(pl.circle, 0, sizeof pl.circle);
@@ -423,6 +423,8 @@ static void step(lv_timer_t *t)
     draw_stage();
 }
 
+void play_set_time_total(int32_t s) { if (pl.root && s > pl.total) { pl.total = s; play_set_time_left(pl.left); } }
+
 void play_set_time_left(int32_t s)
 {
     if (!pl.root || pl.see_you) return;
@@ -430,6 +432,12 @@ void play_set_time_left(int32_t s)
     if (s <= 0) { see_you_later(); return; }
     snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d left", (int)(s / 60), (int)(s % 60));
     set_header(NULL, NULL);
+    /* the rim: what's left of the play time in mint, the whole of it amber under 10 minutes */
+    if (s > pl.total) pl.total = s;
+    if (pl.timer) {
+        if (s < 600) timer_set(pl.timer, TIMER_HURRY, 1000, false);
+        else timer_set(pl.timer, TIMER_PLENTY, (int16_t)((int64_t)s * 1000 / (pl.total ? pl.total : 1)), false);
+    }
 }
 
 bool play_is_open(void) { return pl.root != NULL; }
@@ -481,38 +489,36 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     pl.shade_top = shade(pl.root, 0, 128, false);
     pl.shade_low = shade(pl.root, 314, 152, true);
 
-    /* the menu: Biscuit's own room, 286 px, waving now and then; the games round him, a page at a time */
-    pl.menu_pet = pet_create(pl.root, 298);
-    lv_obj_set_pos(pl.menu_pet, 84, 84);
-    pet_set_mood(pl.menu_pet, PET_MOOD_EXCITED);
-    pet_set_tappable(pl.menu_pet, true);
+    pl.timer = timer_create(pl.root);
+
+    /* the menu (Figma Playtime · Menu): no room, the games in rows of three and two, a page at a time */
     pl.menu = ui_box(pl.root);
     lv_obj_set_size(pl.menu, SCREEN_W, SCREEN_H);
     bool picture = ui_picture();
     for (int g = 0; g < GAME_COUNT; g++) {
-        lv_obj_t *b = ui_box(pl.menu);
-        pl.circle[g] = b;
-        lv_obj_set_size(b, 97, 97);
-        lv_obj_set_pos(b, MENU[g].x, MENU[g].y);
+        lv_obj_t *t = ui_box(pl.menu);
+        pl.circle[g] = t;
+        lv_obj_set_size(t, 140, 122);   /* the 98 tile, wider so a long name fits on one line */
+        lv_obj_set_pos(t, MENU[g].x - 21, MENU[g].y);
+        lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(t, on_game, LV_EVENT_CLICKED, (void *)(intptr_t)g);
+        lv_obj_t *b = ui_box(t);
+        lv_obj_set_size(b, 88, 88);
+        lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 0);
         ui_style_card(b, C_RAISED, LV_RADIUS_CIRCLE, C_CHIP, LV_OPA_COVER);
-        lv_obj_set_style_border_width(b, 3, 0);
+        lv_obj_set_style_border_width(b, 2, 0);
+        lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
         lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(b, on_game, LV_EVENT_CLICKED, (void *)(intptr_t)g);
-        if (picture && MENU[g].page > 0) {
-            /* picture view: the motion games are new, so their circles are icon-first */
-            lv_obj_t *ic = ui_icon(b, MENU[g].icon, 40, C_LIME);
-            lv_obj_center(ic);
-            continue;
-        }
+        lv_obj_t *ic = ui_icon(b, MENU[g].icon, 36, C_LIME);
+        lv_obj_center(ic);
+        if (picture && MENU[g].page > 0) continue;   /* picture view: the motion games are icon-first */
         char label[32];
         named(label, sizeof label, MENU[g].label);
-        bool two = strchr(label, '\n') != NULL;
-        lv_obj_t *ic = ui_icon(b, MENU[g].icon, 24, C_LIME);
-        lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, two ? 12 : 24);
-        lv_obj_t *l = ui_label(b, F_LABEL, C_BONE, label);
+        lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, label);
+        lv_obj_set_size(l, 140, lv_font_get_line_height(F_LABEL));
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(l, LV_ALIGN_TOP_MID, 0, two ? 40 : 52);
+        lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
     }
     /* small chevrons at the rim, between the rows, pointing at the other page */
     for (int i = 0; i < 2; i++) {
