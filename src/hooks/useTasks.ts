@@ -29,7 +29,12 @@ export interface Task {
   task_date?: string;
   excluded_dates?: string[];
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
-  date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
+  /**
+   * One-day changes by date. A set time pins the task that day; `anytime`
+   * means "whenever there is room" that day even if the task has a set
+   * time, with `window_start` as the spot it sits in until dragged.
+   */
+  date_overrides?: Record<string, { scheduled_time?: string; duration?: number; anytime?: boolean; window_start?: string }>;
   is_important?: boolean;
   is_fun_time?: boolean;
   /** Something the child goes to (a game, class): set time, no done button, ends by itself. */

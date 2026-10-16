@@ -23,7 +23,7 @@ interface TaskLike {
   task_date?: string | null;
   excluded_dates?: string[] | null;
   created_at?: string;
-  date_overrides?: Record<string, { scheduled_time?: string; duration?: number }> | null;
+  date_overrides?: Record<string, { scheduled_time?: string; duration?: number; anytime?: boolean }> | null;
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }> | null;
 }
 
@@ -61,7 +61,7 @@ const toHHMM = (minutes: number) =>
 /** Window end for today, honouring per-date and per-weekday overrides. */
 export const windowEnd = (task: TaskLike, dateStr: string, dayName: string): string | null => {
   const override = task.date_overrides?.[dateStr] ?? task.schedule_overrides?.[dayName];
-  const start = override?.scheduled_time ?? task.scheduled_time;
+  const start = task.date_overrides?.[dateStr]?.anytime ? null : override?.scheduled_time ?? task.scheduled_time;
   if (!start || !start.toString().trim()) return null;
   const duration = override?.duration ?? task.duration ?? 0;
   return toHHMM(toMinutes(start) + duration);

@@ -139,7 +139,11 @@ const ChildDashboard = () => {
         task.date_overrides?.[dateStr] || task.schedule_overrides?.[dayName];
       if (override) {
         const merged = { ...task };
-        if (override.scheduled_time) merged.scheduled_time = override.scheduled_time;
+        if (override.anytime) {
+          // "Whenever there is room" on this day only.
+          merged.scheduled_time = undefined;
+          merged.window_start = override.window_start || task.window_start;
+        } else if (override.scheduled_time) merged.scheduled_time = override.scheduled_time;
         if (override.duration != null) merged.duration = override.duration;
         setEditingTask(merged);
         setShowTaskForm(true);
@@ -188,7 +192,7 @@ const ChildDashboard = () => {
     const dayOverride = original.date_overrides?.[dateStr] || original.schedule_overrides?.[format(currentDate, 'EEEE').toLowerCase()];
     const sameMinute = (a?: string | null, b?: string | null) => (a ?? '').slice(0, 5) === (b ?? '').slice(0, 5);
     if (dayOverride
-      && sameMinute(taskData.scheduled_time, dayOverride.scheduled_time ?? original.scheduled_time)
+      && sameMinute(taskData.scheduled_time, dayOverride.anytime ? undefined : dayOverride.scheduled_time ?? original.scheduled_time)
       && (taskData.duration ?? null) === (dayOverride.duration ?? original.duration ?? null)) {
       taskData = { ...taskData, scheduled_time: original.scheduled_time, duration: original.duration };
       const kept: Partial<Task> = {
@@ -224,10 +228,7 @@ const ChildDashboard = () => {
     const existingDateOverrides = editingTaskRef.date_overrides || {};
     const nextDateOverrides = {
       ...existingDateOverrides,
-      [dateStr]: {
-        scheduled_time: taskData.scheduled_time ?? editingTaskRef.scheduled_time,
-        duration: taskData.duration ?? editingTaskRef.duration,
-      },
+      [dateStr]: dayOverrideFromForm(taskData, editingTaskRef),
     };
     await updateTask(editingTaskRef.id, {
       id: editingTaskRef.id,
@@ -260,6 +261,18 @@ const ChildDashboard = () => {
     return clash ? describeClash(clash) : null;
   };
 
+  /**
+   * What one day's change stores: the day's set time and length, or, when the
+   * form says "whenever there is room", no set time that day (the task sits
+   * at the spot it had until dragged).
+   */
+  const dayOverrideFromForm = (taskData: Partial<Task>, et: Task) => {
+    const duration = taskData.duration ?? et.duration;
+    if (taskData.scheduled_time) return { scheduled_time: taskData.scheduled_time, duration };
+    if (!et.scheduled_time) return { scheduled_time: et.scheduled_time, duration };
+    return { anytime: true, window_start: taskData.window_start || et.scheduled_time, duration };
+  };
+
   const clashForEdit = (taskData: Partial<Task>, et: Task, scope: 'this-date' | 'all' | 'weekend') => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const sysKey = systemNameToKey[et.name];
@@ -284,7 +297,7 @@ const ChildDashboard = () => {
         ...et,
         date_overrides: {
           ...(et.date_overrides || {}),
-          [dateStr]: { scheduled_time: taskData.scheduled_time ?? et.scheduled_time, duration: taskData.duration ?? et.duration },
+          [dateStr]: dayOverrideFromForm(taskData, et),
         },
       };
       const clash = findStartClash(candidate, [dateStr], tasks, child);
@@ -649,7 +662,10 @@ const ChildDashboard = () => {
       // unpinned — record the slot as window_start (a placement
       // hint the timeline already respects) so the "Set Time"
       // toggle in the edit form stays off.
-      const hadFixedTime = !!task.scheduled_time;
+      const dateStrForDrag = format(currentDate, 'yyyy-MM-dd');
+      // Made "whenever there is room" for this day: a drag keeps it that way.
+      const anytimeToday = !!task.date_overrides?.[dateStrForDrag]?.anytime;
+      const hadFixedTime = !!task.scheduled_time && !anytimeToday;
       if (task.is_recurring) {
         // A drag on one day's timeline moves it on that day only;
         // it used to move every day without asking. The toast
@@ -659,7 +675,10 @@ const ChildDashboard = () => {
         const duration = task.date_overrides?.[dateStr]?.duration
           ?? task.schedule_overrides?.[dayKey]?.duration ?? task.duration;
         await updateTask(taskId, {
-          date_overrides: { ...(task.date_overrides || {}), [dateStr]: { scheduled_time: newTime, duration } },
+          date_overrides: {
+            ...(task.date_overrides || {}),
+            [dateStr]: anytimeToday ? { anytime: true, window_start: newTime, duration } : { scheduled_time: newTime, duration },
+          },
         });
         await refetch();
         const everyDay = { ...(task.date_overrides || {}) };
@@ -668,9 +687,10 @@ const ChildDashboard = () => {
           action: {
             label: 'Every day',
             onClick: async () => {
-              await updateTask(taskId, hadFixedTime
+              await updateTask(taskId, (hadFixedTime
                 ? { scheduled_time: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }
-                : { window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null });
+                // Anytime today and dragged here: anytime every day, from here.
+                : { ...(anytimeToday ? { scheduled_time: null } : {}), window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }) as Partial<Task>);
               await refetch();
             },
           },

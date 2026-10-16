@@ -129,6 +129,8 @@ interface TimelineEvent {
   completedAt?: string;
   /** Stars a parent has given for this day's completion (0 = none yet). */
   starsGiven?: number;
+  /** Has a set time on this day (a task made "whenever there is room" for one day is not). */
+  pinned?: boolean;
 }
 
 // System events are now managed in the database via the systemTasks utility
@@ -267,7 +269,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
   // time has already come in place (what's behind us can't be moved).
   // They remain drop targets for placing a flexible task beside them.
   const isGap = event.type === 'gap';
-  const hasFixedTime = !!event.task?.scheduled_time;
+  const hasFixedTime = event.pinned ?? !!event.task?.scheduled_time;
   const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime && !event.isCompleted && !isPast;
   
   const {
@@ -943,7 +945,9 @@ const TimelineScheduleView = ({
           id: t.id,
           name: t.name,
           type: t.type,
-          time: override?.scheduled_time || t.scheduled_time || t.window_start || null,
+          time: override?.anytime
+            ? override.window_start || t.window_start || null
+            : override?.scheduled_time || t.scheduled_time || t.window_start || null,
           duration: override?.duration ?? t.duration ?? 30,
           baseTime: t.scheduled_time || t.window_start || null,
           movedToday: !!override,
@@ -1036,11 +1040,18 @@ const TimelineScheduleView = ({
   // then where the task moved with wake-up or bedtime.
   const tiedTimeOf = (task: { id: string; scheduled_time?: string | null }): string | null =>
     task.scheduled_time ? dayTies.times.get(task.id) ?? task.scheduled_time : null;
+  // The set time a task has on this day, or null when it has none: no set
+  // time at all, or made "whenever there is room" for this one day.
+  const dayPinnedTime = (task: any): string | null => {
+    const dateOverride = task.date_overrides?.[selectedDayDateString];
+    if (dateOverride?.anytime) return null;
+    return dateOverride?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || tiedTimeOf(task) || null;
+  };
   const getTaskTimeForDay = (task: any): { time: string; duration: number } => {
     const dateOverride = task.date_overrides?.[selectedDayDateString];
     const weekdayOverride = task.schedule_overrides?.[dayOfWeek];
     return {
-      time: dateOverride?.scheduled_time || weekdayOverride?.scheduled_time || tiedTimeOf(task) || '09:00',
+      time: dayPinnedTime(task) || dateOverride?.window_start || '09:00',
       duration: dateOverride?.duration ?? weekdayOverride?.duration ?? task.duration ?? 30,
     };
   };
@@ -1078,7 +1089,7 @@ const TimelineScheduleView = ({
 
     // Also include already-placed draggable tasks (using day-specific overrides)
     const placed = draggableTasks
-      .filter(t => t.date_overrides?.[selectedDayDateString]?.scheduled_time || t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
+      .filter(t => dayPinnedTime(t))
       .map(t => {
         const resolved = getTaskTimeForDay(t);
         const [h, m] = resolved.time.split(':').map(Number);
@@ -1124,7 +1135,7 @@ const TimelineScheduleView = ({
     ...fixedEvents,
     // Pinned draggable tasks block flex placement too.
     ...draggableTasks
-      .filter(t => t.date_overrides?.[selectedDayDateString]?.scheduled_time || t.schedule_overrides?.[dayOfWeek]?.scheduled_time || t.scheduled_time)
+      .filter(t => dayPinnedTime(t))
       .map(t => ({ time: getTaskTimeForDay(t).time, duration: getTaskTimeForDay(t).duration })),
   ].map(e => {
     const [h, m] = e.time.split(':').map(Number);
@@ -1139,8 +1150,7 @@ const TimelineScheduleView = ({
     return h * 60 + m;
   };
   fixedEvents.forEach(e => endsAt.set(e.id, toMinutesOfDay(e.time) + e.duration));
-  const pinnedTimeOf = (task: typeof draggableTasks[number]) =>
-    task.date_overrides?.[selectedDayDateString]?.scheduled_time || task.schedule_overrides?.[dayOfWeek]?.scheduled_time || tiedTimeOf(task);
+  const pinnedTimeOf = (task: typeof draggableTasks[number]) => dayPinnedTime(task);
   draggableTasks.forEach(task => {
     const pinned = pinnedTimeOf(task);
     if (pinned) endsAt.set(task.id, toMinutesOfDay(pinned) + getTaskTimeForDay(task).duration);
@@ -1154,7 +1164,7 @@ const TimelineScheduleView = ({
     const taskDuration = getTaskTimeForDay(task).duration;
     const anchorId = dayTies.anchors.get(task.id) ?? task.after_task_id;
     const anchorEnd = anchorId ? endsAt.get(anchorId) : undefined;
-    const windowStart = dayTies.times.get(task.id) ?? task.window_start;
+    const windowStart = dayTies.times.get(task.id) ?? task.date_overrides?.[selectedDayDateString]?.window_start ?? task.window_start;
     let startMin: number;
     if (anchorEnd != null) {
       // "After this": right after the anchor, or the next gap after it.
@@ -1197,6 +1207,8 @@ const TimelineScheduleView = ({
       type: task.type,
       color: task.type === 'regular' ? 'bg-blue-600' : 'bg-amber-500',
       task: task,
+      // Set time today? A task made "whenever there is room" for the day moves freely.
+      pinned: !!task.scheduled_time && !task.date_overrides?.[selectedDayDateString]?.anytime,
       coins: task.coins,
       isCompleted,
       isLate: false,

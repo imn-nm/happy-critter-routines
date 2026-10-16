@@ -69,6 +69,16 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     const dateOverride = task.date_overrides?.[todayStr];
     const weekdayOverride = task.schedule_overrides?.[currentDay];
     const override = dateOverride || weekdayOverride;
+    if (dateOverride?.anytime) {
+      // "Whenever there is room" today: it sits at its hint until dragged.
+      const hint = dateOverride.window_start || task.window_start;
+      return {
+        ...task,
+        type: task.type === 'scheduled' ? 'regular' : task.type,
+        scheduled_time: hint && !task.after_task_id ? hint : undefined,
+        duration: override.duration ?? task.duration,
+      };
+    }
     if (override) {
       return {
         ...task,

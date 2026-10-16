@@ -39,6 +39,8 @@ export const startOn = (task: TaskLike, date: string, child: Child | null) => {
     if (system) return timeToMinutes(system.time);
   }
   const override = task.date_overrides?.[date] || task.schedule_overrides?.[day];
+  // "Whenever there is room" for one day: no set start that day.
+  if (task.date_overrides?.[date]?.anytime) return timeToMinutes(undefined);
   return timeToMinutes(override?.scheduled_time || task.scheduled_time);
 };
 

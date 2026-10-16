@@ -34,7 +34,12 @@ export interface Task {
   window_end?: string;
   icon?: string | null;
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
-  date_overrides?: Record<string, { scheduled_time?: string; duration?: number }>;
+  /**
+   * One-day changes by date. A set time pins the task that day; `anytime`
+   * means "whenever there is room" that day even if the task has a set
+   * time, with `window_start` as the spot it sits in until dragged.
+   */
+  date_overrides?: Record<string, { scheduled_time?: string; duration?: number; anytime?: boolean; window_start?: string }>;
   subtasks?: Subtask[];
   created_at: string;
   updated_at: string;
