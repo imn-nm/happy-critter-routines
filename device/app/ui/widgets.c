@@ -22,7 +22,9 @@ static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_even
  * (270 degrees, open at the bottom where the hill is), 9 px wide with round ends. As Figma lays the
  * 80/14 dashes out evenly: twelve steps of 22.5 degrees, a segment centred on the top, 14 px
  * between segments, and a half segment at each end (13 pieces). The track is timer/track; the
- * lit part, counted from the bottom-left end, is the tone. The time is shared out over the
+ * lit part, counted from the bottom-left end, is the tone: with 10 minutes or more left it is the
+ * time gone by (the ring starts dark and lights up), under 10 and late the whole ring. The time is
+ * shared out over the
  * segments alone (not the gaps, the half ones count half), so one segment changes smoothly along
  * its length before the next one starts. */
 #define TIMER_R 223.0f
@@ -97,7 +99,8 @@ static void timer_draw(lv_event_t *e)
     d.opa = LV_OPA_COVER;
     float total = 0, a, b;
     for (int i = 0; i < TIMER_PIECES; i++) { timer_piece(i, &a, &b); total += b - a; }
-    const float lit = total * t->left / 1000.0f;
+    const int16_t shown = t->tone == TIMER_PLENTY ? 1000 - t->left : t->left;
+    const float lit = total * shown / 1000.0f;
     /* the track: every piece not yet reached, and the rest of the one changing now */
     d.color = COL(C_TRACK);
     float left = lit;
