@@ -834,9 +834,11 @@ static void build_view(home_view_t *v)
             if (r->free_reserve) {
                 snprintf(v->overdue_text, sizeof v->overdue_text, "%s is eating up your free time", name);
                 v->worm_eaten = (uint8_t)(5 - (r->reserve_remaining * 5 + r->reserve_total - 1) / (r->reserve_total ? r->reserve_total : 1));
+                snprintf(v->worm_icon, sizeof v->worm_icon, "kite");
             } else if (r->reserve_task >= 0) {
                 snprintf(v->overdue_text, sizeof v->overdue_text, "%s is taking time from %s", name, p->tasks[r->reserve_task].title);
                 v->worm_eaten = 5;
+                snprintf(v->worm_icon, sizeof v->worm_icon, "%s", p->tasks[r->reserve_task].icon[0] ? p->tasks[r->reserve_task].icon : "clock");
             } else {
                 snprintf(v->overdue_text, sizeof v->overdue_text, "%s is taking a little longer today", name);
                 v->worm_eaten = 5;
@@ -910,11 +912,13 @@ static void build_view(home_view_t *v)
             v->late_chip = false;
             snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is eating up your free time");
             v->worm_eaten = (uint8_t)(5 - (r->reserve_remaining * 5 + r->reserve_total - 1) / (r->reserve_total ? r->reserve_total : 1));
+            snprintf(v->worm_icon, sizeof v->worm_icon, "kite");
         } else if (!r->free_reserve && r->reserve_task >= 0) {
             late(v);
             v->late_chip = false;
             snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is taking time from %s", p->tasks[r->reserve_task].title);
             v->worm_eaten = 5;
+            snprintf(v->worm_icon, sizeof v->worm_icon, "%s", p->tasks[r->reserve_task].icon[0] ? p->tasks[r->reserve_task].icon : "clock");
         }
         button_note(v, "timer", "Press to start");
         next_from(v, -1);

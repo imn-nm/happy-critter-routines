@@ -84,6 +84,21 @@ static lv_obj_t *ov_graphic(lv_obj_t *o, bool full)
     return pet;
 }
 
+/* The celebrations (a reward approved, stars, a streak): the pet alone on black, no room, so the
+ * burst and the confetti stand out. */
+static lv_obj_t *ov_party_graphic(lv_obj_t *o)
+{
+    lv_obj_set_style_bg_color(o, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_t *pet = pet_create(o, SCREEN_W);
+    lv_obj_set_pos(pet, 0, 0);
+    pet_look_t look = pet_default_look(SCREEN_W);
+    look.room_off = true;
+    look.bg = lv_color_hex(0x000000);
+    pet_set_look(pet, &look);
+    return pet;
+}
+
 /* A Note at y 322 (Figma "Note"); long words wrap and the note grows upwards. */
 static void ov_note(lv_obj_t *o, const char *icon, const char *text, int32_t y)
 {
@@ -679,7 +694,7 @@ void approved_open(const day_reward_t *r, const char *child_name, const char *pe
     (void)child_name; (void)pet_name;
     lv_obj_t *o = open_overlay(&approved, true);
     snprintf(ap.title, sizeof ap.title, "%s!", r->title);
-    lv_obj_t *pet = ov_graphic(o, true);
+    lv_obj_t *pet = ov_party_graphic(o);
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     pet_set_paused(pet, true);
     fx_iris(pet, 160, AP_BURST);
@@ -836,7 +851,7 @@ void stars_open(int delta, int total, const char *note)
     snprintf(sx.note, sizeof sx.note, "%s", note ? note : "");
     sx.from = total - delta;
     sx.to = total;
-    lv_obj_t *pet = ov_graphic(o, true);
+    lv_obj_t *pet = ov_party_graphic(o);
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     pet_set_paused(pet, true);
     fx_iris(pet, 160, SX_BURST);
@@ -878,7 +893,7 @@ void streak_open(const day_streak_t *s, bool big, const char *shop_line, overlay
 {
     shop_cb = on_shop_cb;
     lv_obj_t *o = open_overlay(&streak, true);
-    lv_obj_t *pet = ov_graphic(o, true);
+    lv_obj_t *pet = ov_party_graphic(o);
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     char t[48], sub[32];
     if (big) snprintf(t, sizeof t, picture ? "Yay!" : "%d nights in a row!", s->goal);

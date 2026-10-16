@@ -50,6 +50,7 @@ typedef struct {
     home_mid_t mid;
     char overdue_text[72];
     uint8_t worm_eaten;         /* of 5 free-time dots */
+    char worm_icon[20];         /* what it's eating, in the ring at the end: "kite" (free time) or the task's icon */
     /* Biscuit */
     pet_mood_t mood;
     pet_activity_t activity;

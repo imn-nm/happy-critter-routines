@@ -46,6 +46,10 @@ static struct {
     lime_card_t card;
     bubble_t bubble;
     uint8_t worm_eaten;
+    float worm_x, worm_phase;
+    lv_obj_t *worm_ring, *worm_icon;
+    char worm_icon_name[20];
+    lv_timer_t *worm_timer;
     char title_sig[48];
     home_graphic_t graphic;
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
@@ -65,7 +69,21 @@ static void on_hill(hill_tap_t tap)
     }
 }
 
-/* The worm crawls right as it eats the five mint free-time dots, towards the empty mint ring. */
+/* The worm row (Figma "Free time eaten"): the worm, five mint dots of free time, and a mint ring at
+ * the end holding what it's eating (the kite for free time, or the task it is taking time from).
+ * It crawls: its humps ripple from tail to head, the head bobs as it munches, the dot in front of it
+ * shrinks with each bite, and it slides forward a dot at a time as the time goes. */
+#define WORM_CELL 3.8f
+#define WORM_COLS 23
+#define DOT_STEP 14
+#define DOTS_X 98          /* the first dot, from the row's left */
+#define RING_D 46
+#define ROW_W 230
+#define ROW_H 50
+#define WORM_PERIOD_MS 1400
+
+static float worm_x(int eaten) { return (float)(eaten * DOT_STEP); }
+
 static void worm_draw(lv_event_t *e)
 {
     lv_obj_t *obj = lv_event_get_target(e);
@@ -74,32 +92,55 @@ static void worm_draw(lv_event_t *e)
     lv_obj_get_coords(obj, &c);
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
-    float wx = c.x1 + h.worm_eaten * 13.0f;
+    const float ph = h.worm_phase * 6.2831853f;
+    const float wx = c.x1 + h.worm_x;
+    const float wy = c.y1 + (ROW_H - 10 * WORM_CELL) / 2.0f + 2;
     d.bg_color = COL(C_LATE);
-    for (int j = 0; j < 10; j++)
-        for (int i = 0; WORM[j][i]; i++) {
+    for (int i = 0; i < WORM_COLS; i++) {
+        /* the body (columns 0..14) ripples in a wave from the tail; the head bobs */
+        float dy = i < 15 ? -2.6f * fmaxf(0.0f, sinf(ph - i * 0.42f)) : 1.4f * sinf(ph * 2.0f);
+        for (int j = 0; j < 10; j++) {
             if (WORM[j][i] != '#') continue;
-            int32_t x0 = (int32_t)(wx + i * 3.8f), y0 = (int32_t)(c.y1 + 4 + j * 3.8f);
-            int32_t x1 = (int32_t)(wx + (i + 1) * 3.8f) - 1, y1 = (int32_t)(c.y1 + 4 + (j + 1) * 3.8f) - 1;
-            lv_area_t a = { x0, y0, x1, y1 };
+            float x0 = wx + i * WORM_CELL, y0 = wy + j * WORM_CELL + dy;
+            lv_area_t a = { (int32_t)x0, (int32_t)y0, (int32_t)(x0 + WORM_CELL) - 1, (int32_t)(y0 + WORM_CELL) - 1 };
             lv_draw_rect(layer, &d, &a);
         }
+    }
+    /* the dots it hasn't reached; the one at its mouth shrinks bite by bite */
     d.radius = LV_RADIUS_CIRCLE;
+    const float mouth = h.worm_x + WORM_COLS * WORM_CELL;
     for (int k = 0; k < 5; k++) {
-        bool eaten = k < h.worm_eaten;
-        if (eaten && k < h.worm_eaten - 1) continue;   /* the worm sits on them */
-        d.bg_color = COL(eaten ? C_CHIP : C_DONE);
-        int32_t x = c.x1 + 93 + k * 13, y = c.y1 + 20;
-        lv_area_t a = { x, y, x + 6, y + 6 };
+        float cx = DOTS_X + k * DOT_STEP + 3.5f;
+        if (k < h.worm_eaten || cx < mouth - 2) continue;   /* eaten, or under its head */
+        float r = 3.5f;
+        if (cx < mouth + DOT_STEP) r *= 0.55f + 0.45f * (0.5f + 0.5f * cosf(ph * 2.0f));
+        d.bg_color = COL(C_DONE);
+        lv_area_t a = { (int32_t)(c.x1 + cx - r), (int32_t)(c.y1 + ROW_H / 2 - r), (int32_t)(c.x1 + cx + r), (int32_t)(c.y1 + ROW_H / 2 + r) };
         lv_draw_rect(layer, &d, &a);
     }
-    /* the free time still left: an empty mint ring */
-    d.bg_opa = LV_OPA_TRANSP;
-    d.border_color = COL(C_DONE);
-    d.border_width = 2;
-    d.border_opa = LV_OPA_COVER;
-    lv_area_t r = { c.x1 + 170, c.y1 + 1, c.x1 + 213, c.y1 + 44 };
-    lv_draw_rect(layer, &d, &r);
+}
+
+/* Every 40 ms while the worm shows: the crawl, and the slide to where it has eaten up to. */
+static void worm_tick(lv_timer_t *t)
+{
+    (void)t;
+    if (!h.worm || lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN)) return;
+    h.worm_phase += 40.0f / WORM_PERIOD_MS;
+    if (h.worm_phase >= 1.0f) h.worm_phase -= 1.0f;
+    float to = worm_x(h.worm_eaten);
+    h.worm_x += (to - h.worm_x) * 0.08f;
+    if (fabsf(to - h.worm_x) < 0.2f) h.worm_x = to;
+    lv_obj_invalidate(h.worm);
+}
+
+/* The message and the worm row as one block, centred in the screen with a steady gap. */
+static void worm_layout(void)
+{
+    lv_obj_update_layout(h.overdue_text);
+    int32_t th = lv_obj_get_height(h.overdue_text), gap = 30;
+    int32_t top = CENTER - (th + gap + ROW_H) / 2 - 8;
+    lv_obj_set_y(h.overdue_text, top);
+    lv_obj_set_y(h.worm, top + th + gap);
 }
 
 static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
@@ -175,13 +216,25 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     h.overdue = ui_box(page);
     lv_obj_set_size(h.overdue, SCREEN_W, SCREEN_H);
     h.overdue_text = ui_label(h.overdue, F_MESSAGE, C_TEXT, "");
-    lv_obj_set_width(h.overdue_text, 220);
+    lv_obj_set_width(h.overdue_text, 290);
     lv_obj_set_style_text_align(h.overdue_text, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(h.overdue_text, LV_ALIGN_TOP_MID, 0, 178);
     h.worm = ui_box(h.overdue);
-    lv_obj_set_size(h.worm, 214, 46);
-    lv_obj_set_pos(h.worm, 126, 252);
+    lv_obj_set_size(h.worm, ROW_W, ROW_H);
+    lv_obj_set_pos(h.worm, CENTER - ROW_W / 2, 252);
     lv_obj_add_event_cb(h.worm, worm_draw, LV_EVENT_DRAW_MAIN, NULL);
+    /* the ring at the end: what it's eating */
+    h.worm_ring = ui_box(h.worm);
+    lv_obj_set_size(h.worm_ring, RING_D, RING_D);
+    lv_obj_set_pos(h.worm_ring, ROW_W - RING_D, (ROW_H - RING_D) / 2);
+    lv_obj_set_style_radius(h.worm_ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(h.worm_ring, 2, 0);
+    lv_obj_set_style_border_color(h.worm_ring, COL(C_DONE), 0);
+    lv_obj_set_style_border_opa(h.worm_ring, LV_OPA_COVER, 0);
+    h.worm_icon = ui_icon(h.worm_ring, "kite", 24, C_DONE);
+    lv_obj_center(h.worm_icon);
+    snprintf(h.worm_icon_name, sizeof h.worm_icon_name, "kite");
+    h.worm_timer = lv_timer_create(worm_tick, 40, NULL);
 
     /* Get ready: the checklist */
     wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, CENTER - STEPS_Y, STEPS_ROW);
@@ -307,10 +360,21 @@ void home_render(const home_view_t *v)
         h.steps_sig[0] = 0;
         h.steps_at = -1;
     }
+    bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
     ui_show(h.overdue, v->mid == MID_OVERDUE);
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
-        if (h.worm_eaten != v->worm_eaten) { h.worm_eaten = v->worm_eaten; lv_obj_invalidate(h.worm); }
+        worm_layout();
+        const char *icon = v->worm_icon[0] ? v->worm_icon : "kite";
+        if (strcmp(icon, h.worm_icon_name)) {
+            snprintf(h.worm_icon_name, sizeof h.worm_icon_name, "%s", icon);
+            ui_icon_set(h.worm_icon, icon, 24);
+            lv_obj_center(h.worm_icon);
+        }
+        if (h.worm_eaten != v->worm_eaten) {
+            h.worm_eaten = v->worm_eaten;
+            if (!showing) h.worm_x = worm_x(h.worm_eaten);   /* coming on: start where it is, no slide */
+        }
     }
     ui_show(h.tap_in, pet_on && v->tap_ring);
     ui_show(h.tap_out, pet_on && v->tap_ring);
