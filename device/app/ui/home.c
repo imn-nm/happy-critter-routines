@@ -191,12 +191,19 @@ static void steps_build(const home_view_t *v)
             lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_event_cb(row, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_STEP);
         }
-        lv_obj_t *ring = ui_box(row);
-        lv_obj_set_size(ring, 24, 24);
-        lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(ring, 2, 0);
-        lv_obj_set_style_border_color(ring, COL(C_ON_COLOR), 0);
-        lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
+        /* Figma "Checkbox" (Small): a navy ring to tick, or done, a filled navy circle with a lime tick */
+        lv_obj_t *box = ui_box(row);
+        lv_obj_set_size(box, 24, 24);
+        if (done) {
+            ui_style_card(box, C_ON_COLOR, LV_RADIUS_CIRCLE, 0, 0);
+            lv_obj_t *tick = ui_icon(box, "check", 16, C_ACTION);
+            lv_obj_center(tick);
+        } else {
+            lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
+            lv_obj_set_style_border_width(box, 2, 0);
+            lv_obj_set_style_border_color(box, COL(C_ON_COLOR), 0);
+            lv_obj_set_style_border_opa(box, LV_OPA_COVER, 0);
+        }
     }
 }
 
