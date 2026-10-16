@@ -61,7 +61,8 @@ export interface Friend {
   front: PoseArt;
   asleep: PoseArt;
   /** Facing you: the body's left and right columns and the row the arms start at. */
-  arms: { left: number; right: number; top: number };
+  /** waveGap: the waving arm keeps a dark line of space under a head wider than the body. */
+  arms: { left: number; right: number; top: number; waveGap?: boolean };
   fits: Record<PetView, Record<AccessorySlot | "hold", Fit>>;
   colours: ColourOption[];
 }
@@ -147,12 +148,12 @@ export const FRIENDS: Record<FriendId, Friend> = {
         "dssskkkkkkkkkkkkkkkksssd",
         "dssssssssssssssssssssssd",
         ".ssssssssssssssssssssss.",
-        "......dssssssssssd......",
-        "......dssssssssssd......",
-        "......dssssssssssd......",
-        "......dssssssssssd......",
-        "......dssssssssssd......",
-        "......dssssssssssd......",
+        ".....sdssssssssssds.....",
+        ".....sdssssssssssds.....",
+        ".....sdssssssssssds.....",
+        ".....sdssssssssssds.....",
+        ".....sdssssssssssds.....",
+        ".....sdssssssssssds.....",
         "......dssssssssssd......",
         ".......ssssssssss.......",
         ".......ssss..ssss.......",
@@ -205,7 +206,7 @@ export const FRIENDS: Record<FriendId, Friend> = {
       ],
       eyes: [],
     },
-    arms: {left: 5, right: 16, top: 28},
+    arms: {left: 5, right: 16, top: 28, waveGap: true},
     // Its head is taller and its eyes closer together than Biscuit's.
     fits: {
       side: { head: {dx: 0, dy: -6}, face: {dx: -1, dy: -1, split: {at: 9, dx: -2}}, neck: {dx: -1, dy: 2}, hold: {dx: 0, dy: 1} },
@@ -678,14 +679,25 @@ export function recolour(p: Pix, swap: Record<string, string>) {
 export const poseView = (pose: FriendPose): PetView => (pose === "rest" ? "side" : pose === "sleep" ? "sleep" : "front");
 
 /**
- * Biscuit's chunky T-pose arms at the sides of a body, or the left one tilted
- * up for a wave (one row of lift per column out from the body at full tilt).
+ * Biscuit's chunky T-pose arms at the sides of a body, or for a wave only the
+ * left one, tilted up (one row of lift per column out from the body at full
+ * tilt); as on Biscuit, the other arm stays down at its side.
  */
-function addArms(p: Pix, { left, right, top }: Friend["arms"], c: string, tilt = 0) {
+function addArms(p: Pix, { left, right, top, waveGap }: Friend["arms"], c: string, tilt = 0) {
+  // The head is everything above the arms' row. With waveGap the waving arm stays out of it and
+  // leaves one empty row under it, so arm and head read apart (the robot's box).
+  const head = (x: number, y: number) => y < top && !!p.get(x, y);
+  const gap = (x: number, y: number) => head(x, y) || head(x, y - 1);
+  // the thin arm drawn at its side lifts with it, so clear its top cell under the head too
+  if (tilt && waveGap) for (let x = left - 5; x < left; x++) if (gap(x, top)) p.del(x, top);
   for (let i = 0; i < 5; i++) {
     const y0 = i === 4 ? top + 1 : top, y1 = i === 4 ? top + 4 : top + 5;
     const lift = Math.round(tilt * i);
-    for (let y = y0; y <= y1; y++) { p.set(left - 1 - i, y - lift, c); p.set(right + 1 + i, y, c); }
+    for (let y = y0; y <= y1; y++) {
+      const x = left - 1 - i, yy = y - lift;
+      if (!(tilt && waveGap && gap(x, yy))) p.set(x, yy, c);
+      if (!tilt) p.set(right + 1 + i, y, c);
+    }
   }
 }
 
