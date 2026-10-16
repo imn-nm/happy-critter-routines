@@ -145,7 +145,7 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
 /* ================================================================ chores */
 /* Figma "My day · Chores": the header with how many are done, then equal rows from y 130, the ones
  * to do first and the finished ones after; more scroll up. Tap a chore to tick it. */
-#define CH_TOP 104
+#define CH_TOP 120
 #define CH_FOCUS 166
 #define CH_ROW 82
 

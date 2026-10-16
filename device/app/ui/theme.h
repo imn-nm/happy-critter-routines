@@ -111,5 +111,5 @@ void ui_style_card(lv_obj_t *obj, uint32_t bg, int32_t radius, uint32_t border, 
 /* Time as the child reads it: "7:15" (12-hour, no am/pm). */
 void ui_fmt_time(char *buf, size_t n, int minutes);
 const char *ui_ampm(int minutes);
-/* The header's clock: "3:18pm". */
+/* The header's clock: "3:18PM". */
 void ui_fmt_clock(char *buf, size_t n, int minutes);

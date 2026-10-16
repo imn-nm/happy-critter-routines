@@ -98,5 +98,5 @@ void ui_fmt_clock(char *buf, size_t n, int minutes)
 {
     char t[8];
     ui_fmt_time(t, sizeof t, minutes);
-    snprintf(buf, n, "%s%s", t, ui_ampm(minutes));
+    snprintf(buf, n, "%s%s", t, minutes / 60 % 24 < 12 ? "AM" : "PM");   /* "5:56PM" (Figma) */
 }

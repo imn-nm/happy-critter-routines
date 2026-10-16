@@ -18,28 +18,65 @@ bool ui_picture(void) { return picture_mode; }
 static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_event_get_target(e))); }
 
 /* ================================================================ MyToki 2 Timer */
-/* Figma "Timer": a dashed arc 223 px out from the centre, from 7:30 round the top to 4:30 (270
- * degrees, open at the bottom where the hill is): 80 px dashes, 14 px gaps, 9 px wide, round ends.
- * The track dashes are timer/track; the lit ones, counted from the bottom-left end, are the tone. */
+/* Figma "Timer": a ring of segments 223 px out from the centre, from 7:30 round the top to 4:30
+ * (270 degrees, open at the bottom where the hill is), 9 px wide with round ends. As Figma lays the
+ * 80/14 dashes out evenly: twelve steps of 22.5 degrees, a segment centred on the top, 14 px
+ * between segments, and a half segment at each end (13 pieces). The track is timer/track; the
+ * lit part, counted from the bottom-left end, is the tone. The time is shared out over the
+ * segments alone (not the gaps, the half ones count half), so one segment changes smoothly along
+ * its length before the next one starts. */
 #define TIMER_R 223.0f
 #define TIMER_W 9
 #define TIMER_A0 135.0f
 #define TIMER_SPAN 270.0f
-#define TIMER_DASH (80.0f / TIMER_R * 180.0f / PI_F)
-#define TIMER_PERIOD (94.0f / TIMER_R * 180.0f / PI_F)
+#define TIMER_STEPS 12
+#define TIMER_STEP (TIMER_SPAN / TIMER_STEPS)
+#define TIMER_GAP (14.0f / TIMER_R * 180.0f / PI_F)
+#define TIMER_PIECES (TIMER_STEPS + 1)
 
 typedef struct { timer_tone_t tone; int16_t left; bool pulse; uint8_t breath; lv_timer_t *timer; } timer_data_t;
 
 static const uint32_t TONE_COLOR[] = { C_PLENTY, C_HURRY, C_LATE_RING, C_NIGHT };
 
-static void timer_arc(lv_layer_t *layer, lv_draw_arc_dsc_t *d, float a0, float a1)
+/* piece i runs from piece_a[i] to piece_b[i] degrees (on the stroke's centre line) */
+static void timer_piece(int i, float *a, float *b)
 {
-    if (a1 - a0 < 0.5f) return;
-    int32_t s = (int32_t)lroundf(a0), e = (int32_t)lroundf(a1);
-    if (e <= s) e = s + 1;
+    const float half = TIMER_STEP / 2 - TIMER_GAP / 2;
+    if (i == 0) { *a = TIMER_A0; *b = TIMER_A0 + half; return; }
+    if (i == TIMER_PIECES - 1) { *a = TIMER_A0 + TIMER_SPAN - half; *b = TIMER_A0 + TIMER_SPAN; return; }
+    float c = TIMER_A0 + i * TIMER_STEP;
+    *a = c - (TIMER_STEP - TIMER_GAP) / 2;
+    *b = c + (TIMER_STEP - TIMER_GAP) / 2;
+}
+
+/* LVGL draws arcs in whole degrees (about 4 px out here), so the ends that fall between two are
+ * drawn as short round-ended lines to the exact spot: the fill moves a pixel at a time. Everything
+ * is drawn opaque (the pulse darkens the colour instead), so the overlaps don't show. */
+static void timer_line(lv_layer_t *layer, const lv_draw_arc_dsc_t *d, float a0, float a1)
+{
+    lv_draw_line_dsc_t l;
+    lv_draw_line_dsc_init(&l);
+    l.color = d->color;
+    l.width = TIMER_W;
+    l.round_start = l.round_end = 1;
+    float p = a0 * PI_F / 180.0f, q = a1 * PI_F / 180.0f;
+    l.p1.x = (int32_t)lroundf(d->center.x + TIMER_R * cosf(p));
+    l.p1.y = (int32_t)lroundf(d->center.y + TIMER_R * sinf(p));
+    l.p2.x = (int32_t)lroundf(d->center.x + TIMER_R * cosf(q));
+    l.p2.y = (int32_t)lroundf(d->center.y + TIMER_R * sinf(q));
+    lv_draw_line(layer, &l);
+}
+
+static void timer_stroke(lv_layer_t *layer, lv_draw_arc_dsc_t *d, float a0, float a1)
+{
+    if (a1 - a0 < 0.05f) return;
+    int32_t s = (int32_t)ceilf(a0), e = (int32_t)floorf(a1);
+    if (e <= s) { timer_line(layer, d, a0, a1); return; }
     d->start_angle = s % 360;
     d->end_angle = e % 360;
     lv_draw_arc(layer, d);
+    if (s - a0 > 0.05f) timer_line(layer, d, a0, (float)s);
+    if (a1 - e > 0.05f) timer_line(layer, d, (float)e, a1);
 }
 
 static void timer_draw(lv_event_t *e)
@@ -58,15 +95,25 @@ static void timer_draw(lv_event_t *e)
     d.width = TIMER_W;
     d.rounded = 1;
     d.opa = LV_OPA_COVER;
-    const float end = TIMER_A0 + TIMER_SPAN, lit_end = TIMER_A0 + TIMER_SPAN * t->left / 1000.0f;
-    for (float a = TIMER_A0; a < end - 0.5f; a += TIMER_PERIOD) {
-        float b = fminf(a + TIMER_DASH, end);
-        if (a >= lit_end) { d.color = COL(C_TRACK); timer_arc(layer, &d, a, b); continue; }
-        if (b > lit_end) { d.color = COL(C_TRACK); timer_arc(layer, &d, lit_end, b); }
+    float total = 0, a, b;
+    for (int i = 0; i < TIMER_PIECES; i++) { timer_piece(i, &a, &b); total += b - a; }
+    const float lit = total * t->left / 1000.0f;
+    /* the track: every piece not yet reached, and the rest of the one changing now */
+    d.color = COL(C_TRACK);
+    float left = lit;
+    for (int i = 0; i < TIMER_PIECES; i++) {
+        timer_piece(i, &a, &b);
+        if (left < b - a) timer_stroke(layer, &d, a + fmaxf(left, 0.0f), b);
+        left -= b - a;
     }
     d.color = COL(TONE_COLOR[t->tone]);
-    d.opa = t->pulse ? (lv_opa_t)(150 + 105 * t->breath / 255) : LV_OPA_COVER;
-    for (float a = TIMER_A0; a < lit_end - 0.5f; a += TIMER_PERIOD) timer_arc(layer, &d, a, fminf(fminf(a + TIMER_DASH, end), lit_end));
+    if (t->pulse) d.color = lv_color_mix(d.color, COL(C_SCREEN), (uint8_t)(150 + 105 * t->breath / 255));   /* breathing, over black */
+    left = lit;
+    for (int i = 0; i < TIMER_PIECES && left > 0; i++) {
+        timer_piece(i, &a, &b);
+        timer_stroke(layer, &d, a, a + fminf(left, b - a));
+        left -= b - a;
+    }
 }
 
 static void timer_tick(lv_timer_t *tm)
@@ -178,22 +225,26 @@ lv_obj_t *status_pill_create(lv_obj_t *parent, const char *icon, const char *tex
 }
 
 /* ================================================================ Header */
-/* Figma "Header": a 340 wide column centred at y 18: the clock (Clock 22), the title (Title 26,
- * wrapping at 272), then a Pill or a quiet line (Body 22, muted). */
+/* Figma "Header" (as in Free time · Last 5 minutes): a 340 wide column at y 23: the clock (Clock
+ * 22), the title (Title 26, wrapping at 272) tucked 4 px up under it, then right under the title a
+ * Pill or a quiet line (Body 22, muted). */
+#define HEADER_Y 23
 void header_create(lv_obj_t *parent, header_t *h)
 {
     h->root = ui_box(parent);
     lv_obj_set_size(h->root, 340, LV_SIZE_CONTENT);
-    lv_obj_set_pos(h->root, 63, 18);
+    lv_obj_set_pos(h->root, 63, HEADER_Y);
     lv_obj_set_flex_flow(h->root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(h->root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(h->root, 2, 0);
+    lv_obj_set_style_pad_row(h->root, 0, 0);
     h->clock = ui_label(h->root, F_CLOCK_LINE, C_TEXT, "");
     h->title = ui_label(h->root, F_TITLE, C_TEXT, "");
     lv_obj_set_style_max_width(h->title, 272, 0);
     lv_obj_set_style_text_align(h->title, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(h->title, LV_LABEL_LONG_WRAP);
     pill_create(h->root, &h->pill);
+    lv_obj_set_style_pad_ver(h->pill.root, 3, 0);    /* 38 high, like Figma's 4 px around a 30 px line */
+    lv_obj_set_style_margin_top(h->pill.root, 1, 0); /* our title line is 31, Figma's 33 */
     h->text = ui_label(h->root, F_BODY_P, C_TEXT_MUTED, "");
     lv_obj_set_style_max_width(h->text, 272, 0);
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
@@ -207,6 +258,9 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     if (c) ui_set_text(h->clock, clock);
     ui_show(h->title, t);
     if (t) ui_set_text(h->title, title);
+    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap); ours is 1 px
+     * shorter than Figma's, so -3 keeps the words in the same place */
+    if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -3 : 0)) lv_obj_set_style_margin_top(h->title, c ? -3 : 0, 0);
     ui_show(h->pill.root, below == HEADER_PILL && text && *text);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
     if (below == HEADER_PILL && text && *text) pill_set(&h->pill, tone, icon, text);
