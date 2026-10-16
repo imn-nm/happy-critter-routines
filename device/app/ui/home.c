@@ -150,11 +150,11 @@ static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t
 static void steps_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), near = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
-    /* the fill fades to 30% (done) or 50% (to do); the words stay, dimmed a little */
+    /* the fill fades to 30% (done) or 50% (to do); the words stay solid */
     float base = (intptr_t)lv_obj_get_user_data(card) ? 0.30f : 0.50f;
     lv_opa_t bg = (lv_opa_t)(255 * (1.0f - (1.0f - base) * near));
     if (lv_obj_get_style_bg_opa(card, 0) != bg) lv_obj_set_style_bg_opa(card, bg, 0);
-    float opa = (1.0f - 0.25f * near) * fmaxf(0.0f, 1.0f - 0.6f * far);
+    float opa = fmaxf(0.0f, 1.0f - far / 0.6f);   /* the words stay solid; three rows show, like Figma */
     int32_t s = (int32_t)(256 * (1.0f - 0.09f * near - 0.05f * far));
     int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * 4.0f * far * far);
     if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
@@ -173,17 +173,24 @@ static void steps_build(const home_view_t *v)
         lv_obj_set_size(row, 348, 46);
         lv_obj_center(row);
         ui_style_card(row, done ? C_DONE : C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
-        lv_obj_set_style_pad_left(row, 18, 0);
-        lv_obj_set_style_pad_right(row, 11, 0);
+        lv_obj_set_style_pad_left(row, 12, 0);    /* Figma "Step": 8 / 8 / 8 / 12, gap 8 */
+        lv_obj_set_style_pad_right(row, 8, 0);
         lv_obj_set_style_transform_pivot_x(row, 174, 0);
         lv_obj_set_style_transform_pivot_y(row, 23, 0);
         lv_obj_set_user_data(row, (void *)(intptr_t)done);
-        char line[64];
-        snprintf(line, sizeof line, "%d. %s", i + 1, v->step_text[i]);
-        lv_obj_t *l = ui_label(row, F_BODY_P, done ? C_TEXT_MUTED : C_ON_COLOR, line);   /* light words on the faded mint */
+        /* "2." in Detail 20, the step in Pill 24; light words on the faded mint of a done one */
+        uint32_t ink = done ? C_TEXT_MUTED : C_ON_COLOR;
+        char num[8];
+        snprintf(num, sizeof num, "%d.", i + 1);
+        ui_label(row, F_DETAIL, ink, num);
+        lv_obj_t *l = ui_label(row, F_PILL, ink, v->step_text[i]);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-        lv_obj_set_height(l, lv_font_get_line_height(F_BODY_P));
+        lv_obj_set_height(l, lv_font_get_line_height(F_PILL));
         lv_obj_set_flex_grow(l, 1);
+        if (i == v->steps_done) {   /* the step now: a tap ticks it, like the button */
+            lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(row, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_STEP);
+        }
         lv_obj_t *ring = ui_box(row);
         lv_obj_set_size(ring, 24, 24);
         lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);

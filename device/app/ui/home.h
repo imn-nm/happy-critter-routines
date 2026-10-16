@@ -10,7 +10,8 @@
 #include "widgets.h"
 #include "../pet/pet.h"
 
-/* MID_STEPS: a checklist that turns like a wheel instead of the room (Figma Going out · Get ready) */
+/* MID_STEPS: a checklist that turns like a wheel instead of the room (Figma Going out · Get ready,
+ * and every task with steps: Morning · Get dressed, the bedtime routine) */
 typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE, MID_STEPS } home_mid_t;
 #define HOME_STEPS_MAX 10
 /* BOTTOM_GAMES: the outline Games button that opens Playtime (Figma Free time · Spin) */
@@ -100,7 +101,7 @@ typedef struct {
 
 typedef enum {
     HOME_TAP_REWARDS, HOME_TAP_CHORES, HOME_TAP_NEXT, HOME_TAP_CARD, HOME_TAP_PET,
-    HOME_TAP_PLAY, HOME_TAP_WHEEL, HOME_WHEEL_RESULT, HOME_TAP_SPEAKER, HOME_TAP_PLAYTIME,
+    HOME_TAP_PLAY, HOME_TAP_WHEEL, HOME_WHEEL_RESULT, HOME_TAP_SPEAKER, HOME_TAP_PLAYTIME, HOME_TAP_STEP,
 } home_event_t;
 
 typedef void (*home_cb_t)(home_event_t ev, int arg);

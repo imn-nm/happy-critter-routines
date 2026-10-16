@@ -576,6 +576,7 @@ static void on_home(home_event_t ev, int arg)
         break;
     case HOME_TAP_SPEAKER: read_out(); break;
     case HOME_TAP_PLAYTIME: mytoki_open_playtime(); break;
+    case HOME_TAP_STEP: mytoki_button(); break;
     }
 }
 
@@ -858,11 +859,13 @@ static void build_view(home_view_t *v)
         }
         if (n->overdue) v->sides = false;
         if (t->nsteps && app.steps[app.focus] < t->nsteps) {
-            /* the step to do now, as a Step note over the room (Figma Morning · Get dressed); the button ticks it */
-            int done = app.steps[app.focus];
-            button_note(v, NULL, t->steps[done].text);
+            /* the steps as a checklist that turns, the one now in the middle, no room (Figma Morning ·
+             * Get dressed, the same as Going out · Get ready); the button or a tap ticks it */
+            v->mid = MID_STEPS;
+            v->sides = false;
             v->steps_total = (int8_t)t->nsteps;
-            v->steps_done = (int8_t)done;
+            v->steps_done = (int8_t)app.steps[app.focus];
+            for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
         }
         next_from(v, -1);
         /* Figma: his greeting at wake-up and dinner only, as the task starts */
