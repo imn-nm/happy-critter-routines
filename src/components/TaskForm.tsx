@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format, isValid, parse } from "date-fns";
 import { ArrowDown, ArrowUp, Bookmark, Check, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
 import { isSystemTaskName, reservedTaskName } from "@/utils/systemTasks";
+import { fetchLinkedSiblings } from "@/utils/linkedTasks";
 import { templateForName, suggestedSteps } from "@/data/taskTemplates";
 import { DEFAULT_PREP_MINUTES, PREP_OPTIONS } from "@/utils/eventWindow";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
@@ -118,6 +120,13 @@ const MAX_STARS = 20;
 const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy, builtInRunsOn, showHeader = true }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
+  // The other children this task is shared with (it was copied to them).
+  const { data: linkedSiblings = [] } = useQuery({
+    queryKey: ["linked-siblings", task?.id, task?.link_id],
+    enabled: isEdit && !!task?.id && !!task?.link_id,
+    queryFn: () => fetchLinkedSiblings({ id: task!.id, link_id: task!.link_id }),
+  });
+  const linkedNames = Array.from(new Set(linkedSiblings.map(s => s.childName)));
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   // Built-in rows (Wake Up, Breakfast, School, Lunch, Dinner, Bedtime) keep
   // their time, length and days in the child's profile, so they get the short
@@ -1188,7 +1197,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               <Copy className="w-4 h-4" /> Copy to Another Child
             </Button>
           </div>
-          <Caption>Make the same {noun.toLowerCase()} for another child, with its own time and length.</Caption>
+          {linkedNames.length > 0 ? (
+            <Caption>
+              Shared with {linkedNames.join(" and ")}: changing the name, stars, length or details here changes it for {linkedNames.length === 1 ? "them" : "all of them"} too. Time and days stay each child's own.
+            </Caption>
+          ) : (
+            <Caption>Make the same {noun.toLowerCase()} for another child, with its own time and length.</Caption>
+          )}
         </section>
       )}
       {!isEdit && otherChildren.length > 0 && (

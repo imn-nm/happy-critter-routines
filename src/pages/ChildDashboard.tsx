@@ -506,6 +506,9 @@ const ChildDashboard = () => {
           refuse(clash);
           return;
         }
+        // Added for several children at once: the copies stay linked, so a
+        // later edit to one reaches the others.
+        if (_additionalChildIds && _additionalChildIds.length > 0) finalTaskData.link_id = crypto.randomUUID();
         await addTask(finalTaskData);
         if (autoPlacedAt) {
           const [h, m] = autoPlacedAt.split(':').map(Number);
@@ -1135,6 +1138,7 @@ const ChildDashboard = () => {
           items={[copyingTask]}
           allTasks={tasks}
           targets={children.filter(c => c.id !== childId)}
+          onCopied={() => refetch()}
         />
       )}
 

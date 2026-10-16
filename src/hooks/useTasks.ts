@@ -5,6 +5,7 @@ import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
 import { fetchCompletionFor } from '@/hooks/useCompletions';
 import { onResync, resyncOnReconnect } from '@/lib/resync';
+import { syncLinkedTasks } from '@/utils/linkedTasks';
 import { scheduleCalendarAutoSyncForMe } from '@/utils/calendarAutoSync';
 
 // Same-start-time checks live in utils/startClash.ts and run on each save
@@ -44,6 +45,8 @@ export interface Task {
   days_override?: boolean;
   /** A flexible task that starts right after this task ("Reading after Bath"). */
   after_task_id?: string | null;
+  /** Shared with the same task copied to other children; edits carry over (see utils/linkedTasks). */
+  link_id?: string | null;
   window_start?: string;
   window_end?: string;
   icon?: string | null;
@@ -280,6 +283,15 @@ export const useTasks = (childId?: string) => {
       setTasks(prev => prev.map(task => task.id === id ? data as Task : task));
       // An event that moved, changed or stopped being one: update the calendar.
       if (data.is_event || current?.is_event) void scheduleCalendarAutoSyncForMe();
+      // The same task on other children changes with it (name, stars, length…).
+      if (current?.link_id) {
+        try {
+          const names = await syncLinkedTasks(current, updates);
+          if (names.length) toast({ title: `Also changed for ${names.join(' and ')}` });
+        } catch (syncError) {
+          console.error('Error syncing linked tasks:', syncError);
+        }
+      }
       return data;
     } catch (error: any) {
       console.error('Error updating task:', error);

@@ -776,6 +776,7 @@ export type Database = {
           is_important: boolean | null
           is_recurring: boolean
           late_policy: string
+          link_id: string | null
           min_duration: number | null
           name: string
           prep_minutes: number
@@ -809,6 +810,7 @@ export type Database = {
           is_important?: boolean | null
           is_recurring?: boolean
           late_policy?: string
+          link_id?: string | null
           min_duration?: number | null
           name: string
           prep_minutes?: number
@@ -842,6 +844,7 @@ export type Database = {
           is_important?: boolean | null
           is_recurring?: boolean
           late_policy?: string
+          link_id?: string | null
           min_duration?: number | null
           name?: string
           prep_minutes?: number

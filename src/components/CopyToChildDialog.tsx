@@ -14,6 +14,7 @@ import { orderByAnchors } from "@/utils/afterAnchors";
 import { describeClash, findStartClash, upcomingDates, type TaskLike } from "@/utils/startClash";
 import { getPSTDateString } from "@/utils/pstDate";
 import { scheduleCalendarAutoSyncForMe } from "@/utils/calendarAutoSync";
+import { ensureLinkId } from "@/utils/linkedTasks";
 import { routineDays, type Routine } from "@/hooks/useRoutines";
 import type { Child } from "@/hooks/useChildren";
 import type { Task } from "@/hooks/useTasks";
@@ -150,6 +151,8 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
       for (const { source: t, candidate } of planned) {
         const link = anchorName(t);
         const duration = candidate.duration ?? 30;
+        // The copy stays linked to the original: later edits reach both.
+        const linkId = await ensureLinkId(t);
         // "Keep at least" has to stay shorter than the (maybe new) length.
         const min = t.late_policy === "shorten" && t.min_duration && t.min_duration < duration ? t.min_duration : null;
         const { data, error } = await supabase
@@ -184,6 +187,7 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
             routine_id: newRoutineId,
             days_override: !!newRoutineId && !!t.days_override,
             after_task_id: link.copied ? newIds.get(link.copied) ?? null : link.theirs?.id ?? null,
+            link_id: linkId,
           })
           .select("id")
           .single();
@@ -216,7 +220,7 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
               <Copy className="w-5 h-5 text-focus-lavender" /> Copy {routine ? routine.name : copyable.length === 1 ? copyable[0].name : "tasks"}
             </DialogTitle>
             <DialogDescription className="text-13 text-focus-muted mt-1">
-              From {fromChild.name}. Change any time or length for the other child first.
+              From {fromChild.name}. Change any time or length for the other child first. The copies stay linked: a later change to the name, stars, length or details reaches every child; times and days stay their own.
             </DialogDescription>
           </div>
 

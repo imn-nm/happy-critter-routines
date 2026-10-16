@@ -147,6 +147,10 @@ interface SortableTimelineEventProps {
   isDraggingAny?: boolean;
   highlightMinute?: number | null;
   highlightDuration?: number;
+  /** This row has already started (today) or the day is over: it stays where it is. */
+  isPast?: boolean;
+  /** Minutes of the day that have gone by (today), or the whole day for past days: no drop slots there. */
+  pastUntil?: number;
 }
 
 // Individual droppable 15-min slot within a gap
@@ -257,13 +261,14 @@ const formatRange = (timeStr: string, duration: number, withSuffix = false) => {
   return `${a.clock} – ${b.clock}`;
 };
 
-const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0 }: SortableTimelineEventProps) => {
+const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleCompletion, onGiveStars, onAddTask, isActive = false, isToday = false, selectedDay, isDraggingAny = false, highlightMinute = null, highlightDuration = 0, isPast = false, pastUntil = -1 }: SortableTimelineEventProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  // Keep fixed-time tasks, system rows and completed tasks in place.
+  // Keep fixed-time tasks, system rows, completed tasks and tasks whose
+  // time has already come in place (what's behind us can't be moved).
   // They remain drop targets for placing a flexible task beside them.
   const isGap = event.type === 'gap';
   const hasFixedTime = !!event.task?.scheduled_time;
-  const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime && !event.isCompleted;
+  const isDraggable = !isGap && event.type !== 'system' && !hasFixedTime && !event.isCompleted && !isPast;
   
   const {
     attributes,
@@ -426,6 +431,8 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             const ticks: { time: number; label: string }[] = [];
             const firstTick = Math.ceil(gapStart / 15) * 15;
             for (let t = firstTick; t < gapEnd; t += 15) {
+              // No landing in the part of the day that has gone by.
+              if (t + 15 <= pastUntil) continue;
               const h = Math.floor(t / 60) % 24;
               const m = t % 60;
               const ampm = h >= 12 ? 'pm' : 'am';
@@ -1019,6 +1026,11 @@ const TimelineScheduleView = ({
     })();
     return { dayStart: wh * 60 + wm, dayEnd };
   })();
+  // A dragged task can't land in the past: today the day starts "now" for
+  // drops, and on an earlier day nothing can be moved at all.
+  const dayHasPassed = selectedDayDateString < getPSTDateString();
+  const pastUntil = dayHasPassed ? 24 * 60 : isPSTToday(selectedDay) ? nowMinutes : -1;
+  const dropBounds = isPSTToday(selectedDay) ? { ...dayBounds, dayStart: Math.max(dayBounds.dayStart, nowMinutes) } : dayBounds;
 
   // Resolve day-specific overrides for a task. Per-date wins over per-weekday,
   // then where the task moved with wake-up or bedtime.
@@ -1447,7 +1459,7 @@ const TimelineScheduleView = ({
       proposed = overEnd;
     }
 
-    return resolveDropStart(occupied, proposed, taskDuration, dayBounds);
+    return resolveDropStart(occupied, proposed, taskDuration, dropBounds);
   };
 
   const handleDragOver = (event: any) => {
@@ -1484,6 +1496,12 @@ const TimelineScheduleView = ({
 
     const activeTask = draggableTasks.find(task => task.id === active.id);
     if (!activeTask) return;
+    // Belt and braces: a row that has already started can't be moved.
+    const activeEvent = draggableEvents.find(e => e.id === active.id);
+    if (dayHasPassed || (activeEvent && isPSTToday(selectedDay) && startOfEvent(activeEvent) <= nowMinutes)) {
+      toast({ title: "That time has passed", description: `${activeTask.name} can't be moved now.` });
+      return;
+    }
 
     const taskDuration = getTaskTimeForDay(activeTask).duration;
     const draggedRect = active.rect.current.translated;
@@ -1497,7 +1515,7 @@ const TimelineScheduleView = ({
     // back so the task ends exactly when the next one starts.
     const tickMatch = typeof over.id === 'string' && over.id.match(/^tick-(\d+)$/);
     const landingMinutes = tickMatch
-      ? resolveDropStart(buildOccupied(activeTask.id), parseInt(tickMatch[1]), taskDuration, dayBounds)
+      ? resolveDropStart(buildOccupied(activeTask.id), parseInt(tickMatch[1]), taskDuration, dropBounds)
       : calculateDropTime(over.id, finalPosition, taskDuration, activeTask.id);
 
     if (landingMinutes == null) {
@@ -1520,7 +1538,7 @@ const TimelineScheduleView = ({
     if (!draggedEvent || !overId || !dropPosition) return null;
     const tick = overId.match(/^tick-(\d+)$/);
     return tick
-      ? resolveDropStart(buildOccupied(activeId!), Number(tick[1]), dragDuration, dayBounds)
+      ? resolveDropStart(buildOccupied(activeId!), Number(tick[1]), dragDuration, dropBounds)
       : calculateDropTime(overId, dropPosition, dragDuration, activeId!);
   })();
   const landingLabel = landingMinute == null ? ''
@@ -1816,6 +1834,8 @@ const TimelineScheduleView = ({
                               isDraggingAny={!!activeId}
                               highlightMinute={gapHighlightMinute}
                               highlightDuration={dragDuration}
+                              isPast={dayHasPassed || (isPSTToday(selectedDay) && startOfEvent(event) <= nowMinutes)}
+                              pastUntil={pastUntil}
                             />
                           </div>
 
