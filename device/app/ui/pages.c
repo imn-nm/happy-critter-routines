@@ -145,8 +145,8 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
 /* ================================================================ chores */
 /* Figma "My day · Chores": the header with how many are done, then equal rows from y 130, the ones
  * to do first and the finished ones after; more scroll up. Tap a chore to tick it. */
-#define CH_TOP 120
-#define CH_FOCUS 166
+#define CH_TOP 131           /* under the pill (header at y 23) */
+#define CH_FOCUS 171         /* rows 82 apart, the first 6 px under the pill as in Figma */
 #define CH_ROW 82
 
 static struct {
@@ -200,11 +200,9 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
     lv_obj_t *card = ui_row(slot, 14);
     lv_obj_set_size(card, 360, 72);
     lv_obj_center(card);
-    lv_obj_set_style_transform_pivot_x(card, 180, 0);
-    lv_obj_set_style_transform_pivot_y(card, 36, 0);
     lv_obj_set_style_pad_hor(card, 16, 0);
     bool done = c->done;
-    ui_style_card(card, done ? C_RAISED : C_SYSTEM, 24, 0, 0);
+    ui_style_card(card, done ? C_RAISED : C_SYSTEM, LV_RADIUS_CIRCLE, 0, 0);   /* Figma "Chore row": fully round */
     uint32_t fg = done ? C_TEXT_MUTED : C_ON_COLOR;
     ui_icon(card, c->icon[0] ? c->icon : "sparkles", 24, fg);
     lv_obj_t *body = ui_box(card);
@@ -231,7 +229,7 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
         lv_obj_set_size(w, lv_pct(100), lv_font_get_line_height(F_DETAIL));
     }
     if (done) {
-        lv_obj_t *chk = ui_icon(card, "check", 26, C_DONE);
+        lv_obj_t *chk = checkbox_create(card, 48, true);
         if (idx == ch.just) {
             fx_pop(chk, 0);
             lv_obj_update_layout(ch.wl.list);
@@ -244,12 +242,7 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
             fx_confetti(ch.page, ex, ey, 16, FX_PARTY, 6, 120);
         }
     } else {
-        lv_obj_t *end = ui_box(card);
-        lv_obj_set_size(end, 26, 26);
-        lv_obj_set_style_radius(end, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(end, 2, 0);
-        lv_obj_set_style_border_color(end, COL(C_ON_COLOR), 0);
-        lv_obj_set_style_border_opa(end, LV_OPA_COVER, 0);
+        checkbox_create(card, 48, false);
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_bg_color(card, COL(C_TEXT), LV_STATE_PRESSED);
         lv_obj_add_event_cb(card, on_chore, LV_EVENT_CLICKED, (void *)(intptr_t)idx);

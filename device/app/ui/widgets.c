@@ -228,9 +228,9 @@ lv_obj_t *status_pill_create(lv_obj_t *parent, const char *icon, const char *tex
 }
 
 /* ================================================================ Header */
-/* Figma "Header" (as in Free time · Last 5 minutes): a 340 wide column at y 23: the clock (Clock
- * 22), the title (Title 26, wrapping at 272) tucked 4 px up under it, then right under the title a
- * Pill or a quiet line (Body 22, muted). */
+/* Figma "Header": a 340 wide column at y 23: the clock (Clock 22, 28 px line), the title (Title 32,
+ * 40 px lines, wrapping at 272) tucked 4 px up under it, then 6 px down a Pill or a quiet line
+ * (Body 22, muted). */
 #define HEADER_Y 23
 void header_create(lv_obj_t *parent, header_t *h)
 {
@@ -247,8 +247,9 @@ void header_create(lv_obj_t *parent, header_t *h)
     lv_label_set_long_mode(h->title, LV_LABEL_LONG_WRAP);
     pill_create(h->root, &h->pill);
     lv_obj_set_style_pad_ver(h->pill.root, 3, 0);    /* 38 high, like Figma's 4 px around a 30 px line */
-    lv_obj_set_style_margin_top(h->pill.root, 1, 0); /* our title line is 31, Figma's 33 */
+    lv_obj_set_style_margin_top(h->pill.root, 6, 0);
     h->text = ui_label(h->root, F_BODY_P, C_TEXT_MUTED, "");
+    lv_obj_set_style_margin_top(h->text, 6, 0);
     lv_obj_set_style_max_width(h->text, 272, 0);
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
 }
@@ -261,9 +262,8 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     if (c) ui_set_text(h->clock, clock);
     ui_show(h->title, t);
     if (t) ui_set_text(h->title, title);
-    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap); ours is 1 px
-     * shorter than Figma's, so -3 keeps the words in the same place */
-    if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -3 : 0)) lv_obj_set_style_margin_top(h->title, c ? -3 : 0, 0);
+    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap) */
+    if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -4 : 0)) lv_obj_set_style_margin_top(h->title, c ? -4 : 0, 0);
     ui_show(h->pill.root, below == HEADER_PILL && text && *text);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
     if (below == HEADER_PILL && text && *text) pill_set(&h->pill, tone, icon, text);
@@ -1011,7 +1011,8 @@ static void outline_draw(lv_event_t *e)
     outline_t *o = lv_obj_get_user_data(obj);
     lv_area_t c;
     lv_obj_get_coords(obj, &c);
-    float x0 = c.x1 + 1.5f, y0 = c.y1 + 1.5f, x1 = c.x2 - 1.5f, y1 = c.y2 - 1.5f, r = (float)o->radius;
+    float x0 = c.x1 + 1.5f, y0 = c.y1 + 1.5f, x1 = c.x2 - 1.5f, y1 = c.y2 - 1.5f;
+    float r = fminf((float)o->radius, fminf(x1 - x0, y1 - y0) / 2);   /* a big radius: fully round */
     float w = x1 - x0 - 2 * r, h = y1 - y0 - 2 * r;
     float per = 2 * (w + h) + 2 * PI_F * r;
     int n = (int)(per / 14.0f);
@@ -1057,6 +1058,24 @@ lv_obj_t *note_create(lv_obj_t *parent, int32_t y)
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
     return l;
+}
+
+/* ================================================================ Checkbox */
+lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked)
+{
+    lv_obj_t *box = ui_box(parent);
+    lv_obj_set_size(box, d, d);
+    lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
+    if (checked) {
+        ui_style_card(box, C_ON_COLOR, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_t *tick = ui_icon(box, "check", d >= 48 ? 28 : 16, C_ACTION);
+        lv_obj_center(tick);
+    } else {
+        lv_obj_set_style_border_width(box, 2, 0);
+        lv_obj_set_style_border_color(box, COL(C_HILL_LINE), 0);
+        lv_obj_set_style_border_opa(box, LV_OPA_COVER, 0);
+    }
+    return box;
 }
 
 /* ================================================================ the wheel list */

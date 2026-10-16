@@ -161,6 +161,10 @@ void overlay_fade_away(lv_obj_t *overlay);
 /* ---- a list that turns like a wheel (Today's schedule, Chores, Other things to finish): the row
  * at the focus line is full size; rows above and below shrink and fade the further they are. It
  * scrolls under the finger with momentum and settles a row on the line. ---- */
+/* Figma "Checkbox": d 48 (Large) or 24 (Small). Unchecked: a 2 px line/hill ring; Checked: a
+ * filled navy circle with a lime tick (28 or 16). */
+lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked);
+
 typedef struct {
     lv_obj_t *list;          /* the scrolling column; add rows with wheel_list_add */
     int32_t focus_y;         /* the focus line, in the list's coordinates */

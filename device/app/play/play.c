@@ -116,7 +116,8 @@ static void set_header(const char *icon, const char *title)
 {
     (void)icon;
     if (title) snprintf(head_title, sizeof head_title, "%s", title);
-    if (pl.head.root) header_set(&pl.head, ui_clock(), head_title, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+    /* the menu: the clock and the pill only (a 32 px "Play with Biscuit" would wrap onto the games) */
+    if (pl.head.root) header_set(&pl.head, ui_clock(), pl.in_game ? head_title : NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */

@@ -168,13 +168,13 @@ typedef struct { int task, chore; int16_t start, end; row_state_t state; } srow_
 
 #define SCHED_TOP 92         /* the list starts under the header */
 #define SCHED_FOCUS 233      /* the focus line, on the screen */
-#define SCHED_ROW 89         /* a row's slot */
+#define SCHED_ROW 87         /* a row's slot: centres 146, 233, 320 (Figma) */
 #define SCHED_PIC_FOCUS 241  /* picture view: the card now */
-#define SCHED_PIC_ROW 118    /* picture view: the bigger cards */
+#define SCHED_PIC_ROW 109    /* picture view: centres 132, 241, 350 */
 
-/* Figma "Schedule row": Center is 400 x 84 with the detail line; Edge (one row away) is 360 x 66,
- * the title alone. A row's parts remember where they sit on the Center card (packed in their user
- * data) and move with it as it turns. */
+/* Figma "Schedule row": Center is 400 x 84, fully round: the icon, the name and the detail line, and
+ * the Checkbox (48) or "Now". Edge (one row away) is 360 x 66 at 70%, the name alone. A row's parts
+ * remember where they sit on the Center card (packed in their user data) and move as it turns. */
 enum { PART_PLAIN, PART_TITLE, PART_DETAIL };
 #define PART(kind, x, y) ((void *)(intptr_t)(((kind) << 20) | ((x) << 10) | (y)))
 
@@ -191,13 +191,13 @@ static void sched_style(lv_obj_t *card, float d)
             if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1)) { lv_obj_set_size(c, w, h); continue; }   /* the dashed outline */
             intptr_t u = (intptr_t)lv_obj_get_user_data(c);
             int kind = (int)(u >> 20), x = (int)((u >> 10) & 0x3FF), y = (int)(u & 0x3FF);
-            if (kind == PART_TITLE) { lv_obj_set_pos(c, x, y + dy); continue; }   /* 9 -> 18: the middle of an Edge row */
+            if (kind == PART_TITLE) { lv_obj_set_pos(c, x, y + (int32_t)lroundf(3 * k)); continue; }   /* 16 -> 19: the middle of an Edge row */
             lv_obj_set_pos(c, x > 300 ? x - dx : x, y - dy);
             if (kind == PART_DETAIL) lv_obj_set_style_opa(c, (lv_opa_t)(255 * (1.0f - k)), 0);
         }
     }
-    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.2f * k) * fmaxf(0.0f, 1.0f - far / 0.6f));
-    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
+    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.3f * k) * fmaxf(0.0f, 1.0f - far / 0.6f));
+    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
 }
 
 static struct {
@@ -266,40 +266,37 @@ static void on_row_chore(lv_event_t *e)
     if (sc.on_chore) sc.on_chore(chore);
 }
 
-/* Figma "Schedule row" (Center): 400 x 84, r 24: the time and am/pm, the icon, the name and when,
- * and its end (a mint tick, "Now", or a chore's ring to tap). Done rows sink; now has a lime
- * outline; free time a mint dashed one; chores are lavender. */
+/* Figma "Schedule row" (Center): 400 x 84, fully round, 16 px in, gap 14: the icon (24), the name
+ * (Item 22) and the detail (Detail 20), then the Checkbox (48) or "Now". Done: muted words, ticked.
+ * Now: a lime outline, the detail in lime. Next: the detail muted. Free time: a mint dashed outline,
+ * mint words. Chores: lavender with navy words; tap the box to tick one. */
 static void sched_row(lv_obj_t *slot, const srow_t *r)
 {
     const day_plan_t *p = sc.p;
     lv_obj_t *card = ui_box(slot);
     lv_obj_set_size(card, 400, 84);
     lv_obj_center(card);
-    lv_obj_set_style_transform_pivot_x(card, 200, 0);
-    lv_obj_set_style_transform_pivot_y(card, 42, 0);
     const char *icon = "star-line";
-    char time[8], ampm[8], task[48], detail[40], a[12], b[12];
+    char task[48], detail[40], a[12], b[12];
     uint32_t fg = C_TEXT, sub = C_TEXT_MUTED;
     switch (r->state) {
-    case ROW_DONE: ui_style_card(card, C_RAISED, 24, 0, 0); fg = sub = C_TEXT_MUTED; break;
-    case ROW_NOW: ui_style_card(card, C_RAISED, 24, C_ACTION, LV_OPA_COVER); lv_obj_set_style_border_width(card, 2, 0); break;
-    case ROW_NEXT: ui_style_card(card, C_RAISED, 24, 0, 0); break;
+    case ROW_DONE: ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, 0, 0); fg = sub = C_TEXT_MUTED; break;
+    case ROW_NOW: ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, C_ACTION, LV_OPA_COVER); lv_obj_set_style_border_width(card, 2, 0); sub = C_ACTION; break;
+    case ROW_NEXT: ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, 0, 0); break;
     case ROW_FREE: {
-        ui_style_card(card, C_RAISED, 24, 0, 0);
-        lv_obj_t *o = dotted_outline_create(card, C_DONE, 24);
+        ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_t *o = dotted_outline_create(card, C_DONE, 999);
         lv_obj_set_size(o, 400, 84);
         lv_obj_add_flag(o, LV_OBJ_FLAG_USER_1);   /* its user data is its own: marked by the flag */
         fg = sub = C_DONE;
         break;
     }
-    case ROW_CHORE: ui_style_card(card, C_SYSTEM, 24, 0, 0); fg = sub = C_ON_COLOR; break;
-    case ROW_CHORE_DONE: ui_style_card(card, C_RAISED, 24, 0, 0); fg = sub = C_TEXT_MUTED; break;
+    case ROW_CHORE: ui_style_card(card, C_SYSTEM, LV_RADIUS_CIRCLE, 0, 0); fg = sub = C_ON_COLOR; break;
+    case ROW_CHORE_DONE: ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, 0, 0); fg = sub = C_TEXT_MUTED; break;
     }
     if (r->task >= 0) {
         const day_task_t *t = &p->tasks[r->task];
         icon = t->icon[0] ? t->icon : "star-line";
-        ui_fmt_time(time, sizeof time, r->start);
-        snprintf(ampm, sizeof ampm, "%s", ui_ampm(r->start));
         snprintf(task, sizeof task, "%s", t->title);
         char e[8], dur[16];
         ui_fmt_time(e, sizeof e, r->end);
@@ -309,8 +306,6 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         const day_chore_t *c = &p->chores[r->chore];
         icon = c->icon[0] ? c->icon : "sparkles";
         snprintf(task, sizeof task, "%s", c->title);
-        if (c->to >= 0) { ui_fmt_time(time, sizeof time, c->to); snprintf(ampm, sizeof ampm, "%s", ui_ampm(c->to)); }
-        else { snprintf(time, sizeof time, "Any"); snprintf(ampm, sizeof ampm, "time"); }
         if (r->state == ROW_CHORE_DONE) snprintf(detail, sizeof detail, "Done!");
         else if (c->from >= 0 && c->to >= 0) { fmt_hour(a, sizeof a, c->from); fmt_hour(b, sizeof b, c->to); snprintf(detail, sizeof detail, "Between %s and %s", a, b); }
         else if (c->to >= 0) { fmt_hour(b, sizeof b, c->to); snprintf(detail, sizeof detail, "By %s", b); }
@@ -318,67 +313,59 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         else snprintf(detail, sizeof detail, "Anytime");
     } else {
         icon = "kite";
-        ui_fmt_time(time, sizeof time, r->start);
-        snprintf(ampm, sizeof ampm, "%s", ui_ampm(r->start));
         snprintf(task, sizeof task, "Free time");
         char dur[16];
         fmt_duration(dur, sizeof dur, r->end - r->start);
         snprintf(detail, sizeof detail, "%s all yours", dur);
     }
-    lv_obj_t *tl = ui_label(card, F_ITEM, fg, time);
-    lv_obj_set_pos(tl, 16, 12);
-    lv_obj_set_user_data(tl, PART(PART_PLAIN, 16, 12));
-    lv_obj_t *ap = ui_label(card, F_DETAIL, sub, ampm);
-    lv_obj_set_pos(ap, 16, 42);
-    lv_obj_set_user_data(ap, PART(PART_PLAIN, 16, 42));
     lv_obj_t *ic = ui_icon(card, icon, 24, fg);
-    lv_obj_set_pos(ic, 82, 30);
-    lv_obj_set_user_data(ic, PART(PART_PLAIN, 82, 30));
+    lv_obj_set_pos(ic, 16, 30);
+    lv_obj_set_user_data(ic, PART(PART_PLAIN, 16, 30));
     lv_obj_t *tt = ui_label(card, F_ITEM, fg, task);
     lv_label_set_long_mode(tt, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(tt, r->state == ROW_NOW ? 200 : 210, lv_font_get_line_height(F_ITEM));
-    lv_obj_set_pos(tt, 120, 9);
-    lv_obj_set_user_data(tt, PART(PART_TITLE, 120, 9));
+    lv_obj_set_size(tt, 268, lv_font_get_line_height(F_ITEM));
+    lv_obj_set_pos(tt, 54, 16);
+    lv_obj_set_user_data(tt, PART(PART_TITLE, 54, 16));
     lv_obj_t *dt = ui_label(card, F_DETAIL, sub, detail);
     lv_label_set_long_mode(dt, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(dt, 210, lv_font_get_line_height(F_DETAIL));
-    lv_obj_set_pos(dt, 120, 43);
-    lv_obj_set_user_data(dt, PART(PART_DETAIL, 120, 43));
-    if (r->state == ROW_DONE || r->state == ROW_CHORE_DONE) {
-        lv_obj_t *c = ui_icon(card, "check", 24, C_DONE);
-        lv_obj_set_pos(c, 360, 30);
-        lv_obj_set_user_data(c, PART(PART_PLAIN, 360, 30));
-    } else if (r->state == ROW_NOW) {
+    lv_obj_set_size(dt, 268, lv_font_get_line_height(F_DETAIL));
+    lv_obj_set_pos(dt, 54, 44);
+    lv_obj_set_user_data(dt, PART(PART_DETAIL, 54, 44));
+    if (r->state == ROW_NOW) {
         lv_obj_t *now = ui_label(card, F_LABEL, C_ACTION, "Now");
-        lv_obj_set_pos(now, 336, 28);
-        lv_obj_set_user_data(now, PART(PART_PLAIN, 336, 28));
-    } else if (r->state == ROW_CHORE) {
-        lv_obj_t *ring = ui_box(card);
-        lv_obj_set_size(ring, 26, 26);
-        lv_obj_set_pos(ring, 356, 29);
-        lv_obj_set_user_data(ring, PART(PART_PLAIN, 356, 29));
-        lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(ring, 2, 0);
-        lv_obj_set_style_border_color(ring, COL(C_ON_COLOR), 0);
-        lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
-        lv_obj_add_flag(ring, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(ring, 16);
-        lv_obj_add_event_cb(ring, on_row_chore, LV_EVENT_CLICKED, (void *)(intptr_t)r->chore);
+        lv_obj_set_pos(now, 337, 28);
+        lv_obj_set_user_data(now, PART(PART_PLAIN, 337, 28));
+    } else {
+        lv_obj_t *box = checkbox_create(card, 48, r->state == ROW_DONE || r->state == ROW_CHORE_DONE);
+        lv_obj_set_pos(box, 336, 18);
+        lv_obj_set_user_data(box, PART(PART_PLAIN, 336, 18));
+        if (r->state == ROW_CHORE) {
+            lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(box, 10);
+            lv_obj_add_event_cb(box, on_row_chore, LV_EVENT_CLICKED, (void *)(intptr_t)r->chore);
+        }
     }
 }
 
-/* Figma "Today's schedule · Younger": 300 x 110 now, 236 x 80 either side (a 0.79 turn), pulled in
- * a little; the done ones are already muted, further rows fade out. */
+/* Figma "Picture card" (Today's schedule · Younger): fully round, hugging its words. On the line:
+ * 110 high, 24 px in, gap 16, a 56 icon; one row away: 80 high, 18 px in, gap 12, a 40 icon. The
+ * words stay 22 / 20. Now has a 3 px lime outline, done ones show at 60%; further rows fade out. */
 static void sched_tile_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
-    int32_t s = (int32_t)(256 * (1.0f - 0.21f * k - 0.08f * far));
-    int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * 9.0f * ad * ad);
+    int32_t h = (int32_t)lroundf(110 - 30 * k);
+    if (lv_obj_get_height(card) != h) {
+        lv_obj_set_height(card, h);
+        lv_obj_set_style_pad_hor(card, (int32_t)lroundf(24 - 6 * k), 0);
+        lv_obj_set_style_pad_column(card, (int32_t)lroundf(16 - 4 * k), 0);
+        lv_obj_t *ic = lv_obj_get_child(card, 0);
+        int32_t sz = (int32_t)lroundf(56 - 16 * k);
+        lv_obj_set_size(ic, sz, sz);
+        lv_image_set_scale(ic, (uint32_t)(256 * sz / 48));
+    }
     float base = lv_obj_has_flag(card, LV_OBJ_FLAG_USER_2) ? 0.6f : 1.0f;   /* done: faded */
     lv_opa_t o = (lv_opa_t)(255 * base * fmaxf(0.0f, 1.0f - far / 0.6f));
-    if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
-    if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
-    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
+    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
 }
 
 static void on_tile_say(lv_event_t *e)
@@ -387,8 +374,8 @@ static void on_tile_say(lv_event_t *e)
     if (text) hal_speak(text);
 }
 
-/* Picture view (Figma "Today's schedule · Younger"): a big picture card per row, the name and time;
- * now has the lime ring, done ones a mint tick. Tap one to hear it. */
+/* Picture view: the icon, the first word of the name and the time ("3:40–4:00" for now), and the
+ * Checkbox, ticked once done. Tap one to hear it. */
 static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
 {
     const day_plan_t *p = sc.p;
@@ -400,31 +387,24 @@ static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
     if (r->start >= 0) ui_fmt_time(t, sizeof t, r->start); else snprintf(t, sizeof t, "Any time");
     bool now = r->state == ROW_NOW, done = r->state == ROW_DONE || r->state == ROW_CHORE_DONE;
     if (now && r->end > r->start) { char e[8]; ui_fmt_time(e, sizeof e, r->end); snprintf(t + strlen(t), sizeof t - strlen(t), "\xE2\x80\x93%s", e); }
-    lv_obj_t *tile = ui_box(slot);
-    lv_obj_set_size(tile, 300, 110);
+    lv_obj_t *tile = ui_row(slot, 16);
+    lv_obj_set_height(tile, 110);
     lv_obj_center(tile);
-    lv_obj_set_style_transform_pivot_x(tile, 150, 0);
-    lv_obj_set_style_transform_pivot_y(tile, 55, 0);
-    ui_style_card(tile, C_RAISED, 44, C_ACTION, now ? LV_OPA_COVER : 0);
+    ui_style_card(tile, C_RAISED, LV_RADIUS_CIRCLE, C_ACTION, now ? LV_OPA_COVER : 0);
+    lv_obj_set_style_pad_hor(tile, 24, 0);
     if (now) lv_obj_set_style_border_width(tile, 3, 0);
     if (done) lv_obj_add_flag(tile, LV_OBJ_FLAG_USER_2);
     uint32_t fg = done ? C_TEXT_MUTED : C_TEXT;
     lv_obj_t *ic = ui_icon(tile, icon && *icon ? icon : "star-line", 48, fg);
-    lv_obj_set_pos(ic, 28, 31);
-    lv_obj_t *nm = ui_label(tile, F_ITEM, fg, name);
+    lv_image_set_inner_align(ic, LV_IMAGE_ALIGN_CENTER);
+    lv_obj_t *body = ui_box(tile);
+    lv_obj_set_size(body, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t *nm = ui_label(body, F_ITEM, fg, name);
     lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(nm, 160, lv_font_get_line_height(F_ITEM));
-    lv_obj_set_pos(nm, 96, 24);
-    lv_obj_t *tm = ui_label(tile, F_DETAIL, now ? C_ACTION : C_TEXT_MUTED, t);
-    lv_obj_set_pos(tm, 96, 56);
-    if (done) {
-        lv_obj_t *tick = ui_box(tile);
-        lv_obj_set_size(tick, 30, 30);
-        lv_obj_set_pos(tick, 258, 12);
-        ui_style_card(tick, C_DONE, LV_RADIUS_CIRCLE, 0, 0);
-        lv_obj_t *c = ui_icon(tick, "check", 20, C_ON_COLOR);
-        lv_obj_center(c);
-    }
+    lv_obj_set_style_max_width(nm, 160, 0);
+    ui_label(body, F_DETAIL, now ? C_ACTION : C_TEXT_MUTED, t);
+    checkbox_create(tile, 48, done);
     static char said[DAY_MAX_TASKS * 2 + DAY_MAX_CHORES][64];
     snprintf(said[idx], sizeof said[idx], "%s at %s", name, t);
     lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -509,13 +489,16 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     sc.wl.style = picture ? sched_tile_style : sched_style;
     sched_rows();
     sched_fill(sc.focus);
-    /* the header on top, so the rows turn under it */
-    header_t *h = ov_header(o, true, picture ? "Today" : "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
-    lv_obj_set_style_bg_color(h->root, COL(C_SCREEN), 0);
-    lv_obj_set_style_bg_opa(h->root, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_bottom(h->root, 6, 0);
-    lv_obj_set_width(h->root, SCREEN_W);
-    lv_obj_set_x(h->root, 0);
+    /* Figma Younger: two path dots between the cards */
+    if (picture)
+        for (int i = 0; i < 2; i++) {
+            lv_obj_t *dot = ui_box(o);
+            lv_obj_set_size(dot, 6, 6);
+            lv_obj_set_pos(dot, CENTER - 3, i ? 300 : 176);
+            ui_style_card(dot, C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
+        }
+    /* the header on top (no backing, as in Figma); rows further than one away fade out under it */
+    ov_header(o, true, picture ? "Today" : "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
     /* the sheet slides up from the bottom and settles */
     sched_anim(o, SCREEN_H, 0, 320, lv_anim_path_ease_out, NULL);
 }
@@ -564,7 +547,7 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
         lv_obj_t *card = ui_row(slot, 14);
         lv_obj_set_size(card, 360, 72);
         lv_obj_center(card);
-        ui_style_card(card, C_SYSTEM, 24, 0, 0);
+        ui_style_card(card, C_SYSTEM, LV_RADIUS_CIRCLE, 0, 0);   /* Figma "Chore row": fully round */
         lv_obj_set_style_pad_hor(card, 16, 0);
         lv_obj_set_style_bg_color(card, COL(C_TEXT), LV_STATE_PRESSED);
         ui_icon(card, t->icon[0] ? t->icon : "clock", 24, C_ON_COLOR);
@@ -579,12 +562,7 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
         if (t->bedtime_routine || t->system == SYS_BEDTIME) snprintf(by, sizeof by, "Before bedtime");
         else { fmt_hour(when, sizeof when, t->end); snprintf(by, sizeof by, "Before %s", when); }
         ui_label(col, F_DETAIL, C_ON_COLOR, by);
-        lv_obj_t *ring = ui_box(card);
-        lv_obj_set_size(ring, 24, 24);
-        lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_border_width(ring, 2, 0);
-        lv_obj_set_style_border_color(ring, COL(C_ON_COLOR), 0);
-        lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
+        checkbox_create(card, 48, false);
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(card, on_other, LV_EVENT_CLICKED, (void *)(intptr_t)n->still[k]);
     }
@@ -597,7 +575,7 @@ void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done
     others_cb = on_done;
     lv_obj_t *o = open_overlay(&others, true);
     /* Figma: two equal rows, centres at 213 and 298; more scroll up under the header */
-    wheel_list_create(o, &others_wl, 0, 150, SCREEN_W, SCREEN_H - 150, 63, 85);
+    wheel_list_create(o, &others_wl, 0, 150, SCREEN_W, SCREEN_H - 150, 64, 84);
     others_wl.shrink = others_wl.fade = 0;
     ov_header(o, true, "Other things to finish", HEADER_TEXT, PILL_CALM, NULL, "You can do it!");
     others_refresh(p, n);

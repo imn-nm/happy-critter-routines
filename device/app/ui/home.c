@@ -25,9 +25,10 @@ static const char *const WORM[] = {
 #define SMALL_XY 84
 #define NOTE_Y 311
 /* the Get ready checklist: rows 59 apart round the centre line */
-#define STEPS_Y 120
-#define STEPS_H 230
-#define STEPS_ROW 59
+#define STEPS_Y 100
+#define STEPS_H 268
+#define STEPS_ROW 87          /* row centres 145, 232, 319 (Figma) */
+#define STEPS_FOCUS 232
 
 static struct {
     home_cb_t cb;
@@ -41,6 +42,7 @@ static struct {
     hill_t hill;
     home_bottom_t bottom;
     wheel_list_t steps;
+    lv_obj_t *steps_fade;
     char steps_sig[64];
     int8_t steps_at;
     lime_card_t card;
@@ -145,24 +147,22 @@ static void worm_layout(void)
 
 static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
 
-/* Figma Going out · Get ready: the step now is a lime row 348 x 46 on the centre line; the one
- * above (done) is mint at 30%, the one below lime at 50%, both a little smaller. */
+/* Figma Going out · Get ready (Step rows): the step now is a lime row 348 wide, fully round, on the
+ * centre line; the one above (done, mint) shows at 30%, the one below (lime) at 50%, both 0.865 the
+ * size; further ones fade out. A black fade over the top row lets it slip under the header. */
 static void steps_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), near = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
-    /* the fill fades to 30% (done) or 50% (to do); the words stay solid */
     float base = (intptr_t)lv_obj_get_user_data(card) ? 0.30f : 0.50f;
-    lv_opa_t bg = (lv_opa_t)(255 * (1.0f - (1.0f - base) * near));
-    if (lv_obj_get_style_bg_opa(card, 0) != bg) lv_obj_set_style_bg_opa(card, bg, 0);
-    float opa = fmaxf(0.0f, 1.0f - far / 0.6f);   /* the words stay solid; three rows show, like Figma */
-    int32_t s = (int32_t)(256 * (1.0f - 0.09f * near - 0.05f * far));
-    int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * 4.0f * far * far);
+    float opa = (1.0f - (1.0f - base) * near) * fmaxf(0.0f, 1.0f - far / 0.6f);
+    int32_t s = (int32_t)(256 * (1.0f - 0.135f * near - 0.05f * far));
     if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
     lv_opa_t o = (lv_opa_t)(255 * opa);
-    if (lv_obj_get_style_opa(card, 0) != o) lv_obj_set_style_opa(card, o, 0);
-    if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
+    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
 }
 
+/* Figma "Step": 348 wide, 12 / 16 padding, gap 8: "2." (Detail 20), the step (Pill 24, up to two
+ * lines of 30), the Checkbox (48). 72 high with one line, 84 with two. */
 static void steps_build(const home_view_t *v)
 {
     wheel_list_clear(&h.steps);
@@ -170,40 +170,29 @@ static void steps_build(const home_view_t *v)
         bool done = i < v->steps_done;
         lv_obj_t *slot = wheel_list_add(&h.steps);
         lv_obj_t *row = ui_row(slot, 8);
-        lv_obj_set_size(row, 348, 46);
+        lv_obj_set_width(row, 348);
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_style_min_height(row, 72, 0);
         lv_obj_center(row);
         ui_style_card(row, done ? C_DONE : C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
-        lv_obj_set_style_pad_left(row, 12, 0);    /* Figma "Step": 8 / 8 / 8 / 12, gap 8 */
-        lv_obj_set_style_pad_right(row, 8, 0);
-        lv_obj_set_style_transform_pivot_x(row, 174, 0);
-        lv_obj_set_style_transform_pivot_y(row, 23, 0);
+        lv_obj_set_style_pad_ver(row, 12, 0);
+        lv_obj_set_style_pad_hor(row, 16, 0);
+        lv_obj_set_style_transform_pivot_x(row, lv_pct(50), 0);
+        lv_obj_set_style_transform_pivot_y(row, lv_pct(50), 0);
         lv_obj_set_user_data(row, (void *)(intptr_t)done);
-        /* "2." in Detail 20, the step in Pill 24; light words on the faded mint of a done one */
-        uint32_t ink = done ? C_TEXT_MUTED : C_ON_COLOR;
         char num[8];
         snprintf(num, sizeof num, "%d.", i + 1);
-        ui_label(row, F_DETAIL, ink, num);
-        lv_obj_t *l = ui_label(row, F_PILL, ink, v->step_text[i]);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-        lv_obj_set_height(l, lv_font_get_line_height(F_PILL));
+        ui_label(row, F_DETAIL, C_ON_COLOR, num);
+        lv_obj_t *l = ui_label(row, F_PILL, C_ON_COLOR, v->step_text[i]);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_line_space(l, -2, 0);                       /* 30 px lines, as Figma's 125% */
+        lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(F_PILL) - 2, 0);   /* two lines at most */
         lv_obj_set_flex_grow(l, 1);
         if (i == v->steps_done) {   /* the step now: a tap ticks it, like the button */
             lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_event_cb(row, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_STEP);
         }
-        /* Figma "Checkbox" (Small): a navy ring to tick, or done, a filled navy circle with a lime tick */
-        lv_obj_t *box = ui_box(row);
-        lv_obj_set_size(box, 24, 24);
-        if (done) {
-            ui_style_card(box, C_ON_COLOR, LV_RADIUS_CIRCLE, 0, 0);
-            lv_obj_t *tick = ui_icon(box, "check", 16, C_ACTION);
-            lv_obj_center(tick);
-        } else {
-            lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
-            lv_obj_set_style_border_width(box, 2, 0);
-            lv_obj_set_style_border_color(box, COL(C_ON_COLOR), 0);
-            lv_obj_set_style_border_opa(box, LV_OPA_COVER, 0);
-        }
+        checkbox_create(row, 48, done);
     }
 }
 
@@ -251,8 +240,20 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     h.worm_timer = lv_timer_create(worm_tick, 40, NULL);
 
     /* Get ready: the checklist */
-    wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, CENTER - STEPS_Y, STEPS_ROW);
+    wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, STEPS_FOCUS - STEPS_Y, STEPS_ROW);
     h.steps.style = steps_style;
+    /* Figma "Fade" over the top row (x 66, 337 wide): black down to y 117, clear by y 158, so the
+     * row slips under the header */
+    h.steps_fade = ui_box(page);
+    lv_obj_set_pos(h.steps_fade, 66, 105);
+    lv_obj_set_size(h.steps_fade, 337, 53);
+    static lv_grad_dsc_t fade;
+    fade.dir = LV_GRAD_DIR_VER;
+    fade.stops_count = 2;
+    fade.stops[0].color = COL(C_SCREEN); fade.stops[0].opa = LV_OPA_COVER; fade.stops[0].frac = 58;
+    fade.stops[1].color = COL(C_SCREEN); fade.stops[1].opa = LV_OPA_TRANSP; fade.stops[1].frac = 255;
+    lv_obj_set_style_bg_grad(h.steps_fade, &fade, 0);
+    lv_obj_set_style_bg_opa(h.steps_fade, LV_OPA_COVER, 0);
     h.steps_at = -1;
 
     h.scrim = scrim_create(page);
@@ -357,6 +358,7 @@ void home_render(const home_view_t *v)
     }
     ui_show(h.wheel, v->mid == MID_WHEEL);
     ui_show(h.steps.list, v->mid == MID_STEPS);
+    ui_show(h.steps_fade, v->mid == MID_STEPS);
     if (v->mid == MID_STEPS) {
         char sig[64];
         snprintf(sig, sizeof sig, "%d/%d:%.40s", v->steps_done, v->steps_total, v->step_text[0]);
