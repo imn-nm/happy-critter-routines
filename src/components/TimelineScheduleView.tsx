@@ -1436,8 +1436,18 @@ const TimelineScheduleView = ({
   // Overlaps the parent should fix: a task whose duration runs past the next
   // event's start (e.g. a 15-min task with the next event 10 minutes later).
   // The child view silently clamps these; here we surface them for editing.
+  // A task finished early only takes the day until it was done (the child's
+  // screen frees the rest of its window), so a task added right after it is
+  // not an overlap: Homework 5:30 for 40 min, done at 5:58, Shower at 6:00.
+  const busyLength = (e: { time: string; duration: number; isCompleted?: boolean; completedAt?: string }) => {
+    if (!e.isCompleted || !e.completedAt) return e.duration;
+    const done = new Date(new Date(e.completedAt).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    const [h, m] = e.time.split(':').map(Number);
+    const until = done.getHours() * 60 + done.getMinutes() - (h * 60 + m);
+    return Math.max(0, Math.min(e.duration, until));
+  };
   const scheduleConflicts = findScheduleConflicts(
-    sortedEvents.map(e => ({ id: e.id, name: e.name, scheduled_time: e.time, duration: e.duration }))
+    sortedEvents.map(e => ({ id: e.id, name: e.name, scheduled_time: e.time, duration: busyLength(e) }))
   );
 
   const handleDragStart = (event: any) => {
@@ -1460,7 +1470,7 @@ const TimelineScheduleView = ({
       .filter(e => e.type !== 'gap' && e.id !== excludeTaskId)
       .map(e => {
         const [h, m] = e.time.split(':').map(Number);
-        return { start: h * 60 + m, end: h * 60 + m + e.duration };
+        return { start: h * 60 + m, end: h * 60 + m + busyLength(e) };
       });
 
   // Calculate the landing time for a drop — used by both indicators and
