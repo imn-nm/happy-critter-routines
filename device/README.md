@@ -15,9 +15,11 @@ device/
     mytoki.c             controller: today's plan, progress, which screen, the button, sounds
     day.c, logic.c     the day plan, and the live day (a port of ChildInterface + timeReserve.ts)
     ui/                MyToki 2 screens: Home, Rewards, Chores, schedule, overlays, the wheel
-    pet/               Biscuit: behaviour engine (port of SpritePet.tsx) + the LED-field renderer
+    pet/               the pet: behaviour engine (port of SpritePet.tsx) + the LED-field renderer; the frames
+                       of Biscuit, the Robot and the Fox, each in four colours (pet_data.c, from tools/pet_export.mjs)
     play/              Playtime: menu (two pages), Dress up, Bath time, Carrot catch, Bubble pop, Peekaboo,
-                       Roll home, Biscuit says, Carrot stack (the motion games, see app/motion.h)
+                       Roll home, Biscuit says, Carrot stack (the motion games, see app/motion.h), and My buddy
+                       (the child picks their character and its colour; saved as pet_type + pet_color)
     assets/            generated fonts and line icons
     vendor/cjson/      cJSON (MIT)
     hal.h              what a platform provides (clock, network, storage, sound, speech)
@@ -31,7 +33,7 @@ device/
 
 ## On the web app
 
-The same firmware is the child view: `/child/:childId` draws the Circle on a canvas (the older list view is at `/child/:childId/list`) and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit) is saved the way the list view saves it. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
+The same firmware is the child view: `/child/:childId` draws the Circle on a canvas (the older list view is at `/child/:childId/list`) and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit, their buddy) is saved the way the list view saves it. The device draws Biscuit, the Robot and the Fox; a child whose character is not on the device yet (Dino, Dragon) sees Biscuit there. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
 
 ## Run the simulator
 

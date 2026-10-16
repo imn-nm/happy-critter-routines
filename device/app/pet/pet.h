@@ -71,6 +71,20 @@ void pet_paws(lv_obj_t *pet, int32_t *left_x, int32_t *right_x, int32_t *y);
 void pet_set_paused(lv_obj_t *pet, bool paused);
 const char *pet_current_clip_name(lv_obj_t *pet);
 
+/* Which character the child has (pet_chars) and in which of its colours, everywhere. Saved by the
+ * caller. Every scene redraws at once. */
+void pet_set_character(int character, int colour);
+void pet_get_character(int *character, int *colour);
+int pet_char_by_id(const char *id);          /* "robot" -> index, or -1 */
+int pet_colour_by_name(int character, const char *name);   /* "mint" (any case) -> index, or 0 */
+/* The current character's frame and pose; the colour swap for a grid of palette indices. */
+const pet_frame_t *pet_frame_of(int frame);
+const uint16_t *pet_frame_outfit_of(int frame);
+const pet_pose_t *pet_pose_of(pet_pose_id_t pose);
+void pet_apply_colour(uint8_t *grid, int n);
+/* Is this palette entry the current character's body (where mud and soap show)? */
+bool pet_is_body(uint8_t idx);
+
 /* What he wears, everywhere: an accessory per slot, or -1. Saved by the caller. */
 void pet_set_outfit(int head, int face, int neck);
 void pet_get_outfit(int *head, int *face, int *neck);
@@ -84,5 +98,7 @@ pet_activity_t pet_pick_free_time_activity(void);
 /* Change the scene's size (the waiting clock's room is a little smaller). */
 void pet_set_size(lv_obj_t *pet, int32_t diameter);
 
-/* Biscuit's face as plain pixel art, `cell` px per pixel, on `bg` (the Play pill, the wheel's hub). */
+/* The pet's face as plain pixel art, `cell` px per pixel, on `bg` (the Play pill, the wheel's hub). */
 lv_obj_t *pet_face_create(lv_obj_t *parent, int cell, lv_color_t bg);
+/* Any character's face in one of its colours (the buddy picker's tiles). */
+lv_obj_t *pet_face_create_of(lv_obj_t *parent, int character, int colour, int cell, lv_color_t bg);

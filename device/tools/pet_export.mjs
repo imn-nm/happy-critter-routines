@@ -1,5 +1,6 @@
-// Exports Biscuit's clips from the web app's own pixel code (src/components/pets/pixel)
-// into C data for the device, so the rabbit on the device is the same rabbit, frame for frame.
+// Exports the pets' clips from the web app's own pixel code (src/components/pets/pixel)
+// into C data for the device, so the pet on the device is the same pet, frame for frame:
+// Biscuit and the friends in PET_CAST, each in its colour options.
 //
 //   node pet_export.mjs        -> ../app/pet/pet_data.c + pet_data.h
 //
@@ -9,7 +10,11 @@
 //   - for every frame and every dress-up item, the cells the item changes (so any outfit
 //     can be composed on the device without storing every combination);
 //   - each room's lit features (plain walls and floors are left out: they stay unlit LEDs,
-//     the same rule as artifacts/field-kit-scenes/ledstyle.js).
+//     the same rule as artifacts/field-kit-scenes/ledstyle.js);
+//   - the same again for every character, one after the other (pet_chars[].first_frame);
+//   - colours: the cells a colour option changes (fur, inner ears, a robot's shell) are drawn with
+//     their own "role" palette entries, which hold the original colour; a colour option is then
+//     just a swap of those few indices (pet_chars[].colours[].to), applied when a grid is drawn.
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -27,9 +32,10 @@ import { PIXEL_CLIPS } from "./pixel/clips";
 import { backdrop, CLIP_SCENE } from "./pixel/scenes";
 import { PAL } from "./pixel/pix";
 import { ACCESSORIES, ACCESSORY_IDS } from "./pixel/accessories";
-import { front, side } from "./pixel/sprites";
+import { front, side, withLook } from "./pixel/cast";
+import { FRIENDS, RABBIT_COLOURS } from "./pixel/characters";
 import { denScene, gardenScene, bathScene } from "./playtime/scenes";
-export { PIXEL_CLIPS, backdrop, CLIP_SCENE, PAL, ACCESSORIES, ACCESSORY_IDS, front, side, denScene, gardenScene, bathScene };
+export { PIXEL_CLIPS, backdrop, CLIP_SCENE, PAL, ACCESSORIES, ACCESSORY_IDS, front, side, withLook, FRIENDS, RABBIT_COLOURS, denScene, gardenScene, bathScene };
 `;
 const bundle = path.join(HERE, '.cache', 'pets.cjs');
 fs.mkdirSync(path.dirname(bundle), { recursive: true });
@@ -80,8 +86,12 @@ const hex = (c) => {
   if (!/^#[0-9a-fA-F]{6}$/.test(c)) throw new Error('colour ' + c);
   return c.toLowerCase();
 };
+// Sentinel colours stand for a character's roles while its frames are drawn; they map to the
+// role's own palette entry (see PET_CAST below).
+const roleIdx = new Map();
 const colourIndex = (c) => {
   const h = hex(c);
+  if (roleIdx.has(h)) return roleIdx.get(h);
   if (!palIdx.has(h)) { palIdx.set(h, palette.length); palette.push(h); }
   if (palette.length > 255) throw new Error('palette over 255 colours');
   return palIdx.get(h);
@@ -91,6 +101,47 @@ for (const k of Object.keys(A.PAL)) colourIndex(k);
 // Colours the C Playtime code draws with directly (the bath tub).
 const EXTRA = ['#ffffff', '#eef3f8', '#dfe6ee', '#c9d3de', '#c7a86b', '#bfe6f7', '#9fd3ef'];
 for (const c of EXTRA) colourIndex(c);
+
+// ---- the cast: Biscuit and the friends the device has, each with its colour options -----------
+// face_top: rows below the drawing's top where the 13-row face (the Play tab, the wheel's hub) starts.
+const PET_CAST = [
+  { id: 'rabbit', name: 'Biscuit', face_top: 9 },
+  { id: 'robot', name: 'Robot', face_top: 4 },
+  { id: 'fox', name: 'Fox', face_top: 9 },
+];
+const ROLE_SENTINEL = (n) => '#0100' + n.toString(16).padStart(2, '0');
+let nsentinel = 1;
+for (const ch of PET_CAST) {
+  const friend = ch.id === 'rabbit' ? null : A.FRIENDS[ch.id];
+  const options = friend ? friend.colours : A.RABBIT_COLOURS;
+  // the parts (or Biscuit's palette keys) any option recolours
+  const roles = [...new Set(options.flatMap(o => Object.keys(o.colours)))];
+  const original = (role) => friend ? friend.parts[role].colour : A.PAL[role];
+  ch.roles = roles.map(role => {
+    const sentinel = ROLE_SENTINEL(nsentinel++);
+    const idx = palette.length;        // its own entry, in the original colour
+    palette.push(hex(original(role)));
+    roleIdx.set(sentinel, idx);
+    return { role, sentinel, idx };
+  });
+  // drawing with this option paints every role in its sentinel
+  options.push({ name: '__roles', colours: Object.fromEntries(ch.roles.map(r => [r.role, r.sentinel])) });
+  const fur = friend ? friend.fur : 'W';
+  ch.colours = options.filter(o => o.name !== '__roles').map(o => ({
+    name: o.name,
+    to: ch.roles.map(r => colourIndex(o.colours[r.role] ?? original(r.role))),
+    swatch: hex(o.colours[fur] ?? original(fur)),
+  }));
+  if (ch.colours.length !== 4) throw new Error(ch.id + ' needs 4 colour options');
+  // the body for Bath time's mud and soap: role entries plus the other parts, not the eyes or the nose
+  const body = ch.roles.filter(r => friend || r.role !== 'P').map(r => r.idx);
+  if (friend) for (const [k, part] of Object.entries(friend.parts)) {
+    if (k === friend.eyePart || roles.includes(k)) continue;
+    body.push(colourIndex(part.colour));
+  }
+  ch.body = [...new Set(body)];
+  ch.look = { id: ch.id, colour: '__roles' };
+}
 
 // ---- sprites: runs of cells on the crop grid ------------------------------------------------
 // Encoding, per run: y, x, n, then n palette indices. 0xFF ends the sprite.
@@ -151,27 +202,35 @@ const bedroomDawn = Array.from({ length: 17 }, (_, s) => roomSprite('bedroom', '
 const ACC = A.ACCESSORY_IDS;
 const frames = [];   // [body, fx]
 const outfit = [];   // per frame: sprite per accessory
-const clips = [];
-for (const name of CLIP_NAMES) {
-  const clip = A.PIXEL_CLIPS[name];
-  const first = frames.length;
-  for (let i = 0; i < clip.frameCount; i++) {
-    const fr = clip.frame(i, null);
-    const body = cellsOfPix(fr.r, fr.x, fr.y);
-    frames.push([spriteFrom(body), spriteFrom(cellsOfPix(fr.fx, 0, 0))]);
-    outfit.push(ACC.map(id => {
-      const slot = A.ACCESSORIES[id].slot;
-      const dressed = clip.frame(i, { [slot]: id });
-      const d = cellsOfPix(dressed.r, dressed.x, dressed.y);
-      const diff = new Map();
-      for (const [k, v] of d) if (body.get(k) !== v) diff.set(k, v);
-      return spriteFrom(diff);
-    }));
-  }
-  const scene = A.CLIP_SCENE[name] ?? 'den';
-  clips.push({ name, scene: SCENES.indexOf(scene), first, count: clip.frameCount,
-    loop: clip.loop ?? [-1, -1], activity: !!A.CLIP_SCENE[name] });
+const clips = [];    // Biscuit's; every character has the same clips, frame for frame, after hers
+for (const ch of PET_CAST) {
+  ch.first_frame = frames.length;
+  A.withLook(ch.look, () => {
+    for (const name of CLIP_NAMES) {
+      const clip = A.PIXEL_CLIPS[name];
+      const first = frames.length - ch.first_frame;
+      for (let i = 0; i < clip.frameCount; i++) {
+        const fr = clip.frame(i, null);
+        const body = cellsOfPix(fr.r, fr.x, fr.y);
+        frames.push([spriteFrom(body), spriteFrom(cellsOfPix(fr.fx, 0, 0))]);
+        outfit.push(ACC.map(id => {
+          const slot = A.ACCESSORIES[id].slot;
+          const dressed = clip.frame(i, { [slot]: id });
+          const d = cellsOfPix(dressed.r, dressed.x, dressed.y);
+          const diff = new Map();
+          for (const [k, v] of d) if (body.get(k) !== v) diff.set(k, v);
+          return spriteFrom(diff);
+        }));
+      }
+      if (ch === PET_CAST[0]) {
+        const scene = A.CLIP_SCENE[name] ?? 'den';
+        clips.push({ name, scene: SCENES.indexOf(scene), first, count: clip.frameCount,
+          loop: clip.loop ?? [-1, -1], activity: !!A.CLIP_SCENE[name] });
+      }
+    }
+  });
 }
+const FRAMES_PER_CHAR = frames.length / PET_CAST.length;
 
 // ---- poses for Playtime: every pose the games use, with each dress-up item's cells -------
 const POSE_O = 12; // pose-local cell (0,0) sits at (12,12) in the sprite, so props left/up fit
@@ -205,16 +264,22 @@ function poseCells(p) {
   });
   return m;
 }
-const poses = POSES.map(([name, make]) => {
-  const body = poseCells(make(null));
-  const acc = ACC.map(id => {
-    const d = poseCells(make({ [A.ACCESSORIES[id].slot]: id }));
-    const diff = new Map();
-    for (const [k, v] of d) if (body.get(k) !== v) diff.set(k, v);
-    return spriteFrom(diff);
+const poses = [];
+for (const ch of PET_CAST) {
+  ch.first_pose = poses.length;
+  A.withLook(ch.look, () => {
+    for (const [name, make] of POSES) {
+      const body = poseCells(make(null));
+      const acc = ACC.map(id => {
+        const d = poseCells(make({ [A.ACCESSORIES[id].slot]: id }));
+        const diff = new Map();
+        for (const [k, v] of d) if (body.get(k) !== v) diff.set(k, v);
+        return spriteFrom(diff);
+      });
+      poses.push({ name: ch.id + ' ' + name, body: spriteFrom(body), acc });
+    }
   });
-  return { name, body: spriteFrom(body), acc };
-});
+}
 
 // ---- Playtime rooms: 96 x 64 stages, plain walls and floors left unlit ----------------------
 const GAME_ROOMS = [['den', A.denScene, DEN], ['garden', A.gardenScene, GARDEN], ['bath', A.bathScene, PLAIN.bath]];
@@ -290,8 +355,34 @@ extern const pet_clip_t pet_clips[PET_CLIP_COUNT];
 extern const char *const pet_clip_names[PET_CLIP_COUNT];
 extern const char *const pet_acc_names[PET_ACC_COUNT];
 extern const uint8_t pet_acc_slot[PET_ACC_COUNT]; /* 0 head, 1 face, 2 neck */
+/* Every character's frames, one set after another: a clip's frame i of character c is
+ * pet_frames[pet_chars[c].first_frame + pet_clips[clip].first + i]. */
 extern const pet_frame_t pet_frames[];
 extern const uint16_t pet_frame_outfit[][PET_ACC_COUNT];
+
+/* The characters a child can have, each in four colours. The roles (fur, inner ears, a shell) are
+ * drawn in their own palette entries holding the original colour; a colour option swaps them. */
+#define PET_CHAR_COUNT ${PET_CAST.length}
+#define PET_COLOUR_COUNT 4
+#define PET_ROLE_MAX ${Math.max(...PET_CAST.map(c => c.roles.length))}
+#define PET_BODY_MAX ${Math.max(...PET_CAST.map(c => c.body.length))}
+typedef struct {
+    const char *name;                   /* "Mint" */
+    uint8_t to[PET_ROLE_MAX];           /* palette index each role takes */
+    uint32_t swatch;                    /* 0xRRGGBB: the fur in this colour, for a picker */
+} pet_colour_t;
+typedef struct {
+    const char *id;                     /* pet_type: "rabbit" */
+    const char *name;                   /* "Biscuit" */
+    uint16_t first_frame, first_pose;
+    uint8_t face_top;                   /* rows below the drawing's top where the 13-row face starts */
+    uint8_t nroles;
+    uint8_t roles[PET_ROLE_MAX];        /* the role palette entries (original colours) */
+    uint8_t nbody;
+    uint8_t body[PET_BODY_MAX];         /* palette entries that are its body (Bath time's mud and soap) */
+    pet_colour_t colours[PET_COLOUR_COUNT];   /* the first is the original */
+} pet_char_t;
+extern const pet_char_t pet_chars[PET_CHAR_COUNT];
 extern const uint16_t pet_room[PET_SCENE_COUNT];  /* bedroom: see the night/dawn lists */
 /* Each room's plain walls and floors (the bedroom's are the same night and day). */
 extern const uint16_t pet_room_walls[PET_SCENE_COUNT];
@@ -311,7 +402,8 @@ ${POSES.map(([n], i) => `    PET_POSE_${n} = ${i},`).join(NL)}
     PET_POSE_COUNT = ${POSES.length}
 } pet_pose_id_t;
 typedef struct { uint16_t body; uint16_t acc[PET_ACC_COUNT]; } pet_pose_t;
-extern const pet_pose_t pet_poses[PET_POSE_COUNT];
+/* Every character's poses, one set after another (pet_chars[].first_pose). */
+extern const pet_pose_t pet_poses[PET_POSE_COUNT * PET_CHAR_COUNT];
 
 /* Playtime rooms (96 x 64 stage cells; plain walls and floors already left out). */
 typedef enum { PET_GAME_DEN, PET_GAME_GARDEN, PET_GAME_BATH, PET_GAME_ROOM_COUNT } pet_game_room_t;
@@ -361,8 +453,14 @@ uint8_t pet_color_index(uint32_t rgb)
     return 0;
 }
 
-const pet_pose_t pet_poses[PET_POSE_COUNT] = {
+const pet_pose_t pet_poses[PET_POSE_COUNT * PET_CHAR_COUNT] = {
 ${poses.map(p => `    { ${p.body}, { ${p.acc.join(', ')} } }, /* ${p.name} */`).join(NL)}
+};
+
+const pet_char_t pet_chars[PET_CHAR_COUNT] = {
+${PET_CAST.map(ch => `    { "${ch.id}", "${ch.name}", ${ch.first_frame}, ${ch.first_pose}, ${ch.face_top}, ${ch.roles.length}, { ${ch.roles.map(r => r.idx).join(', ')} }, ${ch.body.length}, { ${ch.body.join(', ')} }, {
+${ch.colours.map(o => `        { "${o.name}", { ${o.to.join(', ')} }, 0x${o.swatch.slice(1)} },`).join(NL)}
+    } },`).join(NL)}
 };
 
 const uint16_t pet_game_rooms[PET_GAME_ROOM_COUNT] = { ${gameRooms.map(r => r.sprite).join(', ')} };
@@ -372,5 +470,6 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'pet_data.h'), h);
 fs.writeFileSync(path.join(OUT, 'pet_data.c'), c);
 console.log(`poses ${poses.length}, game rooms ${gameRooms.length}`);
+console.log(`characters ${PET_CAST.map(c => c.id).join(', ')}: ${FRAMES_PER_CHAR} frames each`);
 console.log(`clips ${clips.length}, frames ${frames.length}, sprites ${sprites.length}, blob ${(blob.length / 1024).toFixed(0)} KB, palette ${palette.length}`);
 for (const k of clips) console.log(`  ${k.name.padEnd(14)} ${String(k.count).padStart(4)} frames  loop ${k.loop}  ${SCENES[k.scene]}`);

@@ -10,7 +10,7 @@ import { sounds, unlockSounds } from "@/lib/sounds";
 import { speak } from "@/lib/speech";
 
 export interface CircleEvent {
-  type: "task_done" | "chore_done" | "reward_request" | "outfit" | string;
+  type: "task_done" | "chore_done" | "reward_request" | "outfit" | "character" | string;
   child_id?: string;
   task_id?: string;
   reward_id?: string;
@@ -18,6 +18,9 @@ export interface CircleEvent {
   at?: string;
   value?: number;
   outfit?: Record<string, string | null>;
+  /** "character": the child picked a buddy and colour on the device. */
+  pet_type?: string;
+  pet_color?: string;
 }
 
 interface Props {

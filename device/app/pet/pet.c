@@ -109,6 +109,73 @@ pet_activity_t pet_pick_free_time_activity(void)
     return personality.fav[r < 0.5f ? 0 : r < 0.8f ? 1 : 2];
 }
 
+/* ---------------------------------------------------------------- character and colour */
+static int character = 0, colour = 0;
+static uint8_t swap_lut[256];   /* palette index -> index, for the colour chosen */
+static bool lut_ready;
+static void mark_all_dirty(void);
+static void repaint_faces(void);
+
+static void build_lut(void)
+{
+    for (int i = 0; i < 256; i++) swap_lut[i] = (uint8_t)i;
+    const pet_char_t *c = &pet_chars[character];
+    for (int r = 0; r < c->nroles; r++) swap_lut[c->roles[r]] = c->colours[colour].to[r];
+    lut_ready = true;
+}
+
+void pet_set_character(int ch, int col)
+{
+    if (ch < 0 || ch >= PET_CHAR_COUNT) ch = 0;
+    if (col < 0 || col >= PET_COLOUR_COUNT) col = 0;
+    character = ch;
+    colour = col;
+    build_lut();
+    mark_all_dirty();
+    repaint_faces();
+}
+void pet_get_character(int *ch, int *col)
+{
+    if (ch) *ch = character;
+    if (col) *col = colour;
+}
+int pet_char_by_id(const char *id)
+{
+    if (!id) return -1;
+    for (int i = 0; i < PET_CHAR_COUNT; i++) if (strcmp(pet_chars[i].id, id) == 0) return i;
+    return -1;
+}
+static bool same_word(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++) {
+        char x = *a, y = *b;
+        if (x >= 'A' && x <= 'Z') x = (char)(x + 32);
+        if (y >= 'A' && y <= 'Z') y = (char)(y + 32);
+        if (x != y) return false;
+    }
+    return *a == *b;
+}
+int pet_colour_by_name(int ch, const char *name)
+{
+    if (!name || !*name || ch < 0 || ch >= PET_CHAR_COUNT) return 0;
+    for (int i = 0; i < PET_COLOUR_COUNT; i++) if (same_word(pet_chars[ch].colours[i].name, name)) return i;
+    return 0;
+}
+const pet_frame_t *pet_frame_of(int frame) { return &pet_frames[pet_chars[character].first_frame + frame]; }
+const uint16_t *pet_frame_outfit_of(int frame) { return pet_frame_outfit[pet_chars[character].first_frame + frame]; }
+const pet_pose_t *pet_pose_of(pet_pose_id_t pose) { return &pet_poses[pet_chars[character].first_pose + pose]; }
+void pet_apply_colour(uint8_t *grid, int n)
+{
+    if (!lut_ready) build_lut();
+    for (int i = 0; i < n; i++) grid[i] = swap_lut[grid[i]];
+}
+bool pet_is_body(uint8_t idx)
+{
+    const pet_char_t *c = &pet_chars[character];
+    for (int i = 0; i < c->nbody; i++) if (c->body[i] == idx) return true;
+    return false;
+}
+
 /* ---------------------------------------------------------------- outfit */
 static int outfit[3] = { -1, -1, -1 }; /* head, face, neck */
 
@@ -314,12 +381,13 @@ static void render(pet_t *p)
     }
 
     memset(g_body, 0, sizeof g_body);
-    blit(g_body, pet_frames[gframe].body);
+    blit(g_body, pet_frame_of(gframe)->body);
     static const int LAYER[3] = { 2, 1, 0 }; /* neck, then face, then head */
     for (int k = 0; k < 3; k++) {
         int acc = outfit[LAYER[k]];
-        if (acc >= 0 && acc < PET_ACC_COUNT && pet_acc_slot[acc] == LAYER[k]) blit(g_body, pet_frame_outfit[gframe][acc]);
+        if (acc >= 0 && acc < PET_ACC_COUNT && pet_acc_slot[acc] == LAYER[k]) blit(g_body, pet_frame_outfit_of(gframe)[acc]);
     }
+    pet_apply_colour(g_body, GRID);
     /* where he stands: the lowest row of his body, for landings and his paws */
     int bottom = -1, l = PET_CROP_W, r = -1;
     for (int y = PET_CROP_H - 1; y >= 0 && bottom < 0; y--)
@@ -334,7 +402,7 @@ static void render(pet_t *p)
 
     bool celebrate = p->playing == PET_CLIP_CELEBRATE;
     memset(g_fx, 0, sizeof g_fx);
-    if (!celebrate) blit(g_fx, pet_frames[gframe].fx);
+    if (!celebrate) blit(g_fx, pet_frame_of(gframe)->fx);
 
     led_args_t a = {
         .buf = p->buf, .d = p->d, .pitch = p->look.pitch,
@@ -351,6 +419,11 @@ static void render(pet_t *p)
 }
 
 void pet_set_on_land(void (*cb)(lv_obj_t *, void *), void *user) { land_cb = cb; land_user = user; }
+
+static void mark_all_dirty(void)
+{
+    for (pet_t *p = pets; p; p = p->next) p->dirty = true;
+}
 
 
 /* ---------------------------------------------------------------- the clock */
@@ -547,40 +620,96 @@ void pet_set_size(lv_obj_t *obj, int32_t diameter)
 }
 
 /* ---------------------------------------------------------------- the face */
-static void face_delete(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_event_get_target(e))); }
+/* The small faces (the Play tab, the wheel's hub) keep up with the character the child picks;
+ * the picker's own tiles show a fixed character and colour. */
+typedef struct face {
+    lv_obj_t *cv;
+    uint16_t *buf;
+    int cell, ch, col;
+    lv_color_t bg;
+    bool follow;
+    struct face *next;
+} face_t;
+static face_t *faces;
 
-lv_obj_t *pet_face_create(lv_obj_t *parent, int cell, lv_color_t bg)
+static void face_paint(face_t *fc)
 {
+    int ch = fc->follow ? character : fc->ch, col = fc->follow ? colour : fc->col;
+    const pet_char_t *c = &pet_chars[ch];
     /* the Wave clip faces the child and smiles on frame 8 */
-    const pet_frame_t *f = &pet_frames[pet_clips[PET_CLIP_WAVE].first + 8];
+    const pet_frame_t *f = &pet_frames[c->first_frame + pet_clips[PET_CLIP_WAVE].first + 8];
     memset(g_body, 0, sizeof g_body);
     blit(g_body, f->body);
+    uint8_t lut[256];
+    for (int i = 0; i < 256; i++) lut[i] = (uint8_t)i;
+    for (int r = 0; r < c->nroles; r++) lut[c->roles[r]] = c->colours[col].to[r];
+    for (int i = 0; i < GRID; i++) g_body[i] = lut[g_body[i]];
     int x0 = PET_CROP_W, x1 = -1, y0 = PET_CROP_H;
     for (int y = 0; y < PET_CROP_H; y++)
         for (int x = 0; x < PET_CROP_W; x++)
             if (g_body[y * PET_CROP_W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; }
-    /* the head: from the ears' inner colour down to the chin (13 rows), as in the Figma hub */
-    const int top = y0 + 9, rows = 13;
+    /* the head: Biscuit's from the ears' inner colour down to the chin (13 rows), as in the Figma hub;
+     * each character says where its own starts */
+    const int top = y0 + c->face_top, rows = 13;
     int cols = x1 - x0 + 1;
     if (cols > 24) cols = 24;
-    int w = cols * cell, h = rows * cell;
-    uint16_t *buf = lv_malloc((size_t)w * h * 2);
-    uint16_t bg565 = lv_color_to_u16(bg);
-    for (int i = 0; i < w * h; i++) buf[i] = bg565;
+    int w = cols * fc->cell, h = rows * fc->cell;
+    lv_free(fc->buf);
+    fc->buf = lv_malloc((size_t)w * h * 2);
+    uint16_t bg565 = lv_color_to_u16(fc->bg);
+    for (int i = 0; i < w * h; i++) fc->buf[i] = bg565;
     for (int y = 0; y < rows; y++)
         for (int x = 0; x < cols; x++) {
-            uint8_t c = g_body[(top + y) * PET_CROP_W + x0 + x];
-            if (!c) continue;
-            uint16_t v = rgb565(pet_palette[c]);
-            for (int dy = 0; dy < cell; dy++)
-                for (int dx = 0; dx < cell; dx++) buf[(y * cell + dy) * w + x * cell + dx] = v;
+            uint8_t cc = g_body[(top + y) * PET_CROP_W + x0 + x];
+            if (!cc) continue;
+            uint16_t v = rgb565(pet_palette[cc]);
+            for (int dy = 0; dy < fc->cell; dy++)
+                for (int dx = 0; dx < fc->cell; dx++) fc->buf[(y * fc->cell + dy) * w + x * fc->cell + dx] = v;
         }
-    lv_obj_t *cv = lv_canvas_create(parent);
-    lv_canvas_set_buffer(cv, buf, w, h, LV_COLOR_FORMAT_RGB565);
-    lv_obj_set_user_data(cv, buf);
-    lv_obj_add_event_cb(cv, face_delete, LV_EVENT_DELETE, NULL);
-    lv_obj_remove_flag(cv, LV_OBJ_FLAG_CLICKABLE);
-    return cv;
+    lv_canvas_set_buffer(fc->cv, fc->buf, w, h, LV_COLOR_FORMAT_RGB565);
+    lv_obj_invalidate(fc->cv);
+}
+
+static void face_delete(lv_event_t *e)
+{
+    face_t *fc = lv_event_get_user_data(e);
+    for (face_t **pp = &faces; *pp; pp = &(*pp)->next) if (*pp == fc) { *pp = fc->next; break; }
+    lv_free(fc->buf);
+    lv_free(fc);
+}
+
+static void repaint_faces(void)
+{
+    for (face_t *fc = faces; fc; fc = fc->next) if (fc->follow) face_paint(fc);
+}
+
+static lv_obj_t *face_create(lv_obj_t *parent, int ch, int col, bool follow, int cell, lv_color_t bg)
+{
+    if (ch < 0 || ch >= PET_CHAR_COUNT) ch = 0;
+    if (col < 0 || col >= PET_COLOUR_COUNT) col = 0;
+    face_t *fc = lv_malloc_zeroed(sizeof(face_t));
+    fc->cv = lv_canvas_create(parent);
+    fc->cell = cell;
+    fc->ch = ch;
+    fc->col = col;
+    fc->bg = bg;
+    fc->follow = follow;
+    fc->next = faces;
+    faces = fc;
+    face_paint(fc);
+    lv_obj_add_event_cb(fc->cv, face_delete, LV_EVENT_DELETE, fc);
+    lv_obj_remove_flag(fc->cv, LV_OBJ_FLAG_CLICKABLE);
+    return fc->cv;
+}
+
+lv_obj_t *pet_face_create(lv_obj_t *parent, int cell, lv_color_t bg)
+{
+    return face_create(parent, character, colour, true, cell, bg);
+}
+
+lv_obj_t *pet_face_create_of(lv_obj_t *parent, int ch, int col, int cell, lv_color_t bg)
+{
+    return face_create(parent, ch, col, false, cell, bg);
 }
 
 void pet_skip_intro(lv_obj_t *obj)

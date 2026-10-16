@@ -541,9 +541,10 @@ static void bt_start(void)
         int ly = k / PGW - PET_POSE_O;
         if (bt_grid[k] && ly <= 30) { bt_flag[k] |= F_VIS; bt.nvis++; }
     }
+    /* the muddy spots are placed for Biscuit; on another character only those on its body */
     for (int i = 0; i < N(MUD); i++) {
         int k = gidx(MUD[i][0], MUD[i][1]);
-        if (bt_flag[k] & F_VIS) { bt_flag[k] |= F_MUD; bt.nmud++; }
+        if ((bt_flag[k] & F_VIS) && pet_is_body(bt_grid[k])) { bt_flag[k] |= F_MUD; bt.nmud++; }
     }
     bt.soap_start = 1;
 }
@@ -717,11 +718,9 @@ static void bt_draw(stage_t *s)
         default: pose = busy ? PET_POSE_F_HAPPY_SMILE : blink ? PET_POSE_F_BLINK_O : PET_POSE_F_O; break;
         }
         stage_pose_cells(pose, bt_grid, false);
-        const uint8_t W = stage_key('W'), O = stage_key('O');
         for (int k = 0; k < PGW * PGH; k++) {
             if (!(bt_flag[k] & F_VIS)) continue;
-            uint8_t base = bt_grid[k];
-            if (base != W && base != O) continue;
+            if (!pet_is_body(bt_grid[k])) continue;
             int x = k % PGW, y = k / PGW;
             if (bt_flag[k] & F_MUD) bt_grid[k] = stage_key((x + y) % 2 ? 'u' : 'U');
             else if (bt_flag[k] & F_SOAP) {

@@ -83,8 +83,34 @@ extern const pet_clip_t pet_clips[PET_CLIP_COUNT];
 extern const char *const pet_clip_names[PET_CLIP_COUNT];
 extern const char *const pet_acc_names[PET_ACC_COUNT];
 extern const uint8_t pet_acc_slot[PET_ACC_COUNT]; /* 0 head, 1 face, 2 neck */
+/* Every character's frames, one set after another: a clip's frame i of character c is
+ * pet_frames[pet_chars[c].first_frame + pet_clips[clip].first + i]. */
 extern const pet_frame_t pet_frames[];
 extern const uint16_t pet_frame_outfit[][PET_ACC_COUNT];
+
+/* The characters a child can have, each in four colours. The roles (fur, inner ears, a shell) are
+ * drawn in their own palette entries holding the original colour; a colour option swaps them. */
+#define PET_CHAR_COUNT 3
+#define PET_COLOUR_COUNT 4
+#define PET_ROLE_MAX 3
+#define PET_BODY_MAX 4
+typedef struct {
+    const char *name;                   /* "Mint" */
+    uint8_t to[PET_ROLE_MAX];           /* palette index each role takes */
+    uint32_t swatch;                    /* 0xRRGGBB: the fur in this colour, for a picker */
+} pet_colour_t;
+typedef struct {
+    const char *id;                     /* pet_type: "rabbit" */
+    const char *name;                   /* "Biscuit" */
+    uint16_t first_frame, first_pose;
+    uint8_t face_top;                   /* rows below the drawing's top where the 13-row face starts */
+    uint8_t nroles;
+    uint8_t roles[PET_ROLE_MAX];        /* the role palette entries (original colours) */
+    uint8_t nbody;
+    uint8_t body[PET_BODY_MAX];         /* palette entries that are its body (Bath time's mud and soap) */
+    pet_colour_t colours[PET_COLOUR_COUNT];   /* the first is the original */
+} pet_char_t;
+extern const pet_char_t pet_chars[PET_CHAR_COUNT];
 extern const uint16_t pet_room[PET_SCENE_COUNT];  /* bedroom: see the night/dawn lists */
 /* Each room's plain walls and floors (the bedroom's are the same night and day). */
 extern const uint16_t pet_room_walls[PET_SCENE_COUNT];
@@ -139,7 +165,8 @@ typedef enum {
     PET_POSE_COUNT = 36
 } pet_pose_id_t;
 typedef struct { uint16_t body; uint16_t acc[PET_ACC_COUNT]; } pet_pose_t;
-extern const pet_pose_t pet_poses[PET_POSE_COUNT];
+/* Every character's poses, one set after another (pet_chars[].first_pose). */
+extern const pet_pose_t pet_poses[PET_POSE_COUNT * PET_CHAR_COUNT];
 
 /* Playtime rooms (96 x 64 stage cells; plain walls and floors already left out). */
 typedef enum { PET_GAME_DEN, PET_GAME_GARDEN, PET_GAME_BATH, PET_GAME_ROOM_COUNT } pet_game_room_t;

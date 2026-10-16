@@ -114,7 +114,8 @@ static uint8_t pose_tmp[PG];
 void stage_pose_cells(pet_pose_id_t pose, uint8_t *grid, bool dressed)
 {
     memset(grid, 0, PG);
-    led_blit(grid, PET_CROP_W, PET_CROP_H, pet_poses[pose].body, 0, 0);
+    const pet_pose_t *ps = pet_pose_of(pose);
+    led_blit(grid, PET_CROP_W, PET_CROP_H, ps->body, 0, 0);
     if (!dressed) return;
     int o[3];
     pet_get_outfit(&o[0], &o[1], &o[2]);
@@ -122,16 +123,18 @@ void stage_pose_cells(pet_pose_id_t pose, uint8_t *grid, bool dressed)
     for (int k = 0; k < 3; k++) {
         int acc = o[LAYER[k]];
         if (acc >= 0 && acc < PET_ACC_COUNT && pet_acc_slot[acc] == LAYER[k])
-            led_blit(grid, PET_CROP_W, PET_CROP_H, pet_poses[pose].acc[acc], 0, 0);
+            led_blit(grid, PET_CROP_W, PET_CROP_H, ps->acc[acc], 0, 0);
     }
 }
 
+/* A cell of the pet, in the child's chosen colour (pet_apply_colour, one cell at a time). */
 static void put_body(stage_t *s, int x, int y, uint8_t c, int clip_below)
 {
     if (clip_below >= 0 && y >= clip_below) return;
     x += ST_OX;
     y += ST_OY;
     if (x < 0 || y < 0 || x >= ST_W || y >= ST_H) return;
+    pet_apply_colour(&c, 1);
     s->body[y * ST_W + x] = c;
 }
 

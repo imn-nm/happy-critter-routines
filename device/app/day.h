@@ -82,6 +82,8 @@ typedef struct {
         char id[40];
         char name[24];
         char pet[16];
+        char character[12];    /* pet_type: rabbit, robot, fox (others draw as the rabbit) */
+        char color[12];        /* pet_color: the colour option's name, or "" for its own */
         bool picture;          /* picture view (under 7) */
         int16_t stars;
         int16_t wake;          /* today's wake-up, minutes */

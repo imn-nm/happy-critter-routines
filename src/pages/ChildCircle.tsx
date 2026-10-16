@@ -2,7 +2,7 @@
  * /child/:childId: the child's day on the MyToki Circle, the round screen
  * of the handheld, running the device firmware in the browser on the real plan.
  * What the child does on it (a task done, a chore, a reward asked for, an
- * outfit) is saved exactly as the list view saves it.
+ * outfit, their buddy) is saved exactly as the list view saves it.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,6 +21,7 @@ import { isRestDate } from "@/utils/restDays";
 import { getPSTDateString } from "@/utils/pstDate";
 import { lockParentMode } from "@/lib/parentLock";
 import type { PetOutfit } from "@/components/pets/pixel/accessories";
+import { resolvePetColour, resolvePetId } from "@/components/pets/petCatalog";
 
 const ChildCircle = () => {
   const { childId } = useParams();
@@ -92,6 +93,9 @@ const ChildCircle = () => {
         await purchaseReward(ev.reward_id, ev.value ?? 0, "pending");
       } else if (ev.type === "outfit" && ev.outfit) {
         await updateChild(child.id, { pet_outfit: ev.outfit as PetOutfit });
+      } else if (ev.type === "character" && ev.pet_type) {
+        const petType = resolvePetId(ev.pet_type);
+        await updateChild(child.id, { petType, pet_color: resolvePetColour(petType, ev.pet_color) });
       }
     } catch (e) {
       console.error("circle:", ev.type, e);

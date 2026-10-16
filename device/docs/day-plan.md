@@ -27,7 +27,9 @@ Examples: `platform/sim/web/demo/*.json`.
   "child": {
     "id": "uuid",                    // also seeds Biscuit's personality (personality.ts)
     "name": "Amira",
-    "pet": "Biscuit",
+    "pet": "Biscuit",                // the character's name
+    "character": "rabbit",           // pet_type: rabbit | robot | fox (others draw as the rabbit for now)
+    "color": "cocoa",                // pet_color: one of the character's colour names, or "" for its own
     "picture": false,                // picture view (display_mode, or under 7)
     "stars": 41,                     // current_coins; asked-for rewards are taken off on the device
     "wake": "07:00",                 // today's wake-up (the Wake Up row wins if there is one)
@@ -84,6 +86,7 @@ Examples: `platform/sim/web/demo/*.json`.
 | `chore_done` | `task_id`, `date`, `at` | `markChoreDone` |
 | `reward_request` | `reward_id`, `value` (cost) | `purchaseReward(..., "pending")` → `reward_purchases` |
 | `outfit` | `outfit: {head, face, neck}` | `updateChild({ pet_outfit })` |
+| `character` | `pet_type`, `pet_color` ("" for the original) | `updateChild({ petType, pet_color })`: My buddy in Playtime |
 | `task_start` | `task_id`, `date`, `at` | `useTaskSessions.startSession(id, "start")`: the button on a task that waits for it |
 | `next_now` | `task_id`, `date`, `at` | `useTaskSessions.startSession(id, "next_now")`: finished early, the next task starts now |
 

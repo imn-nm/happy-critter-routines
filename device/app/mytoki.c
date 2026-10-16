@@ -1407,6 +1407,19 @@ void mytoki_day_received(const char *json, size_t len)
         }
     }
     pet_set_outfit(head, face, neck);
+    /* the child's character and colour; a choice made here stays until the plan has it */
+    int ch = pet_char_by_id(p->child.character);
+    if (ch < 0) ch = 0;   /* a character the device does not draw yet shows as Biscuit */
+    int col = pet_colour_by_name(ch, p->child.color);
+    if (hal_store_get("character", kept, sizeof kept)) {
+        int c = -1, k = -1;
+        if (sscanf(kept, "%d,%d", &c, &k) == 2) {
+            if (c == ch && k == col) hal_store_set("character", "");
+            else if (kept[0] && c >= 0 && c < PET_CHAR_COUNT) { ch = c; col = k; }
+        }
+    }
+    pet_set_character(ch, col);
+    snprintf(p->child.pet, sizeof p->child.pet, "%s", pet_chars[ch].name);
     home_set_wheel((const char (*)[20])p->wheel, p->nwheel);
     hal_store_set("name", p->child.name);
     if (system_showing() == SYS_SCREEN_PAIRING) {
@@ -1581,6 +1594,22 @@ static void on_outfit(void)
     hal_store_set("outfit", keep);
 }
 
+/* My buddy: the child picked a character or colour. Tell the server, and keep it here until the
+ * plan has it. */
+static void on_character(void)
+{
+    int ch, col;
+    pet_get_character(&ch, &col);
+    snprintf(app.plan->child.pet, sizeof app.plan->child.pet, "%s", pet_chars[ch].name);
+    char json[200];
+    snprintf(json, sizeof json, "{\"type\":\"character\",\"child_id\":\"%s\",\"pet_type\":\"%s\",\"pet_color\":\"%s\"}",
+             app.plan->child.id, pet_chars[ch].id, col ? pet_chars[ch].colours[col].name : "");
+    hal_send(json);
+    char keep[16];
+    snprintf(keep, sizeof keep, "%d,%d", ch, col);
+    hal_store_set("character", keep);
+}
+
 /* Free time with more than the five get-ready minutes left: the games. */
 void mytoki_open_playtime(void)
 {
@@ -1591,6 +1620,6 @@ void mytoki_open_playtime(void)
     const day_task_t *nx = app.now.nupcoming ? &app.plan->tasks[app.now.upcoming[0]] : NULL;
     char at[8] = "";
     if (nx) ui_fmt_time(at, sizeof at, nx->event ? nx->event_start : app.now.start[app.now.upcoming[0]]);
-    play_open(left, nx ? nx->title : "", nx ? nx->icon : "", at, app.plan->child.pet, on_outfit);
+    play_open(left, nx ? nx->title : "", nx ? nx->icon : "", at, app.plan->child.pet, on_outfit, on_character);
     if (app.state == ST_FREE) play_set_time_total(app.now.free_total - GET_READY_S);
 }

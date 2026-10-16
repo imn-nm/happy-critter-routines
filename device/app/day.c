@@ -65,6 +65,8 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
     copy(p->child.id, sizeof p->child.id, child, "id");
     copy(p->child.name, sizeof p->child.name, child, "name");
     copy(p->child.pet, sizeof p->child.pet, child, "pet");
+    copy(p->child.character, sizeof p->child.character, child, "character");
+    copy(p->child.color, sizeof p->child.color, child, "color");
     if (!p->child.pet[0]) strcpy(p->child.pet, "Biscuit");
     p->child.picture = flag(child, "picture");
     p->child.stars = (int16_t)num(child, "stars", 0);

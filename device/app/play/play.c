@@ -27,6 +27,8 @@ static const struct { const char *title, *label, *icon; int32_t x, y; int page; 
     [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 312, 126, 1 },
 };
 static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = { { "Play with %s", "kite" }, { "Move with %s", "move" } };
+/* "My buddy" on the second page, under the motion games: which character and colour. */
+static const struct { const char *label, *icon; int32_t x, y; } BUDDY_TILE = { "My buddy", "heart", 184, 250 };
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
@@ -42,6 +44,9 @@ static struct {
     lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
+    lv_obj_t *buddy_tile, *buddy_pet;   /* the picker: its tile, and the pet trying colours on */
+    bool buddy;
+    play_character_cb_t on_character;
     header_t head;
     char left_text[16];
     uint16_t *buf;
@@ -212,6 +217,110 @@ static void dressup_controls(void)
     if (worn_item) lv_obj_scroll_to_view(worn_item, LV_ANIM_OFF);
 }
 
+/* ---------------------------------------------------------------- my buddy */
+static lv_obj_t *pick_tile(lv_obj_t *parent, int32_t x, int32_t y, bool on)
+{
+    lv_obj_t *b = ui_box(parent);
+    lv_obj_set_size(b, 52, 48);
+    lv_obj_set_pos(b, x, y);
+    if (on) {
+        lv_obj_set_style_radius(b, 15, 0);
+        lv_obj_set_style_border_width(b, 2, 0);
+        lv_obj_set_style_border_color(b, COL(C_LIME), 0);
+        lv_obj_set_style_border_opa(b, LV_OPA_COVER, 0);
+    } else {
+        ui_style_card(b, C_GLASS, 15, C_LINE, LV_OPA_COVER);
+    }
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
+    return b;
+}
+
+static void buddy_changed(int ch, int col)
+{
+    pet_set_character(ch, col);
+    snprintf(pl.pet, sizeof pl.pet, "%s", pet_chars[ch].name);
+    if (pl.on_character) pl.on_character();
+    if (pl.buddy_pet) pet_react(pl.buddy_pet, PET_CLIP_WAVE);
+    pl.sig[0] = 0;
+    hal_play(HAL_SOUND_TICK);
+}
+
+static void on_buddy_char(lv_event_t *e)
+{
+    int ch = (int)(intptr_t)lv_event_get_user_data(e), cur, col;
+    pet_get_character(&cur, &col);
+    if (ch == cur) return;
+    buddy_changed(ch, 0);   /* a new character starts in its own colours */
+}
+
+static void on_buddy_colour(lv_event_t *e)
+{
+    int col = (int)(intptr_t)lv_event_get_user_data(e), ch, cur;
+    pet_get_character(&ch, &cur);
+    if (col == cur) return;
+    buddy_changed(ch, col);
+}
+
+/* The characters in a row (each one's face), then the chosen one's four colours (its fur). */
+static void buddy_controls(void)
+{
+    int ch, col;
+    pet_get_character(&ch, &col);
+    char sig[32];
+    snprintf(sig, sizeof sig, "buddy%d,%d", ch, col);
+    if (!strcmp(sig, pl.sig)) return;
+    strcpy(pl.sig, sig);
+    lv_obj_clean(pl.bottom);
+    const int32_t x0 = (SCREEN_W - (PET_CHAR_COUNT * 52 + (PET_CHAR_COUNT - 1) * 12)) / 2;
+    for (int i = 0; i < PET_CHAR_COUNT; i++) {
+        lv_obj_t *b = pick_tile(pl.bottom, x0 + i * 64, 0, i == ch);
+        lv_obj_add_event_cb(b, on_buddy_char, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_t *face = pet_face_create_of(b, i, i == ch ? col : 0, 2, COL(i == ch ? C_INK : C_GLASS));
+        lv_obj_center(face);
+        lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
+    }
+    const int32_t x1 = (SCREEN_W - (PET_COLOUR_COUNT * 52 + (PET_COLOUR_COUNT - 1) * 12)) / 2;
+    for (int i = 0; i < PET_COLOUR_COUNT; i++) {
+        lv_obj_t *b = pick_tile(pl.bottom, x1 + i * 64, 54, i == col);
+        lv_obj_add_event_cb(b, on_buddy_colour, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_t *dot = ui_box(b);
+        lv_obj_set_size(dot, 26, 26);
+        lv_obj_center(dot);
+        lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(dot, lv_color_hex(pet_chars[ch].colours[i].swatch), 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+        lv_obj_add_flag(dot, LV_OBJ_FLAG_EVENT_BUBBLE);
+    }
+}
+
+static void buddy_close(void)
+{
+    if (!pl.buddy) return;
+    pl.buddy = false;
+    if (pl.buddy_pet) { lv_obj_delete(pl.buddy_pet); pl.buddy_pet = NULL; }
+}
+
+static void on_buddy(lv_event_t *e)
+{
+    (void)e;
+    pl.buddy = true;
+    pl.sig[0] = 0;
+    ui_show(pl.menu, false);
+    /* the pet in its room, trying each choice on at once */
+    pl.buddy_pet = pet_create(pl.root, SCREEN_W);
+    lv_obj_set_pos(pl.buddy_pet, 0, 0);
+    lv_obj_move_to_index(pl.buddy_pet, 0);
+    pet_set_mood(pl.buddy_pet, PET_MOOD_HAPPY);
+    ui_show(pl.shade_top, true);
+    ui_show(pl.shade_low, true);
+    ui_show(pl.bottom, true);
+    buddy_controls();
+    set_header("heart", "Choose your buddy");
+    hal_play(HAL_SOUND_TICK);
+}
+
 /* Biscuit says: the move he is calling, as a cream row (Biscuit speaks): the icon and the word. */
 static lv_obj_t *cue_row(lv_obj_t *parent, const char *icon, const char *word)
 {
@@ -278,6 +387,7 @@ static void game_controls(void)
 static void on_game(lv_event_t *e)
 {
     game_id_t g = (game_id_t)(intptr_t)lv_event_get_user_data(e);
+    buddy_close();
     pl.in_game = true;
     pl.sig[0] = 0;
     pl.slot = 0;
@@ -299,6 +409,7 @@ static void menu_page(int page)
 {
     pl.page = page;
     for (int g = 0; g < GAME_COUNT; g++) if (pl.circle[g]) ui_show(pl.circle[g], MENU[g].page == page);
+    if (pl.buddy_tile) ui_show(pl.buddy_tile, page == MENU_PAGES - 1);
     ui_show(pl.chev_r, page < MENU_PAGES - 1);
     ui_show(pl.chev_l, page > 0);
     fx_spring_children(pl.menu, 50);
@@ -318,6 +429,7 @@ static void on_chevron(lv_event_t *e)
 
 static void open_menu(void)
 {
+    buddy_close();
     pl.in_game = false;
     pl.sig[0] = 0;
     lv_obj_clean(pl.bottom);
@@ -346,7 +458,7 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
         if (start.y > 100 && start.y < 330) return false;
     }
     if (!commit) return true;
-    if (pl.in_game && !pl.see_you) { open_menu(); return true; }
+    if ((pl.in_game || pl.buddy) && !pl.see_you) { open_menu(); return true; }
     if (!pl.see_you) {
         if (dir == SWIPE_LEFT) { if (pl.page < MENU_PAGES - 1) { menu_page(pl.page + 1); hal_play(HAL_SOUND_TICK); } return true; }
         if (pl.page > 0) { menu_page(pl.page - 1); hal_play(HAL_SOUND_TICK); return true; }
@@ -379,6 +491,8 @@ static void see_you_later(void)
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
     pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = pl.timer = NULL;
+    pl.buddy_tile = pl.buddy_pet = NULL;
+    pl.buddy = false;
     pl.head.root = NULL;
     pl.chev_l = pl.chev_r = NULL;
     memset(pl.circle, 0, sizeof pl.circle);
@@ -417,6 +531,7 @@ static void step(lv_timer_t *t)
         return;
     }
     pl.t += STEP_MS;
+    if (pl.buddy) { buddy_controls(); return; }
     if (!pl.in_game) return; /* the menu's Biscuit draws himself */
     game_update(STEP_MS);
     game_controls();
@@ -467,11 +582,13 @@ static void close_sliding(int dir)
     if (root) overlay_slide_away(root, dir);
 }
 
-void play_open(int32_t seconds_left, const char *next_title, const char *next_icon, const char *next_time, const char *pet_name, play_outfit_cb_t on_outfit)
+void play_open(int32_t seconds_left, const char *next_title, const char *next_icon, const char *next_time, const char *pet_name,
+               play_outfit_cb_t on_outfit, play_character_cb_t on_character)
 {
     if (pl.root) return;
     memset(&pl, 0, sizeof pl);
     pl.on_outfit = on_outfit;
+    pl.on_character = on_character;
     snprintf(pl.next, sizeof pl.next, "%s", next_title ? next_title : "");
     snprintf(pl.next_icon, sizeof pl.next_icon, "%s", next_icon ? next_icon : "");
     snprintf(pl.next_time, sizeof pl.next_time, "%s", next_time ? next_time : "");
@@ -519,6 +636,30 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
+    }
+    /* "My buddy": the same tile as a game, on the last page */
+    {
+        lv_obj_t *t = ui_box(pl.menu);
+        pl.buddy_tile = t;
+        lv_obj_set_size(t, 140, 122);
+        lv_obj_set_pos(t, BUDDY_TILE.x - 21, BUDDY_TILE.y);
+        lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(t, on_buddy, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *b = ui_box(t);
+        lv_obj_set_size(b, 88, 88);
+        lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 0);
+        ui_style_card(b, C_RAISED, LV_RADIUS_CIRCLE, C_CHIP, LV_OPA_COVER);
+        lv_obj_set_style_border_width(b, 2, 0);
+        lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
+        lv_obj_t *ic = ui_icon(b, BUDDY_TILE.icon, 36, C_LIME);
+        lv_obj_center(ic);
+        if (!picture) {
+            lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, BUDDY_TILE.label);
+            lv_obj_set_size(l, 140, lv_font_get_line_height(F_LABEL));
+            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
+        }
     }
     /* small chevrons at the rim, between the rows, pointing at the other page */
     for (int i = 0; i < 2; i++) {
