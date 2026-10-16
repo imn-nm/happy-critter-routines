@@ -28,6 +28,7 @@
 #define REFRESH_MS (5 * 60 * 1000)
 #define OFFLINE_RETRY_MS 15000
 #define DONE_HOLD_MS 3000
+#define DONE_OFFER_MS 5000         /* done early: "Press for Homework" while the ring at the button shrinks */
 #define SAY_MS 7000
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
@@ -43,7 +44,7 @@
 
 typedef enum {
     ST_NONE, ST_SLEEPY, ST_ALARM, ST_SNOOZE, ST_IM_UP, ST_TASK, ST_DONE, ST_EVENT_PREP, ST_EVENT_READY,
-    ST_EVENT, ST_SCHOOL_OFF, ST_SCHOOL, ST_WELCOME, ST_FREE, ST_WAITING, ST_BED_SOON, ST_BEDTIME,
+    ST_EVENT, ST_SCHOOL_OFF, ST_SCHOOL, ST_WELCOME, ST_FREE, ST_WAITING, ST_WAIT_START, ST_BED_SOON, ST_BEDTIME,
     ST_DAY_OVER, ST_ALL_DONE, ST_FREE_DAY, ST_REST,
 } state_t;
 
@@ -60,6 +61,9 @@ static struct {
     int done_task;
     uint32_t done_until;
     int32_t done_press_s;   /* when the button finished it (the 3 s cheer comes after) */
+    int done_saved;         /* minutes saved by finishing early */
+    int done_next;          /* the task a press pulls forward during the cheer, or -1 */
+    uint32_t done_hold;     /* how long the cheer lasts (ms) */
     int ready_task;
     uint32_t ready_until;
     char say[48], say_key[64];
@@ -598,6 +602,7 @@ static state_t derive(void)
             }
             return ST_EVENT;
         }
+        if (n->waiting[n->current]) return ST_WAIT_START;
         return ST_TASK;
     }
     if (n->before_wake) return ST_SLEEPY;
@@ -753,6 +758,15 @@ static void build_view(home_view_t *v)
                 : act == PET_ACT_SLEEPING ? PET_MOOD_SLEEP : n->drowsy ? PET_MOOD_DROWSY : PET_MOOD_HAPPY;
         v->activity = act;
         v->cue = !t->fun;
+        if (v->cue) snprintf(v->cue_text, sizeof v->cue_text, "Press when done");
+        if (n->paused >= 0) {
+            char low[48];
+            sentence(low, sizeof low, p->tasks[n->paused].title);
+            snprintf(buf, sizeof buf, "paused:%s", p->tasks[n->paused].id);
+            char line[48];
+            snprintf(line, sizeof line, "%s after this!", low);
+            say(buf, line, 600000);
+        }
         if (n->overdue) {
             v->late_chip = true;
             v->icon_color = C_CORAL;
@@ -779,6 +793,10 @@ static void build_view(home_view_t *v)
             snprintf(v->status_icon, sizeof v->status_icon, "timer");
             v->status_color = C_LIME;
             int32_t total = (t->end - n->start[app.focus]) * 60, rem = t->end * 60 - app.now_s;
+            if (n->run_start[app.focus] >= 0) {   /* started by the button: its own full length from the press */
+                total = (t->end - t->start) * 60;
+                rem = logic_run_remaining(n, p, app.focus, app.now_s);
+            }
             v->ring = ring_style(frac60(rem, total), C_LIME, C_DOT_OFF);
             if (left <= 5) {   /* almost over (Figma): the room goes dark, the ring dims with a coral rim, the pill turns amber */
                 v->status_color = C_BUTTER;
@@ -812,14 +830,55 @@ static void build_view(home_view_t *v)
         } else if (v->room_off) app.say[0] = 0;
         break;
     }
-    case ST_DONE:
+    case ST_DONE: {
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
-        snprintf(v->status, sizeof v->status, "Done!");
+        if (app.done_saved > 0) snprintf(v->status, sizeof v->status, "Done! %d min saved", app.done_saved);
+        else snprintf(v->status, sizeof v->status, "Done!");
         v->status_color = C_MINT;
         v->force_clip = PET_CLIP_CELEBRATE;
+        /* done early: the next task can start now; a press before the ring is gone pulls it forward */
+        if (app.done_next >= 0 && logic_can_pull(p, app.done_next, app.now_s)) {
+            int32_t left = (int32_t)(app.done_until - now_ms());
+            v->cue = true;
+            v->cue_ring = (uint8_t)(left <= 0 ? 1 : left >= (int32_t)app.done_hold ? 100 : 1 + left * 99 / (int32_t)app.done_hold);
+            snprintf(v->cue_text, sizeof v->cue_text, "Press for %s", p->tasks[app.done_next].title);
+            snprintf(v->cue_sub, sizeof v->cue_sub, "or play");
+            next_from(v, app.done_next);
+        } else next_from(v, -1);
+        break;
+    }
+    case ST_WAIT_START: {
+        /* waiting for the button: the ring full and still, the full length ahead (Figma: Waiting) */
+        snprintf(v->icon, sizeof v->icon, "%s", t->icon);
+        snprintf(v->title, sizeof v->title, "%s", t->title);
+        v->below = BELOW_TIME;
+        snprintf(v->status, sizeof v->status, "%d min Â· waiting", t->end - t->start);
+        snprintf(v->status_icon, sizeof v->status_icon, "clock");
+        v->status_color = C_BUTTER;
+        v->ring = ring_style(60, C_LIME, C_DOT_OFF);
+        v->mood = PET_MOOD_HAPPY;
+        v->force_clip = PET_CLIP_CURIOUS;
+        v->cue = true;
+        snprintf(v->cue_text, sizeof v->cue_text, "Press to start");
+        const reserve_t *r = &n->reserve;
+        if (r->free_reserve && r->reserve_remaining < r->reserve_total) {
+            /* the wait is eating the day the way running late does */
+            v->mid = MID_OVERDUE;
+            snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is eating up your free time");
+            v->worm_eaten = (uint8_t)(5 - (r->reserve_remaining * 5 + r->reserve_total - 1) / (r->reserve_total ? r->reserve_total : 1));
+        } else if (!r->free_reserve && r->reserve_task >= 0) {
+            v->mid = MID_OVERDUE;
+            snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is taking time from %s", p->tasks[r->reserve_task].title);
+            v->worm_eaten = 5;
+        }
+        snprintf(buf, sizeof buf, "wait:%s", t->id);
+        char line[64];
+        snprintf(line, sizeof line, "%s is waiting", t->title);
+        say(buf, line, 600000);
         next_from(v, -1);
         break;
+    }
     case ST_EVENT_PREP:
     case ST_EVENT_READY: {
         bool ready = app.state == ST_EVENT_READY;
@@ -859,6 +918,7 @@ static void build_view(home_view_t *v)
         int32_t total = (t->end - t->event_start) * 60, rem = t->end * 60 - app.now_s;
         v->ring = ring_style(frac60(rem, total), C_LIME, C_DOT_OFF);
         v->activity = activity_for(t);
+        v->cue_dark = true;   /* a press does nothing here: the mark is dark, no words */
         if (n->nstill) v->chores_left = (int8_t)(n->nstill > 99 ? 99 : n->nstill);   /* the small pill under Biscuit opens the list */
         snprintf(buf, sizeof buf, "event:%s", t->id);
         char tmp[64];
@@ -878,6 +938,10 @@ static void build_view(home_view_t *v)
         v->ring = ring_style(frac60(rem, total), C_MINT, C_DOT_OFF);
         bool can_play = rem - GET_READY_S > 0;
         const day_task_t *nx = n->nupcoming ? &p->tasks[n->upcoming[0]] : NULL;
+        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s)) {
+            v->cue = true;
+            snprintf(v->cue_text, sizeof v->cue_text, "Press to start %s", nx->title);
+        }
         if (!can_play) {
             /* the last five minutes (Figma "Free time · Last 5 minutes") */
             v->mood = PET_MOOD_EXCITED;
@@ -1122,6 +1186,7 @@ static void speak_state(state_t to)
     case ST_EVENT_PREP: snprintf(line, sizeof line, "Time to get ready for %s!", t->title); hal_speak(line); break;
     case ST_EVENT: snprintf(line, sizeof line, "Time for %s. Have fun!", t->title); hal_speak(line); break;
     case ST_TASK: snprintf(line, sizeof line, "Time for %s!", t->title); hal_speak(line); break;
+    case ST_WAIT_START: snprintf(line, sizeof line, "%s is waiting. Press the button to start.", t->title); hal_speak(line); break;
     case ST_DONE: hal_speak("Yay!"); break;
     default: break;
     }
@@ -1421,11 +1486,59 @@ void mytoki_button(void)
                 break;
             }
         }
-        /* finished: Biscuit cheers for 3 seconds, then it's marked done */
+        /* finished: Biscuit cheers for 3 seconds, then it's marked done. Done early with a next task
+         * that can move: 5 seconds, with the ring at the button, to start it now instead */
         app.done_task = f;
-        app.done_until = now_ms() + DONE_HOLD_MS;
         app.done_press_s = app.now_s;
+        app.done_saved = logic_minutes_left(&app.now, app.plan, f, app.now_s);
+        app.done_next = -1;
+        for (int k = 0; k < app.now.nupcoming; k++) {
+            int nx = app.now.upcoming[k];
+            if (nx == f) continue;
+            if (logic_can_pull(app.plan, nx, app.now_s)) app.done_next = nx;
+            break;
+        }
+        app.done_hold = app.done_saved > 0 && app.done_next >= 0 ? DONE_OFFER_MS : DONE_HOLD_MS;
+        app.done_until = now_ms() + app.done_hold;
         hal_play(HAL_SOUND_DONE);
+        break;
+    }
+    case ST_WAIT_START: {
+        /* Start: its full time runs from this moment */
+        day_task_t *t = &app.plan->tasks[f];
+        if (schedule_is_open()) overlays_close_all();
+        go_page(1, true);
+        t->started_at = app.now_s;
+        send("task_start", "task_id", t->id, 0);
+        hal_play(HAL_SOUND_START);
+        pet_react(home_pet(), PET_CLIP_ENCOURAGE);
+        break;
+    }
+    case ST_DONE: {
+        /* a press before the ring is gone: the next task starts now, the ones behind it move up */
+        if (app.done_next < 0 || !logic_can_pull(app.plan, app.done_next, app.now_s)) return;
+        int nx = app.done_next;
+        char id[40];
+        snprintf(id, sizeof id, "%s", app.plan->tasks[nx].id);
+        finish_task_at(app.done_task, app.done_press_s);
+        app.done_task = -1;
+        app.done_next = -1;
+        logic_pull_forward(app.plan, nx, app.now_s);
+        send("next_now", "task_id", id, 0);
+        hal_play(HAL_SOUND_START);
+        break;
+    }
+    case ST_FREE: {
+        /* free time with a next task that can move: start it now */
+        if (!app.now.nupcoming) return;
+        int nx = app.now.upcoming[0];
+        if (!logic_can_pull(app.plan, nx, app.now_s)) return;
+        if (play_is_open()) return;
+        char id[40];
+        snprintf(id, sizeof id, "%s", app.plan->tasks[nx].id);
+        logic_pull_forward(app.plan, nx, app.now_s);
+        send("next_now", "task_id", id, 0);
+        hal_play(HAL_SOUND_START);
         break;
     }
     case ST_EVENT_PREP: {

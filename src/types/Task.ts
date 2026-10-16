@@ -14,6 +14,8 @@ export interface Task {
   task_date?: string;
   excluded_dates?: string[];
   is_important?: boolean;
+  /** Waits on the child's screen for a Start tap; the timer runs from then. */
+  needs_start?: boolean;
   is_fun_time?: boolean;
   /** Something the child goes to (a game, class): set time, no done button, ends by itself. */
   is_event?: boolean;

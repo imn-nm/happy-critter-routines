@@ -36,6 +36,9 @@ void ring_set_wave(lv_obj_t *ring, bool wave, int8_t drift);
 
 /* ---- the arc at 1 o'clock: the hardware button does something ---- */
 lv_obj_t *cue_create(lv_obj_t *parent);
+/* ring: 0 = the full arc; 1..100 = that much of it left (it shrinks over the five seconds after an early
+ * finish). dark: a press does nothing useful here (an event): the mark is dark, no text. */
+void cue_set(lv_obj_t *cue, uint8_t ring, bool dark);
 
 /* ---- Nav buttons: Rewards (left) and Chores (right), 44 px at (8, 211) and (414, 211) ---- */
 lv_obj_t *side_button_create(lv_obj_t *parent, bool left, const char *icon);

@@ -53,7 +53,10 @@ Examples: `platform/sim/web/demo/*.json`.
       "bedtime_routine": false,      // isBedtimeRoutine: straight to bed when it's done
       "activity": "reading",         // optional: what Biscuit does (activityForTask); else guessed from the title
       "say": "",                     // optional: what Biscuit says
-      "done_at": "07:24"             // first task_completions.completed_at today, if any
+      "done_at": "07:24",            // first task_completions.completed_at today, if any
+      "fixed": false,                // a set-time task: never pulled forward, and it pauses a started task
+      "needs_start": false,          // tasks.needs_start: waits for the button; its timer runs from the press
+      "started_at": "16:12"          // today's task_sessions.started_at for it (Start, or pulled forward with "next now")
     }
   ],
   "chores": [                        // type = floating
@@ -81,6 +84,16 @@ Examples: `platform/sim/web/demo/*.json`.
 | `chore_done` | `task_id`, `date`, `at` | `markChoreDone` |
 | `reward_request` | `reward_id`, `value` (cost) | `purchaseReward(..., "pending")` → `reward_purchases` |
 | `outfit` | `outfit: {head, face, neck}` | `updateChild({ pet_outfit })` |
+| `task_start` | `task_id`, `date`, `at` | `useTaskSessions.startSession(id, "start")`: the button on a task that waits for it |
+| `next_now` | `task_id`, `date`, `at` | `useTaskSessions.startSession(id, "next_now")`: finished early, the next task starts now |
+
+## What the child does with the day (src/utils/liveDay.ts, app/logic.c)
+
+The server applies "next now" pulls to the plan's times (the pulled task and the movable tasks behind it move up, stopping at the next meal, event, bedtime or set-time task; the minutes saved are the gap left before it). The device does the same locally the moment the button is pressed, so the screen never waits for the plan to come back.
+
+A task with `needs_start` waits on the screen ("Press to start") until the button; while it waits the clock still runs, so the wait counts like running late: its full length still has to fit after now, and the reserve is eaten in the usual order (free time, then skip-if-needed, then shorten-if-needed). From the press its full length runs; a meal or event in the way pauses it (that row takes the screen, "Homework after this!") and it carries on after. Nothing moves past bedtime; a task it ran over completely is "didn't get to it" and never becomes current (must-finish tasks stay in play instead).
+
+The button always does what the lime words next to it say: "Press to start" (waiting), "Press when done" (running; steps still tick), "Press for Homework / or play" with the ring shrinking over five seconds (done early, with `N min saved`), "Press to start Homework" (free time with a next task that can move). At an event the mark is dark with no words: a press does nothing.
 
 Every message also carries `child_id`. Step ticks stay on the device, like the web app (localStorage there, NVS here).
 

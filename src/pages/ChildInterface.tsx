@@ -40,6 +40,7 @@ import { ensureSystemTasksExist, getSystemTaskScheduleForDay, isSystemTaskName, 
 import { isBedtimeRoutine, tieDay } from "@/utils/dayTies";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { buildTodaysSchedule } from "@/utils/todaysSchedule";
+import { applyNextNow, applyRunWindows, canPullForward, hhmm as hhmmOf, markMissed, pausedBy, runWindows, runningRemaining, startsByTask, toMin as minOf } from "@/utils/liveDay";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { lockParentMode } from "@/lib/parentLock";
@@ -67,7 +68,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const { t: tMotion } = useMotionPrefs();
   const { children, loading: childrenLoading, loadError: childrenLoadError, refetch: refetchChildren, updateChildHappiness, updateChild } = useChildren();
   const { tasks, completions, completeTask, uncompleteTask, pendingCount, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
-  const { activeSessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
+  const { sessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
 
   const [showSchedule, setShowSchedule] = useState(false);
@@ -98,6 +99,10 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   // stays frozen on this task so the celebration can play out
   // before the schedule advances.
   const [frozenTask, setFrozenTask] = useState<any>(null);
+  // Finished early: the minutes saved, and the next task that can start
+  // now instead of waiting for its time (utils/liveDay).
+  const [earlyOffer, setEarlyOffer] = useState<{ savedMinutes: number; next: { id: string; name: string; icon?: string | null } | null } | null>(null);
+  const earlyTimer = useRef<number | null>(null);
   const [returnGreeting, setReturnGreeting] = useState<{ id: number; text: string } | null>(null);
   const [, setTick] = useState(0);
   const hiddenAtRef = useRef<number | null>(null);
@@ -376,8 +381,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
   // Setup's preview jumps the clock to a time of day: whatever ended before
   // then counts as done, as if the day had gone to plan.
+  // What the child did today: Start taps and "next now" pulls.
+  const startMarks = startsByTask(sessions);
+  const nowMinLive = (() => { const [h, m] = getPSTTimeString().split(':').map(Number); return h * 60 + m; })();
   const plannedSchedule = (() => {
-    const planned = getTodaysSchedule();
+    const planned = applyNextNow(getTodaysSchedule(), startMarks);
     if (!preview) return planned;
     const now = getPSTDate();
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -387,10 +395,14 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       return h * 60 + m + t.duration <= nowMin ? { ...t, isCompleted: true } : t;
     });
   })();
-  const timeReserve = calculateTimeReserve(plannedSchedule, completions, getCurrentTime());
+  // A task waiting for its Start tap, or started, takes its full length from
+  // the press: its window stretches to hold the wait and any meal in the way.
+  const liveWindows = runWindows(plannedSchedule, startMarks, nowMinLive);
+  const liveSchedule = applyRunWindows(plannedSchedule, liveWindows);
+  const timeReserve = calculateTimeReserve(liveSchedule, completions, getCurrentTime());
   // Keep the original end fixed: time given up to a late day delays the start
   // of a task set to "shorten" or "skip if needed" (fun time included).
-  const todaysSchedule = plannedSchedule.map(task => {
+  const todaysSchedule = markMissed(liveSchedule.map(task => {
     const lost = timeReserve.losses[task.id] || 0;
     if (!lost || !task.scheduled_time || !task.duration) return task;
     const [h, m] = task.scheduled_time.split(':').map(Number);
@@ -398,7 +410,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     const start = h * 60 + m + lostMinutes;
     return { ...task, duration: task.duration - lostMinutes,
       scheduled_time: `${Math.floor(start / 60).toString().padStart(2, '0')}:${Math.floor(start % 60).toString().padStart(2, '0')}` };
-  });
+  }), liveWindows);
 
   // Today's wake-up time, per-day changes included. The profile's wake_time
   // is only the default: a 9:00 Saturday must not wake the rabbit at 7.
@@ -502,7 +514,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
 
     // Exclude floating/chore tasks — they're rendered separately as chore
     // tiles via getActiveWindowChores() and should never become the "active" task.
-    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted && t.type !== 'floating');
+    const incompleteTasks = todaysSchedule.filter(t => !t.isCompleted && t.type !== 'floating' && !t.missed);
 
     let current: (typeof incompleteTasks)[0] | null = null;
     const upcoming: typeof incompleteTasks = [];
@@ -541,6 +553,19 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         if (!current && !freeTimeUntil) {
           freeTimeUntil = taskTime;
         }
+      }
+    }
+
+    // A started (or waiting) task stops for a meal or event: that row takes
+    // the screen and the task carries on after it.
+    if (current && liveWindows.has(current.id)) {
+      const pauser = pausedBy(liveWindows.get(current.id), nowMinutes);
+      const row = pauser ? upcoming.find(t => t.id === pauser) : undefined;
+      if (row) {
+        const paused = current;
+        current = row;
+        upcoming.splice(upcoming.indexOf(row), 1);
+        upcoming.unshift(paused);
       }
     }
 
@@ -740,8 +765,15 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   // Is the current active task overdue — its scheduled window has fully passed
   // but it's still in play (only important tasks reach this state; others
   // auto-advance to the next task).
+  const secondsOfNow = () => {
+    const now = getCurrentTime();
+    return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  };
+  const activeLive = activeTask ? liveWindows.get(activeTask.id) : undefined;
   const isActiveTaskOverdue = () => {
     if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return false;
+    // Started by the child: over once its full length has run (pauses aside).
+    if (activeLive) return !activeLive.waiting && runningRemaining(activeLive, secondsOfNow()) < 0;
     const nowStr = getPSTTimeString();
     const [h, m] = activeTask.scheduled_time.split(':').map(Number);
     const endMin = h * 60 + m + activeTask.duration;
@@ -754,6 +786,12 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   // child sees the shrinking free-time window visually.
   const getActiveTaskRemainingTime = () => {
     if (!activeTask || !activeTask.scheduled_time || !activeTask.duration) return 0;
+    if (activeLive) {
+      // Waiting: the whole length is still ahead. Started: it runs from the press.
+      if (activeLive.waiting) return (activeLive.plannedEnd - activeLive.plannedStart) * 60;
+      const seconds = Math.floor(runningRemaining(activeLive, secondsOfNow()));
+      return activeTask.is_important ? seconds : Math.max(0, seconds);
+    }
 
     const currentTime = getCurrentTime();
     const [taskHours, taskMinutes] = activeTask.scheduled_time.split(':').map(Number);
@@ -790,15 +828,59 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
     // Freeze the current task on screen while the pet celebrates, then
     // advance. Kept short — a long hold made the child wait on a static
     // screen before the next task appeared.
-    const CELEBRATE_MS = 3000;
+    // Done early with a next task that can move: the saved minutes are theirs
+    // as free time, or the next task can start right now (utils/liveDay).
+    const savedMinutes = Math.max(0, Math.floor(getActiveTaskRemainingTime() / 60));
+    const next = upcomingTasks[0];
+    const offerNext = !!next && savedMinutes >= 1 && !isBedtimeRow(next.name)
+      && canPullForward(next, startMarks) && minOf(next.scheduled_time) > nowMinLive;
+    const offer = savedMinutes >= 1 ? { savedMinutes, next: offerNext ? next : null } : null;
+    setEarlyOffer(offer);
+    const CELEBRATE_MS = offerNext ? 8000 : 3000;
     setFrozenTask(activeTask);
     setPetCelebrating(true);
-    setTimeout(() => {
+    if (earlyTimer.current) window.clearTimeout(earlyTimer.current);
+    earlyTimer.current = window.setTimeout(() => {
       setPetCelebrating(false);
       setFrozenTask(null);
+      setEarlyOffer(null);
     }, CELEBRATE_MS);
 
     await markDone(activeTask);
+    const session = getActiveSessionForTask(activeTask.id);
+    if (session) endSession(session.id, Math.max(0, Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000))).catch(() => undefined);
+  };
+
+  /** "Next now": the next task starts this minute and the ones behind it move up (utils/liveDay). */
+  const startNextNow = async (task: { id: string }) => {
+    if (earlyTimer.current) window.clearTimeout(earlyTimer.current);
+    setEarlyOffer(null);
+    setFrozenTask(null);
+    setPetCelebrating(false);
+    try {
+      sounds.start();
+      await startSession(task.id, 'next_now');
+    } catch (error) {
+      console.error('Error starting next task:', error);
+    }
+  };
+
+  /** The Start tap on a task that waits for one: its timer runs from now. */
+  const startWaiting = async (task: { id: string }) => {
+    try {
+      sounds.start();
+      await startSession(task.id, 'start');
+    } catch (error) {
+      console.error('Error starting task:', error);
+    }
+  };
+
+  /** Take the saved minutes as free time: the celebration ends, the day goes on. */
+  const takeFreeTime = () => {
+    if (earlyTimer.current) window.clearTimeout(earlyTimer.current);
+    setEarlyOffer(null);
+    setFrozenTask(null);
+    setPetCelebrating(false);
   };
 
   /**
@@ -964,6 +1046,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
         : `Time to get ready. ${task.name} starts at ${formatTime(start)}.`;
     }
     if (task.is_fun_time) return 'Fun time! Enjoy it until the timer runs out.';
+    if (!phase && liveWindows.get((task as { id?: string }).id ?? '')?.waiting) return 'Press Start when you’re ready. The timer runs from then.';
     if (task.is_important) return 'Must finish. Slide Mark as Done when it’s all finished.';
     if (task.subtasks?.length) return 'Do each step, then slide Mark as Done. Finish early and the extra time is yours.';
     return 'Finish early? Slide Mark as Done and the extra time is yours.';
@@ -1139,12 +1222,17 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           // While frozen, hold remaining at totalSecs so the ring stays full
           // and the timer doesn't visually tick during the celebrate + pause.
           const remaining = isFrozen ? totalSecs : phase === 'prep' ? untilEventStart() : getActiveTaskRemainingTime();
+          const live = isFrozen ? undefined : liveWindows.get(displayTask.id);
+          const waiting = !!live?.waiting;
+          // A started task stopped for this meal or event; it carries on after.
+          const pausedTask = !isFrozen && upcomingTasks[0] && pausedBy(liveWindows.get(upcomingTasks[0].id), nowMinutes) === displayTask.id ? upcomingTasks[0] : null;
           const petMood = petCelebrating ? 'celebrate' : petMoodForTask(displayTask.name);
           const checkedIds = checkedSubtasks[displayTask.id] ?? [];
           const ready = phase === 'prep' && !!displayTask.subtasks?.length
             && displayTask.subtasks.every(sub => checkedIds.includes(sub.id));
           const petPrompt = phase === 'prep'
             ? (ready ? say("You're ready!", "🎉") : say("Let's get ready!", "🎒"))
+            : waiting ? say(`${displayTask.name} is waiting`, "⏳")
             : say(promptForTask(displayTask.name), taskEmoji(displayTask.name));
 
           return (
@@ -1162,7 +1250,11 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 variant={mode}
                 timeLabel={phase
                   ? timeRange(displayStart(displayTask), displayDuration(displayTask), !picture)
-                  : timeRange(placedStart(displayTask), displayTask.duration, !picture)}
+                  : waiting && live
+                    ? `Waiting since ${formatTime(hhmmOf(live.plannedStart))} · ${formatDuration(live.plannedEnd - live.plannedStart)}`
+                    : live
+                      ? timeRange(hhmmOf(live.runStart), live.plannedEnd - live.plannedStart, !picture)
+                      : timeRange(placedStart(displayTask), displayTask.planned_duration ?? displayTask.duration, !picture)}
                 explanation={explainTask(displayTask, phase)}
                 onSpeak={() => {
                   const step = currentStep(displayTask);
@@ -1175,15 +1267,18 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   }
                 }}
                 phase={phase ?? undefined}
-                totalSeconds={totalSecs}
+                totalSeconds={live ? (live.plannedEnd - live.plannedStart) * 60 : totalSecs}
                 remainingSeconds={remaining}
                 done={isFrozen}
-                showDone={!displayTask.is_fun_time && !displayTask.is_event}
+                waiting={waiting}
+                onStart={() => startWaiting(displayTask)}
+                showDone={!displayTask.is_fun_time && !displayTask.is_event && !waiting}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
                 // The worm only appears while the child is running late on a
                 // must-do task; on time, or on any other task, nothing is eaten.
-                reserve={displayTask.is_important && isActiveTaskOverdue() ? timeReserve.reserve : null}
+                // ...and while a task waits for its Start tap: the wait is eating the day the same way.
+                reserve={(displayTask.is_important && isActiveTaskOverdue()) || waiting ? timeReserve.reserve : null}
                 overdue={!isFrozen && !!displayTask.is_important && isActiveTaskOverdue()}
                 companion={<CritterPet timerFrame petType={child.petType} petColor={child.pet_color} outfit={child.pet_outfit} seed={child.id} mood={petMood}
                   activity={petCelebrating || phase === 'prep' ? undefined : activityForTask(displayTask.name)}
@@ -1210,6 +1305,42 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                     }
                   }} /> : undefined}
               />
+
+              {/* Done early: the minutes saved, and the choice. Nothing pressed
+                  and it slides into free time by itself. */}
+              {isFrozen && earlyOffer && (
+                <div className="w-full flex flex-col items-center gap-sp-2" role="status">
+                  <p className="text-18 font-semibold text-focus-lime text-center">
+                    {picture ? <span className="inline-flex items-center gap-2"><Sparkles className="w-6 h-6" aria-hidden />{earlyOffer.savedMinutes} min</span> : `You saved ${earlyOffer.savedMinutes} minute${earlyOffer.savedMinutes === 1 ? '' : 's'}!`}
+                  </p>
+                  {earlyOffer.next && (
+                    <div className="w-full grid grid-cols-2 gap-sp-2">
+                      <button
+                        type="button"
+                        onClick={() => startNextNow(earlyOffer.next!)}
+                        className="min-h-12 px-3 rounded-[16px] bg-focus-lime text-focus-bg text-14 font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        <Play className="w-5 h-5 shrink-0" aria-hidden />
+                        <span className={cn("truncate", words)}>Start {earlyOffer.next.name} now</span>
+                        {picture && getTaskIcon(earlyOffer.next.name, "w-6 h-6", earlyOffer.next.icon)}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={takeFreeTime}
+                        className="min-h-12 px-3 rounded-[16px] bg-focus-raised text-focus-text text-14 font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        {getTaskIcon("Free time", "w-5 h-5 text-focus-mint shrink-0", "free")}
+                        <span className={words}>Free time</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {pausedTask && (
+                <p className={cn("text-14 text-focus-muted text-center", words)}>
+                  {pausedTask.name} carries on after {displayTask.name}.
+                </p>
+              )}
 
               {stillToDo.length > 0 && <>
         {/* Still to do — important tasks whose time ran out while something
@@ -1384,6 +1515,18 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
               );
             })()}
             </section>
+            {/* The next task can start now instead of waiting for its time. */}
+            {canPullForward(freeTimeCountdown.nextTask, startMarks) && !isBedtimeRow(freeTimeCountdown.nextTask.name) && minOf(freeTimeCountdown.nextTask.scheduled_time) > nowMinutes && (
+              <button
+                type="button"
+                onClick={() => startNextNow(freeTimeCountdown.nextTask)}
+                className="w-full min-h-12 px-4 rounded-[16px] bg-focus-lime text-focus-bg text-14 font-semibold flex items-center justify-center gap-2"
+              >
+                <Play className="w-5 h-5 shrink-0" aria-hidden />
+                {picture && getTaskIcon(freeTimeCountdown.nextTask.name, "w-6 h-6", freeTimeCountdown.nextTask.icon)}
+                <span className={cn("truncate", words)}>Start {freeTimeCountdown.nextTask.name} now</span>
+              </button>
+            )}
             {/* Chore tiles — also visible during free time so kids can
                 knock out chores between scheduled tasks. */}
             {renderChores()}
@@ -1619,11 +1762,18 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         isChore={task.type === 'floating'}
                         name={task.name}
                         icon={task.icon}
-                        durationMin={task.is_event ? displayDuration(task) : task.duration}
+                        durationMin={task.is_event ? displayDuration(task) : task.planned_duration ?? task.duration}
                         getReadyAt={getReadyLength(task) > 0 ? task.scheduled_time?.slice(0, 5) : undefined}
                         important={task.is_important}
                         fun={task.is_fun_time}
-                        state={done ? 'done' : isNow ? 'now' : 'upcoming'}
+                        note={(() => {
+                          if (task.missed) return 'Didn’t get to it';
+                          const live = liveWindows.get(task.id);
+                          if (!live || done) return undefined;
+                          if (live.waiting) return 'Waiting to start';
+                          return `Started ${formatTime(hhmmOf(live.runStart))} · until ${formatTime(hhmmOf(live.effEnd))} · ${formatDuration(live.plannedEnd - live.plannedStart)}`;
+                        })()}
+                        state={done ? 'done' : task.missed ? 'missed' : isNow ? 'now' : 'upcoming'}
                       />
                     </motion.li>
                   );
@@ -1863,9 +2013,12 @@ function ScheduleRow({
   important,
   fun,
   getReadyAt,
+  note,
   state,
 }: {
   time?: string;
+  /** Instead of the usual line: "Didn’t get to it", "Waiting to start". */
+  note?: string;
   windowStart?: string;
   windowEnd?: string;
   isChore?: boolean;
@@ -1876,7 +2029,7 @@ function ScheduleRow({
   fun?: boolean;
   /** An event's get-ready start ("HH:MM"), before its own time. */
   getReadyAt?: string;
-  state: 'done' | 'now' | 'upcoming';
+  state: 'done' | 'now' | 'upcoming' | 'missed';
 }) {
   // Time column rules:
   //   chore + no window → "Today"
@@ -1889,6 +2042,7 @@ function ScheduleRow({
   // Bedtime marks the end of the day, not a timed activity — don't show a duration.
   const isBedtime = isBedtimeRow(name);
   const subtitle = (() => {
+    if (note) return note;
     if (hasWindow) {
       const [s, sap] = splitTime12(windowStart!);
       const [e, eap] = splitTime12(windowEnd!);
@@ -1913,7 +2067,7 @@ function ScheduleRow({
         state === 'now'
           ? 'bg-focus-lavender/20 ring-1 ring-focus-lavender'
           : 'bg-focus-surface',
-        state === 'done' && 'opacity-60',
+        (state === 'done' || state === 'missed') && 'opacity-60',
       )}
     >
       {/* Time column */}

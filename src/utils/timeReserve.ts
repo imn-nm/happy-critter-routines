@@ -9,6 +9,8 @@ export interface ReserveTask {
   is_fun_time?: boolean | null;
   late_policy?: 'keep' | 'shorten' | 'skip' | string | null;
   min_duration?: number | null;
+  /** The length the parent set, when `duration` was stretched to hold a wait or a pause (utils/liveDay). */
+  planned_duration?: number | null;
   isCompleted?: boolean;
   is_active?: boolean;
   type?: string;
@@ -33,8 +35,11 @@ const doneAtSeconds = (task: ReserveTask, completions: ReserveCompletion[]) => {
  * behaves as skip, everything else as keep. Must-finish tasks never give up
  * time (they're what runs late).
  */
+const stretched = (task: ReserveTask) => task.planned_duration != null && task.planned_duration < (task.duration || 0);
 const giveableSeconds = (task: ReserveTask) => {
   if (task.is_important) return 0;
+  // A task running on the child's own Start keeps its full length.
+  if (stretched(task)) return 0;
   const policy = task.late_policy ?? (task.is_fun_time ? 'skip' : 'keep');
   const total = (task.duration || 0) * 60;
   if (policy === 'skip') return total;
@@ -77,11 +82,19 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     ...gaps.map(task => ({ task, lost: 0, total: task.duration! * 60, capacity: task.duration! * 60 })),
     ...activities.map(task => ({ task, lost: 0, total: task.duration! * 60, capacity: giveableSeconds(task) })),
   ];
-  const intervals = eligible.filter(task => task.is_important && task.scheduled_time && (task.duration || 0) > 0)
+  // The day's late spans: a must-finish task past its end until it was done
+  // (or now), and the stretch a waiting or started task takes beyond the
+  // length the parent set (known ahead: it ends when its full length has run).
+  const intervals = eligible.filter(task => (task.is_important || stretched(task)) && task.scheduled_time && (task.duration || 0) > 0)
     .map(task => {
+      const plannedEnd = startOf(task) + (task.planned_duration ?? task.duration!) * 60;
+      const effEnd = startOf(task) + task.duration! * 60;
       const doneAt = doneAtSeconds(task, completions);
-      const end = doneAt != null ? Math.min(nowSeconds, doneAt) : task.isCompleted ? startOf(task) + task.duration! * 60 : nowSeconds;
-      return { start: startOf(task) + task.duration! * 60, end };
+      const end = doneAt != null ? Math.min(nowSeconds, doneAt)
+        : task.isCompleted ? plannedEnd
+        : task.is_important ? Math.max(effEnd, nowSeconds)
+        : effEnd;
+      return { start: plannedEnd, end };
     }).filter(interval => interval.end > interval.start).sort((a, b) => a.start - b.start);
   let accountedUntil = 0;
   for (const interval of intervals) {

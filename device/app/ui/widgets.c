@@ -180,12 +180,39 @@ void ring_set(lv_obj_t *ring, const ring_style_t *s)
 }
 
 /* ================================================================ button cue */
+static uint8_t cue_ring;   /* 0 = the full arc, else the share (1..100) still lit */
+static bool cue_dark;
+
+void cue_set(lv_obj_t *cue, uint8_t ring, bool dark)
+{
+    if (ring == cue_ring && dark == cue_dark) return;
+    cue_ring = ring;
+    cue_dark = dark;
+    lv_obj_invalidate(cue);
+}
+
 static void cue_draw(lv_event_t *e)
 {
     lv_obj_t *obj = lv_event_get_target(e);
     lv_layer_t *layer = lv_event_get_layer(e);
     lv_area_t c;
     lv_obj_get_coords(obj, &c);
+    if (cue_dark) {
+        /* nothing to press for: the mark stays, dark */
+        lv_draw_arc_dsc_t d;
+        lv_draw_arc_dsc_init(&d);
+        d.center.x = c.x1 + CENTER;
+        d.center.y = c.y1 + CENTER;
+        d.rounded = 0;
+        d.color = COL(C_LINE);
+        d.radius = 226;
+        d.width = 9;
+        d.start_angle = 293;
+        d.end_angle = 307;
+        d.opa = LV_OPA_COVER;
+        lv_draw_arc(layer, &d);
+        return;
+    }
     /* Figma "Button cue": a lime arc 23..37 degrees past 12 o'clock, 217..226 px out, with a soft
      * orange shadow (#FF5F1F at 70%, blur 10) */
     lv_draw_arc_dsc_t a;
@@ -209,6 +236,16 @@ static void cue_draw(lv_event_t *e)
     a.start_angle = 293;
     a.end_angle = 307;
     a.opa = LV_OPA_COVER;
+    if (cue_ring) {
+        /* the ring shrinks towards the button's middle: a dim track, and the lime part still left */
+        a.color = COL(C_LINE);
+        lv_draw_arc(layer, &a);
+        a.color = COL(C_LIME);
+        int half = 7 * cue_ring / 100;
+        a.start_angle = 300 - half;
+        a.end_angle = 300 + half;
+        if (half <= 0) return;
+    }
     lv_draw_arc(layer, &a);
 }
 

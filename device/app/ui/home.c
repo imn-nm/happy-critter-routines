@@ -28,7 +28,7 @@ static struct {
     lv_obj_t *page, *pet, *ring, *wheel;
     lv_obj_t *icon, *title, *status, *late, *clock, *status_pill;
     lv_obj_t *overdue, *overdue_text, *worm, *kite_ring;
-    lv_obj_t *left, *right, *dots, *cue, *note, *action, *action_face, *action_icon, *action_text;
+    lv_obj_t *left, *right, *dots, *cue, *cue_text, *cue_sub, *note, *action, *action_face, *action_icon, *action_text;
     lv_obj_t *stars, *stars_label, *stars_row;
     lv_obj_t *speaker, *bigplay, *bigplay_pill, *bigplay_wheel, *chores_pill;
     int8_t chores_sig;
@@ -311,6 +311,17 @@ void home_create(lv_obj_t *page, home_cb_t cb)
 
     h.dots = page_dots_create(page, 1);
     h.cue = cue_create(page);
+    /* what the button does, in lime, tucked under the arc at 1 o'clock and clear of the room */
+    /* between the status pill and the rim, above Biscuit's bubble (y 122): the rim allows x < 390 at y 58 */
+    h.cue_text = ui_label(page, F_LABEL, C_LIME, "");
+    lv_obj_set_width(h.cue_text, 96);
+    lv_obj_set_style_text_align(h.cue_text, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_long_mode(h.cue_text, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(h.cue_text, 292, 58);
+    h.cue_sub = ui_label(page, F_CAPTION, C_MUTED, "");
+    lv_obj_set_width(h.cue_sub, 96);
+    lv_obj_set_style_text_align(h.cue_sub, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(h.cue_sub, 292, 100);
 }
 
 lv_obj_t *home_pet(void) { return h.pet; }
@@ -511,7 +522,17 @@ void home_render(const home_view_t *v)
     ui_show(h.left, v->sides);
     ui_show(h.right, v->sides && !v->rewards_only);
     ui_show(h.dots, v->dots);
-    ui_show(h.cue, v->cue);
+    cue_set(h.cue, v->cue_ring, v->cue_dark);
+    ui_show(h.cue, v->cue || v->cue_dark);
+    bool words = v->cue && !v->cue_dark && v->cue_text[0];
+    if (words) {
+        lv_label_set_text(h.cue_text, v->cue_text);
+        lv_label_set_text(h.cue_sub, v->cue_sub);
+        lv_obj_update_layout(h.cue_text);
+        lv_obj_set_y(h.cue_sub, lv_obj_get_y(h.cue_text) + lv_obj_get_height(h.cue_text) + 2);
+    }
+    ui_show(h.cue_text, words);
+    ui_show(h.cue_sub, words && v->cue_sub[0]);
 }
 
 /* A little joy on the day's wins. Done: the burst over the scene, "Done!" springs in, Biscuit's

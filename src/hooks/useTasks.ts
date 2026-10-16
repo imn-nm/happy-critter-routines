@@ -36,6 +36,8 @@ export interface Task {
    */
   date_overrides?: Record<string, { scheduled_time?: string; duration?: number; anytime?: boolean; window_start?: string }>;
   is_important?: boolean;
+  /** Waits on the child's screen; its timer only runs once they press Start (utils/liveDay). */
+  needs_start?: boolean;
   is_fun_time?: boolean;
   /** Something the child goes to (a game, class): set time, no done button, ends by itself. */
   is_event?: boolean;

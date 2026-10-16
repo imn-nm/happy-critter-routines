@@ -21,6 +21,7 @@ export const SHARED_TASK_FIELDS = [
   "is_event",
   "prep_minutes",
   "late_policy",
+  "needs_start",
   "min_duration",
 ] as const satisfies readonly (keyof Task)[];
 

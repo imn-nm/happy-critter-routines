@@ -34,6 +34,9 @@ typedef struct {
     bool event;
     bool important;            /* must finish */
     bool fun;                  /* fun time: no done button, gives way when running late */
+    bool fixed;                /* a set-time task: never pulled forward, pauses a started task */
+    bool needs_start;          /* waits for the button; its timer runs from the press (logic.c) */
+    int32_t started_at;        /* seconds of the day the child started it (Start, or "next now"), or -1 */
     bool bedtime_routine;
     day_system_t system;
     day_late_t late;

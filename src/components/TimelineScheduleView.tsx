@@ -9,6 +9,8 @@ import { Edit, Plus, ChevronLeft, ChevronRight, GripVertical, PartyPopper, Check
 import { useTasks } from '@/hooks/useTasks';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
+import { useTaskSessions } from '@/hooks/useTaskSessions';
+import { minuteOfDay } from '@/utils/liveDay';
 import { Child } from '@/hooks/useChildren';
 import { useToast } from '@/hooks/use-toast';
 import { getSystemTaskScheduleForDay, isSystemTaskName, systemRowAddedOn } from '@/utils/systemTasks';
@@ -127,6 +129,8 @@ interface TimelineEvent {
   recurring_days?: string[];
   status?: 'on-time' | 'late' | 'pending' | 'overdue';
   completedAt?: string;
+  /** A task that needs a Start tap: "Waiting to start since 4:10", or "Started 4:12". */
+  startNote?: string;
   /** Stars a parent has given for this day's completion (0 = none yet). */
   starsGiven?: number;
   /** Has a set time on this day (a task made "whenever there is room" for one day is not). */
@@ -537,13 +541,16 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           if (event.starsGiven) metaParts.push(`★ ${event.starsGiven} given`);
           else if (event.coins != null && event.coins > 0) metaParts.push(`${event.coins} star${event.coins === 1 ? '' : 's'}`);
           if (isDoneLate) metaParts.push('Done Late');
+          if (event.startNote) metaParts.push(event.startNote);
 
           const chipClass = "shrink-0 px-2 py-[3px] rounded-pill text-[12px] leading-4 font-semibold whitespace-nowrap";
           const rowActionClass =
             "tap-target shrink-0 h-8 px-3 inline-flex items-center rounded-pill bg-focus-raised " +
             "text-[12px] leading-4 font-semibold text-focus-text hover:bg-focus-raised/80 transition-colors";
 
-          const statusChip = showNowChip ? (
+          const statusChip = event.startNote?.startsWith('Waiting') ? (
+            <span className={cn(chipClass, "bg-focus-amber/20 text-focus-amber")}>Waiting</span>
+          ) : showNowChip ? (
             <span className={cn(chipClass, "bg-focus-pink/20 text-focus-pink")}>Now</span>
           ) : isOverdueImportant && !event.isCompleted ? (
             <span className={cn(chipClass, "bg-focus-coral/20 text-focus-coral")}>Overdue</span>
@@ -742,7 +749,18 @@ const TimelineScheduleView = ({
   }, [currentDateKey]);
   const { holidays, isHoliday } = useHolidays(child.id);
   const { completions, toggleCompletion, giveStars } = useCompletions(child.id);
+  const { sessions } = useTaskSessions(child.id);
   const { toast } = useToast();
+  // Today only: has the child pressed Start on it yet?
+  const startNoteFor = (task: { id: string; needs_start?: boolean }, time: string, done: boolean) => {
+    if (done || selectedDayString !== getPSTDateString()) return undefined;
+    const started = sessions.filter(s => s.task_id === task.id).sort((a, b) => a.started_at.localeCompare(b.started_at))[0];
+    const clock = (m: number) => `${((m / 60 | 0) % 12) || 12}:${String(m % 60).padStart(2, '0')}`;
+    if (started) return `${started.kind === 'next_now' ? 'Started early' : 'Started'} ${clock(minuteOfDay(started.started_at))}`;
+    if (!task.needs_start) return undefined;
+    const [h, m] = time.split(':').map(Number);
+    return nowMinutes > h * 60 + m ? `Waiting to start since ${clock(h * 60 + m)}` : undefined;
+  };
 
   useEffect(() => {
     setSelectedDay(currentDate);
@@ -1219,6 +1237,7 @@ const TimelineScheduleView = ({
       status: isCompleted ? ('on-time' as const) : calculateTaskStatus(task, taskTime, taskDuration),
       completedAt: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.completed_at,
       starsGiven: completions.find(c => c.task_id === task.id && c.date === selectedDayString)?.coins_earned ?? 0,
+      startNote: startNoteFor(task, taskTime, isCompleted),
     };
   });
 

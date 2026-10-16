@@ -160,6 +160,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     recurringDays: task?.recurring_days || [] as string[],
     taskDate: initialTaskDate,
     isImportant: task?.is_important ?? false,
+    // Waits on the child's screen for a Start tap; the timer runs from then.
+    needsStart: task?.needs_start ?? false,
     isFunTime: task?.is_fun_time ?? false,
     windowStart: toHHMM(task?.window_start) || "15:00",
     windowEnd: toHHMM(task?.window_end) || "18:00",
@@ -260,12 +262,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const priority: Priority = formData.isImportant ? 'must' : formData.latePolicy;
+  // Once the parent has set the Start tap themselves, Must Get Done stops changing it.
+  const [needsStartTouched, setNeedsStartTouched] = useState(isEdit && !!task?.needs_start);
   const setPriority = (next: Priority) =>
     setFormData({
       ...formData,
       isImportant: next === 'must',
       // A must-finish task never gives up its own time.
       latePolicy: next === 'must' ? 'keep' : next,
+      // Must finish on a task with a timer: it waits for a Start tap, so the
+      // full time runs from when the child really begins.
+      needsStart: next === 'must' && !needsStartTouched && durationTotal > 0 ? true : formData.needsStart,
     });
   // "Keep at least" must be shorter than the task itself; a 5-minute task
   // has nothing to shorten to, so it simply gives up its time.
@@ -413,6 +420,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       task_date: !repeats ? formData.taskDate : undefined,
       // Important / fun-time / checklist are task-mode-only concepts.
       is_important: isChore || isEvent ? false : formData.isImportant,
+      needs_start: !isChore && !isEvent && !formData.isFunTime && totalMinutes > 0 ? formData.needsStart : false,
       is_fun_time: isChore || isEvent ? false : formData.isFunTime,
       is_event: isEvent,
       prep_minutes: isEvent && formData.getReady ? formData.prepMinutes : 0,
@@ -529,6 +537,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     if (!isSystemEvent) {
       if (formData.isFunTime) parts.push('Fun time.');
       if (priority === 'must') parts.push('Must finish.');
+      if (formData.needsStart && durationTotal > 0) parts.push('Waits for a Start tap.');
       if (priority === 'shorten') parts.push(effectiveMin > 0 ? `Can be shortened to ${effectiveMin} min.` : 'Can be shortened.');
       if (priority === 'skip') parts.push('Can be skipped.');
       if (starsText && !formData.isFunTime) parts.push(`${starsText}.`);
@@ -932,6 +941,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               onCheckedChange={(on) => on
                 ? setPriority('must')
                 : setFormData({ ...formData, isImportant: false, latePolicy: formData.latePolicy })}
+            />
+          )}
+          {!isFun && durationTotal > 0 && (
+            <SwitchRow
+              id="needsStart"
+              label="Needs a Start Tap"
+              caption={formData.needsStart
+                ? "It waits on their screen until they press Start, then the full time runs from that moment. Waiting counts like running late."
+                : "The timer starts at its set time, whether or not they have begun."}
+              checked={formData.needsStart}
+              onCheckedChange={(on) => { setNeedsStartTouched(true); setFormData({ ...formData, needsStart: on }); }}
             />
           )}
         </ToggleCard>

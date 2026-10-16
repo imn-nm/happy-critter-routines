@@ -12,6 +12,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
 import { useRewards } from "@/hooks/useRewards";
+import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
 import { buildTodaysSchedule, todaysChores } from "@/utils/todaysSchedule";
 import { buildDayPlan } from "@/lib/dayPlan";
@@ -27,6 +28,7 @@ const ChildCircle = () => {
   const { children, loading: childrenLoading, loadError, updateChild, updateChildHappiness } = useChildren();
   const { completions, completeTask, getTasksWithCompletionStatus, loading: tasksLoading } = useTasks(childId);
   const { rewards, purchases, purchaseReward } = useRewards(childId);
+  const { sessions, startSession, getActiveSessionForTask, endSession } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
   const [size, setSize] = useState(() => Math.min(600, window.innerWidth, window.innerHeight - 72));
@@ -59,11 +61,12 @@ const ChildCircle = () => {
       rewards,
       purchases,
       restDay: isRestDate(child, today),
+      starts: sessions,
     });
     return JSON.stringify(plan);
     // getTasksWithCompletionStatus makes a fresh array each render; the pieces it is made of are the inputs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
+  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, sessions, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
 
   const onEvent = async (ev: CircleEvent) => {
     if (!child) return;
@@ -71,6 +74,14 @@ const ChildCircle = () => {
       if (ev.type === "task_done" && ev.task_id) {
         await completeTask(ev.task_id, 0, Math.round((ev.value ?? 0) / 60));
         await updateChildHappiness(child.id, Math.max(child.petHappiness ?? 0, 70));
+        const session = getActiveSessionForTask(ev.task_id);
+        if (session) await endSession(session.id, Math.max(0, Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000)));
+      } else if (ev.type === "task_start" && ev.task_id) {
+        // the button on a task that waits for it: its timer runs from now
+        await startSession(ev.task_id, "start");
+      } else if (ev.type === "next_now" && ev.task_id) {
+        // finished early: the next task starts now and the ones behind it move up
+        await startSession(ev.task_id, "next_now");
       } else if (ev.type === "chore_done" && ev.task_id) {
         await completeTask(ev.task_id, 0, 0);
       } else if (ev.type === "reward_request" && ev.reward_id) {

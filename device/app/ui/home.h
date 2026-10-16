@@ -75,6 +75,10 @@ typedef struct {
     bool big_play;              /* lime Play with Biscuit's face + the wheel as an icon */
     /* chrome */
     bool cue, sides, dots;
+    char cue_text[40];          /* what the button does, in lime next to it: "Press to start", "Press when done" */
+    char cue_sub[16];           /* a quieter second line: "or play" */
+    uint8_t cue_ring;           /* 1..100: the lime ring at the button, shrinking (an early finish); 0 = the plain arc */
+    bool cue_dark;              /* a press does nothing useful (an event): the mark is dark, no words */
     bool rewards_only;          /* at bedtime: Rewards stays, no chores */
 } home_view_t;
 

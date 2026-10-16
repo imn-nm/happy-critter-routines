@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { AlarmClock, Clock, Volume2 } from 'lucide-react';
+import { AlarmClock, Clock, Hourglass, Play, Volume2 } from 'lucide-react';
 import CircularTimer from '@/components/CircularTimer';
 import SlideToConfirm from '@/components/SlideToConfirm';
 import StatusBadge from '@/components/StatusBadge';
@@ -16,6 +16,9 @@ interface Props {
   /** Offer "Mark as Done" — any task can be finished early to free up its time. */
   showDone?: boolean;
   onDone: () => Promise<void>;
+  /** Waiting for the child's Start tap: the ring is full and still, a lime Start instead of the slide. */
+  waiting?: boolean;
+  onStart?: () => void;
   onTimeUp: () => void;
   companion: ReactNode;
   checklist?: ReactNode;
@@ -55,6 +58,10 @@ export default function ChildTaskFocus(props: Props) {
 
   const badge = props.done ? (
     <StatusBadge variant="complete">Done!</StatusBadge>
+  ) : props.waiting ? (
+    <StatusBadge variant="info">
+      {picture ? <><Hourglass className="w-4 h-4" aria-hidden /><span className="sr-only">Waiting</span></> : 'Waiting'}
+    </StatusBadge>
   ) : props.overdue ? (
     <StatusBadge variant="overdue">
       {picture ? <><AlarmClock className="w-4 h-4" aria-hidden /><span className="sr-only">Overdue</span></> : 'Overdue'}
@@ -114,7 +121,7 @@ export default function ChildTaskFocus(props: Props) {
 
       <div className="w-full flex items-center justify-center py-1.5">
         <CircularTimer totalSeconds={props.totalSeconds} remainingSeconds={Math.max(0, props.remainingSeconds)}
-          sizePx={260} status="on-track" isRunning={!props.done} onComplete={props.onTimeUp} frameContent>
+          sizePx={260} status="on-track" isRunning={!props.done && !props.waiting} onComplete={props.onTimeUp} frameContent>
           {props.companion}
         </CircularTimer>
       </div>
@@ -122,6 +129,16 @@ export default function ChildTaskFocus(props: Props) {
       {props.reserve && <TimeReserve reserve={props.reserve} picture={picture} />}
       {props.checklist && <div className="w-full">{props.checklist}</div>}
       {props.done && <p className={picture ? 'sr-only' : 'text-14 text-focus-mint'} role="status">All done!</p>}
+      {props.waiting && props.onStart && (
+        <button
+          type="button"
+          onClick={props.onStart}
+          className="w-full min-h-14 px-5 rounded-[18px] bg-focus-lime text-focus-bg text-18 font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition"
+        >
+          <Play className="w-6 h-6" aria-hidden />
+          {picture ? <span className="sr-only">Start</span> : 'Start'}
+        </button>
+      )}
       {props.showDone && (
         <SlideToConfirm
           label="Mark as Done"

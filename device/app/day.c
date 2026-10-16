@@ -95,6 +95,10 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
         if (k->event && k->event_start < 0) k->event_start = k->start;
         k->important = flag(t, "important");
         k->fun = flag(t, "fun");
+        k->fixed = flag(t, "fixed");
+        k->needs_start = flag(t, "needs_start");
+        int started = hhmm(t, "started_at");
+        k->started_at = started >= 0 ? started * 60 : -1;
         k->bedtime_routine = flag(t, "bedtime_routine");
         char sys[16], late[12], act[16];
         copy(sys, sizeof sys, t, "system");

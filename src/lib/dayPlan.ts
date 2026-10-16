@@ -16,6 +16,7 @@ import { taskIconKey } from '@/utils/taskIcon';
 import { wheelOptionsFor } from '@/lib/spinningWheel';
 import { getPSTDateString, toPSTDateString } from '@/utils/pstDate';
 import type { TaskRow } from '@/utils/todaysSchedule';
+import { applyNextNow, hhmm as hhmmOf, startsByTask, type TaskStart } from '@/utils/liveDay';
 
 export interface DayPlanTask {
   id: string;
@@ -33,6 +34,12 @@ export interface DayPlanTask {
   system?: string;
   bedtime_routine?: boolean;
   done_at?: string;
+  /** A set-time task: never pulled forward, and it pauses a started task (utils/liveDay isFixedRow). */
+  fixed?: boolean;
+  /** Waits for the button; its timer runs from the press. */
+  needs_start?: boolean;
+  /** "HH:MM" the child started it today (Start, or pulled forward with "next now"). */
+  started_at?: string;
 }
 
 export interface DayPlan {
@@ -85,10 +92,16 @@ export interface DayPlanInput {
   rewards: Reward[];
   purchases: RewardPurchase[];
   restDay: boolean;
+  /** Today's Start taps and "next now" pulls (task_sessions). */
+  starts?: TaskStart[];
 }
 
-export function buildDayPlan({ child, schedule, chores, completions, rewards, purchases, restDay }: DayPlanInput): DayPlan {
+export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [] }: DayPlanInput): DayPlan {
   const today = getPSTDateString();
+  // "Next now" pulls are applied here so the device gets concrete times; the
+  // waits, Start taps and pauses it works out on its own clock (logic.c).
+  const marks = startsByTask(starts);
+  const schedule = applyNextNow(planned, marks);
   const doneAt = (taskId: string) => {
     const c = completions.find(x => x.task_id === taskId && (x.date === today || toPSTDateString(x.completed_at) === today));
     if (!c) return undefined;
@@ -113,6 +126,10 @@ export function buildDayPlan({ child, schedule, chores, completions, rewards, pu
     if (t.subtasks?.length) row.steps = t.subtasks.map(s => ({ id: s.id, text: s.text }));
     if (t.is_important) row.important = true;
     if (t.is_fun_time) row.fun = true;
+    if (t.type === 'scheduled' && !t.is_event && !systemTaskKey(t.name)) row.fixed = true;
+    if (t.needs_start) row.needs_start = true;
+    const mark = marks.get(t.id);
+    if (mark) row.started_at = hhmmOf(mark.minute);
     row.late = (t.late_policy ?? (t.is_fun_time ? 'skip' : 'keep')) as DayPlanTask['late'];
     if (t.min_duration) row.min = t.min_duration;
     if (t.is_event) { row.event = true; if (t.event_start) row.event_start = t.event_start.slice(0, 5); }

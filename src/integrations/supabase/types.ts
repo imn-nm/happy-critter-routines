@@ -718,6 +718,7 @@ export type Database = {
           ended_at: string | null
           id: string
           is_active: boolean
+          kind: string
           started_at: string
           task_id: string
           total_duration: number | null
@@ -727,6 +728,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          kind?: string
           started_at?: string
           task_id: string
           total_duration?: number | null
@@ -736,6 +738,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          kind?: string
           started_at?: string
           task_id?: string
           total_duration?: number | null
@@ -774,6 +777,7 @@ export type Database = {
           is_event: boolean
           is_fun_time: boolean | null
           is_important: boolean | null
+          needs_start: boolean
           is_recurring: boolean
           late_policy: string
           link_id: string | null
@@ -808,6 +812,7 @@ export type Database = {
           is_event?: boolean
           is_fun_time?: boolean | null
           is_important?: boolean | null
+          needs_start?: boolean
           is_recurring?: boolean
           late_policy?: string
           link_id?: string | null
@@ -842,6 +847,7 @@ export type Database = {
           is_event?: boolean
           is_fun_time?: boolean | null
           is_important?: boolean | null
+          needs_start?: boolean
           is_recurring?: boolean
           late_policy?: string
           link_id?: string | null
