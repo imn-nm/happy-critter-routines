@@ -11,11 +11,11 @@
 
 #define PI_F 3.14159265f
 #define SIZE 300          /* the widget; the wheel is centred in it */
-#define SLICE_R 133       /* Figma (2026-10-12): a 266 px wheel of dark slices inside the time ring */
-#define ICON_R 88         /* a slice's icon, along its middle */
-#define LABEL_R 63        /* its word */
-#define HUB_RING_R 42     /* ink ring round the hub */
-#define HUB_R 38          /* the lime Spin button */
+#define SLICE_R 135       /* MyToki 2 "Wheel": 270 px of calm slices */
+#define ICON_R 84         /* each slice's icon with its word under it, centred this far out */
+#define LABEL_R 84
+#define HUB_RING_R 42     /* the screen-black ring round the hub */
+#define HUB_R 36          /* the lime Spin button */
 #define MAXOPT 8
 
 /* The icons' colours, clockwise from the top: Draw sky, Lego lavender, Read carrot, Outside mint,
@@ -119,7 +119,7 @@ static void wheel_draw(lv_event_t *e)
         lv_draw_arc_dsc_init(&a);
         a.center.x = (int32_t)lroundf(cx);
         a.center.y = (int32_t)lroundf(cy);
-        a.color = COL(i % 2 == 0 ? C_LINE : C_GLASS);
+        a.color = COL(i % 2 == 0 ? C_CHIP : C_RAISED);
         a.opa = LV_OPA_COVER;
         a.width = SLICE_R;
         a.radius = SLICE_R;
@@ -133,8 +133,8 @@ static void wheel_draw(lv_event_t *e)
         float sa = (i * slice + w->angle - slice / 2) * PI_F / 180;
         lv_draw_line_dsc_t ln;
         lv_draw_line_dsc_init(&ln);
-        ln.color = COL(C_INK);
-        ln.width = 2;
+        ln.color = COL(C_SCREEN);
+        ln.width = 3;
         ln.round_start = ln.round_end = 1;
         ln.p1.x = cx + HUB_RING_R * sinf(sa);
         ln.p1.y = cy - HUB_RING_R * cosf(sa);
@@ -145,39 +145,39 @@ static void wheel_draw(lv_event_t *e)
     /* the icon and word on each slice, upright */
     for (int i = 0; i < w->n; i++) {
         float ma = (i * slice + w->angle) * PI_F / 180;
-        float ix = cx + ICON_R * sinf(ma), iy = cy - ICON_R * cosf(ma);
+        float ix = cx + ICON_R * sinf(ma), iy = cy - ICON_R * cosf(ma) - 13;
         lv_draw_image_dsc_t im;
         lv_draw_image_dsc_init(&im);
-        im.src = icon_find(wheel_icon_for(w->opt[i]), 26);
+        im.src = icon_find(wheel_icon_for(w->opt[i]), 24);
         im.recolor = COL(wheel_color(i));
         im.recolor_opa = LV_OPA_COVER;
-        lv_area_t ia = { (int32_t)ix - 13, (int32_t)iy - 13, (int32_t)ix + 12, (int32_t)iy + 12 };
+        lv_area_t ia = { (int32_t)ix - 12, (int32_t)iy - 12, (int32_t)ix + 11, (int32_t)iy + 11 };
         lv_draw_image(layer, &im, &ia);
-        float lx = cx + LABEL_R * sinf(ma), ly = cy - LABEL_R * cosf(ma);
+        float lx = cx + LABEL_R * sinf(ma), ly = cy - LABEL_R * cosf(ma) + 14;
         lv_draw_label_dsc_t lb;
         lv_draw_label_dsc_init(&lb);
         lb.font = F_LABEL;
         lb.color = COL(C_BONE);
         lb.align = LV_TEXT_ALIGN_CENTER;
         lb.text = w->opt[i];
-        lv_area_t la = { (int32_t)lx - 45, (int32_t)ly - 12, (int32_t)lx + 45, (int32_t)ly + 12 };
+        lv_area_t la = { (int32_t)lx - 50, (int32_t)ly - 14, (int32_t)lx + 50, (int32_t)ly + 14 };
         lv_draw_label(layer, &lb, &la);
     }
     /* the ink ring round the hub (the hub itself is a child) */
-    dot(layer, cx, cy, HUB_RING_R, C_INK, LV_OPA_COVER);
+    dot(layer, cx, cy, HUB_RING_R, C_SCREEN, LV_OPA_COVER);
     /* the pointer: a lime triangle with an ink edge over the top of the wheel (Figma: 24 px at y 86) */
     lv_draw_triangle_dsc_t t;
     lv_draw_triangle_dsc_init(&t);
-    t.color = COL(C_INK);
+    t.color = COL(C_SCREEN);
     t.opa = LV_OPA_COVER;
-    t.p[0].x = cx - 16; t.p[0].y = cy - 149;
-    t.p[1].x = cx + 16; t.p[1].y = cy - 149;
-    t.p[2].x = cx;      t.p[2].y = cy - 119;
+    t.p[0].x = cx - 15; t.p[0].y = cy - SLICE_R - 13;
+    t.p[1].x = cx + 15; t.p[1].y = cy - SLICE_R - 13;
+    t.p[2].x = cx;      t.p[2].y = cy - SLICE_R + 13;
     lv_draw_triangle(layer, &t);
-    t.color = COL(C_LIME);
-    t.p[0].x = cx - 12; t.p[0].y = cy - 146;
-    t.p[1].x = cx + 12; t.p[1].y = cy - 146;
-    t.p[2].x = cx;      t.p[2].y = cy - 123;
+    t.color = COL(C_ACTION);
+    t.p[0].x = cx - 12; t.p[0].y = cy - SLICE_R - 11;
+    t.p[1].x = cx + 12; t.p[1].y = cy - SLICE_R - 11;
+    t.p[2].x = cx;      t.p[2].y = cy - SLICE_R + 9;
     lv_draw_triangle(layer, &t);
 }
 
@@ -196,7 +196,8 @@ static void show_result(wheel_t *w)
     ui_show(w->card, decided);
     if (!decided) return;
     const char *opt = w->opt[w->result];
-    ui_icon_set(w->card_icon, wheel_icon_for(opt), 40);
+    ui_icon_set(w->card_icon, wheel_icon_for(opt), 48);
+    ui_set_color(w->card_icon, wheel_color(w->result));
     char name[24];
     snprintf(name, sizeof name, "%s!", opt);
     ui_set_text(w->card_name, name);
@@ -288,45 +289,37 @@ lv_obj_t *wheel_create(lv_obj_t *parent, wheel_result_cb_t cb)
     w->hub = ui_box(obj);
     lv_obj_set_size(w->hub, HUB_R * 2, HUB_R * 2);
     lv_obj_center(w->hub);
-    ui_style_card(w->hub, C_LIME, LV_RADIUS_CIRCLE, 0, 0);
-    lv_obj_set_style_bg_color(w->hub, COL(C_BONE), LV_STATE_PRESSED);
+    ui_style_card(w->hub, C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_bg_color(w->hub, COL(C_TEXT), LV_STATE_PRESSED);
     lv_obj_add_flag(w->hub, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(w->hub, 6);
     lv_obj_add_event_cb(w->hub, on_hub, LV_EVENT_CLICKED, obj);
     w->hub_label = ui_label(w->hub, F_BUTTON, C_NAVY, "Spin");
     lv_obj_center(w->hub_label);
 
-    /* the result card: a 256 px circle, card colour, lavender rim */
+    /* the result (Figma "Free time · Spin result"): the faint circle, the activity's icon in its
+     * colour, its name (Display 32), the invitation, and Spin again as lime words */
     w->card = ui_box(obj);
-    lv_obj_set_size(w->card, 256, 256);
+    lv_obj_set_size(w->card, 298, 298);
     lv_obj_center(w->card);
-    ui_style_card(w->card, C_GLASS, LV_RADIUS_CIRCLE, C_LAVENDER, LV_OPA_COVER);
-    lv_obj_set_style_border_width(w->card, 2, 0);
-    w->card_icon = ui_icon(w->card, "brick", 40, C_LAVENDER);
-    lv_obj_align(w->card_icon, LV_ALIGN_TOP_MID, 0, 34);
-    w->card_name = ui_label(w->card, F_DISPLAY, C_BONE, "");
-    lv_obj_set_width(w->card_name, 210);
+    lv_obj_set_style_radius(w->card, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(w->card, 1, 0);
+    lv_obj_set_style_border_color(w->card, COL(C_FAINT), 0);
+    lv_obj_set_style_border_opa(w->card, LV_OPA_COVER, 0);
+    w->card_icon = ui_icon(w->card, "brick", 48, C_SYSTEM);
+    lv_obj_align(w->card_icon, LV_ALIGN_TOP_MID, 0, 46);
+    w->card_name = ui_label(w->card, F_DISPLAY, C_TEXT, "");
+    lv_obj_set_size(w->card_name, 240, lv_font_get_line_height(F_DISPLAY));
     lv_obj_set_style_text_align(w->card_name, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(w->card_name, LV_LABEL_LONG_DOT);
-    lv_obj_align(w->card_name, LV_ALIGN_TOP_MID, 0, 98);
-    w->card_line = ui_label(w->card, F_BODY_P, C_MUTED, "");
-    lv_obj_set_width(w->card_line, 210);
+    lv_obj_align(w->card_name, LV_ALIGN_TOP_MID, 0, 102);
+    w->card_line = ui_label(w->card, F_BODY_P, C_TEXT_MUTED, "");
+    lv_obj_set_width(w->card_line, 240);
     lv_obj_set_style_text_align(w->card_line, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(w->card_line, LV_ALIGN_TOP_MID, 0, 134);
-    w->again = ui_box(w->card);
-    lv_obj_set_size(w->again, 60, 60);
-    lv_obj_align(w->again, LV_ALIGN_TOP_MID, 0, 168);
-    lv_obj_set_style_radius(w->again, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(w->again, 2, 0);
-    lv_obj_set_style_border_color(w->again, COL(C_LIME), 0);
-    lv_obj_set_style_border_opa(w->again, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(w->again, COL(C_LINE), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(w->again, LV_OPA_COVER, LV_STATE_PRESSED);
-    lv_obj_add_flag(w->again, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(w->again, 8);
+    lv_obj_align(w->card_line, LV_ALIGN_TOP_MID, 0, 146);
+    w->again = button_create(w->card, BTN_TERTIARY, false, "retry", "Spin again");
+    lv_obj_align(w->again, LV_ALIGN_TOP_MID, 0, 188);
     lv_obj_add_event_cb(w->again, on_again, LV_EVENT_CLICKED, obj);
-    lv_obj_t *re = ui_icon(w->again, "retry", 20, C_LIME);
-    lv_obj_center(re);
     show_result(w);
     return obj;
 }

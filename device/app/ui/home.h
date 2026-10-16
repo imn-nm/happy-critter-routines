@@ -1,37 +1,49 @@
 /*
- * Home: the middle page of the carousel. Most of the MyToki Circle screens are this one layout
- * (header, dot ring round Biscuit's room, a message card, the Next pill) in different states,
- * so the controller (mytoki.c) fills a view and Home draws it.
+ * Home: the middle page of the carousel. Most of the MyToki 2 screens are this one layout in
+ * different states (Figma "Child UI · New UI"): the room behind everything (full screen, or the
+ * small circle once fewer than 10 minutes are left), the dashed timer round the rim, the header,
+ * the side buttons, Biscuit's bubble, a note, and the hill with what comes next. The controller
+ * (mytoki.c) fills a view and Home draws it.
  */
 #pragma once
 #include "lvgl.h"
 #include "widgets.h"
 #include "../pet/pet.h"
 
-typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE } home_mid_t;   /* NONE: a steps card sits in Biscuit's place */
+typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE } home_mid_t;
 typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS } home_bottom_t;
-typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;  /* y 75 (99 in picture view), 314, 368, 213 */
-/* What sits under the title (Figma Header "Below"): a plain line, a Time pill, a Status pill. */
-typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;   /* FREE: the time pill and the Play (or Spin) pill, no title */
+typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;   /* MyToki 2: every note sits at y 322 */
+typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;
+/* MyToki 2 Graphic: Full = the room fills the screen; Small = the 298 circle (under 10 min left);
+ * Empty = no room, a faint circle (running late); None = nothing behind (the wheel, lists). */
+typedef enum { GRAPHIC_FULL, GRAPHIC_SMALL, GRAPHIC_EMPTY, GRAPHIC_NONE } home_graphic_t;
 
 typedef struct {
     /* header */
-    bool clock;                 /* the night clock: big digits take the header (docked) */
+    bool clock;                 /* the night clock: the big digits take the header (docked) */
     char clock_text[8];
+    char clock_line[12];        /* the small clock above the title ("3:18pm"); "" = none */
     char icon[20];
     uint32_t icon_color;
     char title[48];
     uint32_t title_color;
     lv_opa_t title_opa;
+    bool hide_title;            /* free time's wheel: the clock and the pill only */
     home_below_t below;
     char status[48];            /* the line, or the pill's words */
-    char status_icon[20];       /* the pill's icon ("" = none) */
-    uint32_t status_color;      /* the line's colour, or the pill's tone */
-    bool late_chip;             /* a coral "Late" tag instead */
-    uint8_t free_mode;          /* BELOW_FREE: 0 = Spin selected, 1 = Play */
-    /* the ring and the middle */
-    bool ring_show;
-    ring_style_t ring;
+    char status_icon[20];
+    uint32_t status_color;      /* the line's colour, or (old) the pill's tone colour */
+    pill_tone_t pill_tone;      /* the pill's tone */
+    bool late_chip;             /* the coral "Late" pill instead */
+    uint8_t free_mode;          /* free time: 0 = the wheel (Spin), 1 = Biscuit (Play) */
+    /* the graphic and the timer */
+    home_graphic_t graphic;
+    bool timer_show;
+    timer_tone_t timer_tone;
+    int16_t timer_left;         /* 0..1000 of the arc lit */
+    bool timer_pulse;
+    bool ring_show;             /* (old) */
+    ring_style_t ring;          /* (old) */
     home_mid_t mid;
     char overdue_text[72];
     uint8_t worm_eaten;         /* of 5 free-time dots */
@@ -40,45 +52,44 @@ typedef struct {
     pet_activity_t activity;
     int force_clip;             /* -1 none */
     uint8_t pet_dim;
-    bool room_off;              /* the last minutes of a task: the room goes dark, Biscuit stays */
-    int16_t pet_d, pet_xy;      /* 0 = the usual 286 px circle at (90, 90); the alarm fills the screen (446 at 10) */
-    bool pet_wide;              /* the room carries on past its grid to the rim (the alarm) */
-    bool say_low;               /* `say` as a bubble at the bottom instead (the alarm, over the full-screen room) */
-    int8_t chores_left;         /* at an event: a small "N to finish" pill under Biscuit that opens the list */
+    bool room_off;              /* (old) */
+    int16_t pet_d, pet_xy;      /* (old) */
+    bool pet_wide;              /* (old) */
+    bool say_low;               /* (old) */
+    int8_t chores_left;         /* at an event: a note "N to finish" that opens the list */
     bool wake;                  /* the alarm: he sits up and stretches, the room at dawn */
     bool tap_ring;              /* Biscuit can be tapped to play: the lime ring that pulses round him */
-    char say[48];               /* speech bubble next to him, "" for none */
-    char say_top[48];           /* a bubble under him with the tail on top (Goodnight) */
-    /* message card */
+    char say[48];               /* his bubble, "" for none */
+    char say_top[48];           /* (old) the same bubble */
+    /* note */
     home_cardpos_t card;
     char card_icon[20];
     char card_text[56];
     card_end_t card_end;
-    bool card_lime;             /* a lime card with no ring: tapping it opens something */
+    bool card_lime;
     int8_t steps_total, steps_done;
-    bool steps_list;            /* older kids: the numbered steps in Biscuit's place (card_text is this step) */
-    char step_prev[56], step_next[56];   /* the step before (done, mint) and the one after, dimmed; "" for none */
-    /* bottom */
+    bool steps_list;
+    char step_prev[56], step_next[56];
+    /* bottom: the hill */
     home_bottom_t bottom;
     char next_icon[20], next_title[44], next_time[8];
     int8_t peeks;
     char note[96];
     lv_opa_t note_opa;
-    /* BOTTOM_STARS: tonight's star under Biscuit (night streaks) */
     char star_icon[20];
     uint8_t star_goal, star_count;
     int16_t star_prize;
-    /* picture view (under 7): bigger icons, clock times, a speaker, a big Play */
+    /* picture view (under 7) */
     bool picture;
-    bool title_big;             /* the free-time countdown as the title */
-    bool speaker;               /* reads the task out */
-    bool big_play;              /* lime Play with Biscuit's face + the wheel as an icon */
+    bool title_big;
+    bool speaker;
+    bool big_play;
     /* chrome */
     bool cue, sides, dots;
-    char cue_text[40];          /* what the button does, in lime next to it: "Press to start", "Press when done" */
-    char cue_sub[16];           /* a quieter second line: "or play" */
-    uint8_t cue_ring;           /* 1..100: the lime ring at the button, shrinking (an early finish); 0 = the plain arc */
-    bool cue_dark;              /* a press does nothing useful (an event): the mark is dark, no words */
+    char cue_text[40];
+    char cue_sub[16];
+    uint8_t cue_ring;
+    bool cue_dark;
     bool rewards_only;          /* at bedtime: Rewards stays, no chores */
 } home_view_t;
 

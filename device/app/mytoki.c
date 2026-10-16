@@ -631,7 +631,7 @@ static void fmt_clock(char *buf, size_t n, int minutes)
     snprintf(buf + l, n - l, " %s", ui_ampm(minutes));
 }
 
-/* The night clock (Figma Wind down · Docked): the handheld on its dock after Goodnight. */
+/* The night clock (Figma Wind down · Night clock): the handheld on its dock after Goodnight. */
 static void night_clock(home_view_t *v)
 {
     const logic_now_t *n = &app.now;
@@ -643,17 +643,13 @@ static void night_clock(home_view_t *v)
     v->below = BELOW_TIME;
     snprintf(v->status, sizeof v->status, "Wake up at %s", w);
     snprintf(v->status_icon, sizeof v->status_icon, "alarm");
-    v->status_color = C_SKY;
-    int to_wake = (n->wake - now_m + 24 * 60) % (24 * 60);   /* one dot per ten minutes: the hours left */
-    v->ring = ring_style((uint8_t)(to_wake / 10 > 60 ? 60 : to_wake / 10), C_SKY, C_NIGHT_DOT);
-    v->ring.lit_r = 2.5f;
-    v->ring.lit_opa = v->ring.dim_opa = 128;
+    v->pill_tone = PILL_NIGHT;
+    v->timer_show = false;
     v->mood = PET_MOOD_SLEEP;
-    v->pet_dim = 140;
+    v->pet_dim = 128;
     v->sides = v->dots = false;
     v->bottom = BOTTOM_NOTE;
     snprintf(v->note, sizeof v->note, "Charging \xC2\xB7 ready by morning");
-    v->note_opa = 153;
 }
 
 static void next_from(home_view_t *v, int first)
@@ -673,13 +669,6 @@ static void next_from(home_view_t *v, int first)
     for (int i = 0; i < app.plan->ntasks; i++) if (app.plan->tasks[i].done_at < 0 && n->start[i] > start) more++;
     (void)k0;
     v->peeks = (int8_t)(more > 2 ? 2 : more);
-}
-
-static uint8_t frac60(int32_t left, int32_t total)
-{
-    if (total <= 0 || left <= 0) return 0;
-    int32_t v = (left * 60 + total - 1) / total;
-    return (uint8_t)(v > 60 ? 60 : v);
 }
 
 /* A night streak's row, shown under Biscuit at bedtime instead of the note. */
@@ -731,6 +720,61 @@ static void picture_view(home_view_t *v)
     v->say[0] = 0;
 }
 
+/* 0..1000 of the timer still lit */
+static int16_t share_left(int32_t left, int32_t total)
+{
+    if (total <= 0 || left <= 0) return 0;
+    int32_t v = (int32_t)((int64_t)left * 1000 / total);
+    return (int16_t)(v > 1000 ? 1000 : v);
+}
+
+/* MyToki 2's rule (Figma Task · 10 min or more / Under 10 min): with 10 minutes or more left the room
+ * fills the screen and the timer shows what's left in mint; under 10 the room shrinks into the
+ * circle, the whole timer and the pill turn amber. `calm` is the pill's tone with time to spare. */
+static void timed(home_view_t *v, int mins_left, int32_t rem, int32_t total, pill_tone_t calm)
+{
+    v->timer_show = true;
+    if (mins_left < 10) {
+        v->graphic = GRAPHIC_SMALL;
+        v->timer_tone = TIMER_HURRY;
+        v->timer_left = 1000;
+        v->pill_tone = PILL_HURRY;
+    } else {
+        v->graphic = GRAPHIC_FULL;
+        v->timer_tone = TIMER_PLENTY;
+        v->timer_left = share_left(rem, total);
+        v->pill_tone = calm;
+    }
+}
+
+/* The running-late screen (Figma Task · Running late): no room, the coral timer breathing. */
+static void late(home_view_t *v)
+{
+    v->mid = MID_OVERDUE;
+    v->late_chip = true;
+    v->timer_show = true;
+    v->timer_tone = TIMER_LATE;
+    v->timer_left = 1000;
+    v->timer_pulse = true;
+}
+
+/* A note the button answers (Figma "Note"): a step, "Press to start". */
+static void button_note(home_view_t *v, const char *icon, const char *text)
+{
+    v->card = CARDPOS_LOW;
+    snprintf(v->card_icon, sizeof v->card_icon, "%s", icon ? icon : "");
+    snprintf(v->card_text, sizeof v->card_text, "%s", text);
+    v->card_end = CARD_END_BUTTON;
+}
+
+static void plain_note(home_view_t *v, const char *icon, const char *text)
+{
+    v->card = CARDPOS_LOW;
+    snprintf(v->card_icon, sizeof v->card_icon, "%s", icon ? icon : "");
+    snprintf(v->card_text, sizeof v->card_text, "%s", text);
+    v->card_end = CARD_END_NONE;
+}
+
 static void build_view(home_view_t *v)
 {
     memset(v, 0, sizeof *v);
@@ -738,13 +782,15 @@ static void build_view(home_view_t *v)
     const logic_now_t *n = &app.now;
     const int now_m = app.now_s / 60;
     char buf[96];
-    v->sides = v->dots = v->ring_show = true;
-    v->title_color = C_BONE;
-    v->icon_color = C_BONE;
+    v->sides = v->dots = true;
+    v->title_color = C_TEXT;
+    v->icon_color = C_TEXT;
     v->force_clip = -1;
     v->mood = PET_MOOD_HAPPY;
     v->mid = MID_PET;
-    v->ring = ring_style(60, C_MINT, C_DOT_OFF);
+    v->graphic = GRAPHIC_FULL;
+    v->pill_tone = PILL_CALM;
+    ui_fmt_clock(v->clock_line, sizeof v->clock_line, now_m);
     const day_task_t *t = app.focus >= 0 ? &p->tasks[app.focus] : NULL;
 
     switch (app.state) {
@@ -757,8 +803,6 @@ static void build_view(home_view_t *v)
         v->mood = t->system == SYS_WAKE || strstr(k, "wake") || strstr(k, "morning") ? PET_MOOD_EXCITED
                 : act == PET_ACT_SLEEPING ? PET_MOOD_SLEEP : n->drowsy ? PET_MOOD_DROWSY : PET_MOOD_HAPPY;
         v->activity = act;
-        v->cue = !t->fun;
-        if (v->cue) snprintf(v->cue_text, sizeof v->cue_text, "Press when done");
         if (n->paused >= 0) {
             char low[48];
             sentence(low, sizeof low, p->tasks[n->paused].title);
@@ -768,11 +812,7 @@ static void build_view(home_view_t *v)
             say(buf, line, 600000);
         }
         if (n->overdue) {
-            v->late_chip = true;
-            v->icon_color = C_CORAL;
-            v->mid = MID_OVERDUE;
-            v->ring = ring_style(60, C_CORAL, C_DOT_OFF);
-            v->ring.pulse = true;
+            late(v);
             char name[48];
             sentence(name, sizeof name, t->title);
             const reserve_t *r = &n->reserve;
@@ -791,91 +831,74 @@ static void build_view(home_view_t *v)
             v->below = BELOW_TIME;
             snprintf(v->status, sizeof v->status, "%d min left", left);
             snprintf(v->status_icon, sizeof v->status_icon, "timer");
-            v->status_color = C_LIME;
             int32_t total = (t->end - n->start[app.focus]) * 60, rem = t->end * 60 - app.now_s;
             if (n->run_start[app.focus] >= 0) {   /* started by the button: its own full length from the press */
                 total = (t->end - t->start) * 60;
                 rem = logic_run_remaining(n, p, app.focus, app.now_s);
             }
-            v->ring = ring_style(frac60(rem, total), C_LIME, C_DOT_OFF);
-            if (left <= 5) {   /* almost over (Figma): the room goes dark, the ring dims with a coral rim, the pill turns amber */
-                v->status_color = C_BUTTER;
-                v->ring = ring_style(0, C_LIME, C_DOT_OFF);
-                v->ring.edge_color = C_CORAL;
-                v->room_off = true;
-            }
+            timed(v, left, rem, total, PILL_CALM);
         }
         if (t->nsteps && app.steps[app.focus] < t->nsteps) {
-            /* the checklist takes Biscuit's place (Figma Morning · Get dressed); the picture view keeps him */
-            v->card = p->child.picture ? CARDPOS_TOP : CARDPOS_MID;
+            /* the step to do now, as a Step note over the room (Figma Morning · Get dressed); the button ticks it */
             int done = app.steps[app.focus];
+            button_note(v, NULL, t->steps[done].text);
             v->steps_total = (int8_t)t->nsteps;
             v->steps_done = (int8_t)done;
-            v->card_end = CARD_END_BUTTON;
-            if (p->child.picture) snprintf(v->card_text, sizeof v->card_text, "%s", t->steps[done].text);
-            else {
-                /* the numbered list in Biscuit's place: the step before (done), this one, the next */
-                if (v->mid == MID_PET) v->mid = MID_NONE;
-                v->steps_list = true;
-                snprintf(v->card_text, sizeof v->card_text, "%d. %s", done + 1, t->steps[done].text);
-                if (done > 0) snprintf(v->step_prev, sizeof v->step_prev, "%d. %s", done, t->steps[done - 1].text);
-                if (done + 1 < t->nsteps) snprintf(v->step_next, sizeof v->step_next, "%d. %s", done + 2, t->steps[done + 1].text);
-            }
         }
         next_from(v, -1);
-        if (!n->overdue && v->card == CARDPOS_NONE && !v->room_off) {
+        if (!n->overdue && v->card == CARDPOS_NONE) {
             snprintf(buf, sizeof buf, "task:%s", t->id);
             char tmp[64];
             say(buf, prompt_for(t, tmp, sizeof tmp), SAY_MS);
-        } else if (v->room_off) app.say[0] = 0;
+        }
         break;
     }
     case ST_DONE: {
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
+        v->below = BELOW_TIME;
         if (app.done_saved > 0) snprintf(v->status, sizeof v->status, "Done! %d min saved", app.done_saved);
         else snprintf(v->status, sizeof v->status, "Done!");
-        v->status_color = C_MINT;
+        snprintf(v->status_icon, sizeof v->status_icon, "check");
+        v->pill_tone = PILL_DONE;
         v->force_clip = PET_CLIP_CELEBRATE;
-        /* done early: the next task can start now; a press before the ring is gone pulls it forward */
+        /* done early: the next task can start now; a press while the offer lasts pulls it forward */
         if (app.done_next >= 0 && logic_can_pull(p, app.done_next, app.now_s)) {
-            int32_t left = (int32_t)(app.done_until - now_ms());
-            v->cue = true;
-            v->cue_ring = (uint8_t)(left <= 0 ? 1 : left >= (int32_t)app.done_hold ? 100 : 1 + left * 99 / (int32_t)app.done_hold);
-            snprintf(v->cue_text, sizeof v->cue_text, "Press for %s", p->tasks[app.done_next].title);
-            snprintf(v->cue_sub, sizeof v->cue_sub, "or play");
+            snprintf(buf, sizeof buf, "Press for %s", p->tasks[app.done_next].title);
+            button_note(v, "timer", buf);
             next_from(v, app.done_next);
-        } else next_from(v, -1);
+        } else {
+            next_from(v, -1);
+            snprintf(v->say, sizeof v->say, "Great job!");
+        }
         break;
     }
     case ST_WAIT_START: {
-        /* waiting for the button: the ring full and still, the full length ahead (Figma: Waiting) */
+        /* waiting for the button: the timer full and still, the full length ahead */
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d min Â· waiting", t->end - t->start);
+        snprintf(v->status, sizeof v->status, "%d min \xC2\xB7 waiting", t->end - t->start);
         snprintf(v->status_icon, sizeof v->status_icon, "clock");
-        v->status_color = C_BUTTER;
-        v->ring = ring_style(60, C_LIME, C_DOT_OFF);
+        v->timer_show = true;
+        v->timer_tone = TIMER_PLENTY;
+        v->timer_left = 1000;
         v->mood = PET_MOOD_HAPPY;
         v->force_clip = PET_CLIP_CURIOUS;
-        v->cue = true;
-        snprintf(v->cue_text, sizeof v->cue_text, "Press to start");
         const reserve_t *r = &n->reserve;
         if (r->free_reserve && r->reserve_remaining < r->reserve_total) {
             /* the wait is eating the day the way running late does */
-            v->mid = MID_OVERDUE;
+            late(v);
+            v->late_chip = false;
             snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is eating up your free time");
             v->worm_eaten = (uint8_t)(5 - (r->reserve_remaining * 5 + r->reserve_total - 1) / (r->reserve_total ? r->reserve_total : 1));
         } else if (!r->free_reserve && r->reserve_task >= 0) {
-            v->mid = MID_OVERDUE;
+            late(v);
+            v->late_chip = false;
             snprintf(v->overdue_text, sizeof v->overdue_text, "Waiting is taking time from %s", p->tasks[r->reserve_task].title);
             v->worm_eaten = 5;
         }
-        snprintf(buf, sizeof buf, "wait:%s", t->id);
-        char line[64];
-        snprintf(line, sizeof line, "%s is waiting", t->title);
-        say(buf, line, 600000);
+        button_note(v, "timer", "Press to start");
         next_from(v, -1);
         break;
     }
@@ -886,25 +909,23 @@ static void build_view(home_view_t *v)
         first_word(shortname, sizeof shortname, t->title);
         int mins = t->event_start - now_m;
         snprintf(v->icon, sizeof v->icon, "backpack");
-        v->icon_color = ready ? C_MINT : C_BONE;
         snprintf(v->title, sizeof v->title, ready ? "You\xE2\x80\x99re ready!" : "Get ready");
         snprintf(v->status, sizeof v->status, "%s starts in %d min", shortname, mins);
         v->below = BELOW_TIME;
-        snprintf(v->status_icon, sizeof v->status_icon, "timer");
-        v->status_color = ready ? C_MINT : C_LIME;
+        snprintf(v->status_icon, sizeof v->status_icon, ready ? "check" : "timer");
         int32_t total = (t->event_start - n->start[app.focus]) * 60, rem = t->event_start * 60 - app.now_s;
-        v->ring = ready ? ring_style(60, C_MINT, C_DOT_OFF) : ring_style(frac60(rem, total), C_LIME, C_DOT_OFF);
+        timed(v, mins, rem, total, PILL_CALM);
+        if (ready) v->pill_tone = PILL_DONE;
         v->mood = PET_MOOD_HAPPY;
+        v->activity = PET_ACT_NONE;
         if (ready && (int32_t)(now_ms() - app.ready_until) < 0) v->force_clip = PET_CLIP_CELEBRATE;
+        else if (!ready) v->force_clip = PET_CLIP_ENCOURAGE;
         if (!ready && t->nsteps) {
-            v->card = CARDPOS_TOP;
+            button_note(v, NULL, t->steps[app.steps[app.focus]].text);
             v->steps_total = (int8_t)t->nsteps;
             v->steps_done = (int8_t)app.steps[app.focus];
-            snprintf(v->card_text, sizeof v->card_text, "%s", t->steps[app.steps[app.focus]].text);
-            v->card_end = CARD_END_BUTTON;
-            v->cue = true;
         }
-        app.say[0] = 0;   /* Figma Going out: no bubble; the card and the pill say it */
+        app.say[0] = 0;   /* Figma Going out: no bubble; the note and the pill say it */
         next_from(v, app.focus);
         break;
     }
@@ -912,57 +933,50 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d min left", logic_minutes_left(n, p, app.focus, app.now_s));
+        int left = logic_minutes_left(n, p, app.focus, app.now_s);
+        snprintf(v->status, sizeof v->status, "%d min left", left);
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
-        v->status_color = C_LIME;
         int32_t total = (t->end - t->event_start) * 60, rem = t->end * 60 - app.now_s;
-        v->ring = ring_style(frac60(rem, total), C_LIME, C_DOT_OFF);
+        timed(v, left, rem, total, PILL_CALM);
         v->activity = activity_for(t);
-        v->cue_dark = true;   /* a press does nothing here: the mark is dark, no words */
-        if (n->nstill) v->chores_left = (int8_t)(n->nstill > 99 ? 99 : n->nstill);   /* the small pill under Biscuit opens the list */
+        if (n->nstill) v->chores_left = (int8_t)(n->nstill > 99 ? 99 : n->nstill);   /* the note opens Other things to finish */
         snprintf(buf, sizeof buf, "event:%s", t->id);
         char tmp[64];
-        say(buf, prompt_for(t, tmp, sizeof tmp), SAY_MS);
+        if (!v->chores_left) say(buf, prompt_for(t, tmp, sizeof tmp), SAY_MS);
         next_from(v, -1);
         break;
     }
     case ST_FREE: {
         int32_t rem = n->free_remaining, total = n->free_total;
+        int left = (int)((rem + 59) / 60);
         snprintf(v->icon, sizeof v->icon, "kite");
-        v->icon_color = C_MINT;
-        snprintf(v->title, sizeof v->title, "Free Time");
+        snprintf(v->title, sizeof v->title, "Free time");
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d min left", (int)((rem + 59) / 60));
+        snprintf(v->status, sizeof v->status, "%d min left", left);
         snprintf(v->status_icon, sizeof v->status_icon, "kite");
-        v->status_color = C_MINT;
-        v->ring = ring_style(frac60(rem, total), C_MINT, C_DOT_OFF);
+        timed(v, left, rem, total, PILL_DONE);
         bool can_play = rem - GET_READY_S > 0;
         const day_task_t *nx = n->nupcoming ? &p->tasks[n->upcoming[0]] : NULL;
-        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s)) {
-            v->cue = true;
-            snprintf(v->cue_text, sizeof v->cue_text, "Press to start %s", nx->title);
-        }
+        next_from(v, -1);
         if (!can_play) {
-            /* the last five minutes (Figma "Free time · Last 5 minutes") */
+            /* the last five minutes (Figma Free time · Last 5 minutes) */
             v->mood = PET_MOOD_EXCITED;
             v->force_clip = PET_CLIP_CURIOUS;
             if (nx) {
                 char low[48];
                 lower(low, sizeof low, nx->title);
-                v->card = CARDPOS_TOP;
-                snprintf(v->card_icon, sizeof v->card_icon, "alarm");
-                snprintf(v->card_text, sizeof v->card_text, "Get ready for %s", low);
-                v->card_end = CARD_END_NONE;
+                snprintf(buf, sizeof buf, "Get ready for %s", low);
+                plain_note(v, "alarm", buf);
             }
         } else if (total > WHEEL_MIN_S) {
-            /* the two sides of the switch: the wheel (Figma "Spin") or Biscuit to tap ("Play with Biscuit") */
-            v->below = BELOW_FREE;
-            v->free_mode = app.free_pet_view ? 1 : 0;
+            /* the two sides of the switch on the hill: the wheel (Spin) or Biscuit to tap (Play) */
+            v->hide_title = true;
+            v->bottom = app.free_pet_view ? BOTTOM_PLAY : BOTTOM_WHEEL;
             if (!app.free_pet_view) {
-                v->mid = MID_WHEEL;   /* inside the time ring */
+                v->mid = MID_WHEEL;
             } else {
-                /* Biscuit in his room under the time ring (Figma Free time · Play with Biscuit) */
                 v->activity = app.free_act;
+                v->tap_ring = true;
                 say("free:tap", "Tap me to play!", 600000);
             }
         } else {
@@ -970,37 +984,27 @@ static void build_view(home_view_t *v)
             v->tap_ring = true;
             say("free:tap", "Tap me to play!", 600000);
         }
-        next_from(v, -1);
+        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !v->hide_title) {
+            snprintf(buf, sizeof buf, "Press to start %s", nx->title);
+            button_note(v, "timer", buf);
+        }
         break;
     }
     case ST_WAITING:
         snprintf(v->icon, sizeof v->icon, "clock");
-        fmt_clock(v->title, sizeof v->title, now_m);
-        snprintf(v->status, sizeof v->status, "A little time to relax");
-        v->status_color = C_MUTED;
-        v->ring_show = false;
+        snprintf(v->title, sizeof v->title, "Time to relax");
+        snprintf(v->status, sizeof v->status, "Nothing to do right now");
         v->mood = n->drowsy ? PET_MOOD_DROWSY : PET_MOOD_HAPPY;
         next_from(v, -1);
         break;
     case ST_ALARM: {
-        /* the sunrise: the sky ring turns lime one dot a second as the room lights up */
-        int32_t since = app.now_s - n->wake * 60;
         snprintf(v->icon, sizeof v->icon, "sun");
         snprintf(v->title, sizeof v->title, "Good morning!");
         v->below = BELOW_TIME;
         fmt_clock(v->status, sizeof v->status, n->wake);
         snprintf(v->status_icon, sizeof v->status_icon, "alarm");
-        v->status_color = C_SKY;
-        (void)since;
-        /* Figma Morning · Alarm: the room fills the screen, no ring, his words at the bottom */
-        v->ring_show = false;
-        v->pet_d = 446;
-        v->pet_xy = 10;
-        v->pet_wide = true;   /* the room carries on to the rim */
-        v->say_low = true;
         v->mood = PET_MOOD_DROWSY;
         v->wake = true;
-        v->cue = true;
         v->sides = v->dots = false;
         snprintf(buf, sizeof buf, "Morning, %s!", p->child.name);
         say("alarm", buf, 600000);
@@ -1014,11 +1018,8 @@ static void build_view(home_view_t *v)
         v->below = BELOW_TIME;
         snprintf(v->status, sizeof v->status, "%d:%02d left", (int)(left / 60), (int)(left % 60));
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
-        v->status_color = C_SKY;
-        v->ring = ring_style((uint8_t)((left * 60 + SNOOZE_S - 1) / SNOOZE_S), C_SKY, C_NIGHT_DOT);
-        v->ring.lit_r = 2.5f;
-        v->mood = PET_MOOD_EXCITED;        /* he's up and waiting, like a kid who can't wait to start the day */
-        v->cue = true;
+        timed(v, (int)(left / 60), left, SNOOZE_S, PILL_CALM);
+        v->mood = PET_MOOD_EXCITED;
         v->sides = v->dots = false;
         say("snooze", "I\xE2\x80\x99ll wait right here!", 600000);
         break;
@@ -1026,9 +1027,10 @@ static void build_view(home_view_t *v)
     case ST_IM_UP:
         snprintf(v->icon, sizeof v->icon, "sun");
         snprintf(v->title, sizeof v->title, "You\xE2\x80\x99re up!");
+        v->below = BELOW_TIME;
         snprintf(v->status, sizeof v->status, "Let\xE2\x80\x99s go!");
-        v->status_color = C_MINT;
-        v->ring = ring_style(60, C_MINT, C_DOT_OFF);
+        snprintf(v->status_icon, sizeof v->status_icon, "check");
+        v->pill_tone = PILL_DONE;
         v->force_clip = PET_CLIP_CELEBRATE;
         next_from(v, -1);
         break;
@@ -1040,24 +1042,22 @@ static void build_view(home_view_t *v)
         v->below = BELOW_TIME;
         snprintf(v->status, sizeof v->status, "See you at %s", e);
         snprintf(v->status_icon, sizeof v->status_icon, "house");
-        v->status_color = C_MINT;
-        v->ring = ring_style(60, C_MINT, C_DOT_OFF);
         v->force_clip = PET_CLIP_WAVE;
         v->sides = v->dots = false;
         say("school-off", "Bye! Have a great day!", 600000);
+        next_from(v, -1);
         break;
     }
     case ST_SCHOOL: {
-        /* quiet hours: a clock, Biscuit reading at his desk at 60%, nothing to tap */
+        /* quiet hours: Biscuit reading, nothing to tap */
         char e[8];
         ui_fmt_time(e, sizeof e, t->end);
         snprintf(v->icon, sizeof v->icon, "backpack");
-        fmt_clock(v->title, sizeof v->title, now_m);
-        snprintf(v->status, sizeof v->status, "At school \xC2\xB7 back at %s", e);
-        v->status_color = C_MUTED;
-        v->ring_show = false;
+        snprintf(v->title, sizeof v->title, "At school");
+        v->below = BELOW_TIME;
+        snprintf(v->status, sizeof v->status, "Back at %s", e);
+        snprintf(v->status_icon, sizeof v->status_icon, "house");
         v->activity = PET_ACT_READING;
-        v->pet_dim = 102;
         v->sides = v->dots = false;
         next_from(v, -1);
         break;
@@ -1065,30 +1065,22 @@ static void build_view(home_view_t *v)
     case ST_WELCOME:
         snprintf(v->icon, sizeof v->icon, "house");
         snprintf(v->title, sizeof v->title, "Welcome home!");
-        v->below = BELOW_TIME;
-        fmt_clock(v->status, sizeof v->status, now_m);
-        snprintf(v->status_icon, sizeof v->status_icon, "clock");
-        v->status_color = C_MINT;
-        v->ring = ring_style(60, C_MINT, C_DOT_OFF);
         v->force_clip = PET_CLIP_ENCOURAGE;
-        v->cue = true;
         say("welcome", "How was school?", 600000);
         next_from(v, -1);
         break;
     case ST_BED_SOON: {
         int nx = n->upcoming[0];
-        int mins = (n->start[nx] * 60 - app.now_s + 59) / 60;
+        int32_t left = n->start[nx] * 60 - app.now_s;
+        int mins = (int)((left + 59) / 60);
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Bedtime soon");
         v->below = BELOW_TIME;
         snprintf(v->status, sizeof v->status, "Starts in %d min", mins);
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
-        v->status_color = C_SKY;
-        v->card = CARDPOS_TOP;
-        snprintf(v->card_icon, sizeof v->card_icon, "bed");
-        snprintf(v->card_text, sizeof v->card_text, "Finish up and find %s", p->child.pet);
-        v->card_end = CARD_END_NONE;
-        v->ring_show = false;
+        timed(v, mins, left, BED_SOON_S, PILL_CALM);
+        snprintf(buf, sizeof buf, "Finish up and find %s", p->child.pet);
+        plain_note(v, "bed", buf);
         v->mood = PET_MOOD_DROWSY;
         v->sides = v->dots = false;
         next_from(v, nx);
@@ -1101,14 +1093,11 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Goodnight, %s!", p->child.name);
         snprintf(v->status, sizeof v->status, over ? "Sleep tight" : "Time to rest");
-        v->status_color = C_SKY;
-        v->ring = ring_style(0, C_NIGHT_DOT, C_NIGHT_DOT);
         v->mood = PET_MOOD_SLEEP;
-        v->pet_dim = over ? 60 : 0;
-        snprintf(v->say_top, sizeof v->say_top, "See you tomorrow!");
+        v->pet_dim = over ? 90 : 0;
+        if (!over) snprintf(v->say, sizeof v->say, "See you tomorrow!");
         if (over) { v->sides = false; v->dots = false; }
         else v->rewards_only = true;
-        if (!over && night_stars(v)) v->say_top[0] = 0;   /* a night streak's row takes the bubble's place */
         break;
     }
     case ST_SLEEPY: {
@@ -1117,27 +1106,23 @@ static void build_view(home_view_t *v)
         char w[8];
         ui_fmt_time(w, sizeof w, n->wake);
         v->below = BELOW_TIME;
-        v->status_color = C_SKY;
+        v->pill_tone = PILL_NIGHT;
+        snprintf(v->status, sizeof v->status, "Wake up at %s", w);
+        snprintf(v->status_icon, sizeof v->status_icon, "alarm");
+        v->bottom = BOTTOM_NOTE;
         if (to_wake > 60) {
             /* picked up in the night (Figma Wind down · Woke in the night) */
             snprintf(v->icon, sizeof v->icon, "cloudmoon");
             snprintf(v->title, sizeof v->title, "Still night");
-            fmt_clock(v->status, sizeof v->status, now_m);
-            snprintf(v->status_icon, sizeof v->status_icon, "moon");
-            snprintf(v->note, sizeof v->note, "It\xE2\x80\x99s still night.\n%s is sleeping too.", p->child.pet);
+            snprintf(v->note, sizeof v->note, "%s is sleeping too", p->child.pet);
+            v->pet_dim = 90;
         } else {
             snprintf(v->icon, sizeof v->icon, "moon");
             snprintf(v->title, sizeof v->title, "Still sleepy time");
-            snprintf(v->status, sizeof v->status, "Wake up at %s", w);
-            snprintf(v->status_icon, sizeof v->status_icon, "alarm");
-            snprintf(v->note, sizeof v->note, "%s is still asleep.\nSee you in the morning!", p->child.pet);
+            snprintf(v->note, sizeof v->note, "%s is still asleep", p->child.pet);
         }
-        v->ring = ring_style((uint8_t)(to_wake > 60 ? 60 : to_wake < 0 ? 0 : to_wake), C_SKY, C_NIGHT_DOT);
-        v->ring.lit_r = 2.5f;
         v->mood = PET_MOOD_SLEEP;
         v->sides = v->dots = false;
-        v->bottom = BOTTOM_NOTE;
-        night_stars(v);
         break;
     }
     case ST_ALL_DONE:
@@ -1145,18 +1130,14 @@ static void build_view(home_view_t *v)
     case ST_REST: {
         bool rest = app.state == ST_REST, all = app.state == ST_ALL_DONE;
         snprintf(v->icon, sizeof v->icon, rest ? "house" : all ? "party" : "sun");
-        v->icon_color = rest ? C_LAVENDER : C_BONE;
         snprintf(v->title, sizeof v->title, rest ? "Cozy rest day" : all ? "All done for today!" : "A free day!");
         snprintf(v->status, sizeof v->status, rest ? "No plans today" : all ? "Nice work" : "Nothing planned today");
-        v->status_color = rest ? C_LAVENDER : C_MINT;
-        v->ring = ring_style(60, rest ? C_LAVENDER : C_MINT, C_DOT_OFF);
-        v->ring.lit_opa = rest ? 128 : all ? 255 : 140;
         v->mood = all ? PET_MOOD_EXCITED : PET_MOOD_HAPPY;
-        v->activity = rest ? PET_ACT_READING : all ? app.free_act : PET_ACT_OUTSIDE;
-        /* Figma Quiet day: his words under him on a rest day and when all is done; a free day is
-         * a tap away from Playtime, so the lime ring and "Tap me to play!" */
-        if (rest) snprintf(v->say_top, sizeof v->say_top, "Take it easy today");
-        else if (all) snprintf(v->say_top, sizeof v->say_top, "You did it, %s!", p->child.name);
+        v->activity = rest ? PET_ACT_READING : all ? PET_ACT_NONE : PET_ACT_OUTSIDE;
+        if (all) v->force_clip = PET_CLIP_CELEBRATE;
+        /* Figma Quiet days: his words beside him; a free day is a tap away from Playtime */
+        if (rest) snprintf(v->say, sizeof v->say, "Take it easy today");
+        else if (all) snprintf(v->say, sizeof v->say, "You did it, %s!", p->child.name);
         else { v->tap_ring = true; say("freeday", "Tap me to play!", 600000); }
         break;
     }
@@ -1164,7 +1145,7 @@ static void build_view(home_view_t *v)
         break;
     }
     if (p->child.picture) picture_view(v);
-    if (!p->child.picture && app.say[0] && app.state != ST_DONE && (int32_t)(now_ms() - app.say_until) < 0) snprintf(v->say, sizeof v->say, "%s", app.say);
+    if (!p->child.picture && app.say[0] && app.state != ST_DONE && !v->say[0] && (int32_t)(now_ms() - app.say_until) < 0) snprintf(v->say, sizeof v->say, "%s", app.say);
 }
 
 /* ================================================================ the clock */
@@ -1243,6 +1224,7 @@ static void tick(lv_timer_t *timer)
     hal_time_now(&app.t);
     snprintf(app.today, sizeof app.today, "%04d-%02d-%02d", app.t.year, app.t.month, app.t.day);
     app.now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
+    ui_set_clock(app.now_s / 60);
 
     if (app.hello_until && (int32_t)(now_ms() - app.hello_until) >= 0) {
         app.hello_until = 0;
@@ -1390,6 +1372,8 @@ void mytoki_start(void)
 void mytoki_day_received(const char *json, size_t len)
 {
     app.fetching = false;
+    hal_time_now(&app.t);
+    ui_set_clock(app.t.hour * 60 + app.t.minute);   /* screens that open with the plan show the time too */
     day_plan_t *p = lv_malloc(sizeof(day_plan_t));
     if (!p) return;
     if (!day_parse(json, len, p)) {

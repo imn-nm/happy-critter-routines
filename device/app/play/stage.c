@@ -177,7 +177,7 @@ void stage_render(const stage_t *s, uint16_t *buf)
     led_args_t a = {
         .buf = buf, .d = STAGE_D, .pitch = STAGE_D / 116.0f,
         .room = s->room, .body = s->body, .fx = NULL, .walls = s->walls, .gw = ST_W, .gh = ST_H,
-        .cx = LW / 2 + ST_OX, .cy = LH / 2 + ST_OY, .dim = 0, .bg = 0x040605, .sparkles = -1,
+        .cx = LW / 2 + ST_OX, .cy = LH / 2 + ST_OY, .dim = 0, .bg = 0x040605, .sparkles = -1, .solid = true,
     };
     led_render(&a);
 }

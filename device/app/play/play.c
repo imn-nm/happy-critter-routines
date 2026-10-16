@@ -39,9 +39,10 @@ static const char *const ACC_ICON[PET_ACC_COUNT] = {
 static stage_t stage;
 
 static struct {
-    lv_obj_t *root, *canvas, *shade_top, *shade_low, *icon, *title, *bottom, *menu, *menu_pet, *cue;
+    lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue;
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
-    time_pill_t pill;
+    header_t head;
+    char left_text[16];
     uint16_t *buf;
     lv_timer_t *timer_obj;
     bool in_game, see_you;
@@ -102,10 +103,14 @@ static void draw_stage(void)
 }
 
 /* ---------------------------------------------------------------- the header */
+static char head_title[40];
+
+/* MyToki 2 Header: the clock, the game's name, the play time left in a mint pill */
 static void set_header(const char *icon, const char *title)
 {
-    ui_icon_set(pl.icon, icon, 20);
-    ui_set_text(pl.title, title);
+    (void)icon;
+    if (title) snprintf(head_title, sizeof head_title, "%s", title);
+    if (pl.head.root) header_set(&pl.head, ui_clock(), head_title, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */
@@ -133,14 +138,11 @@ static lv_obj_t *step_pill(lv_obj_t *parent, const char *text, bool on, bool sun
     lv_obj_set_size(c, 84, 44);
     lv_obj_set_pos(c, x, 0);
     lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    if (on) {
-        ui_style_card(c, sunken ? C_DOTS_BG : C_INK, 22, C_LIME, LV_OPA_COVER);
-        lv_obj_set_style_border_width(c, 2, 0);
-        if (!sunken) lv_obj_set_style_bg_opa(c, LV_OPA_TRANSP, 0);
-    } else {
-        ui_style_card(c, C_GLASS, 22, 0, 0);
-    }
-    ui_label(c, F_LABEL, C_BONE, text);
+    (void)sunken;
+    /* MyToki 2 Tab: on a night pill; the current one has a lime outline and lime words */
+    ui_style_card(c, C_RAISED, LV_RADIUS_CIRCLE, C_ACTION, on ? LV_OPA_COVER : 0);
+    if (on) lv_obj_set_style_border_width(c, 2, 0);
+    ui_label(c, F_LABEL, on ? C_ACTION : C_TEXT_MUTED, text);
     return c;
 }
 
@@ -376,40 +378,31 @@ static void see_you_later(void)
     pl.see_you = true;
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
-    pl.canvas = pl.title = pl.icon = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = NULL;
+    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = NULL;
+    pl.head.root = NULL;
     pl.chev_l = pl.chev_r = NULL;
     memset(pl.circle, 0, sizeof pl.circle);
     lv_free(pl.buf);
     pl.buf = NULL;
     lv_obj_add_event_cb(pl.root, on_ok, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *pet = pet_create(pl.root, 286);
-    lv_obj_set_pos(pet, 90, 90);
-    pet_look_t look = pet_default_look(286);
-    look.pitch = 3.8f;
-    pet_set_look(pet, &look);
+    /* Figma "Playtime · See you later": the room, Biscuit waving, "Time to get ready", what's next */
+    lv_obj_t *pet = pet_create(pl.root, SCREEN_W);
+    lv_obj_set_pos(pet, 0, 0);
     pet_force_clip(pet, PET_CLIP_WAVE);
-    lv_obj_t *ic = ui_icon(pl.root, "hand", 20, C_BONE);
-    lv_obj_set_pos(ic, 223, 14);
-    lv_obj_t *t = ui_label(pl.root, F_TITLE, C_BONE, "See you later!");
-    lv_obj_set_width(t, 340);
-    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 38);
-    lv_obj_t *s = ui_label(pl.root, F_LABEL, C_MUTED, "Play again next free time");
-    lv_obj_set_width(s, 340);
-    lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 69);
+    scrim_create(pl.root);
+    hill_t hl;
+    hill_create(pl.root, &hl, NULL);
+    if (pl.next[0]) hill_set_next(&hl, pl.next_icon, pl.next, pl.next_time);
     lime_card_t c;
     lime_card_create(pl.root, &c, 0);
-    lime_card_set(&c, "alarm", "Time to get ready", CARD_END_NONE);
+    lime_card_set(&c, "clock", "Time to get ready", CARD_END_NONE);
     lv_obj_update_layout(c.root);
-    lv_obj_align(c.root, LV_ALIGN_TOP_MID, 0, 97);
-    if (pl.next[0]) {
-        static next_block_t nb;
-        next_block_create(pl.root, &nb, NULL, NULL);
-        next_block_set(&nb, pl.next_icon, pl.next, pl.next_time, 0);
-    }
+    lv_obj_align(c.root, LV_ALIGN_TOP_MID, 0, 322);
+    header_t h;
+    header_create(pl.root, &h);
+    header_set(&h, ui_clock(), "See you later!", HEADER_TEXT, PILL_CALM, NULL, "Play again next free time");
     hal_play(HAL_SOUND_SOON);
-    fx_rise_children(pl.root, 14, 30);
+    fx_rise(c.root, 14, 120);
     char say[96];
     snprintf(say, sizeof say, "Time to get ready for %s. See you later!", pl.next);
     hal_speak(say);
@@ -435,11 +428,8 @@ void play_set_time_left(int32_t s)
     if (!pl.root || pl.see_you) return;
     pl.left = s;
     if (s <= 0) { see_you_later(); return; }
-    char t[16];
-    snprintf(t, sizeof t, "%d:%02d left", (int)(s / 60), (int)(s % 60));
-    time_pill_set(&pl.pill, "kite", t, C_MINT);
-    lv_obj_update_layout(pl.pill.root);
-    lv_obj_align(pl.pill.root, LV_ALIGN_TOP_MID, 0, 69);
+    snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d left", (int)(s / 60), (int)(s % 60));
+    set_header(NULL, NULL);
 }
 
 bool play_is_open(void) { return pl.root != NULL; }
@@ -492,11 +482,8 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     pl.shade_low = shade(pl.root, 314, 152, true);
 
     /* the menu: Biscuit's own room, 286 px, waving now and then; the games round him, a page at a time */
-    pl.menu_pet = pet_create(pl.root, 286);
-    lv_obj_set_pos(pl.menu_pet, 90, 85);
-    pet_look_t look = pet_default_look(286);
-    look.pitch = 3.8f;
-    pet_set_look(pl.menu_pet, &look);
+    pl.menu_pet = pet_create(pl.root, 298);
+    lv_obj_set_pos(pl.menu_pet, 84, 84);
     pet_set_mood(pl.menu_pet, PET_MOOD_EXCITED);
     pet_set_tappable(pl.menu_pet, true);
     pl.menu = ui_box(pl.root);
@@ -507,8 +494,9 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         pl.circle[g] = b;
         lv_obj_set_size(b, 97, 97);
         lv_obj_set_pos(b, MENU[g].x, MENU[g].y);
-        ui_style_card(b, C_GLASS, LV_RADIUS_CIRCLE, C_LINE, LV_OPA_COVER);
-        lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
+        ui_style_card(b, C_RAISED, LV_RADIUS_CIRCLE, C_CHIP, LV_OPA_COVER);
+        lv_obj_set_style_border_width(b, 3, 0);
+        lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
         lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(b, on_game, LV_EVENT_CLICKED, (void *)(intptr_t)g);
         if (picture && MENU[g].page > 0) {
@@ -544,14 +532,8 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     pl.cue = cue_create(pl.root);
     ui_show(pl.cue, false);
 
-    /* the header: the game's icon, its name, the play time left in a mint pill */
-    pl.icon = ui_icon(pl.root, "kite", 20, C_BONE);
-    lv_obj_set_pos(pl.icon, 223, 14);
-    pl.title = ui_label(pl.root, F_TITLE, C_BONE, "");
-    lv_obj_set_width(pl.title, 340);
-    lv_obj_set_style_text_align(pl.title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(pl.title, LV_ALIGN_TOP_MID, 0, 38);
-    time_pill_create(pl.root, &pl.pill);
+    /* the header: the clock, the game's name, the play time left in a mint pill */
+    header_create(pl.root, &pl.head);
 
     pl.bottom = ui_box(pl.root);
     lv_obj_set_size(pl.bottom, SCREEN_W, 132);

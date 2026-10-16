@@ -6,8 +6,8 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { List } from "lucide-react";
-import CircleDevice, { type CircleEvent } from "@/components/CircleDevice";
+import { List, Ruler } from "lucide-react";
+import CircleDevice, { CIRCLE_REAL_SIZE_PX, type CircleEvent } from "@/components/CircleDevice";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren } from "@/hooks/useChildren";
 import { useTasks } from "@/hooks/useTasks";
@@ -31,7 +31,11 @@ const ChildCircle = () => {
   const { sessions, startSession, getActiveSessionForTask, endSession } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
-  const [size, setSize] = useState(() => Math.min(600, window.innerWidth, window.innerHeight - 72));
+  const [fit, setFit] = useState(() => Math.min(600, window.innerWidth, window.innerHeight - 72));
+  // Real size: the round screen drawn 1.75 inches across, as on the handheld (the Waveshare 1.75"
+  // AMOLED, 466 px). CSS inches are 96 px, so this is the true size on a screen at 100% zoom.
+  const [realSize, setRealSize] = useState(() => { try { return localStorage.getItem("mytoki:real-size") === "1"; } catch { return false; } });
+  const size = realSize ? CIRCLE_REAL_SIZE_PX : fit;
 
   useEffect(() => { lockParentMode(); }, []);
   useEffect(() => {
@@ -39,7 +43,7 @@ const ChildCircle = () => {
     ensureSystemTasksExist(childId).finally(() => setSystemTasksReady(true));
   }, [childId]);
   useEffect(() => {
-    const onResize = () => setSize(Math.min(600, window.innerWidth, window.innerHeight - 72));
+    const onResize = () => setFit(Math.min(600, window.innerWidth, window.innerHeight - 72));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -107,13 +111,24 @@ const ChildCircle = () => {
   return (
     <div className="min-h-dvh bg-focus-bg text-focus-text flex flex-col items-center justify-center gap-4 py-4">
       <CircleDevice childId={child.id} planJson={planJson} failed={!!loadError} onEvent={onEvent} size={size} />
-      <button
-        type="button"
-        onClick={() => navigate(`/child/${child.id}/list`)}
-        className="inline-flex items-center gap-2 rounded-full bg-focus-surface px-4 py-2 text-14 font-semibold text-focus-muted hover:text-focus-text"
-      >
-        <List className="w-4 h-4" aria-hidden /> List view
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => navigate(`/child/${child.id}/list`)}
+          className="inline-flex items-center gap-2 rounded-full bg-focus-surface px-4 py-2 text-14 font-semibold text-focus-muted hover:text-focus-text"
+        >
+          <List className="w-4 h-4" aria-hidden /> List view
+        </button>
+        <button
+          type="button"
+          aria-pressed={realSize}
+          title="Draw the screen 1.75 inches across, the size of the handheld's display"
+          onClick={() => setRealSize(v => { const next = !v; try { localStorage.setItem("mytoki:real-size", next ? "1" : "0"); } catch { /* private mode */ } return next; })}
+          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-14 font-semibold ${realSize ? "bg-focus-lime text-focus-bg" : "bg-focus-surface text-focus-muted hover:text-focus-text"}`}
+        >
+          <Ruler className="w-4 h-4" aria-hidden /> Real size 1.75″
+        </button>
+      </div>
     </div>
   );
 };

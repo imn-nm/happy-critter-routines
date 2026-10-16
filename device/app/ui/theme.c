@@ -93,3 +93,10 @@ void ui_fmt_time(char *buf, size_t n, int minutes)
 }
 
 const char *ui_ampm(int minutes) { return (minutes / 60) % 24 < 12 ? "am" : "pm"; }
+
+void ui_fmt_clock(char *buf, size_t n, int minutes)
+{
+    char t[8];
+    ui_fmt_time(t, sizeof t, minutes);
+    snprintf(buf, n, "%s%s", t, ui_ampm(minutes));
+}

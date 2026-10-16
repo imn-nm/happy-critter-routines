@@ -33,9 +33,11 @@ FONTS = {
     'Montserrat[wght].ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf',
     'Poppins-500.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Medium.ttf',
     'Poppins-700.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-Bold.ttf',
+    # MyToki 2 (Figma 1052:5356): Item and Label in Poppins SemiBold, titles in Montserrat Bold
+    'Poppins-600.ttf': 'https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/Poppins-SemiBold.ttf',
 }
 WEIGHTS = {'Unbounded[wght].ttf': ('Unbounded', [400, 500, 600, 700]), 'SpaceGrotesk[wght].ttf': ('SpaceGrotesk', [400, 500, 700]),
-           'Montserrat[wght].ttf': ('Montserrat', [500, 600])}
+           'Montserrat[wght].ttf': ('Montserrat', [500, 600, 700])}
 
 
 def run(cmd, **kw):

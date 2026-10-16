@@ -22,6 +22,7 @@ typedef struct {
     const uint32_t *palette; /* 0xRRGGBB per index, or NULL for Biscuit's pet_palette */
     bool extend;            /* a wide room: the walls carry on sideways past the grid */
     bool room_off;          /* draw only Biscuit and his effects; no walls, features or unlit dots */
+    bool solid;             /* MyToki 2: plain pixel art, every cell a full square in its own colour (no LED dots) */
 } led_args_t;
 
 void led_render(const led_args_t *a);

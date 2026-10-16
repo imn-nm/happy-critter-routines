@@ -1,6 +1,6 @@
 # MyToki on the device
 
-The child's round screen, built for the **Waveshare ESP32-S3-Touch-AMOLED-1.75C** (466 × 466 AMOLED, CO5300 over QSPI, CST9217 touch, ES8311 speaker, 8 MB PSRAM). It follows the Figma board **Circle Display Updated** (node 609:2719) and its **MyToki Circle** design system: the whole day from the morning alarm to the night clock on the dock, the button at 1 o'clock, the carousel, picture view and Playtime. The shared parts (header, time pill, message cards, Biscuit's bubble, side buttons, the Next pill) are placed and coloured as the Figma components are; `platform/sim/snap.mjs` renders every screen so it can be laid next to its Figma frame.
+The child's round screen, built for the **Waveshare ESP32-S3-Touch-AMOLED-1.75C** (466 × 466 AMOLED, CO5300 over QSPI, CST9217 touch, ES8311 speaker, 8 MB PSRAM). It follows the Figma section **Child UI · New UI** (node 1052:5356) and its **MyToki 2** design system: the whole day from the morning alarm to the night clock on the dock, the button at 1 o'clock, the carousel, picture view and Playtime. Biscuit's room fills the round screen and shrinks into the middle circle once fewer than 10 minutes are left; a dashed timer runs round the rim (mint, amber under 10 minutes, coral when running late); the hill at the bottom says what's next and opens the day. Today's schedule, Chores and Other things to finish are wheels: the row now sits on the focus line, the ones before and after are smaller and fainter, and the list scrolls under the finger. The shared parts (Header, Pill, Timer, Hill, Note, Speech, Side nav, Button, Tab) are placed and coloured as the Figma components are; `platform/sim/snap.mjs` renders every screen so it can be laid next to its Figma frame.
 
 The same C code runs in two places:
 
@@ -14,7 +14,7 @@ device/
   app/                 the child app: portable C on LVGL 9.5 (identical on both platforms)
     mytoki.c             controller: today's plan, progress, which screen, the button, sounds
     day.c, logic.c     the day plan, and the live day (a port of ChildInterface + timeReserve.ts)
-    ui/                Field Kit screens: Home, Rewards, Chores, schedule, overlays, the wheel
+    ui/                MyToki 2 screens: Home, Rewards, Chores, schedule, overlays, the wheel
     pet/               Biscuit: behaviour engine (port of SpritePet.tsx) + the LED-field renderer
     play/              Playtime: menu (two pages), Dress up, Bath time, Carrot catch, Bubble pop, Peekaboo,
                        Roll home, Biscuit says, Carrot stack (the motion games, see app/motion.h)
@@ -50,6 +50,7 @@ python device/platform/sim/run.py
 Using the simulator:
 
 - **Touch:** click the round screen. Drag to swipe.
+- **Real size:** a switch in the panel (and "Real size 1.75″" under the web app's Circle) draws the screen 1.75 inches across, the handheld's own size (CSS inches, so true on a screen at 100 % zoom).
 - **The button at 1 o'clock:** the green cap on the housing, or <kbd>Space</kbd>.
 - **Clock:** use the slider, the ±5 min / ±1 h buttons, the jumps to each task, and the speed (up to 300×).
 - **Demo plans:** a school day, running late, a weekend, a free day and a rest day. There are toggles for picture view (under 7), for no internet, and for whether the device is paired with a grown-up's app (unpaired shows the pairing code).

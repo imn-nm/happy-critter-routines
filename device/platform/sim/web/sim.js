@@ -42,6 +42,8 @@
     $('picture').checked = store.get('picture') === '1';
     $('paired').checked = store.get('paired') !== '0';
     $('docked').checked = store.get('docked') === '1';
+    $('realsize').checked = store.get('realsize') === '1';
+    $('device').classList.toggle('real', $('realsize').checked);
     if (store.get('battery') != null) $('battery').value = store.get('battery');
   }
 
@@ -248,6 +250,7 @@
     $('reload').onclick = () => mytoki.request_day();
     $('paired').onchange = () => { store.set('paired', $('paired').checked ? '1' : '0'); mytoki.request_day(); };
     $('docked').onchange = () => store.set('docked', $('docked').checked ? '1' : '0');
+    $('realsize').onchange = () => { store.set('realsize', $('realsize').checked ? '1' : '0'); $('device').classList.toggle('real', $('realsize').checked); };
     $('battery').oninput = () => store.set('battery', $('battery').value);
     $('online').onchange = () => {
       if (!$('online').checked) return;

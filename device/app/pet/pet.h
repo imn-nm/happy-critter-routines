@@ -38,9 +38,15 @@ typedef struct {
     int8_t dx, dy;      /* shift the LED window over the grid, in cells */
     bool wide;          /* a strip across the screen: the room's walls carry on sideways */
     bool room_off;      /* only Biscuit (and his effects): the room's LEDs stay dark */
+    bool solid;         /* MyToki 2: plain pixel art, full squares (no LED dots) */
 } pet_look_t;
 
-/* A round LED scene `diameter` px wide. Tapping it makes him react (see pet_set_tappable). */
+/* MyToki 2 (Figma "Scene"): Biscuit is the same size in every room, 3.609 px per cell, the room
+ * drawn solid and carried on to the rim. */
+#define PET_PITCH 3.609f
+
+/* A round scene `diameter` px wide (MyToki 2: 466 fills the screen, 298 is the small circle under
+ * 10 min left). Tapping it makes him react (see pet_set_tappable). */
 lv_obj_t *pet_create(lv_obj_t *parent, int32_t diameter);
 void pet_set_look(lv_obj_t *pet, const pet_look_t *look);
 pet_look_t pet_default_look(int32_t diameter);

@@ -1,7 +1,7 @@
-// Converts the Field Kit typefaces into LVGL bitmap fonts at the sizes the screens use.
+// Converts the MyToki 2 typefaces into LVGL bitmap fonts at the sizes the screens use.
 //   node fonts.mjs   -> ../app/assets/fonts/*.c + fonts.h
-// Needs the static TTF instances that setup.py makes in ../.tools/fonts (Unbounded, Space Grotesk
-// and Montserrat are variable fonts upstream; Amiko and Poppins are static). All are SIL Open Font License.
+// Needs the static TTF instances that setup.py makes in ../.tools/fonts (Space Grotesk and Montserrat
+// are variable fonts upstream; Poppins is static). All are SIL Open Font License.
 import { execFileSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -23,20 +23,18 @@ const DIGITS = ['0x20', '0x30-0x3A', '0x61', '0x6D', '0x70']; // " 0-9:" plus "a
 
 // [file, weight label, sizes, ranges]
 const FONTS = [
-  ['Unbounded-400.ttf', 'unb400', [13, 16], TEXT],
-  ['Unbounded-500.ttf', 'unb500', [12, 13, 14, 15, 16], TEXT],
-  ['Unbounded-600.ttf', 'unb600', [13, 14, 15, 16, 17, 18, 20, 22, 26, 28, 30], TEXT],
-  ['Unbounded-600.ttf', 'unb600', [44, 60], DIGITS],
-  ['SpaceGrotesk-400.ttf', 'sg400', [12, 13, 15], TEXT],
-  ['SpaceGrotesk-700.ttf', 'sg700', [11, 12, 13, 14, 15, 18], TEXT],
-  ['Amiko-400.ttf', 'amiko', [16], TEXT],
-  // MyToki Circle (Figma 609:2719): Title 22, Display 28, Clock 48 (digits), Message 17; Poppins Tag 14, Label 16,
-  // Button/Body 18, Number 24, Caption 15, Item 19
-  ['Montserrat-600.ttf', 'mon600', [22, 28], TEXT],
-  ['Montserrat-600.ttf', 'mon600', [48], DIGITS],
-  ['Montserrat-500.ttf', 'mon500', [17], TEXT],
-  ['Poppins-700.ttf', 'pop700', [14, 16, 18, 24], TEXT],
-  ['Poppins-500.ttf', 'pop500', [15, 18, 19], TEXT],
+  // MyToki 2 (Figma "Child UI · New UI", 1052:5356), the "MyToki 2/" text styles:
+  // Title 26 and Display 32 in Montserrat Bold, Message 21 in Montserrat Medium, Big number 52 (digits);
+  // Poppins Clock/Body 22, Pill 24, Detail/Speech 20 (Medium), Item 22 and Label 20 (SemiBold), Button 22;
+  // the Next block in Space Grotesk: Next label 22 (Medium), Next time 22 and Next task 24 (Bold).
+  ['Montserrat-700.ttf', 'mon700', [26, 32], TEXT],
+  ['Montserrat-600.ttf', 'mon600', [52], DIGITS],
+  ['Montserrat-500.ttf', 'mon500', [21], TEXT],
+  ['Poppins-500.ttf', 'pop500', [20, 22, 24], TEXT],
+  ['Poppins-600.ttf', 'pop600', [20, 22], TEXT],
+  ['Poppins-700.ttf', 'pop700', [22, 24], TEXT],
+  ['SpaceGrotesk-500.ttf', 'sg500', [22], TEXT],
+  ['SpaceGrotesk-700.ttf', 'sg700', [22, 24], TEXT],
 ];
 
 fs.mkdirSync(OUT, { recursive: true });

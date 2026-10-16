@@ -342,7 +342,7 @@ static void render(pet_t *p)
         .cx = PET_RING_CX + p->look.dx, .cy = PET_RING_CY + p->look.dy,
         .dim = p->look.dim, .room_off = p->look.room_off,
         .bg = lv_color_to_u32(p->look.bg) & 0xFFFFFF, .sparkles = celebrate ? p->frame : -1,
-        .palette = NULL, .extend = p->look.wide,
+        .palette = NULL, .extend = p->look.wide, .solid = p->look.solid,
     };
     led_render(&a);
     lv_obj_invalidate(p->obj);
@@ -409,7 +409,10 @@ static void on_event(lv_event_t *e)
 
 pet_look_t pet_default_look(int32_t diameter)
 {
-    pet_look_t l = { .pitch = 3.8f * diameter / 232.0f, .dim = 0, .bg = lv_color_hex(0x040605), .dx = 0, .dy = 0, .wide = false };
+    /* MyToki 2: the same cell size at any diameter; the window sits two cells right and down of the
+     * ring's old centre so Biscuit stands where the Figma scenes have him */
+    (void)diameter;
+    pet_look_t l = { .pitch = PET_PITCH, .dim = 0, .bg = lv_color_hex(0x000000), .dx = 2, .dy = 2, .wide = true, .solid = true };
     return l;
 }
 
@@ -540,7 +543,6 @@ void pet_set_size(lv_obj_t *obj, int32_t diameter)
     p->d = diameter;
     p->buf = lv_malloc((size_t)diameter * diameter * 2);
     lv_canvas_set_buffer(p->obj, p->buf, diameter, diameter, LV_COLOR_FORMAT_RGB565);
-    p->look.pitch = 3.8f * diameter / 232.0f;
     render(p);
 }
 

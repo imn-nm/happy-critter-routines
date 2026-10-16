@@ -140,3 +140,6 @@ button:hover { border-color: var(--ink); }
 @media (max-width: 640px) {
   .device { transform: scale(0.58); margin: -126px; }
 }
+
+/* Real size: the 466 px screen drawn 1.75 inches (168 CSS px) across, as on the handheld */
+.device.real { transform: scale(0.3605); margin: -192px; }

@@ -34,7 +34,7 @@
       <canvas id="screen" width="466" height="466" aria-label="MyToki screen"></canvas>
       <button class="hw-button" id="hwButton" aria-label="Hardware button (Space)"></button>
     </div>
-    <p class="hint">Click to touch. Drag sideways to swipe: it turns the pages on Home and backs out of lists and Playtime (a game, then the menu). Flick up on Home to lift the day's schedule; flick down, or drag its title down, to put it away. The green button at 1 o'clock (or <kbd>Space</kbd>) is the hardware button. A quick drag down on the morning alarm snoozes it. The arrow keys tilt the handheld for the motion games; the Tilt pad, Shake and Knock are in the panel.</p>
+    <p class="hint">Click to touch. Drag sideways to swipe: it turns the pages on Home and backs out of lists and Playtime (a game, then the menu). Tap Next on the hill (or flick up on Home) to lift the day's schedule; drag it up and down to see the whole day, and drag down from its top edge to put it away. Chores scroll the same way. The green button at 1 o'clock (or <kbd>Space</kbd>) is the hardware button. A quick drag down on the morning alarm snoozes it. The arrow keys tilt the handheld for the motion games; the Tilt pad, Shake and Knock are in the panel.</p>
   </section>
 
   <aside class="panel">
@@ -81,6 +81,7 @@
 
     <fieldset>
       <legend>The handheld</legend>
+      <label class="check"><input type="checkbox" id="realsize"> Real size: the screen 1.75 in across</label>
       <label class="check"><input type="checkbox" id="docked"> On its dock (the night clock, charging)</label>
       <label class="row">Battery %
         <input type="number" id="battery" min="0" max="100" value="100" style="width:72px">

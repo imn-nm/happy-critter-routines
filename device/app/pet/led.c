@@ -132,8 +132,59 @@ static void square(const led_args_t *a, int i, int j, float P, float edge, rgbf_
     }
 }
 
+/* MyToki 2 (Figma "Scene"): the room as plain pixel art, every cell a full square in the app's own
+ * colour, Biscuit on the same grid. With `extend` the room's edge cells carry on to the rim, so a
+ * room fills the whole round screen; the circle's edge is soft. */
+static void solid_render(const led_args_t *a)
+{
+    const float P = a->pitch, R = a->d / 2.0f;
+    const int n = (int)ceilf(R / P) + 1;
+    const rgbf_t bg = rgb_of(a->bg);
+    const uint16_t bg565 = to565(bg);
+    for (int k = 0; k < a->d * a->d; k++) a->buf[k] = bg565;
+    const float edge = R;
+    for (int j = -n; j <= n; j++) {
+        for (int i = -n; i <= n; i++) {
+            float X = i * P, Y = j * P;
+            if (sqrtf(X * X + Y * Y) > R + P) continue;
+            int gx = a->cx + i, gy = a->cy + j;
+            uint8_t b = 0, f = 0, r = 0, w = 0;
+            if (gx >= 0 && gy >= 0 && gx < a->gw && gy < a->gh) {
+                int c = gy * a->gw + gx;
+                b = a->body ? a->body[c] : 0;
+                f = a->fx ? a->fx[c] : 0;
+                r = a->room ? a->room[c] : 0;
+                w = a->walls ? a->walls[c] : 0;
+            } else if (a->extend) {
+                int ex = gx < 0 ? 0 : gx >= a->gw ? a->gw - 1 : gx, ey = gy < 0 ? 0 : gy >= a->gh ? a->gh - 1 : gy;
+                int c = ey * a->gw + ex;
+                r = a->room ? a->room[c] : 0;
+                w = a->walls ? a->walls[c] : 0;
+            }
+            if (a->room_off) { r = 0; w = 0; }
+            uint8_t idx = b ? b : f ? f : r ? r : w;
+            if (!idx) continue;
+            square(a, i, j, P, edge, dimmed(rgb_of(pal[idx]), a->dim), bg);
+        }
+    }
+    if (a->sparkles >= 0) {
+        static const int8_t SPARK[5][2] = { { -15, -16 }, { 14, -18 }, { 0, -23 }, { -18, -4 }, { 17, -2 } };
+        static const int8_t PLUS[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+        rgbf_t lime = dimmed(rgb_of(0xDCEF70), a->dim);
+        for (int s = 0; s < 5; s++) {
+            bool big = ((a->sparkles / 3) + s) % 4 != 0;
+            for (int q = 0; q < (big ? 5 : 1); q++) {
+                int i = SPARK[s][0] + PLUS[q][0], j = SPARK[s][1] + PLUS[q][1];
+                if (i < -n || i > n || j < -n || j > n) continue;
+                square(a, i, j, P, edge, lime, bg);
+            }
+        }
+    }
+}
+
 void led_render(const led_args_t *a)
 {
+    if (a->solid) { pal = a->palette ? a->palette : pet_palette; solid_render(a); return; }
     const float P = a->pitch, R = a->d / 2.0f;
     const int n = (int)ceilf(R / P), side = 2 * n + 1;
     if (side * side > cap) {

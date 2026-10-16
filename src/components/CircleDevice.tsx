@@ -32,6 +32,9 @@ interface Props {
 }
 
 const W = 466;
+/** The housing size (CSS px) that draws the 466 px screen 1.75 inches across: the real handheld's
+ * display (CSS inches are 96 px). */
+export const CIRCLE_REAL_SIZE_PX = Math.round(1.75 * 96 * 600 / W);
 const SOUNDS = [sounds.start, sounds.done, sounds.stillToDo, sounds.soon, sounds.approved, sounds.bedtime];
 
 type Exports = {
