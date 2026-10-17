@@ -20,7 +20,5 @@ void chores_page_visible(bool visible);
 /* His scene on the chores page (to cheer when a chore is ticked). */
 lv_obj_t *chores_page_pet(void);
 
-/* The picture for a reward ("icecream", "book", "film", "gift"), or NULL for one with no art. */
-const lv_image_dsc_t *reward_art(const char *icon);
-/* A reward's picture in a peach circle `d` px wide: the art, or its line icon. */
-lv_obj_t *reward_picture(lv_obj_t *parent, const day_reward_t *r, int32_t d);
+/* The icon name for a reward's key ("book", "movie", "surprise"). */
+const char *reward_icon(const char *icon);

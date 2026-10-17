@@ -5,45 +5,25 @@
 #include "../pet/pet.h"
 #include "../pet/led.h"
 #include "../assets/art/art_data.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define PEACH 0xF4C3A7   /* the circle behind a reward's picture when it has no art */
-
 /* ================================================================ reward pictures */
-const lv_image_dsc_t *reward_art(const char *icon)
+const char *reward_icon(const char *icon)
 {
-    if (!icon) return NULL;
-    const char *key = icon;
-    if (!strcmp(icon, "movie")) key = "film";
-    else if (!strcmp(icon, "surprise") || !strcmp(icon, "toy") || !strcmp(icon, "toys")) key = "gift";
-    for (int i = 0; i < art_table_count; i++) if (!strcmp(art_table[i].name, key)) return art_table[i].img;
-    return NULL;
-}
-
-lv_obj_t *reward_picture(lv_obj_t *parent, const day_reward_t *r, int32_t d)
-{
-    lv_obj_t *c = ui_box(parent);
-    lv_obj_set_size(c, d, d);
-    ui_style_card(c, PEACH, LV_RADIUS_CIRCLE, 0, 0);
-    const lv_image_dsc_t *art = reward_art(r->icon);
-    if (art) {
-        lv_obj_t *img = lv_image_create(c);
-        lv_image_set_src(img, art);
-        int32_t shown = d * 88 / 112;
-        lv_image_set_scale(img, (uint32_t)(256 * shown / 72));
-        lv_obj_center(img);
-    } else {
-        lv_obj_t *ic = ui_icon(c, r->icon[0] ? r->icon : "gift", d / 2, C_ON_COLOR);
-        lv_obj_center(ic);
-    }
-    return c;
+    const char *key = icon && *icon ? icon : "gift";
+    if (!strcmp(key, "movie")) return "film";
+    if (!strcmp(key, "toy")) return "toys";
+    if (!strcmp(key, "surprise")) return "gift";
+    if (!strcmp(key, "outside")) return "kite";   /* a trip out; tasks' "outside" is the tree */
+    return key;
 }
 
 /* ================================================================ rewards */
-/* Figma "Rewards · Shop": the shop fills the screen (bunting, a striped wall, two shelves), the
- * header with the stars to spend, four rewards on the shelves, the page dots. */
+/* Figma "Rewards · Shop" (1079:5120): the solid shop fills the screen (bunting, a striped wall, two
+ * shelves) under the scrim, the header with the stars to spend, five rewards, the page dots. */
 static struct {
     page_cb_t on_tap;
     lv_obj_t *page, *scene, *items;
@@ -86,37 +66,30 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     page_dots_create(page, 0);
 }
 
-/* Figma "Shelf item": the picture (72) on the shelf, its name (Label 20), then the price: amber
- * when there are enough stars, an amber number on a chip when not, lavender "Asked" once asked. */
-static void shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int stars, int32_t cx, int32_t y)
+/* Figma "MyToki 2 / Shelf item": a 150 wide column, 4 px apart: the reward's line icon (64, cream),
+ * its name (Label 20), then the price: lime when there are enough stars, a lavender number on a chip
+ * when not, lavender "Asked" once asked. */
+static void shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int stars, int32_t x, int32_t y)
 {
     lv_obj_t *it = ui_box(parent);
-    lv_obj_set_size(it, 150, 146);
-    lv_obj_set_pos(it, cx - 75, y);
+    lv_obj_set_size(it, 150, 136);
+    lv_obj_set_pos(it, x, y);
     lv_obj_add_flag(it, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(it, on_item, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
-    const lv_image_dsc_t *art = reward_art(rd->icon);
-    if (art) {
-        lv_obj_t *img = lv_image_create(it);
-        lv_image_set_src(img, art);
-        lv_obj_set_pos(img, 39, 0);
-    } else {
-        lv_obj_t *pic = reward_picture(it, rd, 72);
-        lv_obj_set_pos(pic, 39, 0);
-    }
+    lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), 64, C_TEXT);
+    lv_obj_set_pos(ic, 43, 0);
     lv_obj_t *name = ui_label(it, F_LABEL, C_TEXT, rd->title);
     lv_obj_set_size(name, 150, lv_font_get_line_height(F_LABEL));
     lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-    lv_obj_set_pos(name, 0, 76);
+    lv_obj_set_pos(name, 0, 68);
     char cost[8];
     snprintf(cost, sizeof cost, "%d", rd->cost);
     lv_obj_t *tag;
     if (rd->state == REWARD_WAITING) tag = status_pill_create(it, "clock", "Asked", C_SYSTEM);
-    else if (stars >= rd->cost) { pill_t p; pill_create(it, &p); pill_set(&p, PILL_HURRY, "star-line", cost); tag = p.root; }
-    else tag = status_pill_create(it, "star-line", cost, C_STAR);
+    else { pill_t p; pill_create(it, &p); pill_set(&p, stars >= rd->cost ? PILL_ACTION : PILL_CALM, "star-line", cost); tag = p.root; }
     lv_obj_update_layout(tag);
-    lv_obj_set_pos(tag, 75 - lv_obj_get_width(tag) / 2, 106);
+    lv_obj_set_pos(tag, 75 - lv_obj_get_width(tag) / 2, 97);
 }
 
 void rewards_page_render(const day_plan_t *p, int stars, bool picture)
@@ -132,10 +105,10 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     header_set(&rw.head, NULL, "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* Figma: no clock in the shop */
     (void)items_same;
     lv_obj_clean(rw.items);
-    /* two shelves, two rewards each (Figma: the shop holds four), centred at x 150 and 316 */
-    static const int32_t X[2] = { 150, 316 }, Y[2] = { 124, 280 };
+    /* Figma "Rewards · Shop" (1079:5120): five rewards, three on the top shelf and two below */
+    static const int32_t X[5] = { 6, 158, 308, 75, 241 }, Y[5] = { 129, 129, 129, 275, 275 };
     int shown = 0;
-    for (int i = 0; i < p->nrewards && shown < 4; i++, shown++) shelf_item(rw.items, &p->rewards[i], i, stars, X[shown % 2], Y[shown / 2]);
+    for (int i = 0; i < p->nrewards && shown < 5; i++, shown++) shelf_item(rw.items, &p->rewards[i], i, stars, X[shown], Y[shown]);
     if (!shown) {
         lv_obj_t *l = note_create(rw.items, 230);
         ui_set_text(l, "No rewards yet.\nA grown-up can add some.");
@@ -145,7 +118,8 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
 /* ================================================================ chores */
 /* Figma "My day · Chores": the header with how many are done, then equal rows from y 130, the ones
  * to do first and the finished ones after; more scroll up. Tap a chore to tick it. */
-#define CH_TOP 131           /* under the pill (header at y 23) */
+#define CH_TOP 67            /* the list reaches up behind the header; rows scroll under it */
+#define CH_FADE_Y 67         /* the fade behind the header: clear by y 135, the first row's top */
 #define CH_FOCUS 171         /* rows 82 apart, the first 6 px under the pill as in Figma */
 #define CH_ROW 82
 
@@ -171,6 +145,21 @@ static void fmt_hour(char *buf, size_t n, int minutes)
     else snprintf(buf, n, "%d %s", h12, ui_ampm(minutes));
 }
 
+/* Like Today's schedule: the row on the line is full size; one away is an Edge row (90 %, 70 %), two
+ * away a little smaller again (84 %, 55 %), and further ones fade out. Each row fades as one. */
+static void chore_style(lv_obj_t *card, float d)
+{
+    float ad = fabsf(d), k = fminf(ad, 1.0f), k2 = fminf(fmaxf(0.0f, ad - 1.0f), 1.0f), far = fmaxf(0.0f, ad - 2.0f);
+    int32_t s = (int32_t)lroundf(256 * (1.0f - 0.10f * k - 0.06f * k2));
+    if (lv_obj_get_style_transform_scale_x(card, 0) != s) {
+        lv_obj_set_style_transform_scale(card, s, 0);
+        lv_obj_set_style_transform_pivot_x(card, LV_PCT(50), 0);
+        lv_obj_set_style_transform_pivot_y(card, LV_PCT(50), 0);
+    }
+    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f));
+    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);
+}
+
 void chores_page_create(lv_obj_t *page, page_cb_t cb)
 {
     memset(&ch, 0, sizeof ch);
@@ -178,7 +167,8 @@ void chores_page_create(lv_obj_t *page, page_cb_t cb)
     ch.just = -1;
     ch.page = page;
     wheel_list_create(page, &ch.wl, 0, CH_TOP, SCREEN_W, SCREEN_H - CH_TOP, CH_FOCUS - CH_TOP, CH_ROW);
-    ch.wl.shrink = ch.wl.fade = 0;
+    ch.wl.style = chore_style;
+    list_fade_create(page, CH_FADE_Y);
     header_create(page, &ch.head);
     ch.empty = note_create(page, 200);
     ui_set_text(ch.empty, "Nothing to do right now.\nBiscuit says thanks!");
@@ -204,7 +194,13 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
     bool done = c->done;
     ui_style_card(card, done ? C_RAISED : C_SYSTEM, LV_RADIUS_CIRCLE, 0, 0);   /* Figma "Chore row": fully round */
     uint32_t fg = done ? C_TEXT_MUTED : C_ON_COLOR;
-    ui_icon(card, c->icon[0] ? c->icon : "sparkles", 24, fg);
+    /* Figma "MyToki 2 / Chore row" (1073:4636): a 36 px icon slot; to do the icon fills it (navy),
+     * done it is 26 px in the middle (cream) */
+    lv_obj_t *ic = ui_icon(card, c->icon[0] ? c->icon : "sparkles", 36, done ? C_TEXT : C_ON_COLOR);
+    lv_obj_set_size(ic, 36, 36);
+    lv_image_set_inner_align(ic, LV_IMAGE_ALIGN_CENTER);
+    lv_image_set_pivot(ic, 18, 18);
+    if (done) lv_image_set_scale(ic, 256 * 26 / 36);
     lv_obj_t *body = ui_box(card);
     lv_obj_set_size(body, 10, LV_SIZE_CONTENT);
     lv_obj_set_flex_grow(body, 1);

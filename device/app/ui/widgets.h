@@ -15,7 +15,7 @@ lv_obj_t *timer_create(lv_obj_t *parent);
 void timer_set(lv_obj_t *timer, timer_tone_t tone, int16_t left, bool pulse);
 
 /* ---- Pill: time left, a status or a count under the title ---- */
-typedef enum { PILL_CALM, PILL_HURRY, PILL_LATE, PILL_NIGHT, PILL_STAR, PILL_DONE, PILL_SYSTEM } pill_tone_t;
+typedef enum { PILL_CALM, PILL_HURRY, PILL_LATE, PILL_NIGHT, PILL_STAR, PILL_DONE, PILL_SYSTEM, PILL_ACTION } pill_tone_t;
 typedef struct { lv_obj_t *root, *icon, *text; pill_tone_t tone; } pill_t;
 void pill_create(lv_obj_t *parent, pill_t *p);
 void pill_set(pill_t *p, pill_tone_t tone, const char *icon, const char *text);
@@ -56,6 +56,7 @@ void hill_set_dots(hill_t *h, int page);
 /* ---- the graphic's frame: the faint empty circle (running late), the top fade under the header ---- */
 lv_obj_t *faint_circle_create(lv_obj_t *parent);
 lv_obj_t *scrim_create(lv_obj_t *parent);
+lv_obj_t *list_fade_create(lv_obj_t *parent, int32_t y);
 
 /* ---- the old dot ring: still used by the loading comet, the reward spotlight and the halos ---- */
 typedef struct {

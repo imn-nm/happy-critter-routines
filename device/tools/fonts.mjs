@@ -24,7 +24,7 @@ const DIGITS = ['0x20', '0x30-0x3A', '0x61', '0x6D', '0x70']; // " 0-9:" plus "a
 // [file, weight label, sizes, ranges]
 const FONTS = [
   // MyToki 2 (Figma "Child UI · New UI", 1052:5356), the "MyToki 2/" text styles:
-  // Title 26 and Display 32 in Montserrat Bold, Message 21 in Montserrat Medium, Big number 52 (digits);
+  // Title 30 in Poppins Bold (Figma "MyToki 2 / Header", 1070:4496); Display 32 in Montserrat Bold, Message 21 in Montserrat Medium, Big number 52 (digits);
   // Poppins Clock/Body 22, Pill 24, Detail/Speech 20 (Medium), Item 22 and Label 20 (SemiBold), Button 22;
   // the Next block in Space Grotesk: Next label 22 (Medium), Next time 22 and Next task 24 (Bold).
   ['Montserrat-700.ttf', 'mon700', [26, 32], TEXT],
@@ -32,7 +32,7 @@ const FONTS = [
   ['Montserrat-500.ttf', 'mon500', [21], TEXT],
   ['Poppins-500.ttf', 'pop500', [20, 22, 24], TEXT],
   ['Poppins-600.ttf', 'pop600', [20, 22], TEXT],
-  ['Poppins-700.ttf', 'pop700', [22, 24], TEXT],
+  ['Poppins-700.ttf', 'pop700', [22, 24, 30], TEXT],
   ['SpaceGrotesk-500.ttf', 'sg500', [22], TEXT],
   ['SpaceGrotesk-700.ttf', 'sg700', [22, 24], TEXT],
 ];

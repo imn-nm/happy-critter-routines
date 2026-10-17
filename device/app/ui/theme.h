@@ -64,7 +64,7 @@
 
 /* ---- type: the MyToki 2/ text styles ---- */
 #define F_CLOCK_LINE (&font_pop500_22)   /* Clock: the small time above the title */
-#define F_TITLE      (&font_mon700_32)   /* Title 32 (40 px lines) */
+#define F_TITLE      (&font_pop700_30)   /* Title 30, Poppins Bold */
 #define F_DISPLAY    (&font_mon700_32)   /* Display 32: celebrations */
 #define F_CLOCK      (&font_mon600_52)   /* Big number 52: the night clock, the pairing code (digits) */
 #define F_MESSAGE    (&font_mon500_21)   /* Message 21: a sentence in the middle of the screen */
@@ -111,5 +111,5 @@ void ui_style_card(lv_obj_t *obj, uint32_t bg, int32_t radius, uint32_t border, 
 /* Time as the child reads it: "7:15" (12-hour, no am/pm). */
 void ui_fmt_time(char *buf, size_t n, int minutes);
 const char *ui_ampm(int minutes);
-/* The header's clock: "3:18PM". */
+/* The header's clock: "3:18pm". */
 void ui_fmt_clock(char *buf, size_t n, int minutes);

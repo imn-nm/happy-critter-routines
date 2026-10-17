@@ -19,7 +19,7 @@ static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_even
 
 /* ================================================================ MyToki 2 Timer */
 /* Figma "Timer": a ring of segments 223 px out from the centre, from 7:30 round the top to 4:30
- * (270 degrees, open at the bottom where the hill is), 9 px wide with round ends. As Figma lays the
+ * (270 degrees, open at the bottom where the hill is), 6 px wide with round ends. As Figma lays the
  * 80/14 dashes out evenly: twelve steps of 22.5 degrees, a segment centred on the top, 14 px
  * between segments, and a half segment at each end (13 pieces). The track is timer/track; the
  * lit part, counted from the bottom-left end, is the tone: with 10 minutes or more left it is the
@@ -28,7 +28,7 @@ static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_even
  * segments alone (not the gaps, the half ones count half), so one segment changes smoothly along
  * its length before the next one starts. */
 #define TIMER_R 223.0f
-#define TIMER_W 9
+#define TIMER_W 6
 #define TIMER_A0 135.0f
 #define TIMER_SPAN 270.0f
 #define TIMER_STEPS 12
@@ -173,6 +173,7 @@ static void pill_colors(pill_tone_t tone, uint32_t *bg, uint32_t *fg)
     case PILL_STAR: *bg = C_CHIP; *fg = C_STAR; break;
     case PILL_DONE: *bg = C_CHIP; *fg = C_DONE; break;
     case PILL_SYSTEM: *bg = C_SYSTEM; *fg = C_ON_COLOR; break;
+    case PILL_ACTION: *bg = C_ACTION; *fg = C_ON_COLOR; break;   /* a price the child can pay */
     default: *bg = C_CHIP; *fg = C_CALM; break;
     }
 }
@@ -228,9 +229,9 @@ lv_obj_t *status_pill_create(lv_obj_t *parent, const char *icon, const char *tex
 }
 
 /* ================================================================ Header */
-/* Figma "Header": a 340 wide column at y 23: the clock (Clock 22, 28 px line), the title (Title 32,
- * 40 px lines, wrapping at 272) tucked 4 px up under it, then 6 px down a Pill or a quiet line
- * (Body 22, muted). */
+/* Figma "MyToki 2 / Header" (1070:4496): a 340 wide column at y 23: the clock (Clock 22), the title
+ * (Title 30, Poppins Bold, wrapping at 256) tucked 4 px up under it, then 6 px down a Pill or a quiet
+ * line (Body 22, muted, wrapping at 272). */
 #define HEADER_Y 23
 void header_create(lv_obj_t *parent, header_t *h)
 {
@@ -242,7 +243,7 @@ void header_create(lv_obj_t *parent, header_t *h)
     lv_obj_set_style_pad_row(h->root, 0, 0);
     h->clock = ui_label(h->root, F_CLOCK_LINE, C_TEXT, "");
     h->title = ui_label(h->root, F_TITLE, C_TEXT, "");
-    lv_obj_set_style_max_width(h->title, 272, 0);
+    lv_obj_set_style_max_width(h->title, 256, 0);
     lv_obj_set_style_text_align(h->title, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(h->title, LV_LABEL_LONG_WRAP);
     pill_create(h->root, &h->pill);
@@ -480,7 +481,8 @@ lv_obj_t *faint_circle_create(lv_obj_t *parent)
     return o;
 }
 
-/* The header stays readable over bright rooms: black at 55 % at the top, clear by y 190. */
+/* Figma "Scrim" (in "MyToki 2 / Graphic"): the header stays readable over bright rooms: black at
+ * 55 % at the top, 25 % at y 105, clear by y 190. */
 lv_obj_t *scrim_create(lv_obj_t *parent)
 {
     lv_obj_t *o = ui_box(parent);
@@ -488,9 +490,28 @@ lv_obj_t *scrim_create(lv_obj_t *parent)
     lv_obj_set_pos(o, 0, 0);
     static lv_grad_dsc_t g;
     g.dir = LV_GRAD_DIR_VER;
-    g.stops_count = 2;
+    g.stops_count = 3;
     g.stops[0].color = COL(C_SCREEN); g.stops[0].opa = 140; g.stops[0].frac = 0;
-    g.stops[1].color = COL(C_SCREEN); g.stops[1].opa = LV_OPA_TRANSP; g.stops[1].frac = 255;
+    g.stops[1].color = COL(C_SCREEN); g.stops[1].opa = 64; g.stops[1].frac = 140;
+    g.stops[2].color = COL(C_SCREEN); g.stops[2].opa = LV_OPA_TRANSP; g.stops[2].frac = 255;
+    lv_obj_set_style_bg_grad(o, &g, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    return o;
+}
+
+/* Figma "Fade" on the screens with a scroll list: black behind the title, so rows that turn up under
+ * the header slip out of sight. 370 x 99 from x 48, solid to 33 %, clear by 69 %. Put it on after the
+ * list and before the header. `y` is its top (the Younger schedule: 89). */
+lv_obj_t *list_fade_create(lv_obj_t *parent, int32_t y)
+{
+    lv_obj_t *o = ui_box(parent);
+    lv_obj_set_size(o, 370, 99);
+    lv_obj_set_pos(o, 48, y);
+    static lv_grad_dsc_t g;
+    g.dir = LV_GRAD_DIR_VER;
+    g.stops_count = 2;
+    g.stops[0].color = COL(C_SCREEN); g.stops[0].opa = LV_OPA_COVER; g.stops[0].frac = 83;
+    g.stops[1].color = COL(C_SCREEN); g.stops[1].opa = LV_OPA_TRANSP; g.stops[1].frac = 176;
     lv_obj_set_style_bg_grad(o, &g, 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     return o;

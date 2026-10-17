@@ -19,6 +19,7 @@
 #define LV_USE_FONT_COMPRESSED 1
 #define LV_USE_CANVAS 1
 #define LV_USE_FLEX 1
+#define LV_GRADIENT_MAX_STOPS 3   /* the Figma scrim: 55 %, 25 %, clear */
 #define LV_USE_THEME_DEFAULT 0
 #define LV_USE_SYSMON 0
 #define LV_BUILD_EXAMPLES 0
