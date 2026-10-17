@@ -57,7 +57,19 @@ static struct {
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
 } h;
 
-static void fire(lv_event_t *e) { if (h.cb) h.cb((home_event_t)(intptr_t)lv_event_get_user_data(e), 0); }
+static bool pet_held;   /* a long tap on the pet: its release isn't also a tap */
+static void fire(lv_event_t *e)
+{
+    home_event_t ev = (home_event_t)(intptr_t)lv_event_get_user_data(e);
+    if (ev == HOME_TAP_PET && pet_held) { pet_held = false; return; }
+    if (h.cb) h.cb(ev, 0);
+}
+static void on_pet_hold(lv_event_t *e)
+{
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED) pet_held = false;
+    else if (c == LV_EVENT_LONG_PRESSED) { pet_held = true; if (h.cb) h.cb(HOME_HOLD_PET, 0); }
+}
 static void on_wheel(int idx) { if (h.cb) h.cb(HOME_WHEEL_RESULT, idx); }
 
 static void on_hill(hill_tap_t tap)
@@ -207,6 +219,7 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     h.pet = pet_create(page, FULL_D);
     lv_obj_set_pos(h.pet, 0, 0);
     lv_obj_add_event_cb(h.pet, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_PET);
+    lv_obj_add_event_cb(h.pet, on_pet_hold, LV_EVENT_ALL, NULL);
     h.graphic = GRAPHIC_FULL;
     h.pet_dim = -1;
     h.faint = faint_circle_create(page);

@@ -459,6 +459,7 @@ static void set_night_lock(bool lock, bool rewards_only)
 
 /* ================================================================ Playtime */
 void mytoki_open_playtime(void);
+void mytoki_open_pet(void);
 static void read_out(void);
 
 /* ================================================================ actions */
@@ -561,6 +562,7 @@ static void on_home(home_event_t ev, int arg)
         break;
     case HOME_TAP_PLAY: app.free_pet_view = true; break;
     case HOME_TAP_WHEEL: app.free_pet_view = false; break;
+    case HOME_HOLD_PET: mytoki_open_pet(); break;
     case HOME_TAP_PET: {
         if ((app.state == ST_FREE && app.now.free_remaining - GET_READY_S > 0) || app.state == ST_FREE_DAY) { mytoki_open_playtime(); break; }
         static const char *const HI[] = { "Hi!", "We\xE2\x80\x99ve got this!", "Happy to see you!", "What\xE2\x80\x99s next?" };
@@ -1615,6 +1617,14 @@ static void on_character(void)
     char keep[16];
     snprintf(keep, sizeof keep, "%d,%d", ch, col);
     hal_store_set("character", keep);
+}
+
+/* My pet: a long tap on the pet, any time (not only in free time): choose the buddy, dress it up. */
+void mytoki_open_pet(void)
+{
+    if (play_is_open() || !app.have_plan) return;
+    pet_react(home_pet(), PET_CLIP_WAVE);
+    play_open_pet(app.plan->child.pet, on_outfit, on_character);
 }
 
 /* Free time with more than the five get-ready minutes left: the games. */

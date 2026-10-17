@@ -102,6 +102,7 @@ typedef struct {
 typedef enum {
     HOME_TAP_REWARDS, HOME_TAP_CHORES, HOME_TAP_NEXT, HOME_TAP_CARD, HOME_TAP_PET,
     HOME_TAP_PLAY, HOME_TAP_WHEEL, HOME_WHEEL_RESULT, HOME_TAP_SPEAKER, HOME_TAP_PLAYTIME, HOME_TAP_STEP,
+    HOME_HOLD_PET,              /* a long tap on the pet: My pet (choose the buddy, dress it up) */
 } home_event_t;
 
 typedef void (*home_cb_t)(home_event_t ev, int arg);

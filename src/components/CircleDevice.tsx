@@ -32,6 +32,8 @@ interface Props {
   onEvent: (ev: CircleEvent) => void;
   /** Longest side of the housing, in CSS pixels. */
   size?: number;
+  /** Space or Enter presses the button. Off where several Circles share a page (/child/together). */
+  keyboard?: boolean;
 }
 
 const W = 466;
@@ -57,7 +59,7 @@ type Exports = {
   sim_day_failed: (reason: number) => void;
 };
 
-export default function CircleDevice({ childId, planJson, failed, onEvent, size = 600 }: Props) {
+export default function CircleDevice({ childId, planJson, failed, onEvent, size = 600, keyboard = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const exRef = useRef<Exports | null>(null);
   const planRef = useRef<string | null>(planJson);
@@ -227,12 +229,13 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
     exRef.current?.sim_button();
   };
   useEffect(() => {
+    if (!keyboard) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.code === "Space" || e.code === "Enter") && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement?.tagName ?? "")) { e.preventDefault(); press(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [keyboard]);
 
   const screen = size * 466 / 600;
   const inset = (size - screen) / 2;

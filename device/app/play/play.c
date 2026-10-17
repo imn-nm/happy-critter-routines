@@ -12,23 +12,22 @@
 #define STEP_MS 66
 #define SEE_YOU_MS 8000
 
-/* Figma "Playtime · Menu": 97 px circles round Biscuit, each with its icon and name. Page 0 is
- * the five tapping games; page 1 the three motion games in the same ring (the top two slots and
- * the bottom one). "%s" in a title or label is the pet's name. */
+/* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is the four tapping
+ * games in two rows of two; page 1 the three motion games, two above and one below. "%s" in a title
+ * or label is the pet's name. Dress up is not a game: it lives in My pet (a long tap on the pet,
+ * any time), with choosing the buddy, so it has no circle (page -1). */
 #define MENU_PAGES 2
 static const struct { const char *title, *label, *icon; int32_t x, y; int page; } MENU[GAME_COUNT] = {
-    [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 56, 126, 0 },
-    [GAME_BATH] = { "Bath time", "Bath time", "droplets", 184, 126, 0 },
-    [GAME_CARROT] = { "Carrot catch", "Carrot catch", "carrot", 312, 126, 0 },
+    [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 0, 0, -1 },
+    [GAME_BATH] = { "Bath time", "Bath time", "droplets", 120, 126, 0 },
+    [GAME_CARROT] = { "Carrot catch", "Carrot catch", "carrot", 248, 126, 0 },
     [GAME_BUBBLES] = { "Bubble pop", "Bubble pop", "bubble", 120, 250, 0 },
     [GAME_PEEKABOO] = { "Peekaboo", "Peekaboo", "eye", 248, 250, 0 },
-    [GAME_ROLL] = { "Roll home", "Roll home", "move", 56, 126, 1 },
-    [GAME_SAYS] = { "%s says", "%s says", "megaphone", 184, 126, 1 },
-    [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 312, 126, 1 },
+    [GAME_ROLL] = { "Roll home", "Roll home", "move", 120, 126, 1 },
+    [GAME_SAYS] = { "%s says", "%s says", "megaphone", 248, 126, 1 },
+    [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 184, 250, 1 },
 };
 static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = { { "Play with %s", "kite" }, { "Move with %s", "move" } };
-/* "My buddy" on the second page, under the motion games: which character and colour. */
-static const struct { const char *label, *icon; int32_t x, y; } BUDDY_TILE = { "My buddy", "heart", 184, 250 };
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
@@ -44,8 +43,10 @@ static struct {
     lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
-    lv_obj_t *buddy_tile, *buddy_pet;   /* the picker: its tile, and the pet trying colours on */
-    bool buddy;
+    lv_obj_t *buddy_pet;        /* My pet: the pet trying each choice on */
+    bool buddy;                 /* My pet is showing */
+    bool standalone;            /* opened by a long tap on the pet, not from Playtime */
+    int editor_page;            /* My pet: 0 My buddy, 1 Dress up */
     play_character_cb_t on_character;
     header_t head;
     char left_text[16];
@@ -116,8 +117,15 @@ static void set_header(const char *icon, const char *title)
 {
     (void)icon;
     if (title) snprintf(head_title, sizeof head_title, "%s", title);
+    if (!pl.head.root) return;
+    /* My pet: its page's name and where the other page is (no play time: it isn't a game) */
+    if (pl.buddy) {
+        header_set(&pl.head, ui_clock(), head_title, HEADER_TEXT, PILL_CALM, NULL,
+                   pl.editor_page ? "Swipe back to My buddy" : "Swipe to dress up");
+        return;
+    }
     /* the menu: the clock and the pill only (a 32 px "Play with Biscuit" would wrap onto the games) */
-    if (pl.head.root) header_set(&pl.head, ui_clock(), pl.in_game ? head_title : NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+    header_set(&pl.head, ui_clock(), pl.in_game ? head_title : NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */
@@ -158,6 +166,7 @@ static void on_item(lv_event_t *e)
 {
     int acc = (int)(intptr_t)lv_event_get_user_data(e);
     if (dressup_wear(acc) && pl.on_outfit) pl.on_outfit();
+    if (pl.buddy_pet) pet_react(pl.buddy_pet, PET_CLIP_WAVE);   /* My pet: he shows it off */
     pl.sig[0] = 0; /* redraw the items: one is now worn */
 }
 
@@ -303,22 +312,42 @@ static void buddy_close(void)
     if (pl.buddy_pet) { lv_obj_delete(pl.buddy_pet); pl.buddy_pet = NULL; }
 }
 
-static void on_buddy(lv_event_t *e)
+/* ---------------------------------------------------------------- my pet */
+/* My pet (a long tap on the pet, any time): two pages, My buddy (which character and colour) and
+ * Dress up (head, face, neck), with the pet in its room trying each choice on at once. */
+static void editor_controls(void)
 {
-    (void)e;
-    pl.buddy = true;
+    if (pl.editor_page) dressup_controls();
+    else buddy_controls();
+}
+
+static void editor_page(int page)
+{
+    pl.editor_page = page;
+    pl.slot = 0;
     pl.sig[0] = 0;
+    editor_controls();
+    fx_spring_children(pl.bottom, 30);
+    set_header(NULL, page ? "Dress up" : "My buddy");
+}
+
+static void editor_open(int page)
+{
+    pl.buddy = true;
+    pl.in_game = false;
     ui_show(pl.menu, false);
-    /* the pet in its room, trying each choice on at once */
-    pl.buddy_pet = pet_create(pl.root, SCREEN_W);
-    lv_obj_set_pos(pl.buddy_pet, 0, 0);
-    lv_obj_move_to_index(pl.buddy_pet, 0);
-    pet_set_mood(pl.buddy_pet, PET_MOOD_HAPPY);
+    if (pl.menu_pet) { ui_show(pl.menu_pet, false); pet_set_paused(pl.menu_pet, true); }
+    ui_show(pl.canvas, false);
+    if (!pl.buddy_pet) {
+        pl.buddy_pet = pet_create(pl.root, SCREEN_W);
+        lv_obj_set_pos(pl.buddy_pet, 0, 0);
+        lv_obj_move_to_index(pl.buddy_pet, 0);
+        pet_set_mood(pl.buddy_pet, PET_MOOD_HAPPY);
+    }
     ui_show(pl.shade_top, true);
     ui_show(pl.shade_low, true);
     ui_show(pl.bottom, true);
-    buddy_controls();
-    set_header("heart", "Choose your buddy");
+    editor_page(page);
     hal_play(HAL_SOUND_TICK);
 }
 
@@ -410,7 +439,6 @@ static void menu_page(int page)
 {
     pl.page = page;
     for (int g = 0; g < GAME_COUNT; g++) if (pl.circle[g]) ui_show(pl.circle[g], MENU[g].page == page);
-    if (pl.buddy_tile) ui_show(pl.buddy_tile, page == MENU_PAGES - 1);
     ui_show(pl.chev_r, page < MENU_PAGES - 1);
     ui_show(pl.chev_l, page > 0);
     fx_spring_children(pl.menu, 50);
@@ -459,7 +487,15 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
         if (start.y > 100 && start.y < 330) return false;
     }
     if (!commit) return true;
-    if ((pl.in_game || pl.buddy) && !pl.see_you) { open_menu(); return true; }
+    /* My pet: left for Dress up, right back to My buddy; right from My buddy leaves it */
+    if (pl.buddy && !pl.see_you) {
+        if (dir == SWIPE_LEFT) { if (!pl.editor_page) { editor_page(1); hal_play(HAL_SOUND_TICK); } return true; }
+        if (dir == SWIPE_RIGHT && pl.editor_page) { editor_page(0); hal_play(HAL_SOUND_TICK); return true; }
+        if (!pl.standalone) { open_menu(); return true; }
+        close_sliding(dir);
+        return true;
+    }
+    if (pl.in_game && !pl.see_you) { open_menu(); return true; }
     if (!pl.see_you) {
         if (dir == SWIPE_LEFT) { if (pl.page < MENU_PAGES - 1) { menu_page(pl.page + 1); hal_play(HAL_SOUND_TICK); } return true; }
         if (pl.page > 0) { menu_page(pl.page - 1); hal_play(HAL_SOUND_TICK); return true; }
@@ -471,7 +507,7 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
 void play_button(void)
 {
     if (!pl.root) return;
-    if (pl.see_you) { play_close(); return; }
+    if (pl.see_you || pl.standalone) { play_close(); return; }   /* My pet: the button is done */
     if (pl.in_game) game_button();
 }
 
@@ -492,7 +528,7 @@ static void see_you_later(void)
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
     pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = pl.timer = NULL;
-    pl.buddy_tile = pl.buddy_pet = NULL;
+    pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
     pl.chev_l = pl.chev_r = NULL;
@@ -532,7 +568,7 @@ static void step(lv_timer_t *t)
         return;
     }
     pl.t += STEP_MS;
-    if (pl.buddy) { buddy_controls(); return; }
+    if (pl.buddy) { editor_controls(); return; }
     if (!pl.in_game) return; /* the menu's Biscuit draws himself */
     game_update(STEP_MS);
     game_controls();
@@ -543,7 +579,7 @@ void play_set_time_total(int32_t s) { if (pl.root && s > pl.total) { pl.total = 
 
 void play_set_time_left(int32_t s)
 {
-    if (!pl.root || pl.see_you) return;
+    if (!pl.root || pl.see_you || pl.standalone) return;   /* My pet has no play time */
     pl.left = s;
     if (s <= 0) { see_you_later(); return; }
     snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d left", (int)(s / 60), (int)(s % 60));
@@ -614,6 +650,7 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     lv_obj_set_size(pl.menu, SCREEN_W, SCREEN_H);
     bool picture = ui_picture();
     for (int g = 0; g < GAME_COUNT; g++) {
+        if (MENU[g].page < 0) continue;   /* Dress up: in My pet */
         lv_obj_t *t = ui_box(pl.menu);
         pl.circle[g] = t;
         lv_obj_set_size(t, 140, 122);   /* the 98 tile, wider so a long name fits on one line */
@@ -637,30 +674,6 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
-    }
-    /* "My buddy": the same tile as a game, on the last page */
-    {
-        lv_obj_t *t = ui_box(pl.menu);
-        pl.buddy_tile = t;
-        lv_obj_set_size(t, 140, 122);
-        lv_obj_set_pos(t, BUDDY_TILE.x - 21, BUDDY_TILE.y);
-        lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(t, on_buddy, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *b = ui_box(t);
-        lv_obj_set_size(b, 88, 88);
-        lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 0);
-        ui_style_card(b, C_RAISED, LV_RADIUS_CIRCLE, C_CHIP, LV_OPA_COVER);
-        lv_obj_set_style_border_width(b, 2, 0);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
-        lv_obj_t *ic = ui_icon(b, BUDDY_TILE.icon, 36, C_LIME);
-        lv_obj_center(ic);
-        if (!picture) {
-            lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, BUDDY_TILE.label);
-            lv_obj_set_size(l, 140, lv_font_get_line_height(F_LABEL));
-            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
-        }
     }
     /* small chevrons at the rim, between the rows, pointing at the other page */
     for (int i = 0; i < 2; i++) {
@@ -691,4 +704,27 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     play_set_time_left(seconds_left);
     pl.timer_obj = lv_timer_create(step, STEP_MS, NULL);
     overlay_enter_push(pl.root);   /* opened by a tap on Biscuit: in from the right, out the same way */
+}
+
+/* My pet: a long tap on the pet, any time. The pet in its room, My buddy then Dress up a swipe
+ * apart; a swipe right from My buddy (or the button) puts it away. */
+void play_open_pet(const char *pet_name, play_outfit_cb_t on_outfit, play_character_cb_t on_character)
+{
+    if (pl.root) return;
+    memset(&pl, 0, sizeof pl);
+    pl.standalone = true;
+    pl.on_outfit = on_outfit;
+    pl.on_character = on_character;
+    snprintf(pl.pet, sizeof pl.pet, "%s", pet_name && *pet_name ? pet_name : "Biscuit");
+    pl.root = overlay_create();
+    swipe_add(pl.root, on_swipe, NULL);
+    pl.shade_top = shade(pl.root, 0, 128, false);
+    pl.shade_low = shade(pl.root, 314, 152, true);
+    header_create(pl.root, &pl.head);
+    pl.bottom = ui_box(pl.root);
+    lv_obj_set_size(pl.bottom, SCREEN_W, 132);
+    lv_obj_set_pos(pl.bottom, 0, 334);
+    editor_open(0);
+    pl.timer_obj = lv_timer_create(step, STEP_MS, NULL);
+    overlay_enter_push(pl.root);
 }

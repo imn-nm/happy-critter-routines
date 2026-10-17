@@ -1,24 +1,49 @@
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import LoadingScreen from "@/components/LoadingScreen";
 import LoadErrorCard from "@/components/LoadErrorCard";
+import ChildCircleView from "@/components/ChildCircleView";
 import { useChildren, type Child } from "@/hooks/useChildren";
 import { MAX_TOGETHER, MIN_PANE_WIDTH, useSideBySideSlots } from "@/hooks/useSideBySide";
+import { lockParentMode } from "@/lib/parentLock";
 import { cn } from "@/lib/utils";
-import ChildInterface from "./ChildInterface";
+
+/** One child's column: their name, then their MyToki Circle as big as the column allows. */
+const Column = ({ child }: { child: Child }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => setSize(Math.floor(Math.min(600, el.clientWidth - 24, el.clientHeight - 24)));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div className="h-full flex flex-col items-center gap-2 py-4">
+      <p className="text-18 font-semibold text-focus-text">{child.name}</p>
+      <div ref={ref} className="flex-1 min-h-0 w-full flex items-center justify-center">
+        {size > 0 && <ChildCircleView childId={child.id} size={size} keyboard={false} />}
+      </div>
+    </div>
+  );
+};
 
 /**
- * Up to three children's screens side by side, for a shared iPad or computer
- * (/child/together, or ?kids=id,id to pick who). Each column is a whole
- * child screen that scrolls on its own; `transform` makes the column the
- * frame for its `fixed` layers, so one child's day sheet, rewards shop or
- * Playtime stays in that child's column. If the screen gets too narrow for
- * everyone (an iPad turned upright), the row scrolls sideways a child at a
- * time.
+ * Up to three children's MyToki Circles side by side, for a shared iPad or computer
+ * (/child/together, or ?kids=id,id to pick who). Each Circle runs its own copy of the
+ * device on that child's day, so each child taps their own; the keyboard button is off
+ * here (it would press them all). If the screen gets too narrow for everyone (an iPad
+ * turned upright), the row scrolls sideways a child at a time.
  */
 const ChildrenTogether = () => {
   const { children, loading, loadError, refetch } = useChildren();
   const [params] = useSearchParams();
   const slots = useSideBySideSlots();
+
+  useEffect(() => { lockParentMode(); }, []);
 
   if (loading) return <LoadingScreen label="Getting ready…" />;
   if (children.length === 0 && loadError) return <LoadErrorCard onRetry={refetch} />;
@@ -41,17 +66,10 @@ const ChildrenTogether = () => {
         <section
           key={child.id}
           aria-label={`${child.name}'s screen`}
-          className={cn(
-            // clip, not hidden: a hidden box can still be scrolled (focus,
-            // scrollIntoView), which slid a child's whole screen out of place.
-            "relative h-full shrink-0 snap-start overflow-clip bg-focus-bg",
-            i > 0 && "border-l border-focus-raised",
-          )}
-          style={{ width: columnWidth, minWidth: MIN_PANE_WIDTH, transform: "translateZ(0)" }}
+          className={cn("relative h-full shrink-0 snap-start overflow-clip bg-focus-bg", i > 0 && "border-l border-focus-raised")}
+          style={{ width: columnWidth, minWidth: MIN_PANE_WIDTH }}
         >
-          <div className="h-full overflow-y-auto overscroll-contain">
-            <ChildInterface childId={child.id} />
-          </div>
+          <Column child={child} />
         </section>
       ))}
     </div>
