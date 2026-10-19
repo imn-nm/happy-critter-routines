@@ -111,7 +111,7 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
 
   useEffect(() => {
     let alive = true;
-    let raf = 0;
+    let beat: Worker | null = null;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const image = ctx.createImageData(W, W);
@@ -145,7 +145,8 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
       },
       play(n: number) { try { SOUNDS[n]?.(); } catch { /* audio locked */ } },
       speak(p: number, n: number) { speak(str(p, n), { force: true }); },
-      brightness(pct: number) { canvas.style.filter = pct >= 100 ? "" : `brightness(${Math.max(0.15, pct / 100)})`; },
+      // The device fades a step every 250 ms; the transition smooths each step.
+      brightness(pct: number) { canvas.style.transition = "filter 0.25s linear"; canvas.style.filter = `brightness(${Math.max(0.15, Math.min(1, pct / 100))})`; },
       random: () => (Math.random() * 0x100000000) >>> 0,
       online: () => (navigator.onLine ? 1 : 0),
       docked: () => 0,
@@ -194,15 +195,20 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
         exRef.current = ex;
         ex._initialize?.();
         ex.sim_init();
+        // A worker keeps the beat (as in the simulator page): a page the browser counts as hidden
+        // gets no animation frames and timers once a second. A late beat is caught up in small
+        // steps, since LVGL runs each timer at most once per step.
         let last = performance.now();
-        const frame = (t: number) => {
+        const frame = () => {
           if (!alive) return;
-          ex!.sim_step(Math.min(250, Math.max(1, Math.round(t - last))));
+          const t = performance.now();
+          let left = Math.min(1000, Math.max(1, Math.round(t - last)));
           last = t;
+          while (left > 0) { const ms = Math.min(20, left); ex!.sim_step(ms); left -= ms; }
           blit();
-          raf = requestAnimationFrame(frame);
         };
-        raf = requestAnimationFrame(frame);
+        beat = new Worker(URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 16)"], { type: "text/javascript" })));
+        beat.onmessage = frame;
       } catch (e) {
         console.error(e);
         if (alive) setError("The Circle could not start. Build it with: npm run circle:build");
@@ -220,7 +226,7 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
 
     return () => {
       alive = false;
-      cancelAnimationFrame(raf);
+      beat?.terminate();
       window.removeEventListener("devicemotion", onMotion);
       exRef.current = null;
     };
