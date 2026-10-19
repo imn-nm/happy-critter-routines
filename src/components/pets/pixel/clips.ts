@@ -541,7 +541,8 @@ const Homework = build([
 ], [HW_INTRO, HW_INTRO + HOMEWORK]);
 
 // ---------- WashHands: paws scrubbed under the tap, suds, a rinse, a shake dry ----------
-const SINK_X = 12;
+// She stands just behind the basin, the tap running onto the paw at her chest.
+const SINK_X = 19;
 const WASH = 48;
 const WASH_INTRO = 3;
 const SUDS = [0, 6, 12, 18, 24];
@@ -550,11 +551,11 @@ const washing = (l: number, o: PetOutfit | null): PixelFrame => {
   const ph = (l >> 1) % 2;
   const rinse = l >= 36;
   const [hx, hy] = castShift("hold");
-  const dx = ph ? -8 : -6, dy = ph - 1;
+  const dx = ph ? -1 : 1, dy = ph - 1;
   return withFx(
     withSink(S({ rub: [dx, dy], eyes: rinse ? "down" : "happy", mouth: rinse ? "smile" : undefined, blush: rinse }, o), true, l),
     fx => {
-      suds(fx, l, SX - 6 + hx, SY + 25 + hy, SUDS);
+      suds(fx, l, SX + hx, SY + 25 + hy, SUDS);
       // Soap foam on the paws until the rinse washes it off.
       if (!rinse) for (const [x, y] of [[1, 28], [4, 27], [2, 30], [5, 30]]) fx.set(SX + dx + x + hx, SY + dy + y + hy, (x + l) % 2 ? "F" : "f");
     },
@@ -562,12 +563,12 @@ const washing = (l: number, o: PetOutfit | null): PixelFrame => {
 };
 const WashHands = build([
   [1, neutral],
-  [1, (_l, _i, o) => withSink(S({ rub: [-2, 2] }, o), false)],
-  [1, (_l, _i, o) => withSink(S({ rub: [-4, 0] }, o), true, 0)],
+  [1, (_l, _i, o) => withSink(S({ rub: [0,2] }, o), false)],
+  [1, (_l, _i, o) => withSink(S({ rub: [0, 0] }, o), true, 0)],
   [WASH, (l, _i, o) => washing(l, o)],
   // Identical to the loop's first frame. Outro: tap off, shake the paws dry.
   [1, (_l, _i, o) => washing(0, o)],
-  [2, (_l, _i, o) => withSink(S({ rub: [-4, 0], eyes: "down" }, o), false)],
+  [2, (_l, _i, o) => withSink(S({ rub: [0, 0], eyes: "down" }, o), false)],
   [10, (l, _i, o) => {
     const [hx, hy] = castShift("hold");
     return withFx(withSink(S({ rub: [0, l % 2 ? -1 : 1], eyes: "happy" }, o), false), fx => spray(fx, l, SX + 2 + hx, SY + 28 + hy, FLOOR));
@@ -773,7 +774,8 @@ const WakeUp = build([
 ], [WAKE_INTRO, WAKE_INTRO + WAKE]);
 
 // ---------- Piano: an eight-note tune, a note floating up from every key ----------
-const TUNE = [4, 6, 5, 7, 6, 4, 5, 7];
+// The two keys nearest her chest, so the paw plays without leaving her body.
+const TUNE = [6, 7, 6, 7, 7, 6, 6, 7];
 const PIANO = TUNE.length * 6;
 const PIANO_INTRO = 3;
 /** The paw's [dx, dy] over key `i`, resting on it when `down`. */
@@ -787,18 +789,19 @@ const playing = (l: number, o: PetOutfit | null): PixelFrame => {
     fx => TUNE.forEach((k, m) => {
       // Each note rises for a while after its key goes down, round the loop.
       const age = (((l - (m * 6 + 2)) % PIANO) + PIANO) % PIANO;
-      musicNote(fx, age, keyX(k), KEY_ROW - 2, m);
+      // They float up over the piano, clear of her face.
+      musicNote(fx, age, keyX(k) - 12 + 3 * (m % 3), KEY_ROW - 4, m);
     }),
   );
 };
 const Piano = build([
   [1, neutral],
-  [1, (_l, _i, o) => withPiano(S({ rub: [-3, 0] }, o))],
-  [1, (_l, _i, o) => withPiano(S({ rub: [-5, -3] }, o))],
+  [1, (_l, _i, o) => withPiano(S({ rub: [0, 0] }, o))],
+  [1, (_l, _i, o) => withPiano(S({ rub: [-1, -3] }, o))],
   [PIANO, (l, _i, o) => playing(l, o)],
   // Identical to the loop's first frame. Outro: paw down, a pleased little glow.
   [1, (_l, _i, o) => playing(0, o)],
-  [1, (_l, _i, o) => withPiano(S({ rub: [-3, 0] }, o))],
+  [1, (_l, _i, o) => withPiano(S({ rub: [0, 0] }, o))],
   [8, (l, _i, o) => withFx(withPiano(S({ eyes: "happy", blush: true, mouth: "smile" }, o)), fx => sparkles(fx, l, SX + 22, SY + 2))],
   [3, neutral],
   [1, neutral],
@@ -807,7 +810,7 @@ const Piano = build([
 // ---------- Basketball: dribbles, jumps and shoots, swish, and the ball bounces home ----------
 const BB = 72;
 const BB_INTRO = 4;
-const BB_X = 22;              // the ball under the dribbling paw
+const BB_X = 25;              // the ball under the dribbling paw, which stays at her chest
 const BB_GROUND = FLOOR - 5;
 const BOUNCE = [0, 1, 3, 4, 3, 1];
 /** The hoop behind the ball and its rim and net in front, with the ball between. */
@@ -820,12 +823,12 @@ const shooting = (l: number, o: PetOutfit | null): PixelFrame => {
   const [hx, hy] = castShift("hold");
   if (l < 36) {
     const t = l % 6;
-    return court(S({ rub: [-2, t === 0 ? 1 : t === 5 ? 0 : -1], eyes: l >= 24 ? "up" : "down" }, o), [BB_X + hx, BB_GROUND - 4 + BOUNCE[t] + hy], t >> 1);
+    return court(S({ rub: [0,t === 0 ? 1 : t === 5 ? 0 : -1], eyes: l >= 24 ? "up" : "down" }, o), [BB_X + hx, BB_GROUND - 4 + BOUNCE[t] + hy], t >> 1);
   }
   // Ball up to the chest, a crouch, and up she jumps.
-  if (l < 38) return court(S({ rub: [-2, -4], eyes: "up" }, o), [BB_X - 1 + hx, SY + 19 + hy]);
-  if (l < 40) return court({ r: squash(side({ rub: [-2, -3], eyes: "up", outfit: o }), 1.06, 0.92), x: SX, y: SY }, [BB_X - 1 + hx, SY + 21 + hy]);
-  if (l < 42) return court(S({ rub: [-2, -6], eyes: "up", perk: true }, o, { y: SY - 3 }), [BB_X - 2 + hx, SY + 12 + hy]);
+  if (l < 38) return court(S({ rub: [0,-4], eyes: "up" }, o), [BB_X - 1 + hx, SY + 19 + hy]);
+  if (l < 40) return court({ r: squash(side({ rub: [0,-3], eyes: "up", outfit: o }), 1.06, 0.92), x: SX, y: SY }, [BB_X - 1 + hx, SY + 21 + hy]);
+  if (l < 42) return court(S({ rub: [0,-6], eyes: "up", perk: true }, o, { y: SY - 3 }), [BB_X - 2 + hx, SY + 12 + hy]);
   const hoopX = RIM_X + 2;
   if (l < 52) {
     const u = (l - 41) / 10;
@@ -849,20 +852,20 @@ const shooting = (l: number, o: PetOutfit | null): PixelFrame => {
   const t = l - 62;
   const x = hoopX + Math.round((BB_X + hx - hoopX) * (t + 1) / 10);
   const y = BB_GROUND - [3, 5, 6, 5, 3, 0, 1, 2, 3, 4][t] + (t === 9 ? hy : 0);
-  return court(S({ rub: [-2, t === 9 ? 1 : 0], eyes: "down", mouth: "smile" }, o), [x, y], t >> 1);
+  return court(S({ rub: [0,t === 9 ? 1 : 0], eyes: "down", mouth: "smile" }, o), [x, y], t >> 1);
 };
 const Basketball = build([
   [1, neutral],
   [3, (l, _i, o) => {
     const [hx, hy] = castShift("hold");
-    return court(S({ rub: [-2, 1], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 1 - l + hy]);
+    return court(S({ rub: [0,1], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 1 - l + hy]);
   }],
   [BB, (l, _i, o) => shooting(l, o)],
   // Identical to the loop's first frame. Outro: the ball rests at the foot.
   [1, (_l, _i, o) => shooting(0, o)],
   [3, (l, _i, o) => {
     const [hx, hy] = castShift("hold");
-    return court(S({ rub: [-2, 1 + l], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 3 + l + hy]);
+    return court(S({ rub: [0,1 + l], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 3 + l + hy]);
   }],
   [8, (l, _i, o) => withFx(court(S({ eyes: "happy", mouth: "smile", blush: true }, o), [BB_X, BB_GROUND]), fx => sparkles(fx, l, SX + 22, SY + 2))],
   [3, neutral],

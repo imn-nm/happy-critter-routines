@@ -776,18 +776,18 @@ export function desk(fx: Pix, x: number, floor: number, turn: 0 | 1 | 2 | 3 = 0)
 }
 
 /**
- * A little upright piano on the left with its keyboard sticking out towards
- * the rabbit: key `i` (0 to 7) is two cells wide from x 12 + 2i. `pressed`
- * is the key held down, or -1.
+ * A little upright piano on the left with its keyboard reaching right up to
+ * the rabbit's chest: key `i` (0 to 7) is two cells wide from x 14 + 2i.
+ * `pressed` is the key held down, or -1.
  */
 export const KEY_ROW = 42;
-export const keyX = (i: number) => 12 + 2 * i;
+export const keyX = (i: number) => 14 + 2 * i;
 export function piano(fx: Pix, floor: number, pressed = -1) {
   for (let y = 29; y < KEY_ROW; y++) for (let x = 1; x <= 21; x++) {
     const edge = y === 29 || x === 1 || x === 21;
     fx.set(x, y, edge ? "u" : y >= 31 && y <= 35 && x >= 6 && x <= 15 ? (y === 32 || y === 34 ? "q" : "F") : "U");
   }
-  for (let x = 1; x <= 27; x++) fx.set(x, KEY_ROW + 2, "u");
+  for (let x = 1; x <= 29; x++) fx.set(x, KEY_ROW + 2, "u");
   for (let i = 0; i < 8; i++) {
     const x = keyX(i), down = i === pressed;
     for (const dx of [0, 1]) {
