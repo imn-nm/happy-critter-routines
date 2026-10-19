@@ -37,9 +37,30 @@ interface Props {
 }
 
 const W = 466;
+/**
+ * CSS px in one real inch of this screen. A CSS inch is 96 px only on desktops; phones and tablets
+ * pack more CSS px into an inch, and browsers don't say how many, so this goes by Apple's published
+ * pixel densities (physical ppi / devicePixelRatio): iPhones with 3x screens are ~460 ppi (153 px),
+ * the 12/13 mini 476 (159), 2x iPhones and the iPad mini 326 (163), other iPads 264 (132). Android
+ * sizes CSS px in dp, nominally 160 to the inch. In iOS Display Zoom (Larger Text) it reads a little
+ * small, since the phone then reports a narrower screen than it has.
+ */
+export function cssPxPerInch(): number {
+  if (typeof window === "undefined") return 96;
+  const ua = navigator.userAgent;
+  const dpr = window.devicePixelRatio || 1;
+  const short = Math.min(window.screen.width, window.screen.height);
+  const iPhone = /iPhone|iPod/.test(ua);
+  const iPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  if (iPhone) return dpr >= 3 ? (short === 360 ? 159 : 153) : 163;
+  if (iPad) return short === 744 ? 163 : 132;   /* 744: the iPad mini 6 and later */
+  if (/Android/.test(ua)) return 160;
+  return 96;
+}
+
 /** The housing size (CSS px) that draws the 466 px screen 1.75 inches across: the real handheld's
- * display (CSS inches are 96 px). */
-export const CIRCLE_REAL_SIZE_PX = Math.round(1.75 * 96 * 600 / W);
+ * display. */
+export const circleRealSizePx = () => Math.round(1.75 * cssPxPerInch() * 600 / W);
 const SOUNDS = [sounds.start, sounds.done, sounds.stillToDo, sounds.soon, sounds.approved, sounds.bedtime];
 
 type Exports = {

@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { List, Ruler } from "lucide-react";
-import { CIRCLE_REAL_SIZE_PX } from "@/components/CircleDevice";
+import { circleRealSizePx } from "@/components/CircleDevice";
 import ChildCircleView from "@/components/ChildCircleView";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren } from "@/hooks/useChildren";
@@ -18,9 +18,9 @@ const ChildCircle = () => {
   const { children, loading: childrenLoading, loadError } = useChildren();
   const [fit, setFit] = useState(() => Math.min(600, window.innerWidth, window.innerHeight - 72));
   // Real size: the round screen drawn 1.75 inches across, as on the handheld (the Waveshare 1.75"
-  // AMOLED, 466 px). CSS inches are 96 px, so this is the true size on a screen at 100% zoom.
+  // AMOLED, 466 px), measured in this screen's own inches (circleRealSizePx), at 100% zoom.
   const [realSize, setRealSize] = useState(() => { try { return localStorage.getItem("mytoki:real-size") === "1"; } catch { return false; } });
-  const size = realSize ? CIRCLE_REAL_SIZE_PX : fit;
+  const size = realSize ? circleRealSizePx() : fit;
 
   useEffect(() => { lockParentMode(); }, []);
   useEffect(() => {
