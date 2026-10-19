@@ -632,6 +632,7 @@ static struct {
     int just;              /* the task just ticked here (-1: none) */
     lv_timer_t *hold;      /* its row turns done where it is, then the list closes up */
     bool flip;
+    int32_t now_s;         /* the time the rows were built for ("Was due" once a time has gone) */
     char sig[DAY_MAX_TASKS * 4 + 4];
 } ot;
 
@@ -698,9 +699,10 @@ static bool other_tick_in_place(int task)
     return false;
 }
 
-void others_refresh(const day_plan_t *p, const logic_now_t *n)
+void others_refresh(const day_plan_t *p, const logic_now_t *n, int32_t now_s)
 {
     if (!others) return;
+    ot.now_s = now_s;
     char sig[sizeof ot.sig];
     int w = 0;
     for (int k = 0; k < n->nstill && w < (int)sizeof sig - 6; k++) w += snprintf(sig + w, sizeof sig - w, "%d,", n->still[k]);
@@ -739,7 +741,10 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
         lv_obj_set_size(name, 250, lv_font_get_line_height(F_ITEM));
         char by[24], when[16];
         if (t->bedtime_routine || t->system == SYS_BEDTIME) snprintf(by, sizeof by, "Before bedtime");
-        else { fmt_hour(when, sizeof when, t->end); snprintf(by, sizeof by, "Before %s", when); }
+        else {   /* "Before 3:30 pm" while there is time; "Was due 3:30 pm" once it has gone */
+            fmt_hour(when, sizeof when, t->end);
+            snprintf(by, sizeof by, "%s %s", t->end * 60 <= ot.now_s ? "Was due" : "Before", when);
+        }
         ui_label(col, F_DETAIL, C_ON_COLOR, by);
         checkbox_create(card, 48, false);
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
@@ -750,7 +755,7 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
     if (!n->nstill) overlay_fade_away(others);
 }
 
-void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done)
+void others_open(const day_plan_t *p, const logic_now_t *n, int32_t now_s, overlay_cb_t on_done)
 {
     lv_obj_t *o = open_overlay(&others, true);
     if (ot.hold) lv_timer_delete(ot.hold);
@@ -763,7 +768,7 @@ void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done
     ot.wl.shrink = ot.wl.fade = 0;
     list_fade_create(o, 110);   /* clear by y 178, the first row's top */
     ov_header(o, true, "Other things to finish", HEADER_TEXT, PILL_CALM, NULL, "You can do it!");
-    others_refresh(p, n);
+    others_refresh(p, n, now_s);
     overlay_enter_push(o);
 }
 
@@ -846,7 +851,7 @@ static void ap_bubble(lv_obj_t *o, void *u)
 {
     (void)u;
     bubble_create(o, &ap.bubble);
-    bubble_say_pet(&ap.bubble, "Hooray! Have the best time!", 128);
+    bubble_say_pet(&ap.bubble, "Hooray! Have the best time!", 128, SCREEN_H);
     fx_rise(ap.bubble.root, 12, 0);
     fx_rise(ap.bubble.tail, 12, 0);
 }
@@ -965,7 +970,8 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
     char cost[24];
     if (ask_enough) snprintf(cost, sizeof cost, "%d stars", r->cost);
     else snprintf(cost, sizeof cost, "%d more stars", r->cost - stars);
-    ov_header(o, false, "Ask for this?", HEADER_PILL, PILL_STAR, "star-line", cost);
+    /* short of stars there is nothing to ask yet: "Not yet" over how many more */
+    ov_header(o, false, ask_enough ? "Ask for this?" : "Not yet", HEADER_PILL, PILL_STAR, "star-line", cost);
     overlay_enter_push(o);
 }
 

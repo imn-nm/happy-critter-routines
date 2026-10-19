@@ -406,6 +406,18 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
     lv_obj_set_style_max_width(h->next_task, 250, 0);
     tap_target(h->root, cb, HILL_TAP_NEXT);
     lv_obj_set_ext_click_area(h->root, 0);
+    /* Next on one line ("Next 6:00  Dinner") over a small button (the free-time wheel: Games) */
+    h->line = ui_row(h->col, 8);
+    ui_label(h->line, F_NEXT_LABEL, C_NEXT_LABEL, "Next");
+    h->line_time = ui_label(h->line, F_NEXT_TIME, C_NEXT_LABEL, "");
+    lv_obj_t *gap = ui_box(h->line);
+    lv_obj_set_size(gap, 2, 1);
+    h->line_icon = ui_icon(h->line, "star-line", 18, C_NEXT_TASK);
+    h->line_task = ui_label(h->line, F_NEXT_LABEL, C_NEXT_TASK, "");
+    lv_label_set_long_mode(h->line_task, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_max_width(h->line_task, 170, 0);
+    tap_target(h->line, cb, HILL_TAP_NEXT);
+    lv_obj_set_ext_click_area(h->line, 10);
     /* Button: one lime outline button, no curve (Figma Hill · Button, secondary, 52 high) */
     h->button = button_create(h->col, BTN_SECONDARY, false, "retry", "");
     lv_obj_set_height(h->button, 52);
@@ -435,12 +447,15 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     bool fresh = kind != h->kind;
     h->kind = kind;
     ui_show(h->next, kind == HILL_NEXT);
-    ui_show(h->button, kind == HILL_BUTTON);
+    ui_show(h->line, kind == HILL_NEXT_BUTTON);
+    ui_show(h->button, kind == HILL_BUTTON || kind == HILL_NEXT_BUTTON);
     ui_show(h->text, kind == HILL_TEXT);
     ui_show(h->sw, kind == HILL_SWITCH);
-    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH);
-    static const int32_t PAD[] = { 0, 9, 14, 24, 23 };
+    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON);
+    static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
+    lv_obj_set_style_pad_row(h->col, kind == HILL_NEXT_BUTTON ? 4 : 8, 0);
+    lv_obj_set_height(h->button, kind == HILL_NEXT_BUTTON ? 42 : 52);
     if (fresh) {   /* what the hill says now rises into place */
         lv_obj_t *shown = kind == HILL_NEXT ? h->next : kind == HILL_BUTTON ? h->button : kind == HILL_TEXT ? h->text : kind == HILL_SWITCH ? h->sw : NULL;
         if (shown) fx_rise(shown, 14, 60);
@@ -463,6 +478,17 @@ void hill_set_button(hill_t *h, const char *icon, const char *label)
     hill_kind(h, HILL_BUTTON);
     ui_show(h->button_icon, icon && *icon);
     if (icon && *icon) ui_icon_set(h->button_icon, icon, 22);
+    ui_set_text(h->button_label, label);
+}
+
+void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label)
+{
+    hill_kind(h, HILL_NEXT_BUTTON);
+    ui_icon_set(h->line_icon, icon && *icon ? icon : "star-line", 18);
+    ui_set_text(h->line_task, title);
+    ui_set_text(h->line_time, time ? time : "");
+    ui_show(h->line_time, time && *time);
+    ui_show(h->button_icon, false);
     ui_set_text(h->button_label, label);
 }
 
@@ -951,11 +977,18 @@ void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y)
 /* Beside Biscuit's head, to the right (his ears end about x 250 in the full room), and under
  * whatever the header shows: `below` is the lowest y the header reaches. */
 #define BUBBLE_X 292
-void bubble_say_pet(bubble_t *b, const char *text, int32_t below)
+#define SIDE_X 388   /* the right side button's left edge */
+void bubble_say_pet(bubble_t *b, const char *text, int32_t below, int32_t avoid_y)
 {
     int32_t y = below + 12;
     if (y < 120) y = 120;
-    bubble_say(b, text, BUBBLE_X, y);
+    ui_set_text(b->label, text);
+    lv_obj_update_layout(b->root);
+    int32_t w = lv_obj_get_width(b->root), hh = lv_obj_get_height(b->root);
+    /* low enough to meet the side button: keep left of it */
+    int32_t x = BUBBLE_X;
+    if (y + hh > avoid_y - 4 && x + w > SIDE_X - 8) x = SIDE_X - 8 - w;
+    bubble_say(b, text, x, y);
 }
 
 void bubble_say_top(bubble_t *b, const char *text, int32_t y)

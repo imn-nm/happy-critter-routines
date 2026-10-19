@@ -30,10 +30,11 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
 
 /* ---- Hill: the dark curve at the bottom (y 368) with what comes next, one button, a quiet line or
  * the Spin / Play switch, and the carousel's page dots ---- */
-typedef enum { HILL_EMPTY, HILL_NEXT, HILL_BUTTON, HILL_TEXT, HILL_SWITCH } hill_kind_t;
+typedef enum { HILL_EMPTY, HILL_NEXT, HILL_BUTTON, HILL_TEXT, HILL_SWITCH, HILL_NEXT_BUTTON } hill_kind_t;
 typedef struct {
     lv_obj_t *root, *curve, *col;
     lv_obj_t *next, *next_time, *next_icon, *next_task;
+    lv_obj_t *line, *line_time, *line_icon, *line_task;   /* Next on one line, over a button */
     lv_obj_t *button, *button_icon, *button_label;
     lv_obj_t *text;
     lv_obj_t *sw, *sw_spin, *sw_play;
@@ -47,6 +48,8 @@ typedef void (*hill_cb_t)(hill_tap_t tap);
 void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb);
 void hill_set_next(hill_t *h, const char *icon, const char *title, const char *time);
 void hill_set_button(hill_t *h, const char *icon, const char *label);
+/* The curve, what comes next on one line (a tap opens the day), and a small button under it. */
+void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label);
 void hill_set_text(hill_t *h, const char *text);
 void hill_set_switch(hill_t *h, bool play);
 void hill_set_empty(hill_t *h);
@@ -125,8 +128,10 @@ void bubble_create(lv_obj_t *parent, bubble_t *b);
 /* x, y: the bubble's top left (kept inside the round screen). */
 void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y);
 /* MyToki 2's place for it: beside Biscuit's head, to the right, and under the header; `below` is
- * the lowest y the header reaches (the bubble starts 12 px under it). */
-void bubble_say_pet(bubble_t *b, const char *text, int32_t below);
+ * the lowest y the header reaches (the bubble starts 12 px under it). `avoid_y`: the top of the
+ * side buttons when they show (the bubble keeps left of them once it reaches that low), or
+ * SCREEN_H when they don't. */
+void bubble_say_pet(bubble_t *b, const char *text, int32_t below, int32_t avoid_y);
 void bubble_say_top(bubble_t *b, const char *text, int32_t y);
 void bubble_hide(bubble_t *b);
 

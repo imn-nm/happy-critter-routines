@@ -52,7 +52,7 @@ static void shop_scene(lv_obj_t *page)
     rw.buf = lv_malloc((size_t)SCREEN_W * SCREEN_H * 2);
     rw.scene = lv_canvas_create(page);
     lv_canvas_set_buffer(rw.scene, rw.buf, SCREEN_W, SCREEN_H, LV_COLOR_FORMAT_RGB565);
-    lv_obj_set_pos(rw.scene, 0, 0);
+    lv_obj_set_pos(rw.scene, 0, 10);   /* 10 px down: the bunting hangs under the header's pill (y 131), not through it */
     lv_obj_remove_flag(rw.scene, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     led_args_t a = {
         .buf = rw.buf, .d = SCREEN_W, .pitch = 3.8f,

@@ -27,8 +27,8 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
 void reward_asked_open(const day_reward_t *r);
 
 /* Other things to finish: late must-finish tasks waiting while an event or bedtime is on. */
-void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done);
-void others_refresh(const day_plan_t *p, const logic_now_t *n);
+void others_open(const day_plan_t *p, const logic_now_t *n, int32_t now_s, overlay_cb_t on_done);
+void others_refresh(const day_plan_t *p, const logic_now_t *n, int32_t now_s);
 bool others_is_open(void);
 
 /* "Dinner soon" (Figma Free time · Dinner soon): once per free window, five minutes before the

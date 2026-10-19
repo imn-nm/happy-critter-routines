@@ -637,7 +637,7 @@ static void on_other_done(int task)
     finish_task(task);
     hal_play(HAL_SOUND_DONE);
     logic_now(app.plan, app.now_s, &app.now);
-    others_refresh(app.plan, &app.now);
+    others_refresh(app.plan, &app.now, app.now_s);
 }
 
 /* A wheel option as Biscuit's activity ("Draw" -> drawing). */
@@ -661,7 +661,7 @@ static void on_home(home_event_t ev, int arg)
     case HOME_TAP_CHORES: go_page(2, true); break;
     case HOME_TAP_NEXT: schedule_open(app.plan, &app.now, app.now_s / 60, app.plan->child.picture, on_sched_chore); break;
     case HOME_TAP_CARD:
-        if (app.state == ST_EVENT && app.now.nstill) others_open(app.plan, &app.now, on_other_done);
+        if (app.state == ST_EVENT && app.now.nstill) others_open(app.plan, &app.now, app.now_s, on_other_done);
         break;
     case HOME_TAP_PLAY: app.free_pet_view = true; break;
     case HOME_TAP_WHEEL: app.free_pet_view = false; break;
@@ -1424,7 +1424,7 @@ static void tick(lv_timer_t *timer)
     chores_page_visible(app.page == 2);
     rewards_page_render(app.plan, available_stars(), app.plan->child.picture);
     chores_page_render(app.plan, app.now_s / 60, app.plan->child.picture);
-    if (others_is_open()) others_refresh(app.plan, &app.now);
+    if (others_is_open()) others_refresh(app.plan, &app.now, app.now_s);
 
     /* left on a side page: drift back home */
     if (lv_display_get_inactive_time(NULL) > IDLE_HOME_MS) {

@@ -495,13 +495,16 @@ void home_render(const home_view_t *v)
             lv_obj_update_layout(h.hdr.root);
             below = lv_obj_get_y(h.hdr.root) + lv_obj_get_height(h.hdr.root);
         }
-        bubble_say_pet(&h.bubble, say, below);
+        bubble_say_pet(&h.bubble, say, below, v->sides ? 206 : SCREEN_H);
     } else bubble_hide(&h.bubble);
 
     /* ---- the hill ---- */
     h.bottom = v->bottom;
     switch (v->bottom) {
-    case BOTTOM_GAMES: hill_set_button(&h.hill, NULL, "Games"); break;
+    case BOTTOM_GAMES:   /* the free-time wheel: what comes next stays in view over the Games button */
+        if (v->next_title[0]) hill_set_next_button(&h.hill, v->next_icon, v->next_title, v->next_time, "Games");
+        else hill_set_button(&h.hill, NULL, "Games");
+        break;
     case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->next_time); break;
     case BOTTOM_NOTE: hill_set_text(&h.hill, v->note); break;
     case BOTTOM_PLAY:

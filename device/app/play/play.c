@@ -553,6 +553,7 @@ static void see_you_later(void)
     header_t h;
     header_create(pl.root, &h);
     header_set(&h, ui_clock(), "See you later!", HEADER_TEXT, PILL_CALM, NULL, "Play again next free time");
+    lv_obj_set_style_max_width(h.text, 300, 0);   /* one line: it would break as "free / time" at 272 */
     hal_play(HAL_SOUND_SOON);
     fx_rise(c.root, 14, 120);
     char say[96];
