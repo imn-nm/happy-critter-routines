@@ -43,6 +43,8 @@ static struct {
     lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
+    lv_obj_t *back_wheel;       /* the menu's way out: back to the wheel */
+    lv_obj_t *back_game;        /* a game's way out: back to the menu */
     lv_obj_t *buddy_pet;        /* My pet: the pet trying each choice on */
     bool buddy;                 /* My pet is showing */
     bool standalone;            /* opened by a long tap on the pet, not from Playtime */
@@ -430,6 +432,7 @@ static void on_game(lv_event_t *e)
     ui_show(pl.shade_top, true);
     ui_show(pl.shade_low, true);
     ui_show(pl.bottom, true);
+    if (pl.back_game) ui_show(pl.back_game, true);
     char t[40];
     named(t, sizeof t, MENU[g].title);
     set_header(MENU[g].icon, t);
@@ -472,10 +475,28 @@ static void open_menu(void)
     ui_show(pl.canvas, false);
     ui_show(pl.shade_top, false);
     ui_show(pl.shade_low, false);
+    if (pl.back_game) ui_show(pl.back_game, false);
     menu_page(pl.page);   /* back to the page the game came from */
 }
 
 static void close_sliding(int dir);
+
+/* The back buttons do what a swipe right does: a game back to the menu, the menu back to the wheel. */
+static void on_back_game(lv_event_t *e)
+{
+    (void)e;
+    if (!pl.in_game || pl.see_you) return;
+    hal_play(HAL_SOUND_TICK);
+    open_menu();
+}
+
+static void on_back_wheel(lv_event_t *e)
+{
+    (void)e;
+    if (pl.in_game || pl.see_you) return;
+    hal_play(HAL_SOUND_TICK);
+    close_sliding(SWIPE_RIGHT);
+}
 
 /* Swipe left or right: a game goes back to the menu; the menu turns its pages (left for the
  * motion games, right to come back), and from the first page a swipe right leaves. In Carrot
@@ -533,7 +554,7 @@ static void see_you_later(void)
     pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
-    pl.chev_l = pl.chev_r = NULL;
+    pl.chev_l = pl.chev_r = pl.back_wheel = pl.back_game = NULL;
     memset(pl.circle, 0, sizeof pl.circle);
     lv_free(pl.buf);
     pl.buf = NULL;
@@ -692,12 +713,31 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_obj_center(ic);
         if (i) pl.chev_r = b; else pl.chev_l = b;
     }
+    /* under the games, a slim pill back to the wheel (a swipe right does the same) */
+    pl.back_wheel = button_create(pl.menu, BTN_SECONDARY, true, "chevron-left", "Wheel");
+    lv_obj_set_height(pl.back_wheel, 34);
+    lv_obj_set_style_pad_hor(pl.back_wheel, 16, 0);
+    lv_obj_update_layout(pl.back_wheel);
+    lv_obj_set_pos(pl.back_wheel, CENTER - lv_obj_get_width(pl.back_wheel) / 2, 392);
+    lv_obj_add_event_cb(pl.back_wheel, on_back_wheel, LV_EVENT_CLICKED, NULL);
     /* the arc at 1 o'clock while Biscuit says "Button" */
     pl.cue = cue_create(pl.root);
     ui_show(pl.cue, false);
 
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);
+
+    /* in a game: a round back arrow at the top left, clear of the stage's play area */
+    pl.back_game = ui_box(pl.root);
+    lv_obj_set_size(pl.back_game, 40, 40);
+    lv_obj_set_pos(pl.back_game, 66, 66);
+    ui_style_card(pl.back_game, C_GLASS, LV_RADIUS_CIRCLE, C_LINE, LV_OPA_COVER);
+    lv_obj_set_style_bg_color(pl.back_game, COL(C_LINE), LV_STATE_PRESSED);
+    lv_obj_add_flag(pl.back_game, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(pl.back_game, 10);
+    lv_obj_add_event_cb(pl.back_game, on_back_game, LV_EVENT_CLICKED, NULL);
+    lv_obj_center(ui_icon(pl.back_game, "chevron-left", 18, C_BONE));
+    ui_show(pl.back_game, false);
 
     pl.bottom = ui_box(pl.root);
     lv_obj_set_size(pl.bottom, SCREEN_W, 132);

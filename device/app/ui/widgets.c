@@ -455,7 +455,12 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
     lv_obj_set_style_pad_row(h->col, kind == HILL_NEXT_BUTTON ? 4 : 8, 0);
-    lv_obj_set_height(h->button, kind == HILL_NEXT_BUTTON ? 42 : 52);
+    /* under the Next line (the wheel's Games) the button is a slim pill, so the wheel above stays
+     * the thing to look at; on its own it's the full 52 px button */
+    bool slim = kind == HILL_NEXT_BUTTON;
+    lv_obj_set_height(h->button, slim ? 34 : 52);
+    lv_obj_set_style_pad_hor(h->button, slim ? 18 : 24, 0);
+    lv_obj_set_style_text_font(h->button_label, slim ? F_LABEL : F_BUTTON, 0);
     if (fresh) {   /* what the hill says now rises into place */
         lv_obj_t *shown = kind == HILL_NEXT ? h->next : kind == HILL_BUTTON ? h->button : kind == HILL_TEXT ? h->text : kind == HILL_SWITCH ? h->sw : NULL;
         if (shown) fx_rise(shown, 14, 60);
