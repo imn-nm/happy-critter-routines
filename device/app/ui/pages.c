@@ -27,8 +27,9 @@ const char *reward_icon(const char *icon)
  * shelves are rows of three and two, as in the Figma, and more of them scroll up under the header
  * (the planks are drawn with each row, so they come along); rows low in the circle fade out, as
  * the rows of the other lists do. */
-#define SHELF_TOP 118        /* the shelves scroll from here; the first row's items sit at 129 */
-#define SHELF_H 146          /* Figma: rows at 129 and 275 */
+#define SHELF_TOP 118        /* the shelves scroll from here; the first row's items sit at 141 */
+#define SHELF_ROW0 141       /* Figma: rows at 129 and 275; 12 lower here, under the clock line in the header */
+#define SHELF_H 146
 #define SHELF_PLANK 133      /* the plank's top, from the row's top (262 - 129) */
 #define SHELF_FADE_Y 372     /* rows whose items' middle is below this fade out towards the rim (the two at rest don't) */
 
@@ -113,7 +114,7 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     lv_obj_set_scroll_snap_y(rw.shelves, LV_SCROLL_SNAP_START);
     lv_obj_set_flex_flow(rw.shelves, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(rw.shelves, 0, 0);
-    lv_obj_set_style_pad_top(rw.shelves, 129 - SHELF_TOP, 0);
+    lv_obj_set_style_pad_top(rw.shelves, SHELF_ROW0 - SHELF_TOP, 0);
     lv_obj_set_style_pad_bottom(rw.shelves, 40, 0);
     lv_obj_add_event_cb(rw.shelves, shelves_scroll, LV_EVENT_SCROLL, NULL);
     shop_scrim(page);
@@ -190,7 +191,7 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     strcpy(rw.sig, sig);
     char s[24];
     snprintf(s, sizeof s, "%d to spend", stars);
-    header_set(&rw.head, NULL, "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* Figma: no clock in the shop */
+    header_set(&rw.head, ui_clock(), "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* the clock, as on Home and Chores */
     if (items_same) return;
     bool changed = rw.built;
     int32_t keep = lv_obj_get_scroll_y(rw.shelves);
@@ -346,6 +347,7 @@ void chores_page_create(lv_obj_t *page, page_cb_t cb)
     ch.wl.style = chore_style;
     list_fade_create(page, CH_FADE_Y);
     header_create(page, &ch.head);
+    page_dots_create(page, 2);
     ch.empty = note_create(page, 200);
     ui_set_text(ch.empty, "Nothing to do right now.\nBiscuit says thanks!");
 }
@@ -443,7 +445,7 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
 
     char s[24];
     snprintf(s, sizeof s, "%d of %d done", done, shown);
-    header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "check", s);
+    header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "listchecks", s);   /* the same icon as Home's Chores button */
     if (!rows_same) {
         if (ch.just >= 0 && tick_in_place(ch.just, picture)) {
             /* ticked here: it turns done where it is, the count bounces, and after a beat the

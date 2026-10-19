@@ -85,7 +85,7 @@ bool ui_picture(void);
 void ring_set_scale(lv_obj_t *ring, int32_t permille);
 void ring_set_wave(lv_obj_t *ring, bool wave, int8_t drift);
 
-/* ---- the arc at 1 o'clock (MyToki 2 leaves it to the housing's own green button; kept for Playtime) ---- */
+/* ---- the lime arc at 1 o'clock: the housing's button does something now (the alarm's I'm up, Playtime) ---- */
 lv_obj_t *cue_create(lv_obj_t *parent);
 void cue_set(lv_obj_t *cue, uint8_t ring, bool dark);
 
@@ -124,8 +124,9 @@ typedef struct { lv_obj_t *root, *label, *tail; bool top; } bubble_t;
 void bubble_create(lv_obj_t *parent, bubble_t *b);
 /* x, y: the bubble's top left (kept inside the round screen). */
 void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y);
-/* MyToki 2's place for it: up and right of Biscuit's head, the tail's tip at (x + 22, 206). */
-void bubble_say_pet(bubble_t *b, const char *text);
+/* MyToki 2's place for it: beside Biscuit's head, to the right, and under the header; `below` is
+ * the lowest y the header reaches (the bubble starts 12 px under it). */
+void bubble_say_pet(bubble_t *b, const char *text, int32_t below);
 void bubble_say_top(bubble_t *b, const char *text, int32_t y);
 void bubble_hide(bubble_t *b);
 

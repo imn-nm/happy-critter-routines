@@ -264,8 +264,11 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     if (c) ui_set_text(h->clock, clock);
     ui_show(h->title, t);
     if (t) ui_set_text(h->title, title);
-    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap) */
+    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap); with no title
+     * the pill sits right under the clock, clear of the wheel's pointer at y 90 */
     if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -4 : 0)) lv_obj_set_style_margin_top(h->title, c ? -4 : 0, 0);
+    int32_t pill_gap = c && !t ? 0 : 6;
+    if (lv_obj_get_style_margin_top(h->pill.root, 0) != pill_gap) lv_obj_set_style_margin_top(h->pill.root, pill_gap, 0);
     ui_show(h->pill.root, below == HEADER_PILL && text && *text);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
     if (below == HEADER_PILL && text && *text) pill_set(&h->pill, tone, icon, text);
@@ -277,17 +280,23 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
  * bg/hill with a 1 px line/hill rim. Drawn once into an image, then shared by every hill. */
 #define HILL_Y 368
 #define HILL_H (SCREEN_H - HILL_Y)
-static lv_image_dsc_t hill_img;
-static uint8_t *hill_px;
+#define FOOT_Y 420           /* the side pages: a low band of the same hill under the page dots */
+typedef struct { lv_image_dsc_t img; uint8_t *px; } hill_pic_t;
+static hill_pic_t hill_pics[2];
 
-static const lv_image_dsc_t *hill_image(void)
+/* The top of the hill from `top` down to the rim, drawn once. */
+static const lv_image_dsc_t *hill_image_at(int32_t top)
 {
-    if (hill_px) return &hill_img;
-    hill_px = lv_malloc((size_t)SCREEN_W * HILL_H * 4);
-    if (!hill_px) return NULL;
+    hill_pic_t *pic = &hill_pics[top == HILL_Y ? 0 : 1];
+    const int32_t h = SCREEN_H - top;
+    if (pic->px) return &pic->img;
+    pic->px = lv_malloc((size_t)SCREEN_W * h * 4);
+    if (!pic->px) return NULL;
+    uint8_t *hill_px = pic->px;
+    lv_image_dsc_t *hill_img = &pic->img;
     const float cx = CENTER, cy = 146.5f, A = 400.0f, B = 146.5f;
     const float fr = 0x0E, fg = 0x12, fb = 0x21, lr = 0x4F, lg = 0x58, lb = 0x84;
-    for (int y = 0; y < HILL_H; y++) {
+    for (int y = 0; y < h; y++) {
         for (int x = 0; x < SCREEN_W; x++) {
             float u = (x + 0.5f - cx) / A, v = (y + 0.5f - cy) / B;
             float F = u * u + v * v - 1.0f;
@@ -305,15 +314,16 @@ static const lv_image_dsc_t *hill_image(void)
             px[3] = (uint8_t)(cov * 255.0f + 0.5f);
         }
     }
-    hill_img.header.magic = LV_IMAGE_HEADER_MAGIC;
-    hill_img.header.cf = LV_COLOR_FORMAT_ARGB8888;
-    hill_img.header.w = SCREEN_W;
-    hill_img.header.h = HILL_H;
-    hill_img.header.stride = SCREEN_W * 4;
-    hill_img.data_size = (uint32_t)SCREEN_W * HILL_H * 4;
-    hill_img.data = hill_px;
-    return &hill_img;
+    hill_img->header.magic = LV_IMAGE_HEADER_MAGIC;
+    hill_img->header.cf = LV_COLOR_FORMAT_ARGB8888;
+    hill_img->header.w = SCREEN_W;
+    hill_img->header.h = h;
+    hill_img->header.stride = SCREEN_W * 4;
+    hill_img->data_size = (uint32_t)SCREEN_W * h * 4;
+    hill_img->data = hill_px;
+    return hill_img;
 }
+static const lv_image_dsc_t *hill_image(void) { return hill_image_at(HILL_Y); }
 
 static void hill_fire(lv_event_t *e)
 {
@@ -346,6 +356,10 @@ void page_dots_set(lv_obj_t *box, int page)
 
 lv_obj_t *page_dots_create(lv_obj_t *parent, int page)
 {
+    lv_obj_t *band = lv_image_create(parent);
+    lv_image_set_src(band, hill_image_at(FOOT_Y));
+    lv_obj_set_pos(band, 0, FOOT_Y);
+    lv_obj_remove_flag(band, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_t *box = dots_build(parent);
     page_dots_set(box, page);
     lv_obj_update_layout(box);
@@ -668,14 +682,12 @@ void ring_set(lv_obj_t *ring, const ring_style_t *s)
 }
 
 /* ================================================================ button cue (Playtime) */
-static uint8_t cue_ring;
-static bool cue_dark;
-
+/* the cue's state lives in its user data: the ring (0..100) in the low byte, dark in bit 8 */
 void cue_set(lv_obj_t *cue, uint8_t ring, bool dark)
 {
-    if (ring == cue_ring && dark == cue_dark) return;
-    cue_ring = ring;
-    cue_dark = dark;
+    intptr_t v = (intptr_t)ring | (dark ? 0x100 : 0);
+    if ((intptr_t)lv_obj_get_user_data(cue) == v) return;
+    lv_obj_set_user_data(cue, (void *)v);
     lv_obj_invalidate(cue);
 }
 
@@ -683,6 +695,9 @@ static void cue_draw(lv_event_t *e)
 {
     lv_obj_t *obj = lv_event_get_target(e);
     lv_layer_t *layer = lv_event_get_layer(e);
+    intptr_t v = (intptr_t)lv_obj_get_user_data(obj);
+    uint8_t cue_ring = (uint8_t)(v & 0xFF);
+    bool cue_dark = (v & 0x100) != 0;
     lv_area_t c;
     lv_obj_get_coords(obj, &c);
     lv_draw_arc_dsc_t a;
@@ -906,14 +921,26 @@ void bubble_create(lv_obj_t *parent, bubble_t *b)
     bubble_hide(b);
 }
 
+/* How far from the middle the round screen reaches at row y, 6 px in from the rim. */
+static int32_t screen_half(int32_t y)
+{
+    float r = CENTER - 6.0f, d = (float)(y - CENTER);
+    float h = r * r - d * d;
+    return h > 0 ? (int32_t)sqrtf(h) : 0;
+}
+
 void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y)
 {
     bool fresh = lv_obj_has_flag(b->root, LV_OBJ_FLAG_HIDDEN) || strcmp(lv_label_get_text(b->label), text) != 0;
     b->top = false;
     ui_set_text(b->label, text);
     lv_obj_update_layout(b->root);
-    int32_t w = lv_obj_get_width(b->root);
-    if (x + w > 440) x = 440 - w;   /* keep it inside the round screen */
+    int32_t w = lv_obj_get_width(b->root), hh = lv_obj_get_height(b->root);
+    /* keep it inside the round screen: its corners (r 20) at the top and bottom edges */
+    int32_t half = screen_half(y + 6);
+    if (screen_half(y + hh - 6) < half) half = screen_half(y + hh - 6);
+    int32_t right = CENTER + half - 6;
+    if (x + w > right) x = right - w;
     lv_obj_set_pos(b->root, x, y);
     lv_obj_set_pos(b->tail, x + 14, y + lv_obj_get_height(b->root) - 1);
     ui_reveal(b->root, true, 10);
@@ -921,12 +948,14 @@ void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y)
     if (fresh && !lv_anim_get(b->root, NULL)) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
 }
 
-void bubble_say_pet(bubble_t *b, const char *text)
+/* Beside Biscuit's head, to the right (his ears end about x 250 in the full room), and under
+ * whatever the header shows: `below` is the lowest y the header reaches. */
+#define BUBBLE_X 292
+void bubble_say_pet(bubble_t *b, const char *text, int32_t below)
 {
-    ui_set_text(b->label, text);
-    lv_obj_update_layout(b->root);
-    int32_t h = lv_obj_get_height(b->root);
-    bubble_say(b, text, 246, 206 - 12 - h);
+    int32_t y = below + 12;
+    if (y < 120) y = 120;
+    bubble_say(b, text, BUBBLE_X, y);
 }
 
 void bubble_say_top(bubble_t *b, const char *text, int32_t y)

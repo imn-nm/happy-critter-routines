@@ -43,6 +43,7 @@ static struct {
     home_bottom_t bottom;
     wheel_list_t steps;
     lv_obj_t *steps_fade;
+    lv_obj_t *cue;
     char steps_sig[64];
     int8_t steps_at;
     lime_card_t card;
@@ -259,15 +260,16 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     /* Get ready: the checklist */
     wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, STEPS_FOCUS - STEPS_Y, STEPS_ROW);
     h.steps.style = steps_style;
-    /* Figma "Fade" over the top row (x 66, 337 wide): black down to y 117, clear by y 158, so the
-     * row slips under the header */
+    /* Figma "Fade" over the top row: black down past the header's pill (y 131), clear by the top of
+     * the row on the line (y 196), so the finished step slips under the header instead of showing
+     * through it */
     h.steps_fade = ui_box(page);
-    lv_obj_set_pos(h.steps_fade, 66, 105);
-    lv_obj_set_size(h.steps_fade, 337, 53);
+    lv_obj_set_pos(h.steps_fade, 59, STEPS_Y);
+    lv_obj_set_size(h.steps_fade, 348, 96);
     static lv_grad_dsc_t fade;
     fade.dir = LV_GRAD_DIR_VER;
     fade.stops_count = 2;
-    fade.stops[0].color = COL(C_SCREEN); fade.stops[0].opa = LV_OPA_COVER; fade.stops[0].frac = 58;
+    fade.stops[0].color = COL(C_SCREEN); fade.stops[0].opa = LV_OPA_COVER; fade.stops[0].frac = 90;    /* y 134 */
     fade.stops[1].color = COL(C_SCREEN); fade.stops[1].opa = LV_OPA_TRANSP; fade.stops[1].frac = 255;
     lv_obj_set_style_bg_grad(h.steps_fade, &fade, 0);
     lv_obj_set_style_bg_opa(h.steps_fade, LV_OPA_COVER, 0);
@@ -276,6 +278,18 @@ void home_create(lv_obj_t *page, home_cb_t cb)
 
     h.scrim = scrim_create(page);
     h.timer = timer_create(page);
+    /* the lime arc at 1 o'clock while the alarm sounds: the button there says I'm up; it breathes */
+    h.cue = cue_create(page);
+    cue_set(h.cue, 0, false);
+    lv_anim_t ca;
+    lv_anim_init(&ca);
+    lv_anim_set_var(&ca, h.cue);
+    lv_anim_set_exec_cb(&ca, ring_opa);
+    lv_anim_set_values(&ca, 255, 110);
+    lv_anim_set_duration(&ca, 700);
+    lv_anim_set_playback_duration(&ca, 700);
+    lv_anim_set_repeat_count(&ca, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&ca);
 
     /* Biscuit can be tapped: a lime ring and a ripple that pulses out (Figma "Tap ring", 260 here) */
     h.tap_out = ui_box(page);
@@ -319,7 +333,7 @@ void home_create(lv_obj_t *page, home_cb_t cb)
 
     h.left = side_button_create(page, true, "star-line");
     lv_obj_add_event_cb(h.left, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_REWARDS);
-    h.right = side_button_create(page, false, "list");
+    h.right = side_button_create(page, false, "listchecks");   /* the same icon as the Chores pill */
     lv_obj_add_event_cb(h.right, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_CHORES);
 
     header_create(page, &h.hdr);
@@ -431,6 +445,8 @@ void home_render(const home_view_t *v)
     }
     ui_show(h.tap_in, pet_on && v->tap_ring);
     ui_show(h.tap_out, pet_on && v->tap_ring);
+    ui_show(h.cue, v->cue);
+    if (v->cue) cue_set(h.cue, v->cue_ring, v->cue_dark);
 
     /* ---- the timer ---- */
     ui_reveal(h.timer, v->timer_show, 0);
@@ -471,10 +487,16 @@ void home_render(const home_view_t *v)
         lv_obj_align(h.card.root, LV_ALIGN_TOP_MID, 0, NOTE_Y);
     }
 
-    /* ---- Biscuit's words ---- */
+    /* ---- Biscuit's words: beside his head, under whatever the header shows ---- */
     const char *say = v->say[0] ? v->say : v->say_top;
-    if (say[0] && pet_on) bubble_say_pet(&h.bubble, say);
-    else bubble_hide(&h.bubble);
+    if (say[0] && pet_on) {
+        int32_t below = 128;
+        if (!v->clock) {
+            lv_obj_update_layout(h.hdr.root);
+            below = lv_obj_get_y(h.hdr.root) + lv_obj_get_height(h.hdr.root);
+        }
+        bubble_say_pet(&h.bubble, say, below);
+    } else bubble_hide(&h.bubble);
 
     /* ---- the hill ---- */
     h.bottom = v->bottom;

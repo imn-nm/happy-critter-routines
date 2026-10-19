@@ -676,11 +676,11 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
     }
-    /* small chevrons at the rim, between the rows, pointing at the other page */
+    /* small chevrons inside the rim, between the rows, pointing at the other page */
     for (int i = 0; i < 2; i++) {
         lv_obj_t *b = ui_box(pl.menu);
         lv_obj_set_size(b, 32, 32);
-        lv_obj_set_pos(b, i ? 430 : 4, 262);
+        lv_obj_set_pos(b, i ? 408 : 26, 262);
         ui_style_card(b, C_GLASS, LV_RADIUS_CIRCLE, C_LINE, LV_OPA_COVER);
         lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
         lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);

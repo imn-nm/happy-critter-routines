@@ -1094,9 +1094,8 @@ static void build_view(home_view_t *v)
             v->force_clip = PET_CLIP_CURIOUS;
             (void)nx;
         } else if (total > WHEEL_MIN_S && !app.free_pet_view) {
-            /* Figma Free time · Spin: the pill alone over the wheel, Games on the hill */
+            /* Figma Free time · Spin: the clock and the pill over the wheel, Games on the hill */
             v->hide_title = true;
-            v->clock_line[0] = 0;
             v->mid = MID_WHEEL;
             v->bottom = BOTTOM_GAMES;
             v->dots = false;
@@ -1128,6 +1127,7 @@ static void build_view(home_view_t *v)
         v->mood = PET_MOOD_DROWSY;
         v->wake = true;
         v->sides = v->dots = false;
+        v->cue = true;   /* the button at 1 o'clock says I'm up */
         break;
     }
     case ST_SNOOZE: {

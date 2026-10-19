@@ -581,6 +581,11 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     /* black behind the title, then the header on top: rows that turn up under it slip out of sight */
     list_fade_create(o, SCHED_FADE_Y);
     ov_header(o, true, "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
+    /* a grab handle above the clock: the sheet can be pulled down */
+    lv_obj_t *grip = ui_box(o);
+    lv_obj_set_size(grip, 36, 4);
+    lv_obj_set_pos(grip, CENTER - 18, 11);
+    ui_style_card(grip, C_HILL_LINE, 2, 0, 0);
     /* the sheet slides up from the bottom and settles; the day sits back under it, and the rows
      * come up a beat behind the header (parallax) */
     backdrop_begin();
@@ -841,7 +846,7 @@ static void ap_bubble(lv_obj_t *o, void *u)
 {
     (void)u;
     bubble_create(o, &ap.bubble);
-    bubble_say_pet(&ap.bubble, "Hooray! Have the best time!");
+    bubble_say_pet(&ap.bubble, "Hooray! Have the best time!", 128);
     fx_rise(ap.bubble.root, 12, 0);
     fx_rise(ap.bubble.tail, 12, 0);
 }
@@ -960,7 +965,7 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
     char cost[24];
     if (ask_enough) snprintf(cost, sizeof cost, "%d stars", r->cost);
     else snprintf(cost, sizeof cost, "%d more stars", r->cost - stars);
-    ov_header(o, false, "Buy this?", HEADER_PILL, PILL_STAR, "star-line", cost);
+    ov_header(o, false, "Ask for this?", HEADER_PILL, PILL_STAR, "star-line", cost);
     overlay_enter_push(o);
 }
 
