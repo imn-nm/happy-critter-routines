@@ -229,6 +229,53 @@ function wand(p: Pix, dy: number, film: boolean) {
   paw(p, 0, dy);
 }
 
+// A pencil pointed down at the notebook: graphite tip, yellow body, a metal
+// band and a pink eraser in the paw. [dx, dy] moves the paw, so the tip can
+// follow the writing across the page.
+function pencil(p: Pix, dx: number, dy: number) {
+  const y = 28 + dy;
+  p.set(-8 + dx, y, "k");
+  p.set(-7 + dx, y, "A"); p.set(-7 + dx, y + 1, "a");
+  for (let x = -6; x <= -3; x++) { p.set(x + dx, y, "Y"); p.set(x + dx, y + 1, "y"); }
+  p.set(-2 + dx, y, "q"); p.set(-2 + dx, y + 1, "q");
+  p.set(-1 + dx, y, "P"); p.set(-1 + dx, y + 1, "P");
+  paw(p, dx, dy);
+}
+
+// Clothes to put on, small and folded in the paw (and tossed up to be worn).
+export type Garment = "beanie" | "scarf" | "cap" | "bowtie";
+export const GARMENT: Record<Garment, readonly string[]> = {
+  beanie: ["..YY.", ".NNNN", "NNNNN", "nNnNn"],
+  scarf: ["XxXxXxX", "X.....X", "x.....x"],
+  cap: ["..xXX", ".XXFX", ".XXXX", "xxxxx"],
+  bowtie: ["XX..XX", "XXxxXX", "XX..XX"],
+};
+function garment(p: Pix, dy: number, kind: Garment) {
+  const g = GARMENT[kind];
+  p.stamp(g, -1 - g[0].length, 27 + dy);
+  paw(p, 0, dy);
+}
+
+// Toys to tidy into the box: a teddy, a block and a ball.
+export type Toy = "teddy" | "block" | "ball";
+export const TOY: Record<Toy, readonly string[]> = {
+  teddy: ["u...u", "UUUUU", "UkUkU", "UUuUU", ".UUU.", "UU.UU"],
+  block: ["NNNN", "NYYN", "NYYN", "nnnn"],
+  ball: [".XX.", "XFXX", "XXXX", ".xx."],
+};
+function heldToy(p: Pix, dy: number, kind: Toy) {
+  const t = TOY[kind];
+  p.stamp(t, -1 - t[0].length, 26 + dy);
+  paw(p, 0, dy);
+}
+
+// Shampoo foam heaped on the head and, at its most, the ear tips.
+const HEAD_FOAM = [
+  [[7, 12, "F"], [8, 11, "F"], [9, 11, "f"], [9, 12, "F"], [10, 12, "f"], [8, 12, "F"]],
+  [[13, 11, "F"], [14, 10, "F"], [15, 10, "f"], [15, 11, "F"], [16, 11, "f"], [14, 11, "F"], [3, 12, "F"], [2, 12, "f"]],
+  [[5, 0, "F"], [6, -1, "F"], [6, 0, "f"], [4, 1, "F"], [16, 0, "F"], [17, -1, "F"], [17, 0, "f"], [15, 1, "F"]],
+] as const;
+
 // The front foot kicked out, as chunky as the paw mitten.
 const KICK = [[34, 0, 3], [35, -1, 4], [36, -1, 4], [37, 0, 3]] as const;
 
@@ -260,6 +307,16 @@ export interface SideOpts {
   crayon?: [number, string];
   /** [dy, soap film in the ring]: a bubble wand held up to the mouth. */
   wand?: [number, boolean];
+  /** [dx, dy]: a pencil writing in the notebook. */
+  pencil?: [number, number];
+  /** [dy, item]: clothes held ready to put on. */
+  garment?: [number, Garment];
+  /** [dy, toy]: a toy held ready to throw in the box. */
+  toy?: [number, Toy];
+  /** [dx, dy]: the bare paw, rubbing under the tap or at an eye. */
+  rub?: [number, number];
+  /** Shampoo on the head, 1 to 3. */
+  headFoam?: number;
   outfit?: PetOutfit | null;
 }
 
@@ -292,6 +349,11 @@ export function side(o: SideOpts = {}) {
   if (o.kick) for (const [y, a, b] of KICK) for (let x = a; x <= b; x++) p.set(x, y, "W");
   if (o.crayon) crayon(p, ...o.crayon);
   if (o.wand) wand(p, ...o.wand);
+  if (o.pencil) pencil(p, ...o.pencil);
+  if (o.garment) garment(p, ...o.garment);
+  if (o.toy) heldToy(p, ...o.toy);
+  if (o.rub) paw(p, ...o.rub);
+  if (o.headFoam) for (let i = 0; i < Math.min(3, o.headFoam); i++) for (const [x, y, c] of HEAD_FOAM[i]) p.set(x, y, c);
   return o.mirror ? p.flipX(SIDE_W) : p;
 }
 
@@ -585,5 +647,190 @@ export function floatingBubbles(fx: Pix, f: number, ox: number, oy: number, blow
     fx.stamp(BUBBLE[Math.min(size, a < 2 ? 0 : a < 4 ? 1 : a < 7 ? 2 : a < 10 ? 3 : 4)], x, y);
   }
 }
+
+/** Soap suds rising from `ox, oy`: one bubble per spawn frame, each living 12 frames. */
+export function suds(fx: Pix, f: number, ox: number, oy: number, spawns: readonly number[]) {
+  spawns.forEach((s, k) => {
+    const a = f - s;
+    if (a < 0 || a > 11) return;
+    const x = Math.round(ox - a * (0.5 + (k % 2) * 0.25) + ((a >> 2) % 2));
+    const y = Math.round(oy - a * 1.3);
+    if (a === 11) { fx.set(x - 1, y - 1, "f"); fx.set(x + 2, y - 1, "f"); fx.set(x - 1, y + 2, "f"); fx.set(x + 2, y + 2, "f"); return; }
+    fx.stamp(RING[a < 3 ? 0 : a < 6 ? 1 : a < 9 ? 2 : 3], x, y);
+  });
+}
+
+/** Water drops shaken off, flying out from `cx, cy` and falling: `t` frames since the shake began. */
+export function spray(fx: Pix, t: number, cx: number, cy: number, floor: number) {
+  const DIRS = [[-1.6, -1.4], [1.5, -1.6], [-0.8, -2], [2, -0.6], [-2, -0.4], [0.9, -2.1]];
+  DIRS.forEach(([vx, vy], i) => {
+    const a = (t + i * 2) % 8;
+    const x = Math.round(cx + vx * a);
+    const y = Math.round(cy + vy * a + 0.25 * a * a);
+    if (y < floor) fx.set(x, y, a < 2 ? "F" : "f");
+  });
+}
+
+/**
+ * A pedestal washbasin with a tap on its left, 19 cells wide: `x` its left
+ * edge, `floor` the first row under it. The tap runs onto the paws when `on`.
+ */
+export const SINK_SPOUT = 8;
+export function sink(fx: Pix, x: number, floor: number, on: boolean, f = 0) {
+  const top = floor - 9;               // the rim
+  const at = (dx: number, y: number, c: string) => fx.set(x + dx, y, c);
+  // Tap: a pipe up from the rim, an arm across and the spout pointing down.
+  for (let y = top - 8; y < top; y++) at(2, y, "q");
+  for (let dx = 2; dx <= SINK_SPOUT; dx++) at(dx, top - 9, "q");
+  at(SINK_SPOUT, top - 8, "q");
+  at(1, top - 10, "T"); at(2, top - 10, "T"); at(3, top - 10, "T");
+  if (on) {
+    for (let y = top - 7; y < top; y++) at(SINK_SPOUT, y, (y + f) % 3 === 0 ? "F" : "f");
+    if (f % 2) { at(SINK_SPOUT - 2, top - 1, "f"); at(SINK_SPOUT + 2, top - 2, "f"); }
+    else { at(SINK_SPOUT - 1, top - 2, "f"); at(SINK_SPOUT + 1, top - 1, "f"); }
+  }
+  // Basin, then the pedestal.
+  for (let dx = 0; dx <= 18; dx++) at(dx, top, "q");
+  // Grey porcelain, so the white paws read against it.
+  for (let y = top + 1; y <= top + 3; y++) for (let dx = 1; dx <= 17; dx++) at(dx, y, dx === 1 || dx === 17 ? "q" : y === top + 1 ? "F" : "L");
+  for (let dx = 3; dx <= 15; dx++) at(dx, top + 4, "q");
+  for (let y = top + 5; y < floor; y++) for (let dx = 7; dx <= 11; dx++) at(dx, y, dx === 7 || dx === 11 ? "q" : "L");
+}
+
+/** A wide rain shower head over the rabbit, its pipe running up off the top of the stage. */
+export const SHOWER_X0 = 29, SHOWER_X1 = 49, SHOWER_Y = 6;
+export function showerHead(fx: Pix) {
+  for (let y = -8; y <= 2; y++) { fx.set(52, y, "q"); fx.set(53, y, "q"); }
+  for (let x = 42; x <= 53; x++) fx.set(x, 2, "q");
+  fx.set(42, 3, "q");
+  for (let x = SHOWER_X0 + 1; x <= SHOWER_X1 - 1; x++) fx.set(x, 4, "L");
+  for (let x = SHOWER_X0; x <= SHOWER_X1; x++) fx.set(x, 5, x % 2 ? "L" : "q");
+}
+
+/**
+ * Shower water falling from the head: two drops per column, every other
+ * column, 3 cells a frame over 45 rows, so the water repeats every 15
+ * frames. A drop that reaches the rabbit (`hits`) splashes on it instead.
+ * `until` stops new water below that row (turning on).
+ */
+export function showerDrops(fx: Pix, f: number, hits: (x: number, y: number) => boolean, floor: number, until = Infinity) {
+  const fall = 45;
+  for (let x = SHOWER_X0; x <= SHOWER_X1; x += 2) {
+    // Where the water meets the rabbit in this column.
+    let stop = floor;
+    for (let y = SHOWER_Y; y < floor; y++) if (hits(x, y)) { stop = y; break; }
+    for (let k = 0; k < 2; k++) {
+      const y = SHOWER_Y + ((f * 3 + x * 5 + k * Math.round(fall / 2)) % fall);
+      if (y > until) continue;
+      if (y < stop - 1) { fx.set(x, y, "f"); fx.set(x, y + 1, "f"); }
+    }
+    if (stop < floor && stop <= until && (f + x) % 2 === 0) { fx.set(x - 1, stop - 1, "F"); fx.set(x + 1, stop - 1, "F"); }
+  }
+}
+
+/**
+ * A teal toy box with a star on the front, 13 cells wide: `x` its left edge,
+ * `floor` the first row under it. The lid stands open behind the rim, half
+ * shut, or shut.
+ */
+export function toyBox(fx: Pix, x: number, floor: number, lid: "open" | "half" | "shut") {
+  const rim = floor - 12;
+  const at = (dx: number, y: number, c: string) => fx.set(x + dx, y, c);
+  if (lid === "open") for (let y = rim - 6; y < rim; y++) for (let dx = 1; dx <= 11; dx++) at(dx, y, y === rim - 6 || dx === 1 || dx === 11 ? "t" : "T");
+  if (lid === "half") for (let y = rim - 3; y < rim; y++) for (let dx = 0; dx <= 12; dx++) at(dx, y, y === rim - 3 ? "t" : "T");
+  for (let dx = 0; dx <= 12; dx++) at(dx, rim, "t");
+  for (let dx = 1; dx <= 11; dx++) at(dx, rim + 1, lid === "shut" ? "T" : "k");
+  at(0, rim + 1, "t"); at(12, rim + 1, "t");
+  for (let y = rim + 2; y < floor; y++) for (let dx = 0; dx <= 12; dx++) at(dx, y, dx === 0 || dx === 12 || y === floor - 1 ? "t" : "T");
+  if (lid === "shut") for (let dx = 0; dx <= 12; dx++) at(dx, rim - 1, "t");
+  fx.stamp(STAR5, x + 4, rim + 4);
+}
+
+/**
+ * A little desk with a notebook lying open flat on it: a thin strip of white
+ * pages on the blue cover, seen almost edge on. `x` is the desk's left edge
+ * and `floor` the first row under its legs. `turn` 1 to 3 lifts the right
+ * page, stands it at the spine and lays it on the left.
+ */
+export const NOTE_TOP = 14;     // rows above the floor to the pages' far edge
+/** Where the pencil's tip sits for the `n`th stroke: 5 along a line, 3 lines, on the right page. */
+export const writeAt = (x: number, floor: number, n: number): [number, number] =>
+  [x + 12 + (n % 5), floor - NOTE_TOP + Math.floor(n / 5)];
+export function desk(fx: Pix, x: number, floor: number, turn: 0 | 1 | 2 | 3 = 0) {
+  const at = (dx: number, y: number, c: string) => fx.set(x + dx, y, c);
+  const top = floor - 10;   // the desk top
+  for (let dx = -1; dx <= 22; dx++) { at(dx, top, "U"); at(dx, top + 1, "u"); }
+  for (let y = top + 2; y < floor; y++) { at(0, y, "u"); at(1, y, "u"); at(19, y, "u"); at(20, y, "u"); }
+  // Three rows of page, the far one a little narrower, the spine in the middle,
+  // and the cover's edge under them on the desk.
+  const n0 = floor - NOTE_TOP;
+  const rows: [number, number][] = [[3, 18], [2, 19], [2, 19]];
+  rows.forEach(([a, b], r) => {
+    for (let dx = a; dx <= b; dx++) at(dx, n0 + r, dx === 10 ? "q" : r === 0 ? "F" : dx === a || dx === b ? "q" : "F");
+  });
+  for (let dx = 1; dx <= 20; dx++) at(dx, n0 + 3, dx === 10 ? "n" : "N");
+  // The page turning: it lifts off the right, stands at the spine, lands on the left.
+  if (turn === 1) for (let dx = 12; dx <= 18; dx++) { at(dx, n0 - 1, "F"); at(dx, n0 - 2, "q"); }
+  if (turn === 2) for (let y = n0 - 7; y < n0; y++) { at(10, y, "q"); at(11, y, y === n0 - 7 ? "q" : "F"); }
+  if (turn === 3) for (let dx = 3; dx <= 9; dx++) { at(dx, n0 - 1, "F"); at(dx, n0 - 2, "q"); }
+}
+
+/**
+ * A little upright piano on the left with its keyboard sticking out towards
+ * the rabbit: key `i` (0 to 7) is two cells wide from x 12 + 2i. `pressed`
+ * is the key held down, or -1.
+ */
+export const KEY_ROW = 42;
+export const keyX = (i: number) => 12 + 2 * i;
+export function piano(fx: Pix, floor: number, pressed = -1) {
+  for (let y = 29; y < KEY_ROW; y++) for (let x = 1; x <= 21; x++) {
+    const edge = y === 29 || x === 1 || x === 21;
+    fx.set(x, y, edge ? "u" : y >= 31 && y <= 35 && x >= 6 && x <= 15 ? (y === 32 || y === 34 ? "q" : "F") : "U");
+  }
+  for (let x = 1; x <= 27; x++) fx.set(x, KEY_ROW + 2, "u");
+  for (let i = 0; i < 8; i++) {
+    const x = keyX(i), down = i === pressed;
+    for (const dx of [0, 1]) {
+      fx.set(x + dx, KEY_ROW, down ? "q" : dx === 1 && i % 3 !== 2 ? "k" : "F");
+      fx.set(x + dx, KEY_ROW + 1, down ? "F" : dx === 1 ? "q" : "F");
+    }
+  }
+  for (let y = KEY_ROW + 3; y < floor; y++) { fx.set(2, y, "u"); fx.set(3, y, "u"); fx.set(19, y, "u"); fx.set(20, y, "u"); }
+}
+
+const NOTE = ["..##", "..#.", "###.", "##.."];
+const NOTE_COLOURS = ["Y", "P", "T", "O"];
+/** A music note rising and swaying from a key, `t` frames after it was played. */
+export function musicNote(fx: Pix, t: number, x: number, y: number, n: number, life = 14) {
+  if (t < 0 || t >= life || (t > life - 3 && t % 2)) return;
+  fx.stamp(NOTE, Math.round(x - 1 + 2 * Math.sin(t * 0.5 + n)), Math.round(y - 4 - t * 1.4), NOTE_COLOURS[n % 4]);
+}
+
+/** A basketball hoop on the left: pole, backboard, rim and a net that swishes. */
+export const RIM_X = 5, RIM_Y = 21;
+/** `part` "back" is the pole and board (behind the ball), "front" the rim and net (in front of it). */
+export function hoop(fx: Pix, floor: number, swish = false, part: "back" | "front" | "all" = "all") {
+  if (part !== "front") {
+    for (let y = 12; y < floor; y++) { fx.set(1, y, "q"); fx.set(2, y, "q"); }
+    for (let y = 10; y <= 19; y++) for (let x = 3; x <= 14; x++) {
+      const edge = y === 10 || y === 19 || x === 3 || x === 14;
+      const square = ((y === 14 || y === 18) && x >= 7 && x <= 11) || ((x === 7 || x === 11) && y >= 14 && y <= 18);
+      fx.set(x, y, edge ? "q" : square ? "X" : "F");
+    }
+  }
+  if (part === "back") return;
+  for (let x = RIM_X; x <= RIM_X + 8; x++) fx.set(x, RIM_Y, "X");
+  for (let y = 1; y <= 4; y++) {
+    const inset = y >> 1;
+    for (let x = RIM_X + inset; x <= RIM_X + 8 - inset; x++) if ((x + y + (swish ? 1 : 0)) % 2 === 0) fx.set(x, RIM_Y + y + (swish && y > 2 ? 1 : 0), "F");
+  }
+}
+
+const BBALL = [
+  [".oOo.", "OOkOO", "kkkkk", "OOkOO", ".oOo."],
+  [".okO.", "OOkOO", "OkOOk", "kOOkO", ".oko."],
+];
+export const basketball = (fx: Pix, x: number, y: number, spin: number) =>
+  fx.stamp(BBALL[spin % 2], Math.round(x), Math.round(y));
 
 export type { PetOutfit };

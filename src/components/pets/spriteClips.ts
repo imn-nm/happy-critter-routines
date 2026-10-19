@@ -29,7 +29,15 @@ export type ClipName =
   | "Soccer"
   | "Drawing"
   | "Bubbles"
-  | "Outside";
+  | "Outside"
+  | "Homework"
+  | "WashHands"
+  | "Shower"
+  | "Tidy"
+  | "GetDressed"
+  | "WakeUp"
+  | "Piano"
+  | "Basketball";
 
 export type SpriteClip = PixelClip;
 
@@ -39,7 +47,9 @@ export const CLIPS: Record<ClipName, SpriteClip> = PIXEL_CLIPS;
 export type PetActivity =
   | "brushing" | "eating" | "reading" | "gaming" | "sleeping" | "sports"
   // Screen-free play for free time.
-  | "drawing" | "bubbles" | "outside";
+  | "drawing" | "bubbles" | "outside"
+  // The routine itself: getting up, washing, dressing, tidying, homework, practice.
+  | "waking" | "handwashing" | "shower" | "dressing" | "tidying" | "homework" | "music" | "basketball";
 
 export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   brushing: "BrushingTeeth",
@@ -51,6 +61,14 @@ export const ACTIVITY_CLIP: Record<PetActivity, ClipName> = {
   drawing: "Drawing",
   bubbles: "Bubbles",
   outside: "Outside",
+  waking: "WakeUp",
+  handwashing: "WashHands",
+  shower: "Shower",
+  dressing: "GetDressed",
+  tidying: "Tidy",
+  homework: "Homework",
+  music: "Piano",
+  basketball: "Basketball",
 };
 
 /** What the pet does in free time: never a screen. */
@@ -137,10 +155,20 @@ export const activityForTask = (name?: string | null): PetActivity | undefined =
   // A bedtime story, before "brush" in the routine's steps can pick brushing.
   if (WIND_DOWN_RE.test(n)) return "reading";
   if (/brush|teeth|tooth/.test(n)) return "brushing";
+  // Before eating: "Wash hands before dinner", "Clean up after dinner".
+  if (/wash\w* (your |my |the )?hands|hand ?wash/.test(n)) return "handwashing";
+  if (/shower|\bbath\b|bath ?time|wash hair/.test(n)) return "shower";
+  if (/tidy|clean (up|room|your room|my room)|pick up|put away|chores?\b|dishes|laundry|make (the |your |my )?bed|sweep|vacuum/.test(n)) return "tidying";
+  if (/get dressed|getting dressed|\bdress|clothes|uniform|pyjamas|pajamas|\bpjs\b|socks|shoes|coat|jacket/.test(n)) return "dressing";
+  if (/\bwake|get up|getting up|i'?m up|good morning/.test(n)) return "waking";
   if (/breakfast|lunch|dinner|snack|eat|meal|supper/.test(n)) return "eating";
+  // Before sport, reading and gaming: "piano lesson", "music class".
+  if (/piano|keyboard|music|instrument|violin|guitar|recorder|drum|ukulele|cello|flute|trumpet/.test(n)) return "music";
+  if (/basketball|netball|shoot hoops|hoops/.test(n)) return "basketball";
   // Before reading and gaming: "swim lesson", "PE class" and "play soccer" are sport.
   if (SPORTS_RE.test(n)) return "sports";
-  if (/school|class|lesson|learn|read|book|homework|study|story/.test(n)) return "reading";
+  if (/homework|study|worksheet|spelling|\bmaths?\b|writ(e|ing)|journal/.test(n)) return "homework";
+  if (/school|class|lesson|learn|read|book|story/.test(n)) return "reading";
   if (/draw|paint|colou?r|craft|\bart\b/.test(n)) return "drawing";
   if (/bubble/.test(n)) return "bubbles";
   if (/outside|outdoor|park|garden|nature/.test(n)) return "outside";

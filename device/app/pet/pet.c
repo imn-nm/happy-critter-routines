@@ -66,6 +66,14 @@ static const pet_clip_id_t ACTIVITY_CLIP[] = {
     [PET_ACT_DRAWING] = PET_CLIP_DRAWING,
     [PET_ACT_BUBBLES] = PET_CLIP_BUBBLES,
     [PET_ACT_OUTSIDE] = PET_CLIP_OUTSIDE,
+    [PET_ACT_WAKING] = PET_CLIP_WAKE_UP,
+    [PET_ACT_HANDWASHING] = PET_CLIP_WASH_HANDS,
+    [PET_ACT_SHOWER] = PET_CLIP_SHOWER,
+    [PET_ACT_DRESSING] = PET_CLIP_GET_DRESSED,
+    [PET_ACT_TIDYING] = PET_CLIP_TIDY,
+    [PET_ACT_HOMEWORK] = PET_CLIP_HOMEWORK,
+    [PET_ACT_MUSIC] = PET_CLIP_PIANO,
+    [PET_ACT_BASKETBALL] = PET_CLIP_BASKETBALL,
 };
 
 /* ---------------------------------------------------------------- personality (personality.ts) */

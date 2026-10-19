@@ -25,7 +25,18 @@ export const CLIP_SCENE: Partial<Record<ClipName, SceneName>> = {
   Eating: "kitchen",
   BrushingTeeth: "bath",
   Sleepy: "bedroom",
+  Homework: "study",
+  WashHands: "bath",
+  Shower: "bath",
+  Tidy: "playroom",
+  GetDressed: "bedroom",
+  WakeUp: "bedroom",
+  Piano: "playroom",
+  Basketball: "garden",
 };
+
+/** Bedroom clips that happen in the morning, with the clock showing wake time. */
+const MORNING: ClipName[] = ["WakeUp", "GetDressed"];
 
 /** Shadow colour under the rabbit, per room. */
 const SHADOW: Record<SceneName, string> = {
@@ -213,7 +224,10 @@ const cache = new Map<string, Uint8ClampedArray>();
 export function backdrop(scene: SceneName, clip: ClipName, i: number, crop: Crop): Uint8ClampedArray {
   let key = `${scene}`;
   let draw: (R: Rect, P: Rect) => void;
-  if (scene === "bedroom") {
+  if (scene === "bedroom" && MORNING.includes(clip)) {
+    key += ":morning";
+    draw = (R, P) => bedroom(R, P, 3, 0, 14, true, false);
+  } else if (scene === "bedroom") {
     const loopEnd = PIXEL_CLIPS.Sleepy.loop?.[1] ?? Infinity;
     const t = clip === "Sleepy" ? i - loopEnd : -1;
     if (t < 0) {

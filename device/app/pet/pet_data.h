@@ -28,7 +28,15 @@ typedef enum {
     PET_CLIP_DRAWING = 12,
     PET_CLIP_BUBBLES = 13,
     PET_CLIP_OUTSIDE = 14,
-    PET_CLIP_COUNT = 15
+    PET_CLIP_HOMEWORK = 15,
+    PET_CLIP_WASH_HANDS = 16,
+    PET_CLIP_SHOWER = 17,
+    PET_CLIP_TIDY = 18,
+    PET_CLIP_GET_DRESSED = 19,
+    PET_CLIP_WAKE_UP = 20,
+    PET_CLIP_PIANO = 21,
+    PET_CLIP_BASKETBALL = 22,
+    PET_CLIP_COUNT = 23
 } pet_clip_id_t;
 
 typedef enum {

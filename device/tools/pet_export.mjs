@@ -64,7 +64,8 @@ const RING_CX = -2 + 40 - CROP.x, RING_CY = -5 + 40 - CROP.y;
 
 // Same order as spriteClips.ts ClipName.
 const CLIP_NAMES = ['Idle', 'LeafChase', 'Celebrate', 'Encourage', 'Wave', 'Curious', 'Sleepy', 'Eating',
-  'Reading', 'Gaming', 'BrushingTeeth', 'Soccer', 'Drawing', 'Bubbles', 'Outside'];
+  'Reading', 'Gaming', 'BrushingTeeth', 'Soccer', 'Drawing', 'Bubbles', 'Outside',
+  'Homework', 'WashHands', 'Shower', 'Tidy', 'GetDressed', 'WakeUp', 'Piano', 'Basketball'];
 const SCENES = ['den', 'garden', 'bath', 'kitchen', 'study', 'playroom', 'bedroom'];
 // Plain walls and floors per room stay unlit (ledstyle.js PLAIN, keyed by room here).
 const DEN = ['#2b4843', '#1b2d2a', '#20342f', '#243b37', '#15241f', '#2a423e'];

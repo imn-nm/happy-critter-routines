@@ -135,7 +135,18 @@ static const char *const SPORTS[] = { "soccer", "football", "sport", "sports", "
 static const char *const SPORTS_PREFIX[] = { "swim", "jog", "skat", NULL };
 static const char *const WIND_DOWN[] = { "bedtime routine", "ready for bed", "wind down", NULL };
 static const char *const MEALS[] = { "breakfast", "lunch", "dinner", "snack", "eat", "meal", "supper", NULL };
-static const char *const LEARN[] = { "school", "class", "lesson", "learn", "read", "book", "homework", "study", "story", NULL };
+static const char *const LEARN[] = { "school", "class", "lesson", "learn", "read", "book", "story", NULL };
+static const char *const HANDS[] = { "wash hands", "wash your hands", "wash my hands", "wash the hands", "washing hands", "hand wash", "handwash", NULL };
+static const char *const SHOWER[] = { "shower", "bath", "bathtime", "wash hair", NULL };
+static const char *const TIDY[] = { "tidy", "clean up", "clean room", "clean your room", "clean my room", "pick up", "put away",
+    "chore", "chores", "dishes", "laundry", "make bed", "make the bed", "make your bed", "make my bed", "sweep", "vacuum", NULL };
+static const char *const DRESS[] = { "get dressed", "getting dressed", "clothes", "uniform", "pyjamas", "pajamas", "pjs", "socks",
+    "shoes", "coat", "jacket", NULL };
+static const char *const WAKE[] = { "get up", "getting up", "im up", "i'm up", "good morning", NULL };
+static const char *const MUSIC[] = { "piano", "keyboard", "music", "instrument", "violin", "guitar", "recorder", "drum", "ukulele",
+    "cello", "flute", "trumpet", NULL };
+static const char *const HOOPS[] = { "basketball", "netball", "shoot hoops", "hoops", NULL };
+static const char *const HOMEWORK[] = { "homework", "study", "worksheet", "spelling", "math", "maths", "write", "writing", "journal", NULL };
 static const char *const ART[] = { "draw", "paint", "color", "colour", "craft", "art", NULL };
 static const char *const OUT[] = { "outside", "outdoor", "park", "garden", "nature", NULL };
 static const char *const GAME[] = { "game", "gaming", "play", "screen", "tv", "video", "tablet", NULL };
@@ -151,9 +162,18 @@ static pet_activity_t activity_for(const day_task_t *t)
     lower(n, sizeof n, t->title);
     for (const char *const *w = WIND_DOWN; *w; w++) if (strstr(n, *w)) return PET_ACT_READING;
     if (strstr(n, "brush") || strstr(n, "teeth") || strstr(n, "tooth")) return PET_ACT_BRUSHING;
+    /* Before meals: "Wash hands before dinner", "Clean up after dinner". */
+    for (const char *const *w = HANDS; *w; w++) if (strstr(n, *w)) return PET_ACT_HANDWASHING;
+    if (any(n, SHOWER, false)) return PET_ACT_SHOWER;
+    if (any(n, TIDY, true)) return PET_ACT_TIDYING;
+    if (any(n, DRESS, false) || word(n, "dress", true)) return PET_ACT_DRESSING;
+    if (any(n, WAKE, false) || word(n, "wake", true)) return PET_ACT_WAKING;
     for (const char *const *w = MEALS; *w; w++) if (strstr(n, *w)) return PET_ACT_EATING;
+    /* Before sport and reading: "piano lesson", "basketball practice". */
+    if (any(n, MUSIC, false)) return PET_ACT_MUSIC;
+    if (any(n, HOOPS, false)) return PET_ACT_BASKETBALL;
     if (is_sports(n)) return PET_ACT_SPORTS;
-    if (strstr(n, "homework") || strstr(n, "study")) return PET_ACT_NONE;
+    if (any(n, HOMEWORK, false)) return PET_ACT_HOMEWORK;
     for (const char *const *w = LEARN; *w; w++) if (strstr(n, *w)) return PET_ACT_READING;
     if (any(n, ART, false) || strstr(n, "colo")) return PET_ACT_DRAWING;
     if (strstr(n, "bubble")) return PET_ACT_BUBBLES;

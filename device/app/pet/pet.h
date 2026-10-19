@@ -29,6 +29,14 @@ typedef enum {
     PET_ACT_DRAWING,
     PET_ACT_BUBBLES,
     PET_ACT_OUTSIDE,
+    PET_ACT_WAKING,
+    PET_ACT_HANDWASHING,
+    PET_ACT_SHOWER,
+    PET_ACT_DRESSING,
+    PET_ACT_TIDYING,
+    PET_ACT_HOMEWORK,
+    PET_ACT_MUSIC,
+    PET_ACT_BASKETBALL,
 } pet_activity_t;
 
 typedef struct {

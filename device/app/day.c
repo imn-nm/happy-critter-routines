@@ -43,7 +43,8 @@ static int hhmm(const cJSON *obj, const char *key)
     return cJSON_IsString(v) ? day_parse_hhmm(v->valuestring) : -1;
 }
 
-static const char *ACTIVITIES[] = { "", "brushing", "eating", "reading", "gaming", "sleeping", "sports", "drawing", "bubbles", "outside" };
+static const char *ACTIVITIES[] = { "", "brushing", "eating", "reading", "gaming", "sleeping", "sports", "drawing", "bubbles", "outside",
+    "waking", "handwashing", "shower", "dressing", "tidying", "homework", "music", "basketball" };
 
 static int cmp_task(const void *a, const void *b)
 {

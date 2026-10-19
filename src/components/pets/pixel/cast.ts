@@ -103,9 +103,10 @@ const flip = (p: Pix) => {
 };
 
 // What Biscuit holds or does with a paw or foot (moved onto a friend by its "hold" fit),
-// and what sits on her face (by its "face" fit).
-const HELD = ["carrot", "book", "remote", "brush", "crayon", "wand", "kick"] as const;
+// what sits on her face (by its "face" fit), and on her head (by its hat's "head" fit).
+const HELD = ["carrot", "book", "remote", "brush", "crayon", "wand", "kick", "pencil", "garment", "toy", "rub"] as const;
 const ON_FACE = ["foam"] as const;
+const ON_HEAD = ["headFoam"] as const;
 
 function pick<T extends object>(o: T, keys: readonly string[]) {
   return Object.fromEntries(keys.filter(k => k in o).map(k => [k, (o as Record<string, unknown>)[k]])) as Partial<T>;
@@ -118,7 +119,7 @@ export function side(o: SideOpts = {}): Pix {
     // Her colours go on her body only: outfit pieces and props keep theirs.
     const swap = colourSwap(look)!;
     const bare: SideOpts = { ...o, outfit: null, mirror: false };
-    for (const k of [...HELD, ...ON_FACE]) delete bare[k];
+    for (const k of [...HELD, ...ON_FACE, ...ON_HEAD]) delete bare[k];
     const plain = rabbitSide(bare);
     const out = recolour(plain, swap);
     added(rabbitSide({ ...o, mirror: false }), plain).each((x, y, c) => out.set(x, y, c === "W" ? swap.W ?? c : c));
@@ -130,7 +131,7 @@ export function side(o: SideOpts = {}): Pix {
   dressFriend(r, id, "side", o.outfit);
   const fits = FRIENDS[id].fits.side;
   const plain = rabbitSide();
-  const held = pick(o, HELD), face = pick(o, ON_FACE);
+  const held = pick(o, HELD), face = pick(o, ON_FACE), head = pick(o, ON_HEAD);
   if (Object.keys(held).length) {
     const cells = added(rabbitSide(held), plain);
     overlay(r, fits.hold, p => p.merge(cells), { W: furColour(id, colour) });
@@ -138,6 +139,10 @@ export function side(o: SideOpts = {}): Pix {
   if (Object.keys(face).length) {
     const cells = added(rabbitSide(face), plain);
     overlay(r, fits.face, p => p.merge(cells));
+  }
+  if (Object.keys(head).length) {
+    const cells = added(rabbitSide(head), plain);
+    overlay(r, fits.head, p => p.merge(cells));
   }
   const placed = shift(r, REST_DX[id], 0);
   return o.mirror ? flip(placed) : placed;

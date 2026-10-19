@@ -3,8 +3,11 @@ import type { PetOutfit } from "./accessories";
 import {
   bigStar, butterfly, crumbs, dust, fallingLeaves, heart, leaf, risingBubbles,
   sparkles, starBurst, winStars, zzz, ball, goal, tv, easel, floatingBubbles, strokeColour, PICTURE_CELLS,
-  type FrontOpts, type SideOpts, type SleepOpts, type TvScreen,
+  suds, spray, sink, showerHead, showerDrops, toyBox, TOY, desk, writeAt, GARMENT,
+  piano, keyX, KEY_ROW, musicNote, hoop, basketball, RIM_X, RIM_Y,
+  type FrontOpts, type SideOpts, type SleepOpts, type TvScreen, type Garment, type Toy,
 } from "./sprites";
+import type { AccessoryId } from "./accessories";
 import type { ClipName } from "../spriteClips";
 // Biscuit, or the child's own character in her place (see cast.ts).
 import { castShift, front, side, sleeper, zzzFrom } from "./cast";
@@ -486,9 +489,389 @@ const Bubbles = build([
   [1, neutral],
 ], [BLOW_INTRO, BLOW_INTRO + BLOW]);
 
+// ---------- Homework: the pencil moves along three lines, a think, an idea, a fresh page ----------
+// The pencil's tip travels across the flat notebook; the page turns at the
+// end, which is how the loop's last frame matches its first.
+// Close enough that the paw writes without leaving the chest (its right end tucks behind her).
+const DESK_X = 4;
+const HOMEWORK = 64;
+const HW_INTRO = 4;
+// The desk sits behind the rabbit, so the pencil and paw stay on top of the notebook.
+const withDesk = (frame: PixelFrame, turn: 0 | 1 | 2 | 3 = 0) => withFx(frame, fx => {
+  const d = new Pix();
+  desk(d, DESK_X, FLOOR, turn);
+  d.each((x, y, c) => { if (!frame.r.get(x - frame.x, y - frame.y)) fx.set(x, y, c); });
+});
+/** The pencil's [dx, dy] with its tip at the `n`th stroke, or lifted off the page. */
+const tipOn = (n: number, lift = 0): [number, number] => {
+  const [x, y] = writeAt(DESK_X, FLOOR, n);
+  return [x - SX + 8, y - SY - 28 - lift];
+};
+// Two frames a stroke, the tip lifting a row on every other one, like a scribble.
+const writeLine = (first: number, l: number, o: PetOutfit | null) =>
+  withDesk(S({ pencil: tipOn(first + (l >> 1), l & 1), eyes: "down" }, o));
+const homework = (l: number, o: PetOutfit | null): PixelFrame => {
+  if (l < 10) return writeLine(0, l, o);
+  if (l < 12) return withDesk(S({ pencil: tipOn(5, 2), eyes: "down" }, o));
+  if (l < 22) return writeLine(5, l - 12, o);
+  // A think, tapping the pencil, then a little star of an idea.
+  if (l < 34) return withDesk(S({ pencil: [2, (l >> 1) % 2 ? -4 : -3], eyes: "up" }, o));
+  if (l < 38) return withFx(withDesk(S({ pencil: [2, -4], perk: true, mouth: "o" }, o)), fx => sparkles(fx, l - 34, SX + 20, SY + 1));
+  if (l < 48) return writeLine(10, l - 38, o);
+  if (l < 58) {
+    return withFx(
+      withDesk(S({ pencil: [2, 0], eyes: "happy", blush: true, mouth: "smile" }, o)),
+      fx => sparkles(fx, l, DESK_X + 10, FLOOR - 24),
+    );
+  }
+  return withDesk(S({ pencil: [1, 0], eyes: "down" }, o), (1 + ((l - 58) >> 1)) as 1 | 2 | 3);
+};
+const Homework = build([
+  [1, neutral],
+  [1, (_l, _i, o) => withDesk(S({ pencil: [1, 3] }, o))],
+  [1, (_l, _i, o) => withDesk(S({ pencil: [0, 1] }, o))],
+  [1, (_l, _i, o) => withDesk(S({ pencil: [-1, -1] }, o))],
+  [HOMEWORK, (l, _i, o) => homework(l, o)],
+  // Identical to the loop's first frame. Outro: put the pencil down.
+  [1, (_l, _i, o) => homework(0, o)],
+  [1, (_l, _i, o) => withDesk(S({ pencil: [-1, -1] }, o))],
+  [1, (_l, _i, o) => withDesk(S({ pencil: [1, 3] }, o))],
+  [3, neutral],
+  [1, neutral],
+], [HW_INTRO, HW_INTRO + HOMEWORK]);
+
+// ---------- WashHands: paws scrubbed under the tap, suds, a rinse, a shake dry ----------
+const SINK_X = 12;
+const WASH = 48;
+const WASH_INTRO = 3;
+const SUDS = [0, 6, 12, 18, 24];
+const withSink = (frame: PixelFrame, on: boolean, f = 0) => withFx(frame, fx => sink(fx, SINK_X, FLOOR, on, f));
+const washing = (l: number, o: PetOutfit | null): PixelFrame => {
+  const ph = (l >> 1) % 2;
+  const rinse = l >= 36;
+  const [hx, hy] = castShift("hold");
+  const dx = ph ? -8 : -6, dy = ph - 1;
+  return withFx(
+    withSink(S({ rub: [dx, dy], eyes: rinse ? "down" : "happy", mouth: rinse ? "smile" : undefined, blush: rinse }, o), true, l),
+    fx => {
+      suds(fx, l, SX - 6 + hx, SY + 25 + hy, SUDS);
+      // Soap foam on the paws until the rinse washes it off.
+      if (!rinse) for (const [x, y] of [[1, 28], [4, 27], [2, 30], [5, 30]]) fx.set(SX + dx + x + hx, SY + dy + y + hy, (x + l) % 2 ? "F" : "f");
+    },
+  );
+};
+const WashHands = build([
+  [1, neutral],
+  [1, (_l, _i, o) => withSink(S({ rub: [-2, 2] }, o), false)],
+  [1, (_l, _i, o) => withSink(S({ rub: [-4, 0] }, o), true, 0)],
+  [WASH, (l, _i, o) => washing(l, o)],
+  // Identical to the loop's first frame. Outro: tap off, shake the paws dry.
+  [1, (_l, _i, o) => washing(0, o)],
+  [2, (_l, _i, o) => withSink(S({ rub: [-4, 0], eyes: "down" }, o), false)],
+  [10, (l, _i, o) => {
+    const [hx, hy] = castShift("hold");
+    return withFx(withSink(S({ rub: [0, l % 2 ? -1 : 1], eyes: "happy" }, o), false), fx => spray(fx, l, SX + 2 + hx, SY + 28 + hy, FLOOR));
+  }],
+  [8, (l, _i, o) => withFx(withSink(S({ eyes: "happy", mouth: "grin", blush: true }, o), false), fx => sparkles(fx, l, SX + 22, SY + 2))],
+  [3, neutral],
+  [1, neutral],
+], [WASH_INTRO, WASH_INTRO + WASH]);
+
+// ---------- Shower: water on, a shampoo that foams up, a rinse, a shake dry ----------
+const SHOWER = 60;
+const SHOWER_INTRO = 7;
+/** The shower running over `frame`: the drops splash where they meet the rabbit. */
+const wet = (frame: PixelFrame, f: number, until = Infinity) => withFx(frame, fx => {
+  showerHead(fx);
+  showerDrops(fx, f, (x, y) => !!frame.r.get(x - frame.x, y - frame.y), FLOOR, until);
+});
+const showering = (l: number, o: PetOutfit | null): PixelFrame => {
+  if (l < 12) return wet(S({ eyes: "happy", mouth: "smile" }, o), l);
+  if (l < 36) {
+    const opts: SideOpts = { eyes: "happy", mouth: "o", headFoam: 1 + ((l - 12) >> 3), outfit: o };
+    const [mx, my] = castShift("face");
+    const r = (l >> 2) % 2 ? squash(side(opts), 1.03, 0.97) : side(opts);
+    return withFx(wet({ r, x: SX, y: SY }, l), fx => risingBubbles(fx, l - 12, SX + 14 + mx, SY + 6 + my, 24));
+  }
+  if (l < 48) return wet(S({ eyes: "blink", headFoam: 3 - ((l - 36) >> 2) }, o), l);
+  return wet(S({ eyes: "happy", blush: true, sniff: l % 2 === 1 }, o), l);
+};
+const Shower = build([
+  [1, neutral],
+  [2, (_l, _i, o) => withFx(S({ perk: true, eyes: "up" }, o), showerHead)],
+  // The water comes on from the top.
+  [4, (l, _i, o) => wet(S({ eyes: "up" }, o), SHOWER - 4 + l, 10 + l * 8)],
+  [SHOWER, (l, _i, o) => showering(l, o)],
+  // Identical to the loop's first frame. Outro: water off, a whole-body shake.
+  [1, (_l, _i, o) => showering(0, o)],
+  [3, (_l, _i, o) => withFx(S({ eyes: "happy" }, o), showerHead)],
+  [10, (l, _i, o) => withFx(
+    { r: squash(side({ eyes: "happy", mouth: "grin", outfit: o }), l % 2 ? 1.05 : 0.97, l % 2 ? 0.95 : 1.02), x: SX + (l % 2 ? 1 : -1), y: SY },
+    fx => { showerHead(fx); spray(fx, l, SX + 14, SY + 12, FLOOR); spray(fx, l + 3, SX + 8, SY + 26, FLOOR); },
+  )],
+  [6, (l, _i, o) => withFx(S({ eyes: "happy", blush: true, mouth: "smile" }, o), fx => { showerHead(fx); sparkles(fx, l, SX + 22, SY + 2); })],
+  [3, neutral],
+  [1, neutral],
+], [SHOWER_INTRO, SHOWER_INTRO + SHOWER]);
+
+// ---------- Tidy: three toys tossed into the toy box, the lid shut, then they bounce out again ----------
+const BOX_X = 1;
+const TIDY = 86;
+const TIDY_ORDER: Toy[] = ["teddy", "block", "ball"];
+const TOY_REST: Record<Toy, [number, number]> = { teddy: [23, FLOOR - 6], block: [19, FLOOR - 4], ball: [15, FLOOR - 4] };
+/** The box and the toys still on the floor (the first `boxed` are put away), plus one in the air. */
+const tidyFx = (frame: PixelFrame, boxed: number, lid: "open" | "half" | "shut", fly?: [Toy, number, number], boxDx = 0) =>
+  withFx(frame, fx => {
+    TIDY_ORDER.forEach((t, k) => { if (k >= boxed) fx.stamp(TOY[t], ...TOY_REST[t]); });
+    // Drawn before the box, so a toy dropping in disappears behind its front.
+    if (fly) fx.stamp(TOY[fly[0]], Math.round(fly[1]), Math.round(fly[2]));
+    toyBox(fx, BOX_X + boxDx, FLOOR, lid);
+  });
+const tossing = (k: number, t: number, o: PetOutfit | null): PixelFrame => {
+  const toy = TIDY_ORDER[k];
+  if (t < 3) return tidyFx(S({ eyes: "down" }, o), k, "open");
+  if (t === 3) return tidyFx({ r: squash(side({ eyes: "down", outfit: o }), 1.06, 0.92), x: SX, y: SY }, k, "open");
+  if (t === 4) return tidyFx({ r: squash(side({ eyes: "down", toy: [1, toy], outfit: o }), 1.06, 0.92), x: SX, y: SY }, k + 1, "open");
+  if (t < 8) return tidyFx(S({ toy: [0, toy], eyes: "happy" }, o), k + 1, "open");
+  if (t === 8) return tidyFx(S({ toy: [-2, toy], perk: true }, o), k + 1, "open");
+  if (t < 15) {
+    const [hx, hy] = castShift("hold");
+    const w = TOY[toy][0].length;
+    const u = (t - 8) / 6;
+    const x0 = SX - 1 - w + hx, y0 = SY + 24 + hy;
+    const x1 = BOX_X + 6 - (w >> 1), y1 = FLOOR - 12;
+    return tidyFx(S({ eyes: "up" }, o), k + 1, "open", [toy, x0 + (x1 - x0) * u, y0 + (y1 - y0) * u - 64 * u * (1 - u)]);
+  }
+  return withFx(tidyFx(S({ eyes: "happy", mouth: "smile", blush: true }, o), k + 1, "open"), fx => sparkles(fx, t, BOX_X + 3, FLOOR - 22));
+};
+const tidying = (l: number, o: PetOutfit | null): PixelFrame => {
+  if (l < 60) return tossing(Math.floor(l / 20), l % 20, o);
+  if (l < 62) return tidyFx(S({ eyes: "happy" }, o), 3, l === 60 ? "half" : "shut");
+  if (l < 70) {
+    const ph = l - 62;
+    return withFx(
+      tidyFx(S({ eyes: "happy", mouth: "yay", blush: true }, o, { y: SY + [0, -2, -3, -2, 0, 0, 0, 0][ph] }), 3, "shut"),
+      fx => sparkles(fx, ph, BOX_X + 3, FLOOR - 20),
+    );
+  }
+  // The box wobbles... and out they all bounce, back to where they were.
+  if (l < 74) return tidyFx(S({ eyes: "down", mouth: "o", perk: l % 2 === 0 }, o), 3, "shut", undefined, l % 2 ? 1 : -1);
+  if (l < 82) {
+    const t = l - 74;
+    return withFx(S({ eyes: "up", mouth: "o", perk: true }, o), fx => {
+      TIDY_ORDER.forEach((toy, k) => {
+        if (t < k) return;
+        const u = Math.min(1, (t - k) / 5);
+        const [rx, ry] = TOY_REST[toy];
+        const x0 = BOX_X + 4, y0 = FLOOR - 14;
+        fx.stamp(TOY[toy], Math.round(x0 + (rx - x0) * u), Math.round(y0 + (ry - y0) * u - 56 * u * (1 - u)));
+      });
+      toyBox(fx, BOX_X, FLOOR, "open");
+    });
+  }
+  return tidyFx(S({ eyes: "happy", mouth: "smile" }, o), 0, "open");
+};
+const Tidy = build([
+  [1, neutral],
+  [TIDY, (l, _i, o) => tidying(l, o)],
+  // Identical to the loop's first frame.
+  [1, (_l, _i, o) => tidying(0, o)],
+  [3, neutral],
+  [1, neutral],
+], [1, 1 + TIDY]);
+
+// ---------- GetDressed: tosses a hat on, pops a scarf on, twirls; then another outfit ----------
+// Two outfits a loop, each taken off in a puff of dust before the next.
+const DRESS_HALF = 42;
+const OUTFITS: [Garment & AccessoryId, Garment & AccessoryId][] = [["beanie", "scarf"], ["cap", "bowtie"]];
+const wear = (o: PetOutfit | null, extra: PetOutfit): PetOutfit => ({ ...(o ?? {}), ...extra });
+const twirl = (k: number, o: PetOutfit): PixelFrame => {
+  const look: SideOpts = { eyes: "happy", mouth: "yay", blush: true, outfit: o };
+  const sq = (sx: number, sy: number, dy: number, mirror = false) => ({ r: squash(side({ ...look, mirror }), sx, sy), x: SX, y: SY + dy });
+  if (k === 0) return sq(1.08, 0.9, 0);
+  if (k < 3) return sq(0.96, 1.05, -2);
+  if (k < 7) return { r: side({ ...look, mirror: true }), x: SX, y: SY - [3, 3, 2, 1][k - 3] };
+  if (k < 9) return sq(0.96, 1.05, -1);
+  if (k === 9) return sq(1.06, 0.92, 0);
+  return S({ eyes: "happy", mouth: "smile", blush: true }, o);
+};
+const poof = (fx: Pix, t: number) => {
+  const puff = t ? ["d.d.d", ".d.d."] : [".ddd.", "ddddd", ".ddd."];
+  fx.stamp(puff, SX + 7, SY + 3);
+  fx.stamp(puff, SX + 5, SY + 25);
+};
+const dressing = (l: number, o: PetOutfit | null): PixelFrame => {
+  const [head, neck] = OUTFITS[l < DRESS_HALF ? 0 : 1];
+  const t = l % DRESS_HALF;
+  const hat = wear(o, { head }), both = wear(o, { head, neck });
+  if (t < 4) return S({ garment: [0, head], eyes: "down" }, o);
+  if (t === 4) return S({ garment: [-2, head], perk: true }, o);
+  if (t < 9) {
+    // Tossed up in an arc and caught on the head.
+    const [hx, hy] = castShift("hold");
+    const g = GARMENT[head];
+    const u = (t - 4) / 5;
+    const x0 = SX - 1 - g[0].length + hx, y0 = SY + 25 + hy, x1 = SX + 8, y1 = SY - 2;
+    return withFx(S({ eyes: "up" }, o), fx => fx.stamp(g, Math.round(x0 + (x1 - x0) * u), Math.round(y0 + (y1 - y0) * u - 40 * u * (1 - u))));
+  }
+  if (t === 9) return { r: squash(side({ outfit: hat }), 1.06, 0.92), x: SX, y: SY };
+  if (t < 17) return S({ eyes: "happy", blush: true, mouth: "smile", perk: t === 11 || t === 12 }, hat);
+  if (t < 21) return S({ garment: [0, neck], eyes: "down" }, hat);
+  if (t === 21) return { r: squash(side({ eyes: "blink", outfit: both }), 1.06, 0.92), x: SX, y: SY };
+  if (t === 22) return S({ eyes: "happy" }, both);
+  if (t < 35) return twirl(t - 23, both);
+  if (t < 40) return withFx(S({ eyes: "happy", blush: true, mouth: "smile" }, both), fx => sparkles(fx, t, SX + 22, SY + 2));
+  return withFx(S({ eyes: "blink" }, t === 40 ? both : o), fx => poof(fx, t - 40));
+};
+const GetDressed = build([
+  [1, neutral],
+  [1, (_l, _i, o) => S({ garment: [2, "beanie"] }, o)],
+  [1, (_l, _i, o) => S({ garment: [1, "beanie"] }, o)],
+  [DRESS_HALF * 2, (l, _i, o) => dressing(l, o)],
+  // Identical to the loop's first frame. Outro: put the hat down.
+  [1, (_l, _i, o) => dressing(0, o)],
+  [1, (_l, _i, o) => S({ garment: [1, "beanie"] }, o)],
+  [1, (_l, _i, o) => S({ garment: [2, "beanie"] }, o)],
+  [3, neutral],
+  [1, neutral],
+], [3, 3 + DRESS_HALF * 2]);
+
+// ---------- WakeUp: sleepy eyes, a big yawn, a stretch to the child, rubs an eye, shakes the ears ----------
+const WAKE = 60;
+const WAKE_INTRO = 4;
+const waking = (l: number, o: PetOutfit | null): PixelFrame => {
+  if (l < 6) return S({ eyes: l === 3 ? "blink" : "half" }, o);
+  if (l < 18) {
+    const m = l - 6, wide = m >= 2 && m <= 9;
+    return S({ eyes: "blink", mouth: wide ? "yawn" : "o", headDy: wide ? -1 : 0 }, o);
+  }
+  if (l < 20) return { r: squash(side({ eyes: "half", outfit: o }), 1.08, 0.9), x: SX, y: SY };
+  if (l === 20) return { r: squash(front({ eyes: "blink", outfit: o }), 0.96, 1.05), x: FX, y: SY - 2 };
+  if (l < 33) {
+    // Reaching up tall, then a happy shake out.
+    const k = l - 21;
+    const opts: FrontOpts = { pose: "t", eyes: k < 6 ? "blink" : "happy", mouth: k < 6 ? "o" : "smile", flap: k >= 2 && k < 6, blush: k >= 6 };
+    return k < 6 ? { r: squash(front({ ...opts, outfit: o }), 0.94, 1.1), x: FX, y: SY - 1 } : F(opts, o);
+  }
+  if (l === 33) return { r: squash(front({ outfit: o }), 1.08, 0.9), x: FX, y: SY };
+  if (l === 34) return { r: squash(side({ outfit: o }), 0.96, 1.05), x: SX, y: SY - 2 };
+  if (l === 35) return { r: squash(side({ outfit: o }), 1.06, 0.92), x: SX, y: SY };
+  if (l < 44) return S({ eyes: "half", rub: [l % 2, -10 + ((l >> 1) % 2)] }, o);
+  if (l < 50) return S({ perk: l % 2 === 0 }, o, { x: SX + (l % 2 ? 1 : -1) });
+  if (l < 58) return withFx(S({ eyes: "happy", mouth: "smile", blush: true }, o), fx => sparkles(fx, l, SX + 22, SY + 2));
+  return S({ eyes: l === 58 ? "open" : "half" }, o);
+};
+const WakeUp = build([
+  [2, neutral],
+  [2, (_l, _i, o) => S({ eyes: "half" }, o)],
+  [WAKE, (l, _i, o) => waking(l, o)],
+  // Identical to the loop's first frame. Outro: wide awake.
+  [1, (_l, _i, o) => waking(0, o)],
+  [10, (l, _i, o) => withFx(S({ eyes: "happy", mouth: "smile", blush: true }, o), fx => sparkles(fx, l, SX + 22, SY + 2))],
+  [3, neutral],
+  [1, neutral],
+], [WAKE_INTRO, WAKE_INTRO + WAKE]);
+
+// ---------- Piano: an eight-note tune, a note floating up from every key ----------
+const TUNE = [4, 6, 5, 7, 6, 4, 5, 7];
+const PIANO = TUNE.length * 6;
+const PIANO_INTRO = 3;
+/** The paw's [dx, dy] over key `i`, resting on it when `down`. */
+const pawOver = (i: number, down: boolean): [number, number] => [keyX(i) - SX - 2, KEY_ROW - SY - 31 - (down ? 0 : 2)];
+const withPiano = (frame: PixelFrame, pressed = -1) => withFx(frame, fx => piano(fx, FLOOR, pressed));
+const playing = (l: number, o: PetOutfit | null): PixelFrame => {
+  const n = Math.floor(l / 6), t = l % 6, key = TUNE[n];
+  const down = t === 2 || t === 3;
+  return withFx(
+    withPiano(S({ rub: pawOver(key, down), eyes: "happy", mouth: n % 2 ? "o" : "smile", headDy: n % 2 }, o), down ? key : -1),
+    fx => TUNE.forEach((k, m) => {
+      // Each note rises for a while after its key goes down, round the loop.
+      const age = (((l - (m * 6 + 2)) % PIANO) + PIANO) % PIANO;
+      musicNote(fx, age, keyX(k), KEY_ROW - 2, m);
+    }),
+  );
+};
+const Piano = build([
+  [1, neutral],
+  [1, (_l, _i, o) => withPiano(S({ rub: [-3, 0] }, o))],
+  [1, (_l, _i, o) => withPiano(S({ rub: [-5, -3] }, o))],
+  [PIANO, (l, _i, o) => playing(l, o)],
+  // Identical to the loop's first frame. Outro: paw down, a pleased little glow.
+  [1, (_l, _i, o) => playing(0, o)],
+  [1, (_l, _i, o) => withPiano(S({ rub: [-3, 0] }, o))],
+  [8, (l, _i, o) => withFx(withPiano(S({ eyes: "happy", blush: true, mouth: "smile" }, o)), fx => sparkles(fx, l, SX + 22, SY + 2))],
+  [3, neutral],
+  [1, neutral],
+], [PIANO_INTRO, PIANO_INTRO + PIANO]);
+
+// ---------- Basketball: dribbles, jumps and shoots, swish, and the ball bounces home ----------
+const BB = 72;
+const BB_INTRO = 4;
+const BB_X = 22;              // the ball under the dribbling paw
+const BB_GROUND = FLOOR - 5;
+const BOUNCE = [0, 1, 3, 4, 3, 1];
+/** The hoop behind the ball and its rim and net in front, with the ball between. */
+const court = (frame: PixelFrame, at: [number, number] | null, spin = 0, swish = false) => withFx(frame, fx => {
+  hoop(fx, FLOOR, swish, "back");
+  if (at) basketball(fx, at[0], at[1], spin);
+  hoop(fx, FLOOR, swish, "front");
+});
+const shooting = (l: number, o: PetOutfit | null): PixelFrame => {
+  const [hx, hy] = castShift("hold");
+  if (l < 36) {
+    const t = l % 6;
+    return court(S({ rub: [-2, t === 0 ? 1 : t === 5 ? 0 : -1], eyes: l >= 24 ? "up" : "down" }, o), [BB_X + hx, BB_GROUND - 4 + BOUNCE[t] + hy], t >> 1);
+  }
+  // Ball up to the chest, a crouch, and up she jumps.
+  if (l < 38) return court(S({ rub: [-2, -4], eyes: "up" }, o), [BB_X - 1 + hx, SY + 19 + hy]);
+  if (l < 40) return court({ r: squash(side({ rub: [-2, -3], eyes: "up", outfit: o }), 1.06, 0.92), x: SX, y: SY }, [BB_X - 1 + hx, SY + 21 + hy]);
+  if (l < 42) return court(S({ rub: [-2, -6], eyes: "up", perk: true }, o, { y: SY - 3 }), [BB_X - 2 + hx, SY + 12 + hy]);
+  const hoopX = RIM_X + 2;
+  if (l < 52) {
+    const u = (l - 41) / 10;
+    const x0 = BB_X - 2 + hx, y0 = SY + 12 + hy, y1 = RIM_Y - 6;
+    const at: [number, number] = [x0 + (hoopX - x0) * u, y0 + (y1 - y0) * u - 48 * u * (1 - u)];
+    return court(S({ eyes: "up", mouth: "o" }, o, { y: l < 44 ? SY - [2, 1][l - 42] : SY }), at, l >> 1);
+  }
+  if (l < 56) {
+    const t = l - 52;
+    return withFx(court(S({ eyes: "happy", mouth: "yay", blush: true }, o), [hoopX, RIM_Y - 5 + t * 3], 0, t % 2 === 0), fx => starBurst(fx, t + 1, hoopX + 2, RIM_Y));
+  }
+  if (l < 62) {
+    const t = l - 56;
+    const hop = [0, -2, -3, -2, 0, 0][t];
+    return withFx(
+      court(S({ eyes: "happy", mouth: "yay", blush: true }, o, { y: SY + hop }), [hoopX, Math.min(BB_GROUND, RIM_Y + 7 + t * t + 3 * t)], t >> 1),
+      fx => starBurst(fx, t + 5, hoopX + 2, RIM_Y),
+    );
+  }
+  // It bounces back across the grass and up into the paw.
+  const t = l - 62;
+  const x = hoopX + Math.round((BB_X + hx - hoopX) * (t + 1) / 10);
+  const y = BB_GROUND - [3, 5, 6, 5, 3, 0, 1, 2, 3, 4][t] + (t === 9 ? hy : 0);
+  return court(S({ rub: [-2, t === 9 ? 1 : 0], eyes: "down", mouth: "smile" }, o), [x, y], t >> 1);
+};
+const Basketball = build([
+  [1, neutral],
+  [3, (l, _i, o) => {
+    const [hx, hy] = castShift("hold");
+    return court(S({ rub: [-2, 1], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 1 - l + hy]);
+  }],
+  [BB, (l, _i, o) => shooting(l, o)],
+  // Identical to the loop's first frame. Outro: the ball rests at the foot.
+  [1, (_l, _i, o) => shooting(0, o)],
+  [3, (l, _i, o) => {
+    const [hx, hy] = castShift("hold");
+    return court(S({ rub: [-2, 1 + l], eyes: "down" }, o), [BB_X + hx, BB_GROUND - 3 + l + hy]);
+  }],
+  [8, (l, _i, o) => withFx(court(S({ eyes: "happy", mouth: "smile", blush: true }, o), [BB_X, BB_GROUND]), fx => sparkles(fx, l, SX + 22, SY + 2))],
+  [3, neutral],
+  [1, neutral],
+], [BB_INTRO, BB_INTRO + BB]);
+
 export const PIXEL_CLIPS: Record<ClipName, PixelClip> = {
   Idle, LeafChase, Celebrate, Encourage, Wave, Curious, Sleepy, Eating, Reading, Gaming, BrushingTeeth, Soccer,
-  Drawing, Bubbles,
+  Drawing, Bubbles, Homework, WashHands, Shower, Tidy, GetDressed, WakeUp, Piano, Basketball,
   // The same leaf chase, as free-time play outdoors (its own room in the timer).
   Outside: LeafChase,
 };
