@@ -12,6 +12,13 @@
 #define SCREEN_H 466
 #define CENTER 233
 
+/* The carousel's pyramid (pages sink back, smaller and clipped to their circles, as they turn)
+ * draws whole pages through a layer while they move; a platform that can't afford that sets this
+ * to 0 and keeps the plain slide. */
+#ifndef UI_DEPTH
+#define UI_DEPTH 1
+#endif
+
 /* ---- colours: the MyToki 2 · Color tokens ---- */
 #define C_SCREEN    0x000000  /* bg/screen */
 #define C_HILL      0x0E1221  /* bg/hill: the curve at the bottom, sunken rows */

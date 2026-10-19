@@ -221,7 +221,56 @@ static struct {
     wheel_list_t wl;
     int32_t press_y;
     bool sheet_drag;
+    int just;              /* the chore just ticked on this sheet (-1: none): its row ticks in front of the child */
 } sc;
+
+/* ---- the day under a sheet ---- */
+/* While a sheet is up or on its way, the day under it (Home, set by the controller) sits back: it
+ * drifts up a little, carrying on from the lean the finger gave it, and darkens under a scrim.
+ * Translate and a plain box cost nothing extra (no layer), so this runs at full speed anywhere. */
+#define BACKDROP_LIFT 16
+#define BACKDROP_DIM 110
+static lv_obj_t *backdrop, *scrim;
+static int32_t backdrop_k = -1, backdrop_ty0;
+
+void overlay_set_backdrop(lv_obj_t *under)
+{
+    backdrop = under;
+    scrim = ui_box(lv_screen_active());
+    lv_obj_set_size(scrim, SCREEN_W, SCREEN_H);
+    ui_style_card(scrim, C_SCREEN, 0, 0, 0);
+    lv_obj_set_style_bg_opa(scrim, LV_OPA_TRANSP, 0);
+    lv_obj_add_flag(scrim, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* The sheet starts to move: from wherever the lean left the day. */
+static void backdrop_begin(void)
+{
+    if (!backdrop) return;
+    lv_anim_delete(backdrop, NULL);   /* the lean springing back: the sheet takes it from here */
+    backdrop_ty0 = lv_obj_get_style_translate_y(backdrop, 0);
+    backdrop_k = -1;
+    lv_obj_move_foreground(scrim);
+}
+
+static void backdrop_set(float k)
+{
+    if (!backdrop) return;
+    if (k < 0) k = 0;
+    if (k > 1) k = 1;
+    int32_t kk = (int32_t)lroundf(k * 100);
+    if (kk == backdrop_k) return;
+    backdrop_k = kk;
+    if (kk == 0) backdrop_ty0 = 0;
+    int32_t ty = (int32_t)lroundf(backdrop_ty0 * (1.0f - k) - BACKDROP_LIFT * k);
+    lv_obj_set_style_translate_y(backdrop, ty, 0);
+    bool covered = kk == 100;   /* under a full sheet there is nothing to dim */
+    ui_show(scrim, kk > 0 && !covered);
+    lv_obj_set_style_bg_opa(scrim, covered ? LV_OPA_TRANSP : (lv_opa_t)lroundf(BACKDROP_DIM * k), 0);
+}
+
+/* k from how far down the sheet's top edge is */
+static void backdrop_follow(int32_t sheet_y) { backdrop_set(1.0f - (float)sheet_y / SCREEN_H); }
 
 static void fmt_hour(char *buf, size_t n, int minutes)
 {
@@ -273,7 +322,16 @@ static void sched_rows(void)
 static void on_row_chore(lv_event_t *e)
 {
     int chore = (int)(intptr_t)lv_event_get_user_data(e);
+    sc.just = chore;
     if (sc.on_chore) sc.on_chore(chore);
+}
+
+/* A row rebuilt as done right after its chore was ticked here: it starts as it was (lavender, an
+ * empty ring) and turns done in front of the child. */
+static void row_just_done(lv_obj_t *card, lv_obj_t *box)
+{
+    card_recolor(card, C_SYSTEM, C_RAISED, 360);
+    checkbox_tick(box);
 }
 
 /* Figma "Schedule row" (Center): the icon (36), the name (Item 22) and the detail (Detail 20) from
@@ -351,9 +409,11 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         lv_obj_set_pos(now, 337, 28);
         lv_obj_set_user_data(now, PART(PART_PLAIN, 337, 28));
     } else if (r->state != ROW_NEXT) {   /* Figma: Next ends with nothing */
-        lv_obj_t *box = checkbox_create(card, 48, r->state == ROW_DONE || r->state == ROW_CHORE_DONE);
+        bool just = r->state == ROW_CHORE_DONE && r->chore == sc.just;
+        lv_obj_t *box = checkbox_create(card, 48, !just && (r->state == ROW_DONE || r->state == ROW_CHORE_DONE));
         lv_obj_set_pos(box, 336, 18);
         lv_obj_set_user_data(box, PART(PART_PLAIN, 336, 18));
+        if (just) row_just_done(card, box);
         if (r->state == ROW_CHORE) {
             lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_set_ext_click_area(box, 10);
@@ -419,7 +479,9 @@ static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
     lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
     lv_obj_set_style_max_width(nm, 160, 0);
     ui_label(body, F_DETAIL, now ? C_ACTION : C_TEXT_MUTED, t);
-    checkbox_create(tile, 48, done);
+    bool just = r->state == ROW_CHORE_DONE && r->chore == sc.just;
+    lv_obj_t *box = checkbox_create(tile, 48, done && !just);
+    if (just) row_just_done(tile, box);
     static char said[DAY_MAX_TASKS * 2 + DAY_MAX_CHORES][64];
     snprintf(said[idx], sizeof said[idx], "%s at %s", name, t);
     lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -435,11 +497,13 @@ static void sched_fill(int focus)
         else sched_row(slot, &sc.rows[i]);
     }
     wheel_list_focus(&sc.wl, focus, false);
+    sc.just = -1;
 }
 
 /* Let go of the sheet before it was pulled far enough: it springs back up. */
-static void anim_y(void *obj, int32_t v) { lv_obj_set_y(obj, v); }
+static void anim_y(void *obj, int32_t v) { lv_obj_set_y(obj, v); backdrop_follow(v); }
 static void sched_gone(lv_anim_t *a) { lv_obj_delete(a->var); }
+static void sched_deleted(lv_event_t *e) { (void)e; backdrop_set(0); }
 
 static void sched_anim(lv_obj_t *o, int32_t v0, int32_t v1, uint32_t ms, lv_anim_path_cb_t path, lv_anim_completed_cb_t done)
 {
@@ -457,7 +521,7 @@ static void sched_anim(lv_obj_t *o, int32_t v0, int32_t v1, uint32_t ms, lv_anim
 static void sheet_back(void)
 {
     if (!sched || lv_anim_get(sched, anim_y)) return;
-    sched_anim(sched, lv_obj_get_y(sched), 0, 240, lv_anim_path_ease_out, NULL);
+    sched_anim(sched, lv_obj_get_y(sched), 0, 300, ui_path_settle, NULL);
 }
 
 /* The sheet's top edge (the header): it follows the finger down and goes once pulled past 120 px. */
@@ -468,7 +532,7 @@ static void sched_touch(lv_event_t *e)
     lv_indev_get_point(lv_indev_active(), &pt);
     if (code == LV_EVENT_PRESSED) { sc.press_y = pt.y; sc.sheet_drag = pt.y < SCHED_TOP; return; }
     if (code == LV_EVENT_PRESSING) {
-        if (sc.sheet_drag && sched) { int32_t dy = pt.y - sc.press_y; lv_obj_set_y(sched, dy > 0 ? dy : 0); }
+        if (sc.sheet_drag && sched) { int32_t dy = pt.y - sc.press_y; lv_obj_set_y(sched, dy > 0 ? dy : 0); backdrop_follow(dy > 0 ? dy : 0); }
         return;
     }
     if (code != LV_EVENT_RELEASED && code != LV_EVENT_PRESS_LOST) return;
@@ -497,7 +561,9 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     lv_obj_t *o = open_overlay(&sched, false);
     swipe_add(o, sched_swipe, NULL);
     lv_obj_add_event_cb(o, sched_touch, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(o, sched_deleted, LV_EVENT_DELETE, NULL);
     memset(&sc, 0, sizeof sc);
+    sc.just = -1;
     sc.p = p; sc.n = n; sc.now_min = now_min; sc.picture = picture; sc.on_chore = on_chore;
     int32_t row = picture ? SCHED_PIC_ROW : SCHED_ROW;
     wheel_list_create(o, &sc.wl, 0, SCHED_TOP, SCREEN_W, SCREEN_H - SCHED_TOP, (picture ? SCHED_PIC_FOCUS : SCHED_FOCUS) - SCHED_TOP, row);
@@ -515,8 +581,10 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     /* black behind the title, then the header on top: rows that turn up under it slip out of sight */
     list_fade_create(o, SCHED_FADE_Y);
     ov_header(o, true, "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
-    /* the sheet slides up from the bottom and settles */
-    sched_anim(o, SCREEN_H, 0, 320, lv_anim_path_ease_out, NULL);
+    /* the sheet slides up from the bottom and settles; the day sits back under it */
+    backdrop_begin();
+    lv_obj_set_y(o, SCREEN_H);
+    sched_anim(o, SCREEN_H, 0, 380, ui_path_out, NULL);
 }
 
 void schedule_refresh(const day_plan_t *p, const logic_now_t *n, int now_min)
@@ -537,29 +605,110 @@ void schedule_close(void)
     sched = NULL;
     lv_anim_delete(o, anim_y);
     int32_t from = lv_obj_get_y(o);
-    uint32_t ms = (uint32_t)(260 * (SCREEN_H - from) / SCREEN_H);
-    sched_anim(o, from, SCREEN_H, ms < 120 ? 120 : ms, lv_anim_path_ease_in_out, sched_gone);
+    uint32_t ms = (uint32_t)(300 * (SCREEN_H - from) / SCREEN_H);
+    sched_anim(o, from, SCREEN_H, ms < 140 ? 140 : ms, ui_path_out, sched_gone);
 }
 
 /* ================================================================ Other things to finish */
 /* Figma "Task · Other things to finish": the title over two lines, "You can do it!", and the
  * checklist as a wheel of lavender rows, the first on the line; tap one when it's done. */
-static overlay_cb_t others_cb;
-static wheel_list_t others_wl;
+static struct {
+    overlay_cb_t cb;
+    wheel_list_t wl;
+    int just;              /* the task just ticked here (-1: none) */
+    lv_timer_t *hold;      /* its row turns done where it is, then the list closes up */
+    bool flip;
+    char sig[DAY_MAX_TASKS * 4 + 4];
+} ot;
 
 static void on_other(lv_event_t *e)
 {
     int task = (int)(intptr_t)lv_event_get_user_data(e);
-    if (others_cb) others_cb(task);
+    ot.just = task;
+    if (ot.cb) ot.cb(task);
+}
+
+static void others_hold_over(lv_timer_t *t)
+{
+    (void)t;
+    ot.hold = NULL;
+    ot.flip = true;
+    ot.sig[0] = 0;
+    ui_render_now();
+}
+
+static void others_hold(uint32_t ms)
+{
+    if (ot.hold) { lv_timer_set_period(ot.hold, ms); lv_timer_reset(ot.hold); return; }
+    ot.hold = lv_timer_create(others_hold_over, ms, NULL);
+    lv_timer_set_repeat_count(ot.hold, 1);
+}
+
+static void others_deleted(lv_event_t *e)
+{
+    if (lv_event_get_target(e) != others && others) return;   /* an older sheet fading out under a new one */
+    if (ot.hold) { lv_timer_delete(ot.hold); ot.hold = NULL; }
+}
+
+static void slot_fade(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
+
+/* The task just ticked turns done in its row (lavender to a night card, the box ticks), then the
+ * row fades as the hold ends, and the rows under it close up. */
+static bool other_tick_in_place(int task)
+{
+    uint32_t n = lv_obj_get_child_count(ot.wl.list);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *slot = lv_obj_get_child(ot.wl.list, i);
+        if ((intptr_t)lv_obj_get_user_data(slot) != task + 1 || !lv_obj_get_child_count(slot)) continue;
+        lv_obj_t *card = lv_obj_get_child(slot, 0);
+        uint32_t m = lv_obj_get_child_count(card);
+        if (m < 3) return false;
+        lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_event_cb(card, on_other);
+        card_recolor(card, C_SYSTEM, C_RAISED, 360);
+        ui_set_color(lv_obj_get_child(card, 0), C_TEXT);
+        lv_obj_t *col = lv_obj_get_child(card, 1);
+        for (uint32_t j = 0; j < lv_obj_get_child_count(col); j++) ui_set_color(lv_obj_get_child(col, j), C_TEXT_MUTED);
+        checkbox_tick(lv_obj_get_child(card, (int32_t)m - 1));
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, slot);
+        lv_anim_set_exec_cb(&a, slot_fade);
+        lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_duration(&a, 200);
+        lv_anim_set_delay(&a, 460);
+        lv_anim_set_path_cb(&a, ui_path_out);
+        lv_anim_start(&a);
+        return true;
+    }
+    return false;
 }
 
 void others_refresh(const day_plan_t *p, const logic_now_t *n)
 {
     if (!others) return;
-    wheel_list_clear(&others_wl);
+    char sig[sizeof ot.sig];
+    int w = 0;
+    for (int k = 0; k < n->nstill && w < (int)sizeof sig - 6; k++) w += snprintf(sig + w, sizeof sig - w, "%d,", n->still[k]);
+    sig[w] = 0;
+    if (!strcmp(sig, ot.sig)) return;
+    strcpy(ot.sig, sig);
+    if (ot.just >= 0 && other_tick_in_place(ot.just)) {
+        ot.just = -1;
+        others_hold(680);
+        return;
+    }
+    ot.just = -1;
+    if (ot.hold) return;   /* the list is laid out again when the hold is over */
+    wheel_mark_t marks[DAY_MAX_TASKS];
+    int nm = ot.flip ? wheel_list_mark(&ot.wl, marks, DAY_MAX_TASKS) : 0;
+    int keep = ot.flip ? wheel_list_current(&ot.wl) : 0;
+    ot.flip = false;
+    wheel_list_clear(&ot.wl);
     for (int k = 0; k < n->nstill; k++) {
         const day_task_t *t = &p->tasks[n->still[k]];
-        lv_obj_t *slot = wheel_list_add(&others_wl);
+        lv_obj_t *slot = wheel_list_add(&ot.wl);
+        lv_obj_set_user_data(slot, (void *)(intptr_t)(n->still[k] + 1));
         lv_obj_t *card = ui_row(slot, 14);
         lv_obj_set_size(card, 360, 72);
         lv_obj_center(card);
@@ -582,17 +731,22 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n)
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(card, on_other, LV_EVENT_CLICKED, (void *)(intptr_t)n->still[k]);
     }
-    wheel_list_focus(&others_wl, 0, false);
+    wheel_list_focus(&ot.wl, keep, false);
+    if (nm) wheel_list_flip(&ot.wl, marks, nm);
     if (!n->nstill) overlay_fade_away(others);
 }
 
 void others_open(const day_plan_t *p, const logic_now_t *n, overlay_cb_t on_done)
 {
-    others_cb = on_done;
     lv_obj_t *o = open_overlay(&others, true);
+    if (ot.hold) lv_timer_delete(ot.hold);
+    memset(&ot, 0, sizeof ot);
+    ot.cb = on_done;
+    ot.just = -1;
+    lv_obj_add_event_cb(o, others_deleted, LV_EVENT_DELETE, NULL);
     /* Figma: two equal rows, centres at 213 and 298; more scroll up under the header */
-    wheel_list_create(o, &others_wl, 0, 110, SCREEN_W, SCREEN_H - 110, 104, 84);
-    others_wl.shrink = others_wl.fade = 0;
+    wheel_list_create(o, &ot.wl, 0, 110, SCREEN_W, SCREEN_H - 110, 104, 84);
+    ot.wl.shrink = ot.wl.fade = 0;
     list_fade_create(o, 110);   /* clear by y 178, the first row's top */
     ov_header(o, true, "Other things to finish", HEADER_TEXT, PILL_CALM, NULL, "You can do it!");
     others_refresh(p, n);

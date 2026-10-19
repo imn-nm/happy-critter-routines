@@ -128,7 +128,9 @@ static struct {
     lv_obj_t *page, *empty;
     header_t head;
     wheel_list_t wl;
-    int just;
+    int just;              /* the chore the child just tapped here (-1: none) */
+    lv_timer_t *hold;      /* while a ticked row settles in place, the list keeps its order... */
+    bool flip;             /* ...then it is laid out again with the rows sliding to their new places */
     char sig[256];
 } ch;
 
@@ -136,6 +138,66 @@ static void on_chore(lv_event_t *e)
 {
     ch.just = (int)(intptr_t)lv_event_get_user_data(e);
     if (ch.on_done) ch.on_done(ch.just);
+}
+
+/* The hold is over: lay the list out again (the controller draws everything, and the rows flip). */
+static void hold_over(lv_timer_t *t)
+{
+    (void)t;
+    ch.hold = NULL;
+    ch.flip = true;
+    ch.sig[0] = 0;
+    ui_render_now();
+}
+
+static void hold(uint32_t ms)
+{
+    if (ch.hold) { lv_timer_set_period(ch.hold, ms); lv_timer_reset(ch.hold); return; }
+    ch.hold = lv_timer_create(hold_over, ms, NULL);
+    lv_timer_set_repeat_count(ch.hold, 1);
+}
+
+/* The slot holding chore idx (keys are idx + 1), or NULL. */
+static lv_obj_t *chore_slot(int idx)
+{
+    uint32_t n = lv_obj_get_child_count(ch.wl.list);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *slot = lv_obj_get_child(ch.wl.list, i);
+        if ((intptr_t)lv_obj_get_user_data(slot) == idx + 1) return slot;
+    }
+    return NULL;
+}
+
+/* The chore the child just tapped turns done where it is: the box ticks, the row drifts from
+ * lavender to a night card, its words go quiet, a little burst at the box. False when its row
+ * isn't on the page. */
+static bool tick_in_place(int idx, bool picture)
+{
+    lv_obj_t *slot = chore_slot(idx);
+    if (!slot || !lv_obj_get_child_count(slot)) return false;
+    lv_obj_t *card = lv_obj_get_child(slot, 0);
+    uint32_t n = lv_obj_get_child_count(card);
+    if (n < 3) return false;
+    lv_obj_t *ic = lv_obj_get_child(card, 0), *body = lv_obj_get_child(card, 1), *chk = lv_obj_get_child(card, (int32_t)n - 1);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_event_cb(card, on_chore);
+    card_recolor(card, C_SYSTEM, C_RAISED, 360);
+    lv_obj_set_style_bg_color(card, COL(C_RAISED), LV_STATE_PRESSED);
+    ui_set_color(ic, C_TEXT);
+    lv_obj_t *name = lv_obj_get_child(body, 0);
+    if (name) ui_set_color(name, C_TEXT_MUTED);
+    lv_obj_t *when = picture ? NULL : lv_obj_get_child(body, 1);
+    if (when) { ui_set_text(when, "Done!"); ui_set_color(when, C_DONE); }
+    checkbox_tick(chk);
+    lv_obj_update_layout(ch.wl.list);
+    lv_area_t a, pg;
+    lv_obj_get_coords(chk, &a);
+    lv_obj_get_coords(ch.page, &pg);
+    int32_t ex = (a.x1 + a.x2) / 2 - pg.x1, ey = (a.y1 + a.y2) / 2 - pg.y1;
+    fx_burst_cfg_t cfg = { .waves = 1, .wave_r0 = 10, .wave_span = 80 };
+    fx_burst_create(ch.page, ex, ey, &cfg);
+    fx_confetti(ch.page, ex, ey, 16, FX_PARTY, 6, 120);
+    return true;
 }
 
 static void fmt_hour(char *buf, size_t n, int minutes)
@@ -187,6 +249,7 @@ static bool chore_now(const day_chore_t *c, int now_min)
 static void chore_card(const day_chore_t *c, int idx, bool picture)
 {
     lv_obj_t *slot = wheel_list_add(&ch.wl);
+    lv_obj_set_user_data(slot, (void *)(intptr_t)(idx + 1));   /* its key, for the flip */
     lv_obj_t *card = ui_row(slot, 14);
     lv_obj_set_size(card, 360, 72);
     lv_obj_center(card);
@@ -225,18 +288,7 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
         lv_obj_set_size(w, lv_pct(100), lv_font_get_line_height(F_DETAIL));
     }
     if (done) {
-        lv_obj_t *chk = checkbox_create(card, 48, true);
-        if (idx == ch.just) {
-            fx_pop(chk, 0);
-            lv_obj_update_layout(ch.wl.list);
-            lv_area_t a, pg;
-            lv_obj_get_coords(chk, &a);
-            lv_obj_get_coords(ch.page, &pg);
-            int32_t ex = (a.x1 + a.x2) / 2 - pg.x1, ey = (a.y1 + a.y2) / 2 - pg.y1;
-            fx_burst_cfg_t cfg = { .waves = 1, .wave_r0 = 10, .wave_span = 80 };
-            fx_burst_create(ch.page, ex, ey, &cfg);
-            fx_confetti(ch.page, ex, ey, 16, FX_PARTY, 6, 120);
-        }
+        checkbox_create(card, 48, true);
     } else {
         checkbox_create(card, 48, false);
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
@@ -279,11 +331,22 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
     snprintf(s, sizeof s, "%d of %d done", done, shown);
     header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "check", s);
     if (!rows_same) {
-        bool ticked = ch.just >= 0;
-        wheel_list_clear(&ch.wl);
-        for (int i = 0; i < shown; i++) chore_card(&p->chores[sorted[i]], sorted[i], picture);
-        wheel_list_focus(&ch.wl, focus, false);
-        if (ticked) fx_bounce(ch.head.pill.root, 8, 150);
+        if (ch.just >= 0 && tick_in_place(ch.just, picture)) {
+            /* ticked here: it turns done where it is, the count bounces, and after a beat the
+             * finished one slides down to the end while the rest close up */
+            fx_bounce(ch.head.pill.root, 8, 120);
+            hold(620);
+        } else if (!ch.hold) {
+            wheel_mark_t marks[DAY_MAX_CHORES];
+            int nm = ch.flip ? wheel_list_mark(&ch.wl, marks, DAY_MAX_CHORES) : 0;
+            int keep = ch.flip ? wheel_list_current(&ch.wl) : focus;
+            wheel_list_clear(&ch.wl);
+            for (int i = 0; i < shown; i++) chore_card(&p->chores[sorted[i]], sorted[i], picture);
+            wheel_list_focus(&ch.wl, keep, false);
+            if (nm) wheel_list_flip(&ch.wl, marks, nm);
+            ch.flip = false;
+        }
+        /* else: something changed while a tick settles; the hold lays everything out when it's over */
         ch.just = -1;
     }
     ui_show(ch.empty, shown == 0);

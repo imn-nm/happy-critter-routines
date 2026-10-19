@@ -20,6 +20,7 @@
 #include "play/play.h"
 #include "motion.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -378,6 +379,44 @@ static void on_land_sparks(lv_obj_t *pet, void *u)
 }
 
 /* ================================================================ carousel */
+/* The three round screens are stacked like a little pyramid: the one in front is full size on
+ * top, the ones beside it sit lower, smaller and dimmer, each clipped to its circle. As the finger
+ * drags, or the turn plays, every page is drawn by how far it is from the middle, so the leaving
+ * page sinks back while the coming one rises into place. At rest a page is drawn plain (no
+ * layer, no clipping): this costs only while something moves. */
+#define DEPTH_SHRINK 0.22f   /* a page one screen away is 78 % */
+#define DEPTH_DROP 36        /* ...and sits this much lower */
+#define DEPTH_FADE 0.45f     /* ...at 55 % */
+
+static void carousel_depth(lv_event_t *e)
+{
+    (void)e;
+    if (!UI_DEPTH) return;
+    int32_t sx = lv_obj_get_scroll_x(app.carousel);
+    lv_obj_t *pages[3] = { app.pg_rewards, app.pg_home, app.pg_chores };
+    int slot = 0;
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *pg = pages[i];
+        if (lv_obj_has_flag(pg, LV_OBJ_FLAG_HIDDEN)) continue;
+        float t = (float)(slot * SCREEN_W - sx) / SCREEN_W;   /* 0 in the middle, 1 a screen to the right */
+        slot++;
+        float ad = fminf(fabsf(t), 1.0f);
+        bool moving = ad > 0.002f;
+        int32_t s = moving ? (int32_t)lroundf(256 * (1.0f - DEPTH_SHRINK * ad)) : 256;
+        int32_t drop = moving ? (int32_t)lroundf(DEPTH_DROP * ad) : 0;
+        lv_opa_t o = moving ? (lv_opa_t)lroundf(255 * (1.0f - DEPTH_FADE * ad)) : LV_OPA_COVER;
+        if (lv_obj_get_style_transform_scale_x(pg, 0) != s) lv_obj_set_style_transform_scale(pg, s, 0);
+        if (lv_obj_get_style_translate_y(pg, 0) != drop) lv_obj_set_style_translate_y(pg, drop, 0);
+        if (lv_obj_get_style_opa_layered(pg, 0) != o) lv_obj_set_style_opa_layered(pg, o, 0);
+        if (lv_obj_get_style_clip_corner(pg, 0) != moving) lv_obj_set_style_clip_corner(pg, moving, 0);
+    }
+}
+
+/* The turn itself: our own animation (LVGL's snap is replaced), quick off the mark and soft to
+ * land, its length by how far there is still to go. SCROLL_END is sent as it lands, as LVGL would. */
+static void carousel_x(void *obj, int32_t v) { lv_obj_scroll_to_x(obj, v, LV_ANIM_OFF); }
+static void carousel_landed(lv_anim_t *a) { lv_obj_send_event(a->var, LV_EVENT_SCROLL_END, NULL); }
+
 static void go_page(int page, bool anim)
 {
     lv_obj_t *target = page == 0 ? app.pg_rewards : page == 2 ? app.pg_chores : app.pg_home;
@@ -385,8 +424,22 @@ static void go_page(int page, bool anim)
     /* pages are a screen wide; hidden ones take no room */
     int slot = page - (page > 0 && lv_obj_has_flag(app.pg_rewards, LV_OBJ_FLAG_HIDDEN) ? 1 : 0);
     lv_obj_update_layout(app.carousel);
-    lv_obj_scroll_to_x(app.carousel, slot * SCREEN_W, anim ? LV_ANIM_ON : LV_ANIM_OFF);
-    if (!anim) app.page = page;
+    lv_anim_delete(app.carousel, NULL);   /* LVGL's own throw or snap, or an earlier turn */
+    int32_t from = lv_obj_get_scroll_x(app.carousel), to = slot * SCREEN_W;
+    if (!anim || from == to) {
+        lv_obj_scroll_to_x(app.carousel, to, LV_ANIM_OFF);
+        app.page = page;
+        return;
+    }
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, app.carousel);
+    lv_anim_set_exec_cb(&a, carousel_x);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_duration(&a, 220 + (uint32_t)(240 * labs(to - from) / SCREEN_W));
+    lv_anim_set_path_cb(&a, ui_path_out);
+    lv_anim_set_completed_cb(&a, carousel_landed);
+    lv_anim_start(&a);
 }
 
 void mytoki_open_rewards(int unused)
@@ -407,6 +460,8 @@ static void on_scroll_end(lv_event_t *e)
     app.page = has_rewards ? idx : idx + 1;
 }
 
+static bool can_lift_schedule(void);
+
 /* A swipe on the day turns the carousel a page, even a short gentle one LVGL's snap would undo. */
 static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, bool commit)
 {
@@ -424,8 +479,7 @@ static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user
     }
     if (dir == SWIPE_UP) {
         /* a flick up on Home lifts the day's schedule, like tapping the Next pill; a flick down puts it back */
-        if (app.page != 1 || app.night_lock || !app.have_plan || !app.plan) return false;
-        if (app.state == ST_ALARM || app.state == ST_SNOOZE || app.state == ST_SLEEPY) return false;
+        if (!can_lift_schedule()) return false;
         if (commit) schedule_open(app.plan, &app.now, app.now_s / 60, app.plan->child.picture, on_sched_chore);
         return true;
     }
@@ -443,6 +497,51 @@ static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user
         app.swipe_pending = true;
     }
     return true;
+}
+
+/* Whether a flick up on Home would lift the schedule right now (on_base_swipe says the same). */
+static bool can_lift_schedule(void)
+{
+    if (app.page != 1 || app.night_lock || !app.have_plan || !app.plan) return false;
+    return app.state != ST_ALARM && app.state != ST_SNOOZE && app.state != ST_SLEEPY;
+}
+
+/* The day leans with the finger: dragged up on Home it lifts a little (the schedule is down
+ * there), in the morning the alarm gives a little to a pull down (a snooze); let go and it
+ * settles back, under the sheet if the flick landed. A finger that a list or the carousel has
+ * taken is left alone. */
+static bool leaning;
+static void lean_y(void *obj, int32_t v) { lv_obj_set_style_translate_y(obj, v, 0); }
+
+static void on_base_drag(int32_t dx, int32_t dy, bool end)
+{
+    lv_obj_t *pg = app.pg_home;
+    if (end) {
+        if (!leaning) return;
+        leaning = false;
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, pg);
+        lv_anim_set_exec_cb(&a, lean_y);
+        lv_anim_set_values(&a, lv_obj_get_style_translate_y(pg, 0), 0);
+        lv_anim_set_duration(&a, 320);
+        lv_anim_set_path_cb(&a, ui_path_settle);
+        lv_anim_start(&a);
+        return;
+    }
+    if (app.page != 1 || play_is_open()) return;
+    lv_indev_t *in = lv_indev_active();
+    if (in && lv_indev_get_scroll_obj(in)) return;
+    if (labs(dx) > labs(dy)) { if (leaning) on_base_drag(0, 0, true); return; }
+    bool up = dy < 0;
+    bool can = up ? can_lift_schedule() : app.state == ST_ALARM && app.snoozes < MAX_SNOOZES;
+    if (!can) return;
+    int32_t travel = labs(dy) - 6;
+    if (travel < 0) travel = 0;
+    int32_t ty = (int32_t)lroundf(40.0f * (1.0f - expf(-(float)travel / 80.0f)));   /* gives, then resists */
+    lv_anim_delete(pg, lean_y);
+    lv_obj_set_style_translate_y(pg, up ? -ty : ty, 0);
+    leaning = true;
 }
 
 static void set_night_lock(bool lock, bool rewards_only)
@@ -1330,6 +1429,9 @@ static void tick(lv_timer_t *timer)
     }
 }
 
+/* a page asks for the screen to be drawn again now (a held-back change is ready) */
+static void render_now(void) { if (app.have_plan) tick(NULL); }
+
 /* ================================================================ entry points */
 void mytoki_start(void)
 {
@@ -1343,6 +1445,8 @@ void mytoki_start(void)
 
     swipe_init();
     swipe_set_base(on_base_swipe);
+    swipe_set_drag(on_base_drag);
+    ui_set_render(render_now);
     pet_set_on_land(on_land_sparks, NULL);
     lv_obj_t *scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, COL(C_INK), 0);
@@ -1359,12 +1463,18 @@ void mytoki_start(void)
     lv_obj_remove_flag(app.carousel, LV_OBJ_FLAG_SCROLL_ELASTIC);
     lv_obj_set_flex_flow(app.carousel, LV_FLEX_FLOW_ROW);
     lv_obj_add_event_cb(app.carousel, on_scroll_end, LV_EVENT_SCROLL_END, NULL);
+    lv_obj_add_event_cb(app.carousel, carousel_depth, LV_EVENT_SCROLL, NULL);
     lv_obj_t **pages[3] = { &app.pg_rewards, &app.pg_home, &app.pg_chores };
     for (int i = 0; i < 3; i++) {
         *pages[i] = ui_box(app.carousel);
         lv_obj_set_size(*pages[i], SCREEN_W, SCREEN_H);
         lv_obj_add_flag(*pages[i], LV_OBJ_FLAG_SNAPPABLE);
+        /* for the pyramid: scaled about its middle, clipped to its circle while it moves */
+        lv_obj_set_style_transform_pivot_x(*pages[i], lv_pct(50), 0);
+        lv_obj_set_style_transform_pivot_y(*pages[i], lv_pct(50), 0);
+        lv_obj_set_style_radius(*pages[i], LV_RADIUS_CIRCLE, 0);
     }
+    overlay_set_backdrop(app.pg_home);   /* the schedule sheet lifts off Home */
     rewards_page_create(app.pg_rewards, on_reward_tap);
     home_create(app.pg_home, on_home);
     chores_page_create(app.pg_chores, on_chore);

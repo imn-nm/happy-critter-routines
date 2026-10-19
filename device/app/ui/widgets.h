@@ -165,6 +165,21 @@ void overlay_fade_away(lv_obj_t *overlay);
 /* Figma "Checkbox": d 48 (Large) or 24 (Small). Unchecked: a 2 px line/hill ring; Checked: a
  * filled navy circle with a lime tick (28 or 16). */
 lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked);
+/* An unchecked box ticks itself: the navy fill grows out of the middle, the tick pops in and a
+ * mint ripple goes out. The same tick wherever a child finishes something. */
+void checkbox_tick(lv_obj_t *box);
+
+/* ---- motion shared by every move on the Circle ---- */
+/* ui_path_out: quick off the mark, a soft landing (a cubic ease-out, snappier than LVGL's).
+ * ui_path_settle: lands a touch past the mark and settles back (about 3 %): rows, ticks, pills. */
+int32_t ui_path_out(const lv_anim_t *a);
+int32_t ui_path_settle(const lv_anim_t *a);
+/* A card's colour drifts from one colour to another (a chore turning from lavender to done). */
+void card_recolor(lv_obj_t *card, uint32_t from, uint32_t to, uint32_t ms);
+/* The controller registers how to draw the whole screen again; a page calls ui_render_now() when a
+ * change it held back (a row ticked in place) is ready to be laid out. */
+void ui_set_render(void (*fn)(void));
+void ui_render_now(void);
 
 typedef struct {
     lv_obj_t *list;          /* the scrolling column; add rows with wheel_list_add */
@@ -180,6 +195,14 @@ void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, 
 lv_obj_t *wheel_list_add(wheel_list_t *w);
 /* Bring row i to the focus line (no animation when anim is false). */
 void wheel_list_focus(wheel_list_t *w, int i, bool anim);
+/* Turn to row i after delay_ms, with the settle. */
+void wheel_list_turn(wheel_list_t *w, int i, uint32_t delay_ms);
 /* The row on the focus line now. */
 int wheel_list_current(const wheel_list_t *w);
 void wheel_list_clear(wheel_list_t *w);
+/* Rows that move when a list is rebuilt slide from where they were to where they are now, instead
+ * of jumping: give each slot a key (its user data, not 0), take the marks before clearing the list,
+ * rebuild, then flip. Rows without an old place fade in. */
+typedef struct { intptr_t key; int32_t y; } wheel_mark_t;
+int wheel_list_mark(wheel_list_t *w, wheel_mark_t *marks, int max);
+void wheel_list_flip(wheel_list_t *w, const wheel_mark_t *marks, int n);

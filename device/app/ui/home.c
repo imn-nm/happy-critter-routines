@@ -175,7 +175,7 @@ static void steps_style(lv_obj_t *card, float d)
 
 /* Figma "Step": 348 wide, 12 / 16 padding, gap 8: "2." (Detail 20), the step (Pill 24, up to two
  * lines of 30), the Checkbox (48). 72 high with one line, 84 with two. */
-static void steps_build(const home_view_t *v)
+static void steps_build(const home_view_t *v, int just)
 {
     wheel_list_clear(&h.steps);
     for (int i = 0; i < v->steps_total && i < HOME_STEPS_MAX; i++) {
@@ -204,7 +204,11 @@ static void steps_build(const home_view_t *v)
             lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_event_cb(row, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_STEP);
         }
-        checkbox_create(row, 48, done);
+        lv_obj_t *box = checkbox_create(row, 48, done && i != just);
+        if (i == just) {   /* the step just ticked: lime to mint, the box ticks, before the wheel turns */
+            card_recolor(row, C_ACTION, C_DONE, 360);
+            checkbox_tick(box);
+        }
     }
 }
 
@@ -379,10 +383,10 @@ void home_render(const home_view_t *v)
         if (fresh) {
             bool next_step = h.steps_at >= 0 && v->steps_done == h.steps_at + 1;
             snprintf(h.steps_sig, sizeof h.steps_sig, "%s", sig);
-            steps_build(v);
-            /* a step ticked: start on the old one and turn to the new one */
+            steps_build(v, next_step ? h.steps_at : -1);
+            /* a step ticked: it ticks on the line, then the wheel turns to the next one */
             wheel_list_focus(&h.steps, next_step ? h.steps_at : v->steps_done, false);
-            if (next_step) wheel_list_focus(&h.steps, v->steps_done, true);
+            if (next_step) wheel_list_turn(&h.steps, v->steps_done, 380);
             h.steps_at = v->steps_done;
         }
     } else if (h.steps_sig[0]) {

@@ -26,3 +26,8 @@ void swipe_add(lv_obj_t *owner, swipe_cb_t cb, void *user);
 
 /* Swipes when nothing is open over the day (the carousel); owner is NULL in the call. */
 void swipe_set_base(swipe_cb_t cb);
+
+/* The finger's travel while it is down on the day (nothing open over it): called as it moves,
+ * then once more with end = true as it lifts. The day can lean with it before the swipe lands. */
+typedef void (*swipe_drag_cb_t)(int32_t dx, int32_t dy, bool end);
+void swipe_set_drag(swipe_drag_cb_t cb);

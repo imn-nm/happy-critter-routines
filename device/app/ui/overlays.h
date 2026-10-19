@@ -12,6 +12,9 @@ typedef void (*schedule_cb_t)(int chore_index);
 /* Today's schedule (Figma "Day · Today's schedule"): a wheel of three rows over Home, opened from
  * the Next pill. Swipe up or down to turn it, sideways to close. Tap a chore's ring to tick it. */
 void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool picture, schedule_cb_t on_chore);
+/* What the sheet covers (the Home page): it sits back, smaller and dimmer, while the sheet is on
+ * its way up or being pulled down. */
+void overlay_set_backdrop(lv_obj_t *under);
 /* The day changed (a chore was ticked): redraw, keeping the row in the middle. */
 void schedule_refresh(const day_plan_t *p, const logic_now_t *n, int now_min);
 bool schedule_is_open(void);

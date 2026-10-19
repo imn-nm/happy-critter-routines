@@ -1082,21 +1082,122 @@ lv_obj_t *note_create(lv_obj_t *parent, int32_t y)
 }
 
 /* ================================================================ Checkbox */
+/* The ring (the box itself), the navy fill and the tick are separate, so an unchecked box can
+ * turn into a checked one in front of the child (checkbox_tick). */
 lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked)
 {
     lv_obj_t *box = ui_box(parent);
     lv_obj_set_size(box, d, d);
     lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
-    if (checked) {
-        ui_style_card(box, C_ON_COLOR, LV_RADIUS_CIRCLE, 0, 0);
-        lv_obj_t *tick = ui_icon(box, "check", d >= 48 ? 28 : 16, C_ACTION);
-        lv_obj_center(tick);
-    } else {
-        lv_obj_set_style_border_width(box, 2, 0);
-        lv_obj_set_style_border_color(box, COL(C_HILL_LINE), 0);
-        lv_obj_set_style_border_opa(box, LV_OPA_COVER, 0);
-    }
+    lv_obj_set_style_border_width(box, 2, 0);
+    lv_obj_set_style_border_color(box, COL(C_HILL_LINE), 0);
+    lv_obj_set_style_border_opa(box, checked ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
+    lv_obj_t *fill = ui_box(box);
+    lv_obj_set_size(fill, d, d);
+    lv_obj_center(fill);
+    ui_style_card(fill, C_ON_COLOR, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_transform_pivot_x(fill, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(fill, lv_pct(50), 0);
+    lv_obj_t *tick = ui_icon(box, "check", d >= 48 ? 28 : 16, C_ACTION);
+    lv_obj_center(tick);
+    lv_obj_set_style_transform_pivot_x(tick, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(tick, lv_pct(50), 0);
+    ui_show(fill, checked);
+    ui_show(tick, checked);
     return box;
+}
+
+/* ================================================================ motion */
+static float path_t(const lv_anim_t *a)
+{
+    if (a->duration <= 0 || a->act_time >= a->duration) return 1.0f;
+    if (a->act_time <= 0) return 0.0f;
+    return (float)a->act_time / (float)a->duration;
+}
+
+static int32_t path_mix(const lv_anim_t *a, float k)
+{
+    return a->start_value + (int32_t)lroundf((float)(a->end_value - a->start_value) * k);
+}
+
+int32_t ui_path_out(const lv_anim_t *a)
+{
+    float u = 1.0f - path_t(a);
+    return path_mix(a, 1.0f - u * u * u);
+}
+
+int32_t ui_path_settle(const lv_anim_t *a)
+{
+    const float c1 = 0.9f, c3 = c1 + 1.0f;   /* easeOutBack, softened: peaks 3 % past the mark */
+    float u = path_t(a) - 1.0f;
+    return path_mix(a, 1.0f + c3 * u * u * u + c1 * u * u);
+}
+
+static void (*render_fn)(void);
+void ui_set_render(void (*fn)(void)) { render_fn = fn; }
+void ui_render_now(void) { if (render_fn) render_fn(); }
+
+static void scale_exec(void *obj, int32_t v) { lv_obj_set_style_transform_scale(obj, v, 0); }
+static void border_opa_exec(void *obj, int32_t v) { lv_obj_set_style_border_opa(obj, (lv_opa_t)v, 0); }
+
+static void anim_simple(lv_obj_t *o, lv_anim_exec_xcb_t exec, int32_t v0, int32_t v1, uint32_t ms, uint32_t delay,
+                        lv_anim_path_cb_t path)
+{
+    lv_anim_delete(o, exec);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, o);
+    lv_anim_set_exec_cb(&a, exec);
+    lv_anim_set_values(&a, v0, v1);
+    lv_anim_set_duration(&a, ms);
+    lv_anim_set_delay(&a, delay);
+    lv_anim_set_early_apply(&a, true);
+    lv_anim_set_path_cb(&a, path);
+    lv_anim_start(&a);
+}
+
+void checkbox_tick(lv_obj_t *box)
+{
+    if (!box || lv_obj_get_child_count(box) < 2) return;
+    lv_obj_t *fill = lv_obj_get_child(box, 0), *tick = lv_obj_get_child(box, 1);
+    if (!lv_obj_has_flag(fill, LV_OBJ_FLAG_HIDDEN)) return;   /* already ticked */
+    ui_show(fill, true);
+    ui_show(tick, true);
+    anim_simple(fill, scale_exec, 0, 256, 220, 0, ui_path_out);
+    anim_simple(box, border_opa_exec, LV_OPA_COVER, LV_OPA_TRANSP, 160, 0, lv_anim_path_linear);
+    anim_simple(tick, scale_exec, 0, 256, 260, 110, ui_path_settle);
+    int32_t d = lv_obj_get_width(box);
+    fx_ripple_from(box, d / 2, d / 2 + 26, C_DONE);
+}
+
+typedef struct { lv_color_t from, to; } recolor_t;
+static void recolor_exec(void *obj, int32_t v)
+{
+    lv_anim_t *a = lv_anim_get(obj, recolor_exec);
+    if (!a) return;
+    recolor_t *r = a->user_data;
+    lv_obj_set_style_bg_color(obj, lv_color_mix(r->to, r->from, (uint8_t)v), 0);
+}
+static void recolor_gone(lv_anim_t *a) { lv_free(a->user_data); }
+
+void card_recolor(lv_obj_t *card, uint32_t from, uint32_t to, uint32_t ms)
+{
+    if (!card) return;
+    lv_anim_delete(card, recolor_exec);
+    recolor_t *r = lv_malloc(sizeof(recolor_t));
+    r->from = COL(from);
+    r->to = COL(to);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, card);
+    lv_anim_set_exec_cb(&a, recolor_exec);
+    lv_anim_set_user_data(&a, r);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_set_duration(&a, ms);
+    lv_anim_set_early_apply(&a, true);
+    lv_anim_set_path_cb(&a, ui_path_out);
+    lv_anim_set_deleted_cb(&a, recolor_gone);
+    lv_anim_start(&a);
 }
 
 /* ================================================================ the wheel list */
@@ -1174,13 +1275,46 @@ lv_obj_t *wheel_list_add(wheel_list_t *w)
     return slot;
 }
 
-void wheel_list_focus(wheel_list_t *w, int i, bool anim)
+/* The wheel's own turn: LVGL's scroll animation is replaced by one with the settle; a finger on the
+ * list takes over at once. */
+static void turn_exec(void *obj, int32_t v)
+{
+    lv_indev_t *in = lv_indev_active();
+    if (in && lv_indev_get_scroll_obj(in) == obj) { lv_anim_delete(obj, turn_exec); return; }
+    lv_obj_scroll_to_y(obj, v, LV_ANIM_OFF);
+}
+
+static int wheel_clamp(wheel_list_t *w, int i)
 {
     lv_obj_update_layout(w->list);
     int n = (int)lv_obj_get_child_count(w->list);
     if (i > n - 1) i = n - 1;
-    if (i < 0) i = 0;
-    lv_obj_scroll_to_y(w->list, (int32_t)i * w->row_h, anim ? LV_ANIM_ON : LV_ANIM_OFF);
+    return i < 0 ? 0 : i;
+}
+
+void wheel_list_turn(wheel_list_t *w, int i, uint32_t delay_ms)
+{
+    i = wheel_clamp(w, i);
+    int32_t from = lv_obj_get_scroll_y(w->list), to = (int32_t)i * w->row_h;
+    lv_anim_delete(w->list, NULL);   /* LVGL's own snap or throw */
+    if (from == to) { wheel_apply(w->list); return; }
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, w->list);
+    lv_anim_set_exec_cb(&a, turn_exec);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_duration(&a, 420);
+    lv_anim_set_delay(&a, delay_ms);
+    lv_anim_set_path_cb(&a, ui_path_settle);
+    lv_anim_start(&a);
+}
+
+void wheel_list_focus(wheel_list_t *w, int i, bool anim)
+{
+    if (anim) { wheel_list_turn(w, i, 0); return; }
+    i = wheel_clamp(w, i);
+    lv_anim_delete(w->list, NULL);
+    lv_obj_scroll_to_y(w->list, (int32_t)i * w->row_h, LV_ANIM_OFF);
     wheel_apply(w->list);
 }
 
@@ -1191,6 +1325,47 @@ int wheel_list_current(const wheel_list_t *w)
 }
 
 void wheel_list_clear(wheel_list_t *w) { lv_obj_clean(w->list); }
+
+int wheel_list_mark(wheel_list_t *w, wheel_mark_t *marks, int max)
+{
+    lv_obj_update_layout(w->list);
+    int n = 0;
+    uint32_t cnt = lv_obj_get_child_count(w->list);
+    for (uint32_t i = 0; i < cnt && n < max; i++) {
+        lv_obj_t *slot = lv_obj_get_child(w->list, i);
+        intptr_t key = (intptr_t)lv_obj_get_user_data(slot);
+        if (!key) continue;
+        lv_area_t a;
+        lv_obj_get_coords(slot, &a);
+        marks[n++] = (wheel_mark_t){ key, a.y1 - lv_obj_get_style_translate_y(slot, 0) };
+    }
+    return n;
+}
+
+static void slot_ty(void *obj, int32_t v) { lv_obj_set_style_translate_y(obj, v, 0); }
+static void slot_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
+
+void wheel_list_flip(wheel_list_t *w, const wheel_mark_t *marks, int n)
+{
+    lv_obj_update_layout(w->list);
+    uint32_t cnt = lv_obj_get_child_count(w->list);
+    for (uint32_t i = 0; i < cnt; i++) {
+        lv_obj_t *slot = lv_obj_get_child(w->list, i);
+        intptr_t key = (intptr_t)lv_obj_get_user_data(slot);
+        if (!key) continue;
+        int k = 0;
+        while (k < n && marks[k].key != key) k++;
+        if (k == n) {   /* a new row: it fades in where it is */
+            anim_simple(slot, slot_opa, LV_OPA_TRANSP, LV_OPA_COVER, 260, 120, ui_path_out);
+            continue;
+        }
+        lv_area_t a;
+        lv_obj_get_coords(slot, &a);
+        int32_t dy = marks[k].y - a.y1;
+        if (dy) anim_simple(slot, slot_ty, dy, 0, 400, 0, ui_path_settle);
+    }
+    wheel_apply(w->list);
+}
 
 /* ================================================================ overlays and swipes */
 typedef struct { void (*on_close)(void *); void *user; } swipe_t;
@@ -1235,7 +1410,7 @@ void overlay_enter_push(lv_obj_t *o)
 {
     if (!o) return;
     lv_obj_set_x(o, SCREEN_W);
-    run_anim(o, anim_x, SCREEN_W, 0, 300, lv_anim_path_ease_out, NULL);
+    run_anim(o, anim_x, SCREEN_W, 0, 340, ui_path_out, NULL);
 }
 
 static void rise_done(lv_anim_t *a)
@@ -1249,8 +1424,8 @@ void overlay_enter_rise(lv_obj_t *o)
     if (!o) return;
     lv_obj_set_style_opa(o, LV_OPA_TRANSP, 0);
     lv_obj_set_style_translate_y(o, 24, 0);
-    run_anim(o, anim_opa, LV_OPA_TRANSP, LV_OPA_COVER, 220, lv_anim_path_ease_out, NULL);
-    run_anim(o, anim_ty, 24, 0, 280, lv_anim_path_ease_out, rise_done);
+    run_anim(o, anim_opa, LV_OPA_TRANSP, LV_OPA_COVER, 220, ui_path_out, NULL);
+    run_anim(o, anim_ty, 24, 0, 320, ui_path_settle, rise_done);
 }
 
 void overlay_slide_away(lv_obj_t *o, int dir)
