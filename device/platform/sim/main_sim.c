@@ -9,6 +9,8 @@
 #include "lvgl.h"
 #include "hal.h"
 #include "mytoki.h"
+#include "pet/pet.h"
+#include "ui/home.h"
 
 #define W 466
 #define H 466
@@ -134,3 +136,6 @@ EXPORT(sim_motion) void sim_motion(float ax, float ay, float az) { mytoki_motion
 EXPORT(sim_day) void sim_day(const char *json, int32_t len) { mytoki_day_received(json, (size_t)len); }
 EXPORT(sim_day_failed) void sim_day_failed(int32_t reason) { mytoki_day_failed(reason); }
 EXPORT(sim_debug) void sim_debug(const char *cmd) { mytoki_debug(cmd); }
+/* The clip the home screen's pet is playing ("Homework"), or "" while he's off screen, for the
+ * panel and tests. */
+EXPORT(sim_clip) const char *sim_clip(void) { return pet_is_paused(home_pet()) ? "" : pet_current_clip_name(home_pet()); }

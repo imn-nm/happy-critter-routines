@@ -70,13 +70,21 @@
 
   function renderJumps(p) {
     const box = $('jumps');
-    const items = (p.tasks || []).filter((t) => t.start).map((t) => [t.start, t.title]);
-    if (p.child && p.child.wake) items.unshift([p.child.wake, 'Wake']);
+    // [time, title, is the wake-up itself]
+    const items = (p.tasks || []).filter((t) => t.start).map((t) => [t.start, t.title, t.system === 'wake']);
+    // The wake-up time gets its own button only when no Wake Up task stands for it.
+    if (p.child && p.child.wake && !items.some((i) => i[2])) items.unshift([p.child.wake, 'Wake Up', true]);
     box.innerHTML = '';
-    for (const [hhmm, title] of items) {
+    for (const [hhmm, title, wake] of items) {
       const b = document.createElement('button');
       b.textContent = `${hhmm} ${title}`;
-      b.onclick = () => { const [h, m] = hhmm.split(':').map(Number); setMinuteOfDay(h * 60 + m); };
+      b.onclick = () => {
+        const [h, m] = hhmm.split(':').map(Number);
+        setMinuteOfDay(h * 60 + m);
+        // Jumping to a task: the child is already up, so it shows at once instead of the alarm.
+        // Wake buttons keep the alarm, to try the morning.
+        if (ex && !wake) withString('awake', (ptr) => ex.sim_debug(ptr));
+      };
       box.appendChild(b);
     }
   }
@@ -169,7 +177,8 @@
       u.rate = 0.95; u.pitch = 1.15;
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     },
-    brightness(p) { canvas.style.filter = p >= 100 ? '' : `brightness(${Math.max(0.15, p / 100)})`; },
+    // The device fades a step every 250 ms; the transition smooths each step.
+    brightness(p) { canvas.style.transition = 'filter 0.25s linear'; canvas.style.filter = `brightness(${Math.max(0.15, Math.min(1, p / 100))})`; },
     random: () => (Math.random() * 0x100000000) >>> 0,
     online: () => ($('online').checked ? 1 : 0),
     docked: () => ($('docked').checked ? 1 : 0),
@@ -198,15 +207,33 @@
     ex = instance.exports;
     if (ex._initialize) ex._initialize();
     ex.sim_init();
+    // The beat comes from a worker, not requestAnimationFrame: a page the browser counts as
+    // hidden (an unfocused app pane, a background tab) gets no animation frames and timers only
+    // once a second, so the device ran in jerks a second apart. Worker timers keep a steady 60 Hz.
+    // A late beat is caught up in small steps, since LVGL runs each timer at most once per step
+    // (one 250 ms step was one pet frame, so a busy page played him in slow motion).
     let last = performance.now();
-    const frame = (t) => {
-      ex.sim_step(Math.min(250, Math.max(1, Math.round(t - last))));
+    const frame = () => {
+      const t = performance.now();
+      let left = Math.min(1000, Math.max(1, Math.round(t - last)));
       last = t;
+      while (left > 0) { const ms = Math.min(20, left); ex.sim_step(ms); left -= ms; }
       blit();
+      showClip();
       tickPanel();
-      requestAnimationFrame(frame);
     };
-    requestAnimationFrame(frame);
+    const beat = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 16)'], { type: 'text/javascript' })));
+    beat.onmessage = frame;
+  }
+
+  let lastClip = '';
+  function showClip() {
+    if (!ex.sim_clip) return;
+    const p = ex.sim_clip(), m = mem();
+    let e = p;
+    while (m[e]) e++;
+    const name = str(p, e - p);
+    if (name !== lastClip) { lastClip = name; $('clipOut').textContent = name ? name.replace(/([a-z])([A-Z])/g, '$1 $2') : 'nothing (not on screen)'; }
   }
 
   function blit() {

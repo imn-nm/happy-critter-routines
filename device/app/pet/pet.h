@@ -78,6 +78,8 @@ void pet_paws(lv_obj_t *pet, int32_t *left_x, int32_t *right_x, int32_t *y);
 /* Hold the current frame (e.g. while a page is off screen). */
 void pet_set_paused(lv_obj_t *pet, bool paused);
 const char *pet_current_clip_name(lv_obj_t *pet);
+/* Paused: not on screen (a list, the wheel or a menu covers him). */
+bool pet_is_paused(lv_obj_t *pet);
 
 /* Which character the child has (pet_chars) and in which of its colours, everywhere. Saved by the
  * caller. Every scene redraws at once. */

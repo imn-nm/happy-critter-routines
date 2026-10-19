@@ -346,15 +346,19 @@ static pet_clip_id_t pick_weighted(const life_t *opts, int n)
     return opts[n - 1].clip;
 }
 
-/* Mood or activity changed: switch at once from Idle, otherwise at the next boundary. */
+/* Mood, activity or forced clip changed, which means the screen moved on (a new task, the cheer
+ * over): start the new base at once. Its room comes with it, so this reads as a cut to the next
+ * scene; waiting for the old clip to wind down (a whole carrot, a cheer) left him doing the last
+ * task for seconds under the new task's title. */
 static void base_changed(pet_t *p)
 {
     pet_clip_id_t base = base_of(p);
     p->wake = false;
+    p->queued = -1;
+    p->start_delay = 0;
     arm_habits(p);
-    if (p->playing == base) { p->dirty = true; return; }
-    if (p->phase == PH_LOOP) { set_phase(p, PH_OUTRO); return; }
-    if (p->playing == PET_CLIP_IDLE && !p->once) play(p, base, false);
+    if (p->playing == base && !p->once) { p->dirty = true; return; }
+    play(p, base, false);
 }
 
 /* ---------------------------------------------------------------- drawing (led.c) */
@@ -382,6 +386,8 @@ static void render(pet_t *p)
     blit(g_walls, pet_room_walls[scene]);
     if (scene == PET_SCENE_BEDROOM) {
         int t = p->playing == PET_CLIP_SLEEPY ? p->frame - pet_clips[PET_CLIP_SLEEPY].loop_end : -1;
+        /* waking up and getting dressed happen in the morning (scenes.ts MORNING) */
+        if (room_clip == PET_CLIP_WAKE_UP || room_clip == PET_CLIP_GET_DRESSED) t = PET_BEDROOM_DAWN_COUNT - 1;
         if (t < 0) blit(g_room, pet_bedroom_night[p->frame % PET_BEDROOM_NIGHT_COUNT]);
         else blit(g_room, pet_bedroom_dawn[t < PET_BEDROOM_DAWN_COUNT - 1 ? t : PET_BEDROOM_DAWN_COUNT - 1]);
     } else {
@@ -608,6 +614,12 @@ void pet_set_paused(lv_obj_t *obj, bool paused)
 {
     pet_t *p = get(obj);
     if (p) p->paused = paused;
+}
+
+bool pet_is_paused(lv_obj_t *obj)
+{
+    pet_t *p = get(obj);
+    return !p || p->paused;
 }
 
 const char *pet_current_clip_name(lv_obj_t *obj)

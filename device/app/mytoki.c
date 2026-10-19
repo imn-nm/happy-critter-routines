@@ -1341,12 +1341,17 @@ static void brightness(void)
     switch (app.state) {
     case ST_SLEEPY: case ST_DAY_OVER: b = hal_docked() ? 20 : 35; break;
     case ST_BEDTIME: b = 60; break;
-    case ST_SNOOZE: b = 45; break;
+    /* still asleep while the alarm rings or snoozes: the screen stays dim until he's up */
+    case ST_ALARM: case ST_SNOOZE: b = hal_docked() ? 20 : 35; break;
     case ST_BED_SOON: b = 80; break;
-    case ST_ALARM: { int32_t s = app.now_s - app.now.wake * 60; b = (uint8_t)(s >= 60 ? 100 : s < 0 ? 35 : 35 + s * 65 / 60); break; }
     default: break;
     }
-    if (b != app.brightness) { app.brightness = b; hal_set_brightness(b); }
+    /* fade to it, a step a tick (about two seconds from dim to full), so waking up brightens */
+    if (b == app.brightness) return;
+    int step = 8, d = (int)b - (int)app.brightness;
+    if (!app.brightness) app.brightness = b;   /* the very first screen: no fade from black */
+    else app.brightness = (uint8_t)(app.brightness + (d > step ? step : d < -step ? -step : d));
+    hal_set_brightness(app.brightness);
 }
 
 static void tick(lv_timer_t *timer)
@@ -1718,6 +1723,16 @@ void mytoki_button(void)
 void mytoki_debug(const char *cmd)
 {
     if (!strcmp(cmd, "refresh")) { request_plan(); return; }
+    /* the simulator jumped straight to a task after wake-up: the child is up (and home), so the
+     * task shows at once instead of the alarm; the jump back in time doesn't start the morning over */
+    if (!strcmp(cmd, "awake")) {
+        app.alarm_ack = app.welcome_ack = true;
+        app.imup_until = 0;
+        app.snooze_until = 0;
+        app.last_now_s = INT32_MIN / 2;
+        save_progress();
+        return;
+    }
     if (!strcmp(cmd, "crash")) system_show(SYS_SCREEN_ERROR, NULL, on_retry);
 }
 
