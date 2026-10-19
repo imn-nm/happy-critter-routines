@@ -1556,6 +1556,20 @@ void overlay_enter_rise(lv_obj_t *o)
     run_anim(o, anim_ty, 24, 0, 320, ui_path_settle, rise_done);
 }
 
+static void anim_scale(void *obj, int32_t v) { lv_obj_set_style_transform_scale(obj, v, 0); }
+static void pop_done(lv_anim_t *a) { lv_obj_set_style_transform_scale(a->var, 256, 0); }
+
+void overlay_enter_pop(lv_obj_t *o)
+{
+    if (!o) return;
+    lv_obj_set_style_transform_pivot_x(o, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(o, lv_pct(50), 0);
+    lv_obj_set_style_transform_scale(o, 205, 0);
+    lv_obj_set_style_opa(o, LV_OPA_TRANSP, 0);
+    run_anim(o, anim_opa, LV_OPA_TRANSP, LV_OPA_COVER, 180, ui_path_out, NULL);
+    run_anim(o, anim_scale, 205, 256, 420, ui_path_spring, pop_done);
+}
+
 void overlay_slide_away(lv_obj_t *o, int dir)
 {
     if (!o || leaving(o)) return;

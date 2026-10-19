@@ -102,3 +102,6 @@ void pet_set_size(lv_obj_t *pet, int32_t diameter);
 lv_obj_t *pet_face_create(lv_obj_t *parent, int cell, lv_color_t bg);
 /* Any character's face in one of its colours (the buddy picker's tiles). */
 lv_obj_t *pet_face_create_of(lv_obj_t *parent, int character, int colour, int cell, lv_color_t bg);
+/* The head in a round frame d px across (the picker's tiles): the crop starts above the face so the
+ * ears show, 2 px cells, on bg, clipped to a circle. */
+lv_obj_t *pet_face_create_round(lv_obj_t *parent, int character, int colour, int d, lv_color_t bg);

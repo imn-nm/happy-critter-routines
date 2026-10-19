@@ -287,7 +287,8 @@ static void buddy_controls(void)
     for (int i = 0; i < PET_CHAR_COUNT; i++) {
         lv_obj_t *b = pick_tile(pl.bottom, x0 + i * 64, 0, i == ch);
         lv_obj_add_event_cb(b, on_buddy_char, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        lv_obj_t *face = pet_face_create_of(b, i, i == ch ? col : 0, 2, COL(i == ch ? C_INK : C_GLASS));
+        /* each one's head in a round frame, like a small portrait */
+        lv_obj_t *face = pet_face_create_round(b, i, i == ch ? col : 0, 40, COL(C_HILL_LINE));
         lv_obj_center(face);
         lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
     }
@@ -728,5 +729,5 @@ void play_open_pet(const char *pet_name, play_outfit_cb_t on_outfit, play_charac
     lv_obj_set_pos(pl.bottom, 0, 334);
     editor_open(0);
     pl.timer_obj = lv_timer_create(step, STEP_MS, NULL);
-    overlay_enter_push(pl.root);
+    overlay_enter_pop(pl.root);   /* a long tap: it pops up from the middle, over the pet */
 }

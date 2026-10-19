@@ -626,6 +626,7 @@ typedef struct face {
     lv_obj_t *cv;
     uint16_t *buf;
     int cell, ch, col;
+    int box;                /* a round portrait box px square (0: the plain 13-row crop) */
     lv_color_t bg;
     bool follow;
     struct face *next;
@@ -650,10 +651,21 @@ static void face_paint(face_t *fc)
             if (g_body[y * PET_CROP_W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; }
     /* the head: Biscuit's from the ears' inner colour down to the chin (13 rows), as in the Figma hub;
      * each character says where its own starts */
-    const int top = y0 + c->face_top, rows = 13;
+    int top = y0 + c->face_top, rows = 13;
     int cols = x1 - x0 + 1;
     if (cols > 24) cols = 24;
-    int w = cols * fc->cell, h = rows * fc->cell;
+    int w = cols * fc->cell, h = rows * fc->cell, ox = 0, oy = 0;
+    if (fc->box) {
+        /* the portrait: from three rows above the face (the ears) down to what fits in the box,
+         * centred across it, 2 px in from the top */
+        top -= 3;
+        if (top < y0) top = y0;
+        rows = (fc->box - 2) / fc->cell;
+        if (top + rows > PET_CROP_H) rows = PET_CROP_H - top;
+        w = h = fc->box;
+        ox = (fc->box - cols * fc->cell) / 2;
+        oy = 2;
+    }
     lv_free(fc->buf);
     fc->buf = lv_malloc((size_t)w * h * 2);
     uint16_t bg565 = lv_color_to_u16(fc->bg);
@@ -664,7 +676,10 @@ static void face_paint(face_t *fc)
             if (!cc) continue;
             uint16_t v = rgb565(pet_palette[cc]);
             for (int dy = 0; dy < fc->cell; dy++)
-                for (int dx = 0; dx < fc->cell; dx++) fc->buf[(y * fc->cell + dy) * w + x * fc->cell + dx] = v;
+                for (int dx = 0; dx < fc->cell; dx++) {
+                    int px = ox + x * fc->cell + dx, py = oy + y * fc->cell + dy;
+                    if (px >= 0 && px < w && py >= 0 && py < h) fc->buf[py * w + px] = v;
+                }
         }
     lv_canvas_set_buffer(fc->cv, fc->buf, w, h, LV_COLOR_FORMAT_RGB565);
     lv_obj_invalidate(fc->cv);
@@ -710,6 +725,17 @@ lv_obj_t *pet_face_create(lv_obj_t *parent, int cell, lv_color_t bg)
 lv_obj_t *pet_face_create_of(lv_obj_t *parent, int ch, int col, int cell, lv_color_t bg)
 {
     return face_create(parent, ch, col, false, cell, bg);
+}
+
+lv_obj_t *pet_face_create_round(lv_obj_t *parent, int ch, int col, int d, lv_color_t bg)
+{
+    lv_obj_t *cv = face_create(parent, ch, col, false, 2, bg);
+    face_t *fc = faces;   /* the one just made */
+    fc->box = d;
+    face_paint(fc);
+    lv_obj_set_style_radius(cv, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_clip_corner(cv, true, 0);
+    return cv;
 }
 
 void pet_skip_intro(lv_obj_t *obj)

@@ -1314,7 +1314,7 @@ static void on_state_change(state_t from, state_t to)
     if (to == ST_IM_UP || to == ST_WELCOME) home_celebrate(HOME_FX_SPARKLE);
 }
 
-/* The panel: dim at night and at school, darker on the dock, the sunrise over the alarm's first minute. */
+/* The panel: dim at night, darker on the dock, the sunrise over the alarm's first minute (full at school). */
 static void brightness(void)
 {
     uint8_t b = 100;
@@ -1322,7 +1322,6 @@ static void brightness(void)
     case ST_SLEEPY: case ST_DAY_OVER: b = hal_docked() ? 20 : 35; break;
     case ST_BEDTIME: b = 60; break;
     case ST_SNOOZE: b = 45; break;
-    case ST_SCHOOL: b = 50; break;
     case ST_BED_SOON: b = 80; break;
     case ST_ALARM: { int32_t s = app.now_s - app.now.wake * 60; b = (uint8_t)(s >= 60 ? 100 : s < 0 ? 35 : 35 + s * 65 / 60); break; }
     default: break;
@@ -1733,10 +1732,15 @@ static void on_character(void)
     hal_store_set("character", keep);
 }
 
-/* My pet: a long tap on the pet, any time (not only in free time): choose the buddy, dress it up. */
+/* My pet: a long tap on the pet when nothing is on (free time, waiting, the day done, a free or
+ * rest day): choose the buddy, dress it up. Not during a task, an event or school. */
 void mytoki_open_pet(void)
 {
     if (play_is_open() || !app.have_plan) return;
+    switch (app.state) {
+    case ST_FREE: case ST_FREE_DAY: case ST_WAITING: case ST_ALL_DONE: case ST_REST: case ST_WELCOME: break;
+    default: return;
+    }
     pet_react(home_pet(), PET_CLIP_WAVE);
     play_open_pet(app.plan->child.pet, on_outfit, on_character);
 }

@@ -162,6 +162,8 @@ void swipe_to_close(lv_obj_t *screen, void (*on_close)(void *user), void *user);
 lv_obj_t *overlay_create(void);
 void overlay_enter_push(lv_obj_t *overlay);
 void overlay_enter_rise(lv_obj_t *overlay);
+/* Pops up from the middle of the screen: grows from 80 % with a small spring, fading in. */
+void overlay_enter_pop(lv_obj_t *overlay);
 void overlay_slide_away(lv_obj_t *overlay, int dir);
 void overlay_fade_away(lv_obj_t *overlay);
 
