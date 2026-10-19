@@ -406,7 +406,7 @@ void fx_rise(lv_obj_t *o, int32_t dy, uint32_t delay)
     if (!o) return;
     lv_obj_set_style_opa(o, LV_OPA_TRANSP, 0);
     lv_obj_set_style_translate_y(o, dy, 0);
-    start_1000(o, rise_exec, dy, 380, delay, lv_anim_path_overshoot, rise_done);
+    start_1000(o, rise_exec, dy, 420, delay, ui_path_settle, rise_done);
 }
 
 void fx_rise_children(lv_obj_t *parent, int32_t dy, uint32_t stagger)
@@ -432,7 +432,7 @@ void fx_slide(lv_obj_t *o, int32_t dy, uint32_t delay)
 {
     if (!o) return;
     lv_obj_set_style_translate_y(o, dy, 0);
-    start_1000(o, slide_exec, dy, 340, delay, lv_anim_path_overshoot, slide_done);
+    start_1000(o, slide_exec, dy, 380, delay, ui_path_settle, slide_done);
 }
 
 /* a spring: 1 - amp * e^(-8 tau) cos(15 tau), like the mock's title words */
@@ -483,7 +483,7 @@ void fx_pop(lv_obj_t *o, uint32_t delay)
     lv_obj_set_style_transform_pivot_x(o, LV_PCT(50), 0);
     lv_obj_set_style_transform_pivot_y(o, LV_PCT(50), 0);
     lv_obj_set_style_transform_scale(o, 154, 0);
-    start_1000(o, pop_exec, 0, 320, delay, lv_anim_path_overshoot, pop_done);
+    start_1000(o, pop_exec, 0, 420, delay, ui_path_spring, pop_done);
 }
 
 static void bounce_exec(void *var, int32_t t)

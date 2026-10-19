@@ -581,10 +581,19 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     /* black behind the title, then the header on top: rows that turn up under it slip out of sight */
     list_fade_create(o, SCHED_FADE_Y);
     ov_header(o, true, "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
-    /* the sheet slides up from the bottom and settles; the day sits back under it */
+    /* the sheet slides up from the bottom and settles; the day sits back under it, and the rows
+     * come up a beat behind the header (parallax) */
     backdrop_begin();
     lv_obj_set_y(o, SCREEN_H);
     sched_anim(o, SCREEN_H, 0, 380, ui_path_out, NULL);
+    uint32_t rows = lv_obj_get_child_count(sc.wl.list), k = 0;
+    for (uint32_t i = 0; i < rows && k < 5; i++) {
+        lv_obj_t *slot = lv_obj_get_child(sc.wl.list, i);
+        lv_area_t a;
+        lv_obj_get_coords(slot, &a);
+        if (a.y2 < SCHED_TOP || a.y1 > SCREEN_H) continue;   /* only the rows in view */
+        fx_rise(slot, 26, 120 + 40 * k++);
+    }
 }
 
 void schedule_refresh(const day_plan_t *p, const logic_now_t *n, int now_min)

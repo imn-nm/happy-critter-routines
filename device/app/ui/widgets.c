@@ -202,6 +202,7 @@ void pill_set(pill_t *p, pill_tone_t tone, const char *icon, const char *text)
     ui_set_color(p->icon, fg);
     ui_set_color(p->text, fg);
     ui_set_text(p->text, text);
+    if (tone != p->tone && !lv_obj_has_flag(p->root, LV_OBJ_FLAG_HIDDEN)) fx_bounce(p->root, 6, 0);   /* the mood changed */
     p->tone = tone;
 }
 
@@ -417,6 +418,7 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
 
 static void hill_kind(hill_t *h, hill_kind_t kind)
 {
+    bool fresh = kind != h->kind;
     h->kind = kind;
     ui_show(h->next, kind == HILL_NEXT);
     ui_show(h->button, kind == HILL_BUTTON);
@@ -425,6 +427,10 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH);
     static const int32_t PAD[] = { 0, 9, 14, 24, 23 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
+    if (fresh) {   /* what the hill says now rises into place */
+        lv_obj_t *shown = kind == HILL_NEXT ? h->next : kind == HILL_BUTTON ? h->button : kind == HILL_TEXT ? h->text : kind == HILL_SWITCH ? h->sw : NULL;
+        if (shown) fx_rise(shown, 14, 60);
+    }
     if (kind == HILL_NEXT) lv_obj_add_flag(h->root, LV_OBJ_FLAG_CLICKABLE);
     else lv_obj_remove_flag(h->root, LV_OBJ_FLAG_CLICKABLE);
 }
@@ -795,6 +801,7 @@ void lime_card_set(lime_card_t *c, const char *icon, const char *text, card_end_
     }
     ui_show(c->icon, icon != NULL && *icon);
     if (icon && *icon) ui_icon_set(c->icon, icon, 20);
+    if (text && strcmp(lv_label_get_text(c->text), text) && !lv_obj_has_flag(c->root, LV_OBJ_FLAG_HIDDEN)) fx_slide(c->root, 8, 0);
     ui_set_text(c->text, text);
     if (c->end_kind == end) return;
     c->end_kind = end;
@@ -909,9 +916,9 @@ void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y)
     if (x + w > 440) x = 440 - w;   /* keep it inside the round screen */
     lv_obj_set_pos(b->root, x, y);
     lv_obj_set_pos(b->tail, x + 14, y + lv_obj_get_height(b->root) - 1);
-    ui_show(b->root, true);
-    ui_show(b->tail, true);
-    if (fresh) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
+    ui_reveal(b->root, true, 10);
+    ui_reveal(b->tail, true, 10);
+    if (fresh && !lv_anim_get(b->root, NULL)) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
 }
 
 void bubble_say_pet(bubble_t *b, const char *text)
@@ -931,16 +938,16 @@ void bubble_say_top(bubble_t *b, const char *text, int32_t y)
     int32_t w = lv_obj_get_width(b->root);
     lv_obj_set_pos(b->root, CENTER - w / 2, y + 11);
     lv_obj_set_pos(b->tail, CENTER - 8, y);
-    ui_show(b->root, true);
-    ui_show(b->tail, true);
+    ui_reveal(b->root, true, -10);
+    ui_reveal(b->tail, true, -10);
     lv_obj_invalidate(b->tail);
-    if (fresh) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
+    if (fresh && !lv_anim_get(b->root, NULL)) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
 }
 
 void bubble_hide(bubble_t *b)
 {
-    ui_show(b->root, false);
-    ui_show(b->tail, false);
+    ui_reveal(b->root, false, b->top ? -8 : 8);
+    ui_reveal(b->tail, false, b->top ? -8 : 8);
 }
 
 /* ================================================================ Button */
@@ -1131,6 +1138,65 @@ int32_t ui_path_settle(const lv_anim_t *a)
     const float c1 = 0.9f, c3 = c1 + 1.0f;   /* easeOutBack, softened: peaks 3 % past the mark */
     float u = path_t(a) - 1.0f;
     return path_mix(a, 1.0f + c3 * u * u * u + c1 * u * u);
+}
+
+int32_t ui_path_spring(const lv_anim_t *a)
+{
+    float t = path_t(a);
+    float k = 1.0f - expf(-7.0f * t) * cosf(13.0f * t);
+    return path_mix(a, t >= 1.0f ? 1.0f : k);
+}
+
+/* ---- reveal: show and hide with motion ---- */
+#define REVEAL_OUT LV_OBJ_FLAG_USER_4   /* on its way out: visible, fading, hidden when done */
+static void reveal_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
+static void reveal_ty(void *obj, int32_t v) { lv_obj_set_style_translate_y(obj, v, 0); }
+static void reveal_gone(lv_anim_t *a)
+{
+    lv_obj_t *o = a->var;
+    lv_obj_remove_flag(o, REVEAL_OUT);
+    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_translate_y(o, 0, 0);
+}
+
+static void reveal_anim(lv_obj_t *o, lv_anim_exec_xcb_t exec, int32_t v0, int32_t v1, uint32_t ms, lv_anim_path_cb_t path,
+                        lv_anim_completed_cb_t done)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, o);
+    lv_anim_set_exec_cb(&a, exec);
+    lv_anim_set_values(&a, v0, v1);
+    lv_anim_set_duration(&a, ms);
+    lv_anim_set_early_apply(&a, true);
+    lv_anim_set_path_cb(&a, path);
+    lv_anim_set_completed_cb(&a, done);
+    lv_anim_start(&a);
+}
+
+void ui_reveal(lv_obj_t *o, bool show, int32_t dy)
+{
+    if (!o) return;
+    bool hidden = lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN), leaving = lv_obj_has_flag(o, REVEAL_OUT);
+    if (show) {
+        if (!hidden && !leaving) return;
+        lv_anim_delete(o, reveal_opa);
+        lv_anim_delete(o, reveal_ty);
+        lv_obj_remove_flag(o, REVEAL_OUT);
+        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+        int32_t from_opa = leaving ? lv_obj_get_style_opa(o, 0) : LV_OPA_TRANSP;
+        int32_t from_ty = leaving ? lv_obj_get_style_translate_y(o, 0) : dy;
+        reveal_anim(o, reveal_opa, from_opa, LV_OPA_COVER, 260, ui_path_out, NULL);
+        reveal_anim(o, reveal_ty, from_ty, 0, 380, ui_path_settle, NULL);
+    } else {
+        if (hidden || leaving) return;
+        lv_anim_delete(o, reveal_opa);
+        lv_anim_delete(o, reveal_ty);
+        lv_obj_add_flag(o, REVEAL_OUT);
+        reveal_anim(o, reveal_opa, lv_obj_get_style_opa(o, 0), LV_OPA_TRANSP, 200, lv_anim_path_ease_in, reveal_gone);
+        reveal_anim(o, reveal_ty, lv_obj_get_style_translate_y(o, 0), dy / 2, 200, lv_anim_path_ease_in, NULL);
+    }
 }
 
 static void (*render_fn)(void);
@@ -1431,7 +1497,7 @@ void overlay_enter_rise(lv_obj_t *o)
 void overlay_slide_away(lv_obj_t *o, int dir)
 {
     if (!o || leaving(o)) return;
-    run_anim(o, anim_x, lv_obj_get_x(o), dir * SCREEN_W, 260, lv_anim_path_ease_in_out, slide_done);
+    run_anim(o, anim_x, lv_obj_get_x(o), dir * SCREEN_W, 300, ui_path_out, slide_done);
 }
 
 void overlay_fade_away(lv_obj_t *o)

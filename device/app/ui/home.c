@@ -272,6 +272,7 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_obj_set_style_bg_grad(h.steps_fade, &fade, 0);
     lv_obj_set_style_bg_opa(h.steps_fade, LV_OPA_COVER, 0);
     h.steps_at = -1;
+    h.graphic = (home_graphic_t)-1;
 
     h.scrim = scrim_create(page);
     h.timer = timer_create(page);
@@ -338,16 +339,35 @@ lv_obj_t *home_pet(void) { return h.pet; }
 void home_set_wheel(const char options[][20], int n) { wheel_set_options(h.wheel, options, n); }
 void home_wheel_reset(void) { wheel_reset(h.wheel); }
 
+/* The room changed size (full to the small circle, or back): it eases in from a touch smaller. */
+static void room_scale(void *obj, int32_t v) { lv_obj_set_style_transform_scale(obj, v, 0); }
+static void room_resized(void)
+{
+    lv_obj_set_style_transform_pivot_x(h.pet, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(h.pet, lv_pct(50), 0);
+    lv_anim_delete(h.pet, room_scale);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, h.pet);
+    lv_anim_set_exec_cb(&a, room_scale);
+    lv_anim_set_values(&a, 230, 256);
+    lv_anim_set_duration(&a, 420);
+    lv_anim_set_early_apply(&a, true);
+    lv_anim_set_path_cb(&a, ui_path_settle);
+    lv_anim_start(&a);
+}
+
 static void set_graphic(home_graphic_t g)
 {
     bool room = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
-    ui_show(h.pet, room);
-    ui_show(h.faint, g == GRAPHIC_EMPTY);
-    ui_show(h.scrim, g == GRAPHIC_FULL);
+    ui_reveal(h.pet, room, 0);
+    ui_reveal(h.faint, g == GRAPHIC_EMPTY, 0);
+    ui_reveal(h.scrim, g == GRAPHIC_FULL, 0);
     if (room && g != h.graphic) {
         int32_t d = g == GRAPHIC_FULL ? FULL_D : SMALL_D, xy = g == GRAPHIC_FULL ? 0 : SMALL_XY;
         pet_set_size(h.pet, d);
         lv_obj_set_pos(h.pet, xy, xy);
+        if (h.graphic != (home_graphic_t)-1) room_resized();   /* the room settles into its new size */
     }
     if (room) h.graphic = g;
 }
@@ -373,9 +393,9 @@ void home_render(const home_view_t *v)
         pet_force_clip(h.pet, v->force_clip);
         if (v->wake) pet_wake_up(h.pet);
     }
-    ui_show(h.wheel, v->mid == MID_WHEEL);
-    ui_show(h.steps.list, v->mid == MID_STEPS);
-    ui_show(h.steps_fade, v->mid == MID_STEPS);
+    ui_reveal(h.wheel, v->mid == MID_WHEEL, 16);
+    ui_reveal(h.steps.list, v->mid == MID_STEPS, 16);
+    ui_reveal(h.steps_fade, v->mid == MID_STEPS, 0);
     if (v->mid == MID_STEPS) {
         char sig[64];
         snprintf(sig, sizeof sig, "%d/%d:%.40s", v->steps_done, v->steps_total, v->step_text[0]);
@@ -394,7 +414,7 @@ void home_render(const home_view_t *v)
         h.steps_at = -1;
     }
     bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
-    ui_show(h.overdue, v->mid == MID_OVERDUE);
+    ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
         worm_layout();
@@ -413,13 +433,13 @@ void home_render(const home_view_t *v)
     ui_show(h.tap_out, pet_on && v->tap_ring);
 
     /* ---- the timer ---- */
-    ui_show(h.timer, v->timer_show);
+    ui_reveal(h.timer, v->timer_show, 0);
     if (v->timer_show) timer_set(h.timer, v->timer_tone, v->timer_left, v->timer_pulse);
 
     /* ---- the header ---- */
-    ui_show(h.hdr.root, !v->clock);
-    ui_show(h.bigclock, v->clock);
-    ui_show(h.bigclock_pill.root, v->clock && v->status[0]);
+    ui_reveal(h.hdr.root, !v->clock, -8);
+    ui_reveal(h.bigclock, v->clock, -8);
+    ui_reveal(h.bigclock_pill.root, v->clock && v->status[0], -8);
     if (v->clock) {
         ui_set_text(h.bigclock, v->clock_text);
         pill_set(&h.bigclock_pill, PILL_NIGHT, v->status_icon, v->status);
@@ -437,7 +457,7 @@ void home_render(const home_view_t *v)
 
     /* ---- the note ---- */
     bool card = (v->card != CARDPOS_NONE && v->mid != MID_STEPS) || (v->chores_left > 0 && pet_on);
-    ui_show(h.card.root, card);
+    ui_reveal(h.card.root, card, 10);
     if (card) {
         if (v->card != CARDPOS_NONE) {
             lime_card_set(&h.card, v->card_icon[0] ? v->card_icon : NULL, v->card_text, v->card_end);
@@ -469,8 +489,19 @@ void home_render(const home_view_t *v)
     hill_set_dots(&h.hill, v->dots ? 1 : -1);
 
     /* ---- the side buttons ---- */
-    ui_show(h.left, v->sides);
-    ui_show(h.right, v->sides && !v->rewards_only);
+    ui_reveal(h.left, v->sides, 0);
+    ui_reveal(h.right, v->sides && !v->rewards_only, 0);
+}
+
+/* The page is `t` screens from the middle of the carousel: the room hangs back a little and the
+ * header, the side buttons and the hill lead, so the turn has depth. */
+void home_parallax(float t)
+{
+    int32_t back = (int32_t)lroundf(-t * SCREEN_W * 0.10f), front = (int32_t)lroundf(t * SCREEN_W * 0.08f);
+    lv_obj_t *backs[] = { h.pet, h.faint, h.scrim, h.wheel };
+    lv_obj_t *fronts[] = { h.hdr.root, h.left, h.right, h.hill.root, h.card.root, h.bubble.root, h.bubble.tail };
+    for (size_t i = 0; i < sizeof backs / sizeof *backs; i++) if (lv_obj_get_style_translate_x(backs[i], 0) != back) lv_obj_set_style_translate_x(backs[i], back, 0);
+    for (size_t i = 0; i < sizeof fronts / sizeof *fronts; i++) if (lv_obj_get_style_translate_x(fronts[i], 0) != front) lv_obj_set_style_translate_x(fronts[i], front, 0);
 }
 
 /* A little joy on the day's wins. Done: the burst, "Done!" springs in, Biscuit's hops throw sparks.

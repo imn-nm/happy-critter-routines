@@ -409,6 +409,10 @@ static void carousel_depth(lv_event_t *e)
         if (lv_obj_get_style_translate_y(pg, 0) != drop) lv_obj_set_style_translate_y(pg, drop, 0);
         if (lv_obj_get_style_opa_layered(pg, 0) != o) lv_obj_set_style_opa_layered(pg, o, 0);
         if (lv_obj_get_style_clip_corner(pg, 0) != moving) lv_obj_set_style_clip_corner(pg, moving, 0);
+        float pt = moving ? t : 0.0f;
+        if (pg == app.pg_home) home_parallax(pt);
+        else if (pg == app.pg_rewards) rewards_page_parallax(pt);
+        else chores_page_parallax(pt);
     }
 }
 

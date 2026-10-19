@@ -112,6 +112,8 @@ void home_render(const home_view_t *v);
 void home_set_wheel(const char options[][20], int n);
 void home_wheel_reset(void);
 lv_obj_t *home_pet(void);
+/* The page is t screens from the middle of the carousel (0 at rest): layers shift for depth. */
+void home_parallax(float t);
 
 typedef enum { HOME_FX_DONE, HOME_FX_BIG, HOME_FX_SPARKLE } home_fx_t;
 void home_celebrate(home_fx_t kind);

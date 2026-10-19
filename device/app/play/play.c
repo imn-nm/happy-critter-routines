@@ -347,6 +347,7 @@ static void editor_open(int page)
     ui_show(pl.shade_top, true);
     ui_show(pl.shade_low, true);
     ui_show(pl.bottom, true);
+    fx_rise(pl.bottom, 18, 80);
     editor_page(page);
     hal_play(HAL_SOUND_TICK);
 }

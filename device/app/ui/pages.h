@@ -20,5 +20,10 @@ void chores_page_visible(bool visible);
 /* His scene on the chores page (to cheer when a chore is ticked). */
 lv_obj_t *chores_page_pet(void);
 
+/* The page is t screens from the middle of the carousel (0 at rest): the scene hangs back, the
+ * header leads, so the turn has depth. */
+void rewards_page_parallax(float t);
+void chores_page_parallax(float t);
+
 /* The icon name for a reward's key ("book", "movie", "surprise"). */
 const char *reward_icon(const char *icon);

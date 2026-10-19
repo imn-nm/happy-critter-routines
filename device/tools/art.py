@@ -6,6 +6,8 @@
 Sources, checked in under tools/art/:
   - shop_scene.png  Figma "Field Kit / Scene · Shop · Solid" (1014:4299) at 466 x 466, placed 30 px down
                     as in "Rewards · Shop" (1079:5120)
+  - shop_scene_open.png  the same with the two shelf planks taken out (the wall carries on behind):
+                    the shelves are drawn by pages.c, one under each row, so they can scroll
 
 The rewards on the shelves are line icons (Iconly, via tools/icons.mjs), not pictures. The scene
 is sampled at the LED dot centres (3.8 px pitch from the middle) into a palette-index grid that
@@ -48,7 +50,7 @@ def nearest(rgb):
 
 
 def scene():
-    im = Image.open(os.path.join(SRC, 'shop_scene.png')).convert('RGBA')
+    im = Image.open(os.path.join(SRC, 'shop_scene_open.png')).convert('RGBA')
     bg = Image.new('RGBA', im.size, (4, 6, 5, 255))
     bg.alpha_composite(im)
     im = bg.convert('RGB')

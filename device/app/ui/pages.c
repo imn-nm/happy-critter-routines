@@ -22,14 +22,23 @@ const char *reward_icon(const char *icon)
 }
 
 /* ================================================================ rewards */
-/* Figma "Rewards · Shop" (1079:5120): the solid shop fills the screen (bunting, a striped wall, two
- * shelves) under the scrim, the header with the stars to spend, five rewards, the page dots. */
+/* Figma "Rewards · Shop" (1079:5120): the solid shop fills the screen (bunting, a striped wall)
+ * under the scrim, the header with the stars to spend, the rewards on shelves, the page dots. The
+ * shelves are rows of three and two, as in the Figma, and more of them scroll up under the header
+ * (the planks are drawn with each row, so they come along); rows low in the circle fade out, as
+ * the rows of the other lists do. */
+#define SHELF_TOP 118        /* the shelves scroll from here; the first row's items sit at 129 */
+#define SHELF_H 146          /* Figma: rows at 129 and 275 */
+#define SHELF_PLANK 133      /* the plank's top, from the row's top (262 - 129) */
+#define SHELF_FADE_Y 372     /* rows whose items' middle is below this fade out towards the rim (the two at rest don't) */
+
 static struct {
     page_cb_t on_tap;
-    lv_obj_t *page, *scene, *items;
+    lv_obj_t *page, *scene, *shelves;
     header_t head;
     uint16_t *buf;
     char sig[256];
+    bool built;
 } rw;
 
 static void on_item(lv_event_t *e)
@@ -51,8 +60,42 @@ static void shop_scene(lv_obj_t *page)
         .dim = 40, .bg = C_SCREEN, .sparkles = -1, .palette = shop_palette, .extend = true, .solid = true,
     };
     led_render(&a);
-    scrim_create(page);
 }
+
+/* The shop's scrim: like the Figma scrim over the top of the scene, but steeper, and drawn over the
+ * shelves, so a row scrolling up under the header dims out as it goes (the lists' fade, in a shop). */
+static void shop_scrim(lv_obj_t *page)
+{
+    lv_obj_t *o = ui_box(page);
+    lv_obj_set_size(o, SCREEN_W, 170);
+    lv_obj_set_pos(o, 0, 0);
+    static lv_grad_dsc_t g;
+    g.dir = LV_GRAD_DIR_VER;
+    g.stops_count = 3;
+    g.stops[0].color = COL(C_SCREEN); g.stops[0].opa = 170; g.stops[0].frac = 0;
+    g.stops[1].color = COL(C_SCREEN); g.stops[1].opa = 150; g.stops[1].frac = 165;   /* y 110 */
+    g.stops[2].color = COL(C_SCREEN); g.stops[2].opa = LV_OPA_TRANSP; g.stops[2].frac = 255;
+    lv_obj_set_style_bg_grad(o, &g, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+}
+
+/* Rows low in the circle fade and shrink a touch towards the rim, like the wheel lists. */
+static void shelves_apply(lv_obj_t *list)
+{
+    uint32_t n = lv_obj_get_child_count(list);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *row = lv_obj_get_child(list, i);
+        lv_area_t a;
+        lv_obj_get_coords(row, &a);
+        float k = fminf(1.0f, fmaxf(0.0f, ((a.y1 + 68) - SHELF_FADE_Y) / 100.0f));
+        lv_opa_t o = (lv_opa_t)lroundf(255 * (1.0f - 0.8f * k));
+        int32_t sc = (int32_t)lroundf(256 * (1.0f - 0.08f * k));
+        if (lv_obj_get_style_opa_layered(row, 0) != o) lv_obj_set_style_opa_layered(row, o, 0);   /* the row fades as one */
+        if (lv_obj_get_style_transform_scale_x(row, 0) != sc) lv_obj_set_style_transform_scale(row, sc, 0);
+    }
+}
+
+static void shelves_scroll(lv_event_t *e) { shelves_apply(lv_event_get_target(e)); }
 
 void rewards_page_create(lv_obj_t *page, page_cb_t cb)
 {
@@ -60,8 +103,20 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     rw.on_tap = cb;
     rw.page = page;
     shop_scene(page);
-    rw.items = ui_box(page);
-    lv_obj_set_size(rw.items, SCREEN_W, SCREEN_H);
+    rw.shelves = ui_box(page);
+    lv_obj_set_pos(rw.shelves, 0, SHELF_TOP);
+    lv_obj_set_size(rw.shelves, SCREEN_W, SCREEN_H - SHELF_TOP);
+    lv_obj_add_flag(rw.shelves, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLL_MOMENTUM | LV_OBJ_FLAG_SCROLL_ELASTIC);
+    lv_obj_remove_flag(rw.shelves, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+    lv_obj_set_scroll_dir(rw.shelves, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(rw.shelves, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scroll_snap_y(rw.shelves, LV_SCROLL_SNAP_START);
+    lv_obj_set_flex_flow(rw.shelves, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(rw.shelves, 0, 0);
+    lv_obj_set_style_pad_top(rw.shelves, 129 - SHELF_TOP, 0);
+    lv_obj_set_style_pad_bottom(rw.shelves, 40, 0);
+    lv_obj_add_event_cb(rw.shelves, shelves_scroll, LV_EVENT_SCROLL, NULL);
+    shop_scrim(page);
     header_create(page, &rw.head);
     page_dots_create(page, 0);
 }
@@ -69,13 +124,15 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
 /* Figma "MyToki 2 / Shelf item": a 150 wide column, 4 px apart: the reward's line icon (64, cream),
  * its name (Label 20), then the price: lime when there are enough stars, a lavender number on a chip
  * when not, lavender "Asked" once asked. */
-static void shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int stars, int32_t x, int32_t y)
+static lv_obj_t *shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int stars, int32_t x, int32_t y)
 {
     lv_obj_t *it = ui_box(parent);
     lv_obj_set_size(it, 150, 136);
     lv_obj_set_pos(it, x, y);
     lv_obj_add_flag(it, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(it, on_item, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
+    lv_obj_set_style_transform_pivot_x(it, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(it, lv_pct(100), 0);   /* grows up off the shelf */
     lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), 64, C_TEXT);
     lv_obj_set_pos(ic, 43, 0);
     lv_obj_t *name = ui_label(it, F_LABEL, C_TEXT, rd->title);
@@ -90,6 +147,33 @@ static void shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int st
     else { pill_t p; pill_create(it, &p); pill_set(&p, stars >= rd->cost ? PILL_ACTION : PILL_CALM, "star-line", cost); tag = p.root; }
     lv_obj_update_layout(tag);
     lv_obj_set_pos(tag, 75 - lv_obj_get_width(tag) / 2, 97);
+    return it;
+}
+
+/* A shelf: the blue plank (the Figma scene's, 12 px with a lighter top edge and a bracket under
+ * each end) with its rewards standing on it. */
+static lv_obj_t *shelf_row(void)
+{
+    lv_obj_t *row = ui_box(rw.shelves);
+    lv_obj_set_size(row, SCREEN_W, SHELF_H);
+    lv_obj_add_flag(row, LV_OBJ_FLAG_SNAPPABLE);
+    lv_obj_set_style_transform_pivot_x(row, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(row, lv_pct(50), 0);
+    lv_obj_t *plank = ui_box(row);
+    lv_obj_set_size(plank, SCREEN_W, 12);
+    lv_obj_set_pos(plank, 0, SHELF_PLANK);
+    ui_style_card(plank, 0x4F7AC4, 0, 0, 0);
+    lv_obj_t *edge = ui_box(row);
+    lv_obj_set_size(edge, SCREEN_W, 3);
+    lv_obj_set_pos(edge, 0, SHELF_PLANK);
+    ui_style_card(edge, 0x729FE3, 0, 0, 0);
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *b = ui_box(row);
+        lv_obj_set_size(b, 5, 10);
+        lv_obj_set_pos(b, i ? 440 : 21, SHELF_PLANK + 12);
+        ui_style_card(b, 0x2C457A, 0, 0, 0);
+    }
+    return row;
 }
 
 void rewards_page_render(const day_plan_t *p, int stars, bool picture)
@@ -98,21 +182,51 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     int n = snprintf(sig, sizeof sig, "%d|%d|%s|", stars, picture, ui_clock());
     for (int i = 0; i < p->nrewards && n < (int)sizeof sig - 8; i++) n += snprintf(sig + n, sizeof sig - n, "%s%d,", p->rewards[i].id, p->rewards[i].state);
     if (!strcmp(sig, rw.sig)) return;
-    bool items_same = !strncmp(sig, rw.sig, (size_t)(strchr(sig, '|') - sig));
+    /* the items change with the stars (the prices' colour), the rewards and their states, not the clock */
+    const char *bar = strchr(sig, '|'), *obar = strchr(rw.sig, '|');
+    const char *bar2 = bar ? strchr(bar + 1, '|') : NULL, *obar2 = obar ? strchr(obar + 1, '|') : NULL;
+    const char *bar3 = bar2 ? strchr(bar2 + 1, '|') : NULL, *obar3 = obar2 ? strchr(obar2 + 1, '|') : NULL;
+    bool items_same = rw.built && bar3 && obar3 && !strcmp(bar3, obar3) && atoi(sig) == atoi(rw.sig) && sig[bar - sig + 1] == rw.sig[obar - rw.sig + 1];
     strcpy(rw.sig, sig);
     char s[24];
     snprintf(s, sizeof s, "%d to spend", stars);
     header_set(&rw.head, NULL, "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* Figma: no clock in the shop */
-    (void)items_same;
-    lv_obj_clean(rw.items);
-    /* Figma "Rewards · Shop" (1079:5120): five rewards, three on the top shelf and two below */
-    static const int32_t X[5] = { 6, 158, 308, 75, 241 }, Y[5] = { 129, 129, 129, 275, 275 };
-    int shown = 0;
-    for (int i = 0; i < p->nrewards && shown < 5; i++, shown++) shelf_item(rw.items, &p->rewards[i], i, stars, X[shown], Y[shown]);
-    if (!shown) {
-        lv_obj_t *l = note_create(rw.items, 230);
+    if (items_same) return;
+    bool changed = rw.built;
+    int32_t keep = lv_obj_get_scroll_y(rw.shelves);
+    lv_obj_clean(rw.shelves);
+    /* Figma "Rewards · Shop" (1079:5120): three on a shelf, then two, and so on */
+    static const int32_t X3[3] = { 6, 158, 308 }, X2[2] = { 75, 241 }, X1[1] = { 158 };
+    int i = 0, k = 0;
+    while (i < p->nrewards) {
+        int per = (k % 2 == 0) ? 3 : 2;
+        int left = p->nrewards - i;
+        if (left < per) per = left;
+        const int32_t *X = per == 3 ? X3 : per == 2 ? X2 : X1;
+        lv_obj_t *row = shelf_row();
+        for (int j = 0; j < per; j++, i++) {
+            lv_obj_t *it = shelf_item(row, &p->rewards[i], i, stars, X[j], 0);
+            if (changed) fx_pop(it, (uint32_t)(40 * (i % 5)));   /* the shelves restocked: each one pops up */
+        }
+        k++;
+    }
+    if (!p->nrewards) {
+        lv_obj_t *row = ui_box(rw.shelves);
+        lv_obj_set_size(row, SCREEN_W, 120);
+        lv_obj_t *l = note_create(row, 40);
         ui_set_text(l, "No rewards yet.\nA grown-up can add some.");
     }
+    lv_obj_update_layout(rw.shelves);
+    lv_obj_scroll_to_y(rw.shelves, keep, LV_ANIM_OFF);
+    shelves_apply(rw.shelves);
+    rw.built = true;
+}
+
+void rewards_page_parallax(float t)
+{
+    int32_t back = (int32_t)lroundf(-t * SCREEN_W * 0.10f), front = (int32_t)lroundf(t * SCREEN_W * 0.08f);
+    if (lv_obj_get_style_translate_x(rw.scene, 0) != back) lv_obj_set_style_translate_x(rw.scene, back, 0);
+    if (lv_obj_get_style_translate_x(rw.head.root, 0) != front) lv_obj_set_style_translate_x(rw.head.root, front, 0);
 }
 
 /* ================================================================ chores */
@@ -344,6 +458,7 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
             for (int i = 0; i < shown; i++) chore_card(&p->chores[sorted[i]], sorted[i], picture);
             wheel_list_focus(&ch.wl, keep, false);
             if (nm) wheel_list_flip(&ch.wl, marks, nm);
+            else fx_rise_children(ch.wl.list, 22, 45);   /* a fresh list: the rows arrive one after another */
             ch.flip = false;
         }
         /* else: something changed while a tick settles; the hold lays everything out when it's over */
@@ -353,5 +468,11 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
 }
 
 void chores_page_visible(bool visible) { (void)visible; }
+
+void chores_page_parallax(float t)
+{
+    int32_t front = (int32_t)lroundf(t * SCREEN_W * 0.08f);
+    if (lv_obj_get_style_translate_x(ch.head.root, 0) != front) lv_obj_set_style_translate_x(ch.head.root, front, 0);
+}
 
 lv_obj_t *chores_page_pet(void) { return NULL; }
