@@ -46,6 +46,7 @@ import {
 import { cn } from '@/lib/utils';
 import { motion } from "motion/react";
 import { springs } from "@/lib/motion";
+import ParentNoteDialog from '@/components/ParentNoteDialog';
 
 // ── Drag sensors ──────────────────────────────────────────────
 // Mouse and touch get separate sensors: the old PointerSensor also caught
@@ -796,14 +797,20 @@ const TimelineScheduleView = ({
     }
   };
 
-  const handleGiveStars = async (taskId: string, stars: number) => {
+  // Give ★ asks first, so the parent can add why; the child sees the note.
+  const [starAsk, setStarAsk] = useState<{ taskId: string; stars: number } | null>(null);
+  const handleGiveStars = (taskId: string, stars: number) => {
+    if (stars > 0) setStarAsk({ taskId, stars });
+  };
+
+  const giveStarsNow = async (taskId: string, stars: number, note: string) => {
     const dateStr = format(selectedDay, 'yyyy-MM-dd');
     const completion = completions.find(c => c.task_id === taskId && c.date === dateStr);
     if (!completion || stars <= 0) return;
     try {
       // Recorded and paid together, and only while none are given, so a
       // second tap or the other parent can't give the same stars again.
-      if (!(await giveStars(completion.id, stars))) return;
+      if (!(await giveStars(completion.id, stars, note))) return;
       toast({ title: `+${stars} star${stars === 1 ? '' : 's'} for ${child.name}!` });
     } catch (error) {
       console.error('Error giving stars:', error);
@@ -2069,6 +2076,16 @@ const TimelineScheduleView = ({
           </div>
         );
       })()}
+      <ParentNoteDialog
+        open={!!starAsk}
+        onOpenChange={o => { if (!o) setStarAsk(null); }}
+        title={starAsk ? `Give ${child.name} ${starAsk.stars} star${starAsk.stars === 1 ? '' : 's'}?` : ''}
+        description={`${child.name} sees your note with the stars, then it goes away.`}
+        noteLabel="Why? (optional)"
+        placeholder="You got ready all by yourself!"
+        confirmLabel="Give Stars"
+        onConfirm={note => starAsk ? giveStarsNow(starAsk.taskId, starAsk.stars, note) : undefined}
+      />
     </div>
   );
 };

@@ -10,6 +10,8 @@ import { circleRealSizePx } from "@/components/CircleDevice";
 import ChildCircleView from "@/components/ChildCircleView";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useChildren } from "@/hooks/useChildren";
+import { useUnseenParentNotes } from "@/hooks/useParentNotes";
+import ParentNoteOverlay from "@/components/ParentNoteOverlay";
 import { lockParentMode } from "@/lib/parentLock";
 
 const ChildCircle = () => {
@@ -21,6 +23,9 @@ const ChildCircle = () => {
   // AMOLED, 466 px), measured in this screen's own inches (circleRealSizePx), at 100% zoom.
   const [realSize, setRealSize] = useState(() => { try { return localStorage.getItem("mytoki:real-size") === "1"; } catch { return false; } });
   const size = realSize ? circleRealSizePx() : fit;
+  // A grown-up's note (why stars came, why a reward was a no), shown once
+  // over the Circle. The handheld itself doesn't draw these yet.
+  const { current: parentNote, dismiss: dismissParentNote } = useUnseenParentNotes(childId);
 
   useEffect(() => { lockParentMode(); }, []);
   useEffect(() => {
@@ -62,6 +67,8 @@ const ChildCircle = () => {
           <Ruler className="w-4 h-4" aria-hidden /> Real size 1.75″
         </button>
       </div>
+      {/* Let the Circle's own "new stars" moment play before the note. */}
+      <ParentNoteOverlay note={parentNote} child={child} onDone={dismissParentNote} delayMs={3500} />
     </div>
   );
 };

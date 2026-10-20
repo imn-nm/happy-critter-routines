@@ -5,6 +5,7 @@ import { TaskCompletion } from '@/types/Task';
 import { getPSTDateString } from '@/utils/pstDate';
 import { realtimeChannel } from '@/lib/realtime';
 import { broadcastCoins } from '@/utils/coinSync';
+import { sendParentNote } from '@/hooks/useParentNotes';
 
 /** What a mark-done / undo did. `starsBack` is what an undo took back. */
 export type ToggleResult = { done: boolean; starsBack: number } | null;
@@ -141,9 +142,10 @@ export const useCompletions = (childId?: string) => {
   /**
    * Give `stars` for this completion and pay them, in one step. Only succeeds
    * while none have been given yet, so two parents (or a double-tap) can't
-   * give twice. Resolves true when this call gave them.
+   * give twice. Resolves true when this call gave them. An optional note
+   * tells the child why; it shows on their screen once.
    */
-  const giveStars = async (completionId: string, stars: number): Promise<boolean> => {
+  const giveStars = async (completionId: string, stars: number, note?: string): Promise<boolean> => {
     const { data, error } = await supabase.rpc('give_completion_stars', {
       p_completion_id: completionId,
       p_stars: stars,
@@ -151,7 +153,10 @@ export const useCompletions = (childId?: string) => {
     if (error) throw error;
     if (data === null) return false;
     setCompletions(prev => prev.map(c => (c.id === completionId ? { ...c, coins_earned: stars } : c)));
-    if (childId) broadcastCoins({ childId, balance: data as number });
+    if (childId) {
+      broadcastCoins({ childId, balance: data as number });
+      await sendParentNote(childId, note, { kind: 'star', stars });
+    }
     return true;
   };
 

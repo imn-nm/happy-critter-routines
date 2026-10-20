@@ -53,6 +53,8 @@ import { useMotionPrefs, springs, durations, staggerContainerVariants, staggerIt
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { speak } from "@/lib/speech";
 import StarBadge from "@/components/StarBadge";
+import ParentNoteOverlay from "@/components/ParentNoteOverlay";
+import { useUnseenParentNotes } from "@/hooks/useParentNotes";
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -79,6 +81,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   // Name of a reward a grown-up just approved — drives the full-screen
   // celebration. Cleared after a few seconds.
   const [approvedReward, setApprovedReward] = useState<string | null>(null);
+  // A grown-up's note (why stars came, why a reward was a no), shown once.
+  const { current: parentNote, dismiss: dismissParentNote } = useUnseenParentNotes(childId);
   // Full-screen play with the rabbit; only reachable during free time. Holds
   // the free-time window it was opened in: when the schedule moves on
   // Playtime unmounts without closing itself, and a plain on/off flag then
@@ -1826,6 +1830,17 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           petType={child.petType} petColor={child.pet_color}
           outfit={child.pet_outfit}
           reminded={remindedFor.current}
+        />
+      )}
+
+      {/* A grown-up's note: shown once, then marked seen. Waits for the
+          reward celebration so the two never stack. */}
+      {!preview && (
+        <ParentNoteOverlay
+          note={approvedReward ? null : parentNote}
+          child={child}
+          picture={picture}
+          onDone={dismissParentNote}
         />
       )}
 

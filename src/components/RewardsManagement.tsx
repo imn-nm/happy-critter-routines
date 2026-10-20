@@ -16,6 +16,8 @@ import { useRewards, isApprovedStatus, type Reward } from "@/hooks/useRewards";
 import { Child } from "@/hooks/useChildren";
 import { toast } from "sonner";
 import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
+import ParentNoteDialog from "@/components/ParentNoteDialog";
+import { sendParentNote } from "@/hooks/useParentNotes";
 
 interface RewardsManagementProps {
   child: Child;
@@ -160,13 +162,16 @@ const RewardsManagement = ({ child, onAdjustCoins, onClose }: RewardsManagementP
     }
   };
 
-  const handleDeny = async (purchaseId: string) => {
+  // Decline asks first, so the parent can say why; the child sees the note.
+  const [denyAsk, setDenyAsk] = useState<{ purchaseId: string; rewardName: string } | null>(null);
+
+  const handleDeny = async (purchaseId: string, note = "") => {
     setProcessingId(purchaseId);
     try {
-      await denyPurchase(purchaseId);
-
       const purchase = purchases.find(p => p.id === purchaseId);
       const reward = rewards.find(r => r.id === purchase?.reward_id);
+      await denyPurchase(purchaseId, note, reward?.name);
+
       toast("Not this time", {
         description: `${child.name} will see that ${reward?.name ?? 'the reward'} wasn't approved`,
       });
@@ -199,6 +204,24 @@ const RewardsManagement = ({ child, onAdjustCoins, onClose }: RewardsManagementP
 
 
   const canAfford = (cost: number) => child.currentCoins >= cost;
+
+  // + asks how many and why, so the child sees the reason with the stars.
+  const [giveOpen, setGiveOpen] = useState(false);
+  const [giveCount, setGiveCount] = useState(1);
+  const giveWithNote = async (note: string) => {
+    if (!onAdjustCoins) return;
+    setAdjusting(true);
+    try {
+      await onAdjustCoins(giveCount);
+      if (!(await sendParentNote(child.id, note, { kind: 'star', stars: giveCount }))) {
+        toast.error(`Stars given, but the note didn't save.`);
+      }
+    } catch (error) {
+      console.error('Error giving stars:', error);
+    } finally {
+      setAdjusting(false);
+    }
+  };
 
   const [adjusting, setAdjusting] = useState(false);
   const adjust = async (delta: number) => {
@@ -261,9 +284,9 @@ const RewardsManagement = ({ child, onAdjustCoins, onClose }: RewardsManagementP
           {onAdjustCoins ? (
             <button
               type="button"
-              onClick={() => adjust(1)}
+              onClick={() => { setGiveCount(1); setGiveOpen(true); }}
               disabled={adjusting}
-              aria-label="Add a star"
+              aria-label="Give stars"
               className={stepBtn}
             >
               +
@@ -296,7 +319,7 @@ const RewardsManagement = ({ child, onAdjustCoins, onClose }: RewardsManagementP
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => handleDeny(purchase.id)}
+                onClick={() => setDenyAsk({ purchaseId: purchase.id, rewardName: reward.name })}
                 className={secondaryBtn}
               >
                 Decline
@@ -562,6 +585,38 @@ const RewardsManagement = ({ child, onAdjustCoins, onClose }: RewardsManagementP
           })}
         </div>
       )}
+
+      <ParentNoteDialog
+        open={giveOpen}
+        onOpenChange={setGiveOpen}
+        title={`Give ${child.name} stars`}
+        description={`${child.name} sees your note with the stars, then it goes away.`}
+        noteLabel="Why? (optional)"
+        placeholder="Thanks for helping with the dishes!"
+        confirmLabel={`Give ${giveCount} Star${giveCount === 1 ? '' : 's'}`}
+        onConfirm={giveWithNote}
+      >
+        <div className="flex items-center rounded-[20px] border border-focus-iris p-1">
+          <button type="button" onClick={() => setGiveCount(c => Math.max(1, c - 1))} disabled={giveCount <= 1} aria-label="One star fewer" className={stepBtn}>−</button>
+          <div className="flex flex-1 items-center justify-center gap-2" aria-live="polite">
+            <Star className="w-4 h-4 text-focus-lime fill-focus-lime" strokeWidth={0} />
+            <span className="text-20 font-semibold leading-9 text-focus-lime">{giveCount}</span>
+            <span className="sr-only">stars</span>
+          </div>
+          <button type="button" onClick={() => setGiveCount(c => Math.min(99, c + 1))} aria-label="One star more" className={stepBtn}>+</button>
+        </div>
+      </ParentNoteDialog>
+
+      <ParentNoteDialog
+        open={!!denyAsk}
+        onOpenChange={o => { if (!o) setDenyAsk(null); }}
+        title={denyAsk ? `Decline ${denyAsk.rewardName}?` : ''}
+        description={`${child.name} keeps their stars and sees your note, then it goes away.`}
+        noteLabel="Why not this time? (optional)"
+        placeholder="Let's save it for the weekend."
+        confirmLabel="Decline"
+        onConfirm={note => denyAsk ? handleDeny(denyAsk.purchaseId, note) : undefined}
+      />
     </div>
   );
 };

@@ -513,6 +513,57 @@ export type Database = {
           },
         ]
       }
+      parent_notes: {
+        Row: {
+          body: string
+          child_id: string
+          created_at: string
+          id: string
+          kind: string
+          purchase_id: string | null
+          reward_name: string | null
+          seen_at: string | null
+          stars: number | null
+        }
+        Insert: {
+          body: string
+          child_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          purchase_id?: string | null
+          reward_name?: string | null
+          seen_at?: string | null
+          stars?: number | null
+        }
+        Update: {
+          body?: string
+          child_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          purchase_id?: string | null
+          reward_name?: string | null
+          seen_at?: string | null
+          stars?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parent_notes_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parent_notes_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "reward_purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

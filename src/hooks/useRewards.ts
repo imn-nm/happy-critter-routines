@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { broadcastCoins } from '@/utils/coinSync';
 import { realtimeChannel } from '@/lib/realtime';
 import { onResync, resyncOnReconnect } from '@/lib/resync';
+import { sendParentNote } from '@/hooks/useParentNotes';
 
 export interface Reward {
   id: string;
@@ -88,8 +89,11 @@ export const refundRewardPurchase = async (purchaseId: string) => {
   return purchase;
 };
 
-/** Decline a pending request. The row is kept as 'denied' so the child sees it. */
-export const denyRewardPurchase = async (purchaseId: string) => {
+/**
+ * Decline a pending request. The row is kept as 'denied' so the child sees it.
+ * An optional note tells the child why; it shows on their screen once.
+ */
+export const denyRewardPurchase = async (purchaseId: string, note?: string, rewardName?: string | null) => {
   const { data, error } = await supabase
     .from('reward_purchases')
     .update({ status: 'denied' })
@@ -99,6 +103,7 @@ export const denyRewardPurchase = async (purchaseId: string) => {
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error(starErrorMessage({ message: 'already_handled' }));
+  await sendParentNote(data.child_id, note, { kind: 'reward_denied', purchaseId, rewardName });
   return data as RewardPurchase;
 };
 
@@ -281,8 +286,8 @@ export const useRewards = (childId?: string) => {
     return updated;
   };
 
-  const denyPurchase = async (purchaseId: string) => {
-    const updated = await denyRewardPurchase(purchaseId);
+  const denyPurchase = async (purchaseId: string, note?: string, rewardName?: string | null) => {
+    const updated = await denyRewardPurchase(purchaseId, note, rewardName);
     setPurchases(prev => prev.map(p => p.id === purchaseId ? updated : p));
     return updated;
   };

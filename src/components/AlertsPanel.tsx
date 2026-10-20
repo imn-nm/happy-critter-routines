@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { closeButtonClass, closeIconClass } from "@/lib/focusStyles";
+import ParentNoteDialog from "@/components/ParentNoteDialog";
 
 interface PendingRewardAlert {
   type: "reward_request";
@@ -137,10 +138,13 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
     }
   };
 
-  const handleDeny = async (alert: PendingRewardAlert) => {
+  // Deny asks first, so the parent can say why; the child sees the note.
+  const [denyAsk, setDenyAsk] = useState<PendingRewardAlert | null>(null);
+
+  const handleDeny = async (alert: PendingRewardAlert, note = "") => {
     setProcessing(prev => new Set(prev).add(alert.id));
     try {
-      await denyRewardPurchase(alert.purchaseId);
+      await denyRewardPurchase(alert.purchaseId, note, alert.rewardName);
 
       setAlerts(prev => prev.filter(a => a.id !== alert.id));
       toast("Not this time", {
@@ -246,7 +250,7 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
                             variant="secondary"
                             size="icon-sm"
                             className="text-focus-coral hover:bg-focus-coral/10 hover:text-focus-coral"
-                            onClick={() => handleDeny(alert)}
+                            onClick={() => setDenyAsk(alert)}
                             disabled={isProcessing}
                             aria-label="Deny"
                           >
@@ -297,6 +301,18 @@ const AlertsPanel = ({ open, onClose, childId }: AlertsPanelProps) => {
           </motion.div>
         </>
       )}
+      <ParentNoteDialog
+        key="deny-note"
+        raised
+        open={!!denyAsk}
+        onOpenChange={o => { if (!o) setDenyAsk(null); }}
+        title={denyAsk ? `Decline ${denyAsk.rewardName}?` : ''}
+        description={denyAsk ? `${denyAsk.childName} keeps their stars and sees your note, then it goes away.` : undefined}
+        noteLabel="Why not this time? (optional)"
+        placeholder="Let's save it for the weekend."
+        confirmLabel="Decline"
+        onConfirm={note => denyAsk ? handleDeny(denyAsk, note) : undefined}
+      />
     </AnimatePresence>
   );
 };

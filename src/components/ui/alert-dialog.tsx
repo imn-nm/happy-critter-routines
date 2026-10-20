@@ -60,15 +60,15 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content> & { children?: React.ReactNode }
->(({ className, children, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content> & { children?: React.ReactNode; overlayClassName?: string }
+>(({ className, overlayClassName, children, ...props }, ref) => {
   const { open } = React.useContext(AlertDialogStateContext)
   const { t } = useMotionPrefs()
   return (
     <AnimatePresence>
       {open && (
         <AlertDialogPortal forceMount>
-          <AlertDialogOverlay />
+          <AlertDialogOverlay className={overlayClassName} />
           <AlertDialogPrimitive.Content ref={ref} asChild forceMount {...props}>
             <motion.div
               className={cn(
