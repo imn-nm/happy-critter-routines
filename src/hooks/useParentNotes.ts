@@ -112,5 +112,20 @@ export const useUnseenParentNotes = (childId?: string) => {
     if (error) console.error('Error marking note seen:', error);
   }, []);
 
-  return { current: queue[0] ?? null, dismiss };
+  return { current: queue[0] ?? null, notes: queue, dismiss };
+};
+
+/**
+ * The MyToki Circle showed a note (its "note_seen" event). A star note also
+ * clears any older unseen star notes: the Circle only ever carries the newest.
+ */
+export const markParentNoteSeen = async (note: ParentNote) => {
+  let q = supabase
+    .from('parent_notes')
+    .update({ seen_at: new Date().toISOString() })
+    .eq('child_id', note.child_id)
+    .is('seen_at', null);
+  q = note.kind === 'star' ? q.eq('kind', 'star').lte('created_at', note.created_at) : q.eq('id', note.id);
+  const { error } = await q;
+  if (error) console.error('Error marking note seen:', error);
 };

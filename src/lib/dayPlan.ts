@@ -7,6 +7,7 @@
 import type { Child } from '@/hooks/useChildren';
 import type { TaskCompletion } from '@/hooks/useTasks';
 import type { Reward, RewardPurchase } from '@/hooks/useRewards';
+import type { ParentNote } from '@/hooks/useParentNotes';
 import { isApprovedStatus } from '@/hooks/useRewards';
 import { petNick, resolvePetColour } from '@/components/pets/petCatalog';
 import { displayModeFor } from '@/utils/displayMode';
@@ -55,12 +56,15 @@ export interface DayPlan {
     stars: number;
     wake: string;
     outfit: Record<string, string | null>;
+    /** The newest unseen star note from a grown-up, its id (sent back as "note_seen") and its stars. */
     star_note?: string;
+    star_note_id?: string;
+    star_note_stars?: number;
   };
   rest_day: boolean;
   tasks: DayPlanTask[];
   chores: { id: string; title: string; icon: string; from?: string; to?: string; done: boolean }[];
-  rewards: { id: string; title: string; icon: string; color: string; cost: number; state: 'waiting' | 'approved' | 'denied' | null; note?: string }[];
+  rewards: { id: string; title: string; icon: string; color: string; cost: number; state: 'waiting' | 'approved' | 'denied' | null; note?: string; note_id?: string }[];
   wheel: string[];
 }
 
@@ -96,9 +100,26 @@ export interface DayPlanInput {
   restDay: boolean;
   /** Today's Start taps and "next now" pulls (task_sessions). */
   starts?: TaskStart[];
+  /** Grown-ups' notes the child hasn't seen yet (parent_notes); the Circle shows each once. */
+  notes?: ParentNote[];
 }
 
-export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [] }: DayPlanInput): DayPlan {
+/** A note as the Circle keeps it: 120 bytes at most (its buffer is 128), cut at a word with "…". */
+const NOTE_BYTES = 120;
+const clipNote = (text: string) => {
+  const enc = new TextEncoder();
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (enc.encode(t).length <= NOTE_BYTES) return t;
+  let out = '';
+  for (const ch of t) {
+    if (enc.encode(out + ch + '…').length > NOTE_BYTES) break;
+    out += ch;
+  }
+  const cut = out.lastIndexOf(' ');
+  return `${(cut > out.length * 0.6 ? out.slice(0, cut) : out).replace(/[\s.,;:!?]+$/, '')}…`;
+};
+
+export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [] }: DayPlanInput): DayPlan {
   const today = getPSTDateString();
   // "Next now" pulls are applied here so the device gets concrete times; the
   // waits, Start taps and pauses it works out on its own clock (logic.c).
@@ -142,15 +163,22 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
     return row;
   });
 
+  const latestAsk = (rewardId: string) =>
+    purchases.filter(p => p.reward_id === rewardId).sort((a, b) => b.purchased_at.localeCompare(a.purchased_at))[0];
   const requested = (rewardId: string) => {
-    const mine = purchases.filter(p => p.reward_id === rewardId).sort((a, b) => b.purchased_at.localeCompare(a.purchased_at));
-    const latest = mine[0];
+    const latest = latestAsk(rewardId);
     if (!latest) return null;
     if (latest.status === 'pending') return 'waiting' as const;
     if (toPSTDateString(latest.purchased_at) !== today) return null;
     if (isApprovedStatus(latest.status)) return 'approved' as const;
     if (latest.status === 'denied') return 'denied' as const;
     return null;
+  };
+  const unseen = notes.filter(n => !n.seen_at).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const starNote = unseen.find(n => n.kind === 'star');
+  const deniedNote = (rewardId: string) => {
+    const ask = latestAsk(rewardId);
+    return ask ? unseen.find(n => n.kind === 'reward_denied' && n.purchase_id === ask.id) : undefined;
   };
 
   return {
@@ -167,6 +195,7 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
       stars: child.currentCoins ?? 0,
       wake,
       outfit: (child.pet_outfit ?? {}) as Record<string, string | null>,
+      ...(starNote ? { star_note: clipNote(starNote.body), star_note_id: starNote.id, star_note_stars: starNote.stars ?? 1 } : {}),
     },
     rest_day: restDay,
     tasks,
@@ -178,14 +207,19 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
       to: c.window_end ? c.window_end.slice(0, 5) : undefined,
       done: !!c.isCompleted,
     })),
-    rewards: rewards.filter(r => r.is_active !== false).map((r, i) => ({
-      id: r.id,
-      title: r.name,
-      icon: rewardIconFor(r.name),
-      color: REWARD_COLORS[i % REWARD_COLORS.length],
-      cost: r.cost,
-      state: requested(r.id),
-    })),
+    rewards: rewards.filter(r => r.is_active !== false).map((r, i) => {
+      const state = requested(r.id);
+      const note = state === 'denied' ? deniedNote(r.id) : undefined;
+      return {
+        id: r.id,
+        title: r.name,
+        icon: rewardIconFor(r.name),
+        color: REWARD_COLORS[i % REWARD_COLORS.length],
+        cost: r.cost,
+        state,
+        ...(note ? { note: clipNote(note.body), note_id: note.id } : {}),
+      };
+    }),
     wheel: wheelOptionsFor(child.spinning_wheel_options),
   };
 }

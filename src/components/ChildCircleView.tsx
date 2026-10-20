@@ -11,6 +11,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useRewards } from "@/hooks/useRewards";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
+import { markParentNoteSeen, useUnseenParentNotes } from "@/hooks/useParentNotes";
 import { buildTodaysSchedule, todaysChores } from "@/utils/todaysSchedule";
 import { buildDayPlan } from "@/lib/dayPlan";
 import { ensureSystemTasksExist } from "@/utils/systemTasks";
@@ -33,6 +34,8 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
   const { rewards, purchases, purchaseReward } = useRewards(childId);
   const { sessions, startSession, getActiveSessionForTask, endSession } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
+  // Grown-ups' notes go into the plan; the Circle shows each once and sends "note_seen".
+  const { notes } = useUnseenParentNotes(childId);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
 
   useEffect(() => {
@@ -57,13 +60,14 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
       purchases,
       restDay: isRestDate(child, today),
       starts: sessions,
+      notes,
     });
     return JSON.stringify(plan);
     // getTasksWithCompletionStatus makes a fresh array each render; the pieces it is made of are the inputs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, sessions, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
+  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, sessions, notes, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
 
-  const onEvent = async (ev: CircleEvent) => {
+  const onEvent = async (ev: CircleEvent & { note_id?: string }) => {
     if (!child) return;
     try {
       if (ev.type === "task_done" && ev.task_id) {
@@ -81,6 +85,10 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
         await completeTask(ev.task_id, 0, 0);
       } else if (ev.type === "reward_request" && ev.reward_id) {
         await purchaseReward(ev.reward_id, ev.value ?? 0, "pending");
+      } else if (ev.type === "note_seen" && ev.note_id) {
+        // a grown-up's note the Circle has now shown
+        const note = notes.find(n => n.id === ev.note_id);
+        if (note) await markParentNoteSeen(note);
       } else if (ev.type === "outfit" && ev.outfit) {
         await updateChild(child.id, { pet_outfit: ev.outfit as PetOutfit });
       } else if (ev.type === "character" && ev.pet_type) {

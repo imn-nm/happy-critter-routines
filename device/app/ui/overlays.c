@@ -95,6 +95,9 @@ static lv_obj_t *ov_party_graphic(lv_obj_t *o)
     pet_look_t look = pet_default_look(SCREEN_W);
     look.room_off = true;
     look.bg = lv_color_hex(0x000000);
+    /* no room to line up with: the window's room offset left him ~9 px left of centre when he
+     * faces the child (celebrate), so stand him in the middle of the screen instead */
+    look.dx = -1;
     pet_set_look(pet, &look);
     return pet;
 }
@@ -901,19 +904,49 @@ static void on_back_to_shop(hill_tap_t tap)
     if (circle_cb) circle_cb(0);
 }
 
+/* the grown-up's words in quotes (Figma Rewards · Not this time), three lines at most above the
+ * hill; with no words, that the stars came back */
+static struct { char id[40]; int cost; lv_obj_t *root, *copy; } dx;
+static void denied_copy(const char *note)
+{
+    char copy[160];
+    bool words = note && *note;
+    if (words) snprintf(copy, sizeof copy, "\xE2\x80\x9C%s\xE2\x80\x9D", note);
+    else snprintf(copy, sizeof copy, "Your %d stars are back", dx.cost);
+    lv_obj_set_width(dx.copy, words ? 300 : 220);
+    lv_label_set_long_mode(dx.copy, LV_LABEL_LONG_DOT);
+    lv_obj_set_height(dx.copy, LV_SIZE_CONTENT);
+    lv_label_set_text(dx.copy, copy);
+    lv_obj_update_layout(dx.copy);
+    int32_t line = lv_font_get_line_height(F_BODY_P) + lv_obj_get_style_text_line_space(dx.copy, 0);
+    if (lv_obj_get_height(dx.copy) > 3 * line) lv_obj_set_height(dx.copy, 3 * line);
+}
+
+bool denied_set_note(const char *reward_id, const char *note)
+{
+    if (!denied || denied != dx.root || !dx.copy || strcmp(dx.id, reward_id)) return false;
+    denied_copy(note);
+    fx_rise(dx.copy, 14, 220);
+    return true;
+}
+
+/* (an older one fading out after a new one opened leaves the new one alone) */
+static void denied_gone(lv_event_t *e) { if (lv_event_get_user_data(e) == dx.root) { dx.root = dx.copy = NULL; dx.id[0] = 0; } }
+
 void denied_open(const day_reward_t *r, const char *note, overlay_cb_t on_shop)
 {
     circle_slot = &denied;
     circle_cb = on_shop;
     lv_obj_t *o = open_overlay(&denied, true);
+    lv_obj_add_event_cb(o, denied_gone, LV_EVENT_DELETE, o);
+    dx.root = o;
     faint_circle_create(o);
     ov_reward_art(o, r, 100, 110);
     ov_line(o, F_ITEM, C_TEXT, r->title, 218, 320);
-    /* the grown-up's words in quotes (Figma Rewards · Not this time) */
-    char copy[120];
-    if (note && *note) snprintf(copy, sizeof copy, "\xE2\x80\x9C%s\xE2\x80\x9D", note);
-    else snprintf(copy, sizeof copy, "Your %d stars are back", r->cost);
-    ov_line(o, F_BODY_P, C_TEXT_MUTED, copy, 252, 220);
+    snprintf(dx.id, sizeof dx.id, "%s", r->id);
+    dx.cost = r->cost;
+    dx.copy = ov_line(o, F_BODY_P, C_TEXT_MUTED, "", 252, 220);
+    denied_copy(note);
     ov_hill_button(o, NULL, "Back to shop", on_back_to_shop);
     ov_header(o, true, "Not this time", HEADER_NONE, PILL_CALM, NULL, NULL);
     auto_close(&denied, 20000);
@@ -979,7 +1012,7 @@ void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_
 /* Figma "Rewards · You got a star!": the same choreography as the approved reward; the star flies
  * into the header's pill as the count ticks up; the grown-up's reason is a note. */
 #define SX_BURST 700
-static struct { char title[32], note[96]; lv_obj_t *icon, *pill, *pill_icon, *label; int from, to; } sx;
+static struct { char title[32], note[160]; lv_obj_t *icon, *pill, *pill_icon, *label; int from, to; bool note_due; } sx;
 
 static void sx_go(lv_obj_t *o, void *u) { (void)o; pet_set_paused(u, false); }
 static void sx_burst(lv_obj_t *o, void *u)
@@ -1009,7 +1042,7 @@ static void sx_halo(lv_obj_t *o, void *u)
     static const lv_opa_t O[3] = { LV_OPA_COVER, 153, 89 };
     fx_halo(o, C, O, 0, 0);
 }
-static void sx_note(lv_obj_t *o, void *u) { (void)u; if (sx.note[0]) ov_note(o, "star-line", sx.note, 348); }
+static void sx_note(lv_obj_t *o, void *u) { (void)u; sx.note_due = true; if (sx.note[0]) ov_note(o, "star-line", sx.note, 348); }
 static void sx_party(lv_obj_t *o, void *u) { (void)u; fx_drizzle(o, 0, FX_BRAND, 7); }
 
 void stars_open(int delta, int total, const char *note)
@@ -1018,6 +1051,7 @@ void stars_open(int delta, int total, const char *note)
     if (delta > 1) snprintf(sx.title, sizeof sx.title, "%d new stars!", delta);
     else snprintf(sx.title, sizeof sx.title, "You got a star!");
     snprintf(sx.note, sizeof sx.note, "%s", note ? note : "");
+    sx.note_due = false;
     sx.from = total - delta;
     sx.to = total;
     lv_obj_t *pet = ov_party_graphic(o);
@@ -1046,6 +1080,14 @@ void stars_open(int delta, int total, const char *note)
     fx_at(o, 1730, sx_note, NULL);
     fx_at(o, 2400, sx_party, NULL);
     auto_close(&stars, 30000);
+}
+
+bool stars_set_note(const char *note)
+{
+    if (!stars || sx.note[0] || !note || !*note) return false;
+    snprintf(sx.note, sizeof sx.note, "%s", note);
+    if (sx.note_due) ov_note(stars, "star-line", sx.note, 348);
+    return true;
 }
 
 /* ================================================================ streak stars */

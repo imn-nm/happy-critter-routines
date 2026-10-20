@@ -64,7 +64,8 @@ typedef struct {
     uint32_t color;            /* its icon colour */
     int16_t cost;
     day_reward_state_t state;
-    char note[48];             /* denied: the grown-up's short reason ("Maybe at the weekend!") */
+    char note[128];            /* denied: the grown-up's short reason ("Maybe at the weekend!") */
+    char note_id[40];          /* that note's id: the device says "note_seen" once it has shown it */
 } day_reward_t;
 
 typedef struct {
@@ -88,7 +89,9 @@ typedef struct {
         int16_t stars;
         int16_t wake;          /* today's wake-up, minutes */
         char outfit[3][12];    /* head, face, neck accessory ids */
-        char star_note[96];    /* why the last stars were given ("For tidying up without asking") */
+        char star_note[128];   /* why the last stars were given ("For tidying up without asking") */
+        char star_note_id[40]; /* that note's id ("note_seen" once shown), or "" */
+        int16_t star_note_stars; /* how many stars it came with (to replay them if it comes late) */
     } child;
     bool rest_day;
     uint8_t ntasks, nchores, nrewards, nstreaks, nwheel;

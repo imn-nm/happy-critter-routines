@@ -310,9 +310,28 @@ static void apply_progress(day_plan_t *p)
     cJSON_Delete(root);
 }
 
+/* A grown-up's note (why stars came, why a reward was a no) is shown once: the ids of the ones
+ * shown are kept here (store "notes"), and the server hears "note_seen" so it stops sending it. */
+static bool note_known(const cJSON *notes, const char *id)
+{
+    const cJSON *it;
+    cJSON_ArrayForEach(it, notes) if (cJSON_IsString(it) && !strcmp(it->valuestring, id)) return true;
+    return false;
+}
+
+static void note_shown(cJSON *notes, const char *id, bool tell)
+{
+    cJSON_AddItemToArray(notes, cJSON_CreateString(id));
+    while (cJSON_GetArraySize(notes) > 12) cJSON_DeleteItemFromArray(notes, 0);
+    if (tell) send("note_seen", "note_id", id, 0);
+}
+
 /* Celebrations the child has already seen (approved rewards, streak stars). */
 static void check_news(const day_plan_t *p)
 {
+    static char nbuf[640];
+    cJSON *notes = hal_store_get("notes", nbuf, sizeof nbuf) ? cJSON_Parse(nbuf) : NULL;
+    if (!cJSON_IsArray(notes)) { cJSON_Delete(notes); notes = cJSON_CreateArray(); }
     static char buf[1024];
     cJSON *seen = hal_store_get("seen", buf, sizeof buf) ? cJSON_Parse(buf) : NULL;
     bool first = !seen;
@@ -331,17 +350,48 @@ static void check_news(const day_plan_t *p)
         bool known = false;
         const cJSON *it;
         cJSON_ArrayForEach(it, dn) if (cJSON_IsString(it) && !strcmp(it->valuestring, p->rewards[i].id)) known = true;
-        if (known) continue;
+        const char *nid = p->rewards[i].note_id;
+        bool new_note = nid[0] && !note_known(notes, nid);
+        if (known) {
+            /* the reason came after the no: into the screen if it is still up, else the screen again */
+            if (!new_note) continue;
+            if (first) { note_shown(notes, nid, false); continue; }
+            if (denied_set_note(p->rewards[i].id, p->rewards[i].note)) { note_shown(notes, nid, true); continue; }
+            if (shown) continue;
+            denied_open(&p->rewards[i], p->rewards[i].note, mytoki_open_rewards);
+            note_shown(notes, nid, true);
+            shown = true;
+            continue;
+        }
         cJSON_AddItemToArray(dn, cJSON_CreateString(p->rewards[i].id));
         while (cJSON_GetArraySize(dn) > 24) cJSON_DeleteItemFromArray(dn, 0);
-        if (!first && !shown) { denied_open(&p->rewards[i], p->rewards[i].note, mytoki_open_rewards); shown = true; }
+        if (first) { if (new_note) note_shown(notes, nid, false); continue; }
+        if (!shown) {
+            denied_open(&p->rewards[i], p->rewards[i].note, mytoki_open_rewards);
+            if (new_note) note_shown(notes, nid, true);
+            shown = true;
+        }
     }
     /* stars from a grown-up: the balance went up */
     const cJSON *seen_stars = cJSON_GetObjectItem(seen, "stars");
     int before_stars = cJSON_IsNumber(seen_stars) ? (int)seen_stars->valuedouble : -1;
+    const char *sid = p->child.star_note_id;
+    bool new_star_note = sid[0] && !note_known(notes, sid);
     if (before_stars >= 0 && p->child.stars > before_stars && !shown) {
-        stars_open(p->child.stars - before_stars, p->child.stars, p->child.star_note);
+        stars_open(p->child.stars - before_stars, p->child.stars, new_star_note ? p->child.star_note : "");
+        if (new_star_note) note_shown(notes, sid, true);
         shown = true;
+    } else if (new_star_note && (first || before_stars < 0)) {
+        note_shown(notes, sid, false);
+    } else if (new_star_note) {
+        /* the reason came after the stars: into "You got a star!" if it is still up, else that again */
+        if (stars_set_note(p->child.star_note)) note_shown(notes, sid, true);
+        else if (!shown) {
+            int n = p->child.star_note_stars > 0 ? p->child.star_note_stars : 1;
+            stars_open(n, p->child.stars, p->child.star_note);
+            note_shown(notes, sid, true);
+            shown = true;
+        }
     }
     if (cJSON_IsNumber(seen_stars)) cJSON_SetNumberValue((cJSON *)seen_stars, p->child.stars);
     else cJSON_AddNumberToObject(seen, "stars", p->child.stars);
@@ -385,6 +435,9 @@ static void check_news(const day_plan_t *p)
     char *out = cJSON_PrintUnformatted(seen);
     if (out) { hal_store_set("seen", out); cJSON_free(out); }
     cJSON_Delete(seen);
+    out = cJSON_PrintUnformatted(notes);
+    if (out) { hal_store_set("notes", out); cJSON_free(out); }
+    cJSON_Delete(notes);
 }
 
 /* Biscuit landed from a jump: little sparks from his paws, wherever he lives. */

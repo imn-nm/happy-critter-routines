@@ -43,10 +43,16 @@ void approved_open(const day_reward_t *r, const char *child_name, const char *pe
 /* A grown-up said no, or later (Rewards · 06 · Not this time). note: their short reason, or "".
  * on_shop opens Rewards. */
 void denied_open(const day_reward_t *r, const char *note, overlay_cb_t on_shop);
+/* The note for reward `reward_id` came after its "Not this time" opened: put it in, if that screen
+ * is still up. False when it isn't. */
+bool denied_set_note(const char *reward_id, const char *note);
 
 /* A grown-up gave stars (Rewards · 07 · You got a star!): how many just arrived, the new total,
  * and their reason (or ""). */
 void stars_open(int delta, int total, const char *note);
+/* The grown-up's reason came after "You got a star!" opened without one: show it there, if that
+ * screen is still up. False when it isn't (or already has a reason). */
+bool stars_set_note(const char *note);
 
 /* A streak star: `big` when the row is complete. on_shop opens Rewards. */
 void streak_open(const day_streak_t *s, bool big, const char *shop_line, overlay_cb_t on_shop, bool picture);

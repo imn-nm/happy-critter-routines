@@ -73,6 +73,8 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
     p->child.stars = (int16_t)num(child, "stars", 0);
     p->child.wake = (int16_t)hhmm(child, "wake");
     copy(p->child.star_note, sizeof p->child.star_note, child, "star_note");
+    copy(p->child.star_note_id, sizeof p->child.star_note_id, child, "star_note_id");
+    p->child.star_note_stars = (int16_t)num(child, "star_note_stars", 1);
     const cJSON *outfit = cJSON_GetObjectItemCaseSensitive(child, "outfit");
     if (cJSON_IsObject(outfit)) {
         copy(p->child.outfit[0], sizeof p->child.outfit[0], outfit, "head");
@@ -149,6 +151,7 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
         copy(k->icon, sizeof k->icon, r, "icon");
         k->cost = (int16_t)num(r, "cost", 0);
         copy(k->note, sizeof k->note, r, "note");
+        copy(k->note_id, sizeof k->note_id, r, "note_id");
         char col[12], state[12];
         copy(col, sizeof col, r, "color");
         k->color = col[0] == '#' ? (uint32_t)strtoul(col + 1, NULL, 16) : 0xEEE9DA;
