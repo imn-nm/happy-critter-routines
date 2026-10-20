@@ -501,9 +501,8 @@ void home_render(const home_view_t *v)
     /* ---- the hill ---- */
     h.bottom = v->bottom;
     switch (v->bottom) {
-    case BOTTOM_GAMES:   /* the free-time wheel: what comes next stays in view over the Games button */
-        if (v->next_title[0]) hill_set_next_button(&h.hill, v->next_icon, v->next_title, v->next_time, "Games");
-        else hill_set_button(&h.hill, NULL, "Games");
+    case BOTTOM_GAMES:   /* the free-time wheel (Figma Free time · Spin): one Games button, no curve, no dots */
+        hill_set_button(&h.hill, NULL, "Games");
         break;
     case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->next_time); break;
     case BOTTOM_NOTE: hill_set_text(&h.hill, v->note); break;

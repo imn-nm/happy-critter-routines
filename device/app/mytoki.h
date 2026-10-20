@@ -10,6 +10,8 @@ void mytoki_start(void);
 
 /* The hardware button at 1 o'clock was pressed. */
 void mytoki_button(void);
+/* Free time: show the wheel on Home (Playtime's Spin button). */
+void mytoki_show_wheel(void);
 
 /* One accelerometer sample in g, 50 to 100 Hz (see app/motion.h for the device frame).
  * A platform without a sensor never calls it; the games then keep to touch. */

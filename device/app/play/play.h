@@ -22,6 +22,8 @@ void play_set_time_total(int32_t seconds);
 /* My pet: choose the buddy and dress it up (a long tap on the pet, any time). */
 void play_open_pet(const char *pet_name, play_outfit_cb_t on_outfit, play_character_cb_t on_character);
 bool play_is_open(void);
+/* The games menu is showing (not a game, My pet or See you later). */
+bool play_in_menu(void);
 void play_close(void);
 /* The hardware button while Playtime is open (Biscuit says: "Button"; the goodbye: close). */
 void play_button(void);

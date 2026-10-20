@@ -1114,8 +1114,9 @@ static void build_view(home_view_t *v)
             v->force_clip = PET_CLIP_CURIOUS;
             (void)nx;
         } else if (total > WHEEL_MIN_S && !app.free_pet_view) {
-            /* Figma Free time · Spin: the clock and the pill over the wheel, Games on the hill */
+            /* Figma Free time · Spin (1080:5388): only the time pill over the wheel, Games under it */
             v->hide_title = true;
+            v->clock_line[0] = 0;
             v->mid = MID_WHEEL;
             v->bottom = BOTTOM_GAMES;
             v->dots = false;
@@ -1615,6 +1616,16 @@ void mytoki_button(void)
 {
     if (!app.have_plan) return;
     if (reminder_is_open()) return;
+    /* free time, the games menu: the button goes home, to Biscuit's room (a game keeps it for play) */
+    if (play_is_open() && play_in_menu() && app.state == ST_FREE) {
+        play_close();
+        app.free_pet_view = true;
+        app.pet_view_at = 0;
+        go_page(1, true);
+        hal_play(HAL_SOUND_TICK);
+        tick(NULL);
+        return;
+    }
     if (play_is_open()) { play_button(); return; }   /* Biscuit says: "Button" */
     const int f = app.focus;
     switch (app.state) {
@@ -1674,19 +1685,15 @@ void mytoki_button(void)
         hal_play(HAL_SOUND_START);
         break;
     }
-    case ST_FREE: {
-        /* free time with a next task that can move: start it now */
-        if (!app.now.nupcoming) return;
-        int nx = app.now.upcoming[0];
-        if (!logic_can_pull(app.plan, nx, app.now_s)) return;
-        if (play_is_open()) return;
-        char id[40];
-        snprintf(id, sizeof id, "%s", app.plan->tasks[nx].id);
-        logic_pull_forward(app.plan, nx, app.now_s);
-        send("next_now", "task_id", id, 0);
-        hal_play(HAL_SOUND_START);
+    case ST_FREE:
+        /* free time: the button goes home, to Biscuit's room (from the wheel, or another page);
+         * it no longer starts the next task early */
+        if (app.free_pet_view && app.page == 1) return;
+        app.free_pet_view = true;
+        app.pet_view_at = 0;
+        go_page(1, true);
+        hal_play(HAL_SOUND_TICK);
         break;
-    }
     case ST_EVENT_PREP: {
         day_task_t *t = &app.plan->tasks[f];
         if (!t->nsteps || app.steps[f] >= t->nsteps) return;
@@ -1718,6 +1725,13 @@ void mytoki_button(void)
         return; /* no arc at 1 o'clock: the button does nothing */
     }
     tick(NULL);
+}
+
+void mytoki_show_wheel(void)
+{
+    app.free_pet_view = false;
+    app.pet_view_at = 0;
+    go_page(1, false);
 }
 
 void mytoki_debug(const char *cmd)

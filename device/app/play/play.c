@@ -6,6 +6,7 @@
 #include "../ui/theme.h"
 #include "../ui/widgets.h"
 #include "../ui/swipe.h"
+#include "../mytoki.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -495,8 +496,11 @@ static void on_back_wheel(lv_event_t *e)
     (void)e;
     if (pl.in_game || pl.see_you) return;
     hal_play(HAL_SOUND_TICK);
+    mytoki_show_wheel();   /* even if Playtime was opened from Biscuit's room */
     close_sliding(SWIPE_RIGHT);
 }
+
+bool play_in_menu(void) { return pl.root && !pl.in_game && !pl.see_you && !pl.buddy && !pl.standalone; }
 
 /* Swipe left or right: a game goes back to the menu; the menu turns its pages (left for the
  * motion games, right to come back), and from the first page a swipe right leaves. In Carrot
@@ -713,12 +717,12 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_obj_center(ic);
         if (i) pl.chev_r = b; else pl.chev_l = b;
     }
-    /* under the games, a slim pill back to the wheel (a swipe right does the same) */
-    pl.back_wheel = button_create(pl.menu, BTN_SECONDARY, true, "chevron-left", "Wheel");
-    lv_obj_set_height(pl.back_wheel, 34);
-    lv_obj_set_style_pad_hor(pl.back_wheel, 16, 0);
+    /* under the games, Spin back to the wheel: the wheel's Games button turned round (same size
+     * and place, Figma Free time · Spin's hill button at y 382); a swipe right does the same */
+    pl.back_wheel = button_create(pl.menu, BTN_SECONDARY, false, NULL, "Spin");
+    lv_obj_set_height(pl.back_wheel, 52);
     lv_obj_update_layout(pl.back_wheel);
-    lv_obj_set_pos(pl.back_wheel, CENTER - lv_obj_get_width(pl.back_wheel) / 2, 392);
+    lv_obj_set_pos(pl.back_wheel, CENTER - lv_obj_get_width(pl.back_wheel) / 2, 382);
     lv_obj_add_event_cb(pl.back_wheel, on_back_wheel, LV_EVENT_CLICKED, NULL);
     /* the arc at 1 o'clock while Biscuit says "Button" */
     pl.cue = cue_create(pl.root);

@@ -267,7 +267,8 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap); with no title
      * the pill sits right under the clock, clear of the wheel's pointer at y 90 */
     if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -4 : 0)) lv_obj_set_style_margin_top(h->title, c ? -4 : 0, 0);
-    int32_t pill_gap = c && !t ? 0 : 6;
+    /* the pill alone (Figma Free time · Spin: clock and title hidden) sits 30 down, at y 53 */
+    int32_t pill_gap = !c && !t ? 30 : c && !t ? 0 : 6;
     if (lv_obj_get_style_margin_top(h->pill.root, 0) != pill_gap) lv_obj_set_style_margin_top(h->pill.root, pill_gap, 0);
     ui_show(h->pill.root, below == HEADER_PILL && text && *text);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
