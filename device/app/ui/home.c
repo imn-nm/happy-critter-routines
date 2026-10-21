@@ -45,7 +45,7 @@ static struct {
     lv_obj_t *steps_fade;
     lv_obj_t *cue;
     char steps_sig[64];
-    int8_t steps_at;
+    uint16_t steps_ticked;
     lime_card_t card;
     bubble_t bubble;
     uint8_t worm_eaten;
@@ -173,13 +173,17 @@ static void steps_style(lv_obj_t *card, float d)
     ui_row_fade(card, (lv_opa_t)(255 * opa));   /* the row fades as one, like Figma */
 }
 
+/* a tap on any step checks or unchecks it, in any order; sent once the click is over */
+static void step_tapped(void *i) { if (h.cb) h.cb(HOME_TAP_STEP, (int)(intptr_t)i); }
+static void on_step(lv_event_t *e) { lv_async_call(step_tapped, lv_event_get_user_data(e)); }
+
 /* Figma "Step": 348 wide, 12 / 16 padding, gap 8: "2." (Detail 20), the step (Pill 24, up to two
  * lines of 30), the Checkbox (48). 72 high with one line, 84 with two. */
-static void steps_build(const home_view_t *v, int just)
+static void steps_build(const home_view_t *v)
 {
     wheel_list_clear(&h.steps);
     for (int i = 0; i < v->steps_total && i < HOME_STEPS_MAX; i++) {
-        bool done = i < v->steps_done;
+        bool done = v->steps_ticked & (1u << i);
         lv_obj_t *slot = wheel_list_add(&h.steps);
         lv_obj_t *row = ui_row(slot, 8);
         lv_obj_set_width(row, 348);
@@ -200,16 +204,63 @@ static void steps_build(const home_view_t *v, int just)
         lv_obj_set_style_text_line_space(l, -2, 0);                       /* 30 px lines, as Figma's 125% */
         lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(F_PILL) - 2, 0);   /* two lines at most */
         lv_obj_set_flex_grow(l, 1);
-        if (i == v->steps_done) {   /* the step now: a tap ticks it, like the button */
-            lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_event_cb(row, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_STEP);
-        }
-        lv_obj_t *box = checkbox_create(row, 48, done && i != just);
-        if (i == just) {   /* the step just ticked: lime to mint, the box ticks, before the wheel turns */
-            card_recolor(row, C_ACTION, C_DONE, 360);
-            checkbox_tick(box);
-        }
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(row, on_step, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        checkbox_create(row, 48, done);
     }
+}
+
+/* The first step not checked yet, from `from` on and round to the top; `from` when all are. */
+static int steps_next(uint16_t ticked, int n, int from)
+{
+    for (int k = 0; k < n; k++) {
+        int i = (from + k) % n;
+        if (!(ticked & (1u << i))) return i;
+    }
+    return from;
+}
+
+/* The checklist as the view has it. A new list is built on its first step left. A step checked or
+ * unchecked changes where it is (lime to mint and the box ticks, or back), then the wheel turns:
+ * from a step checked on to the next one left (unless the one on the line is still to do), to a
+ * step unchecked. */
+static void steps_update(const home_view_t *v)
+{
+    int n = LV_MIN(v->steps_total, HOME_STEPS_MAX);
+    uint16_t ticked = v->steps_ticked & (uint16_t)((1u << n) - 1);
+    char sig[64];
+    snprintf(sig, sizeof sig, "%d:%.40s", n, v->step_text[0]);
+    if (strcmp(sig, h.steps_sig)) {
+        snprintf(h.steps_sig, sizeof h.steps_sig, "%s", sig);
+        h.steps_ticked = ticked;
+        steps_build(v);
+        wheel_list_focus(&h.steps, steps_next(ticked, n, 0), false);
+        return;
+    }
+    uint16_t changed = ticked ^ h.steps_ticked;
+    if (!changed) return;
+    h.steps_ticked = ticked;
+    int at = LV_CLAMP(0, wheel_list_current(&h.steps), n - 1), to = at;
+    for (int i = 0; i < n; i++) {
+        if (!(changed & (1u << i))) continue;
+        lv_obj_t *slot = lv_obj_get_child(h.steps.list, i), *row = slot ? lv_obj_get_child(slot, 0) : NULL;
+        if (!row) continue;
+        bool on = ticked & (1u << i);
+        lv_obj_set_user_data(row, (void *)(intptr_t)on);
+        card_recolor(row, on ? C_ACTION : C_DONE, on ? C_DONE : C_ACTION, on ? 360 : 240);
+        if (on) checkbox_tick(lv_obj_get_child(row, -1));
+        else checkbox_untick(lv_obj_get_child(row, -1));
+        if (!on) to = i;
+        else if (ticked & (1u << at)) to = steps_next(ticked, n, i);
+    }
+    wheel_list_focus(&h.steps, at, false);   /* where it was, the faded rows restyled */
+    if (to != at) wheel_list_turn(&h.steps, to, (changed & ticked) ? 380 : 120);
+}
+
+int home_steps_current(void)
+{
+    if (!h.steps_sig[0] || lv_obj_has_flag(h.steps.list, LV_OBJ_FLAG_HIDDEN)) return -1;
+    return wheel_list_current(&h.steps);
 }
 
 void home_create(lv_obj_t *page, home_cb_t cb)
@@ -272,7 +323,6 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     fade.stops[1].color = COL(C_SCREEN); fade.stops[1].opa = LV_OPA_TRANSP; fade.stops[1].frac = 255;
     lv_obj_set_style_bg_grad(h.steps_fade, &fade, 0);
     lv_obj_set_style_bg_opa(h.steps_fade, LV_OPA_COVER, 0);
-    h.steps_at = -1;
     h.graphic = (home_graphic_t)-1;
 
     h.scrim = scrim_create(page);
@@ -409,23 +459,8 @@ void home_render(const home_view_t *v)
     ui_reveal(h.wheel, v->mid == MID_WHEEL, 16);
     ui_reveal(h.steps.list, v->mid == MID_STEPS, 16);
     ui_reveal(h.steps_fade, v->mid == MID_STEPS, 0);
-    if (v->mid == MID_STEPS) {
-        char sig[64];
-        snprintf(sig, sizeof sig, "%d/%d:%.40s", v->steps_done, v->steps_total, v->step_text[0]);
-        bool fresh = strcmp(sig, h.steps_sig) != 0;
-        if (fresh) {
-            bool next_step = h.steps_at >= 0 && v->steps_done == h.steps_at + 1;
-            snprintf(h.steps_sig, sizeof h.steps_sig, "%s", sig);
-            steps_build(v, next_step ? h.steps_at : -1);
-            /* a step ticked: it ticks on the line, then the wheel turns to the next one */
-            wheel_list_focus(&h.steps, next_step ? h.steps_at : v->steps_done, false);
-            if (next_step) wheel_list_turn(&h.steps, v->steps_done, 380);
-            h.steps_at = v->steps_done;
-        }
-    } else if (h.steps_sig[0]) {
-        h.steps_sig[0] = 0;
-        h.steps_at = -1;
-    }
+    if (v->mid == MID_STEPS) steps_update(v);
+    else h.steps_sig[0] = 0;
     bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
     ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
     if (v->mid == MID_OVERDUE) {
@@ -476,7 +511,6 @@ void home_render(const home_view_t *v)
     if (card) {
         if (v->card != CARDPOS_NONE) {
             lime_card_set(&h.card, v->card_icon[0] ? v->card_icon : NULL, v->card_text, v->card_end);
-            if (v->steps_total > 0) lime_card_set_steps(&h.card, v->steps_total, v->steps_done);
         } else {
             char n[24];
             snprintf(n, sizeof n, "%d to finish", v->chores_left);

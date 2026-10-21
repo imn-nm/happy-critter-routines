@@ -164,10 +164,11 @@ typedef enum { ROW_DONE, ROW_NOW, ROW_NEXT, ROW_FREE, ROW_CHORE, ROW_CHORE_DONE 
 typedef struct { int task, chore; int16_t start, end; row_state_t state; } srow_t;
 
 #define SCHED_TOP 92         /* the list starts under the header */
-#define SCHED_FOCUS 215      /* the focus line, on the screen: up from the middle so a fourth row fits */
-#define SCHED_ROW 87         /* a row's slot (Figma): centres 128 (under the fade), 215, 302, 389 */
-#define SCHED_PIC_FOCUS 247  /* picture view: the card now */
-#define SCHED_PIC_ROW 109    /* picture view: centres 138, 247, 356 (Figma 1078:5037) */
+#define SCHED_ROW 87         /* a row's slot (Figma) */
+#define SCHED_PIC_ROW 109    /* picture view (Figma 1078:5037) */
+/* The row now (the focus line) sits in the middle of the room under the title, wherever the title
+ * ends (it wraps to two lines), with one row showing above it and one below: about y 250, 276 in
+ * picture view (schedule_open). */
 #define SCHED_FADE_Y 89      /* the Fade behind the title, over the top of the list */
 
 /* Figma "MyToki 2 / Schedule row" (1073:4620): Center is 400 x 84, fully round, 16 px in, gap 14: the
@@ -261,10 +262,15 @@ static void backdrop_set(float k)
     if (kk == 0) backdrop_ty0 = 0;
     int32_t ty = (int32_t)lroundf(backdrop_ty0 * (1.0f - k) - BACKDROP_LIFT * k);
     lv_obj_set_style_translate_y(backdrop, ty, 0);
-    bool covered = kk == 100;   /* under a full sheet there is nothing to dim */
-    ui_show(scrim, kk > 0 && !covered);
-    lv_obj_set_style_bg_opa(scrim, covered ? LV_OPA_TRANSP : (lv_opa_t)lroundf(BACKDROP_DIM * k), 0);
+    /* under a full sheet the scrim goes solid: LVGL starts drawing from it, so the day under it (the
+     * room, the pet moving) isn't drawn again with every frame the sheet scrolls */
+    bool covered = kk == 100, was = lv_obj_get_style_bg_opa(scrim, 0) == LV_OPA_COVER && !lv_obj_has_flag(scrim, LV_OBJ_FLAG_HIDDEN);
+    ui_show(scrim, kk > 0);
+    lv_obj_set_style_bg_opa(scrim, covered ? LV_OPA_COVER : (lv_opa_t)lroundf(BACKDROP_DIM * k), 0);
+    if (covered != was) ui_render_now();   /* the pet rests under the sheet, and moves again as it lifts */
 }
+
+bool overlay_covering(void) { return backdrop && backdrop_k == 100; }
 
 /* k from how far down the sheet's top edge is */
 static void backdrop_follow(int32_t sheet_y) { backdrop_set(1.0f - (float)sheet_y / SCREEN_H); }
@@ -562,21 +568,30 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
     sc.just = -1;
     sc.p = p; sc.n = n; sc.now_min = now_min; sc.picture = picture; sc.on_chore = on_chore;
     int32_t row = picture ? SCHED_PIC_ROW : SCHED_ROW;
-    wheel_list_create(o, &sc.wl, 0, SCHED_TOP, SCREEN_W, SCREEN_H - SCHED_TOP, (picture ? SCHED_PIC_FOCUS : SCHED_FOCUS) - SCHED_TOP, row);
+    wheel_list_create(o, &sc.wl, 0, SCHED_TOP, SCREEN_W, SCREEN_H - SCHED_TOP, (SCREEN_H - SCHED_TOP) / 2, row);
     sc.wl.style = picture ? sched_tile_style : sched_style;
     sched_rows();
     sched_fill(sc.focus);
     /* Figma Younger: two path dots between the cards */
+    lv_obj_t *dots[2] = { NULL, NULL };
     if (picture)
         for (int i = 0; i < 2; i++) {
-            lv_obj_t *dot = ui_box(o);
-            lv_obj_set_size(dot, 6, 6);
-            lv_obj_set_pos(dot, CENTER - 3, i ? 306 : 182);
-            ui_style_card(dot, C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
+            dots[i] = ui_box(o);
+            lv_obj_set_size(dots[i], 6, 6);
+            ui_style_card(dots[i], C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
         }
     /* black behind the title, then the header on top: rows that turn up under it slip out of sight */
     list_fade_create(o, SCHED_FADE_Y);
-    ov_header(o, true, "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
+    header_t *hd = ov_header(o, true, "Today\xE2\x80\x99s Schedule", HEADER_NONE, PILL_CALM, NULL, NULL);
+    /* between the title's bottom and the lowest point where a row one away still fits inside the
+     * round screen (360 wide; a picture card about 240), so the rows above and below show alike */
+    lv_obj_update_layout(hd->root);
+    int32_t top = lv_obj_get_y(hd->root) + lv_obj_get_height(hd->root), half = picture ? 120 : 180;
+    int32_t bottom = CENTER + (int32_t)sqrtf((float)(CENTER * CENTER - half * half));
+    int32_t focus = (top + bottom) / 2;
+    wheel_list_set_focus(&sc.wl, focus - SCHED_TOP);
+    for (int i = 0; i < 2; i++)
+        if (dots[i]) lv_obj_set_pos(dots[i], CENTER - 3, focus + (i ? 59 : -65));   /* in the gaps either side of the card now */
     /* a grab handle above the clock: the sheet can be pulled down */
     lv_obj_t *grip = ui_box(o);
     lv_obj_set_size(grip, 36, 4);

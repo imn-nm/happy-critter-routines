@@ -8,12 +8,46 @@ static struct {
     float e;                 /* the last sample's high-pass energy, g */
     uint32_t last_ms;        /* when the last sample arrived; 0 = never */
     uint32_t still_ms;
+    uint32_t rest_ms;
     uint32_t face_down_ms;
     uint32_t tap_pending_ms; /* a spike seen, waiting for it to settle */
     uint32_t tap_last_ms;
     int taps;
     bool have_gravity;
+    float lx[3], ly[3];      /* level: the screen's right and up across the tilt plane (motion_level) */
+    bool have_level;
 } m;
+
+/* gravity's part along the level's right and up (flat: just gx and gy) */
+static void level_parts(float *px, float *py)
+{
+    if (!m.have_level) { *px = m.gx; *py = m.gy; return; }
+    *px = m.gx * m.lx[0] + m.gy * m.lx[1] + m.gz * m.lx[2];
+    *py = m.gx * m.ly[0] + m.gy * m.ly[1] + m.gz * m.ly[2];
+}
+
+void motion_level(void)
+{
+    float n = sqrtf(m.gx * m.gx + m.gy * m.gy + m.gz * m.gz);
+    if (!m.have_gravity || n < 0.5f) return;
+    float z[3] = { m.gx / n, m.gy / n, m.gz / n };   /* "up" when level */
+    /* the screen's right, laid flat across that plane (its up, when it's held on its side) */
+    float e[3] = { 1, 0, 0 };
+    if (fabsf(z[0]) > 0.9f) { e[0] = 0; e[1] = 1; }
+    float d = e[0] * z[0] + e[1] * z[1] + e[2] * z[2];
+    float v[3] = { e[0] - d * z[0], e[1] - d * z[1], e[2] - d * z[2] };
+    float vn = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    for (int i = 0; i < 3; i++) v[i] /= vn;
+    float *x = m.lx, *y = m.ly;
+    if (e[0] == 1) {   /* v is the right; up = z x right */
+        for (int i = 0; i < 3; i++) x[i] = v[i];
+        y[0] = z[1] * x[2] - z[2] * x[1]; y[1] = z[2] * x[0] - z[0] * x[2]; y[2] = z[0] * x[1] - z[1] * x[0];
+    } else {           /* v is the up; right = up x z */
+        for (int i = 0; i < 3; i++) y[i] = v[i];
+        x[0] = y[1] * z[2] - y[2] * z[1]; x[1] = y[2] * z[0] - y[0] * z[2]; x[2] = y[0] * z[1] - y[1] * z[0];
+    }
+    m.have_level = true;
+}
 
 void motion_reset(void)
 {
@@ -60,6 +94,8 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms)
 
     if (e < MOTION_STILL_G) m.still_ms += dt;
     else m.still_ms = 0;
+    if (e < MOTION_REST_G) m.rest_ms += dt;
+    else m.rest_ms = 0;
 
     if (m.gz < MOTION_FACE_DOWN_G) m.face_down_ms += dt;
     else m.face_down_ms = 0;
@@ -67,7 +103,9 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms)
 
 void motion_tilt(float *x, float *y)
 {
-    float tx = -m.gx / MOTION_TILT_FULL_G, ty = m.gy / MOTION_TILT_FULL_G;
+    float px, py;
+    level_parts(&px, &py);
+    float tx = -px / MOTION_TILT_FULL_G, ty = py / MOTION_TILT_FULL_G;
     float dead = MOTION_TILT_DEAD_G / MOTION_TILT_FULL_G;
     if (fabsf(tx) < dead) tx = 0;
     if (fabsf(ty) < dead) ty = 0;
@@ -79,7 +117,12 @@ void motion_tilt(float *x, float *y)
     if (y) *y = ty;
 }
 
-float motion_lean(void) { return sqrtf(m.gx * m.gx + m.gy * m.gy); }
+float motion_lean(void)
+{
+    float px, py;
+    level_parts(&px, &py);
+    return sqrtf(px * px + py * py);
+}
 float motion_shake(void) { return m.shake; }
 
 int motion_taps(void)
@@ -91,5 +134,7 @@ int motion_taps(void)
 
 void motion_add_taps(int n) { m.taps += n; }
 uint32_t motion_still_ms(void) { return m.still_ms; }
+uint32_t motion_rest_ms(void) { return m.rest_ms; }
+float motion_energy(void) { return m.e; }
 bool motion_face_down(void) { return m.face_down_ms >= 300; }
 bool motion_alive(uint32_t now_ms) { return m.last_ms && now_ms - m.last_ms < MOTION_STALE_MS; }

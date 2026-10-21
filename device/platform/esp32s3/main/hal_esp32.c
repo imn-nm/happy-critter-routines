@@ -166,7 +166,44 @@ bool hal_online(void) { return wifi_up; }
 bool hal_docked(void) { return false; }
 int hal_battery(void) { return 100; }
 void hal_speak(const char *text) { ESP_LOGI(TAG, "say: %s", text); /* no voice on the board yet */ }
-void hal_set_brightness(uint8_t percent) { bsp_display_brightness_set(percent < 5 ? 5 : percent); }
+
+/* The screen off when put down: dark and not drawing. Back on, it lights once the first frame is
+ * redrawn (the panel still holds the old one), at the brightness last asked for. */
+static uint8_t bright_want = 100;
+static bool screen_dark, screen_waking;
+void hal_set_brightness(uint8_t percent)
+{
+    bright_want = percent < 5 ? 5 : percent;
+    if (!screen_dark) bsp_display_brightness_set(bright_want);
+}
+bool hal_screen_sleeps(void) { return true; }
+static void screen_drawn(lv_event_t *e)
+{
+    (void)e;
+    if (!screen_waking) return;
+    screen_waking = false;
+    screen_dark = false;
+    bsp_display_brightness_set(bright_want);
+}
+void hal_screen(bool on)
+{
+    lv_display_t *d = lv_display_get_default();
+    if (!d) return;
+    static bool hooked;
+    if (!hooked) { hooked = true; lv_display_add_event_cb(d, screen_drawn, LV_EVENT_REFR_READY, NULL); }
+    if (!on) {
+        screen_dark = true;
+        screen_waking = false;
+        bsp_display_brightness_set(0);
+        lv_display_enable_invalidation(d, false);
+        return;
+    }
+    if (!screen_dark) return;
+    screen_waking = true;
+    lv_display_enable_invalidation(d, true);
+    lv_obj_invalidate(lv_display_get_screen_active(d));
+    lv_obj_invalidate(lv_display_get_layer_top(d));
+}
 
 /* ================================================================ network */
 void hal_request_day(void)
@@ -202,31 +239,48 @@ static esp_err_t on_http(esp_http_client_event_t *e)
     return ESP_OK;
 }
 
+/* One connection kept open to the server (the day plan every 30 s, and the events): a fresh secure
+ * connection each time would cost the board a TLS handshake. Only the net task uses it. When the
+ * server has closed it meanwhile, the request goes again on a new one. */
+static esp_http_client_handle_t conn;
+
+static esp_err_t http_once(const char *url, const char *post, body_t *body)
+{
+    if (!conn) {
+        esp_http_client_config_t cfg = {
+            .url = url,
+            .event_handler = on_http,
+            .timeout_ms = 10000,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+            .keep_alive_enable = true,
+        };
+        conn = esp_http_client_init(&cfg);
+        if (!conn) return ESP_FAIL;
+        if (CONFIG_MYTOKI_DEVICE_TOKEN[0]) {
+            char auth[160];
+            snprintf(auth, sizeof auth, "Bearer %s", CONFIG_MYTOKI_DEVICE_TOKEN);
+            esp_http_client_set_header(conn, "Authorization", auth);
+        }
+    }
+    esp_http_client_set_url(conn, url);
+    esp_http_client_set_user_data(conn, body);
+    esp_http_client_set_method(conn, post ? HTTP_METHOD_POST : HTTP_METHOD_GET);
+    if (post) esp_http_client_set_header(conn, "Content-Type", "application/json");
+    else esp_http_client_delete_header(conn, "Content-Type");
+    esp_http_client_set_post_field(conn, post, post ? (int)strlen(post) : 0);
+    esp_err_t err = esp_http_client_perform(conn);
+    if (err != ESP_OK) { esp_http_client_cleanup(conn); conn = NULL; }
+    return err;
+}
+
 static int http(const char *url, const char *post, body_t *body)
 {
-    esp_http_client_config_t cfg = {
-        .url = url,
-        .event_handler = on_http,
-        .user_data = body,
-        .timeout_ms = 10000,
-        .crt_bundle_attach = esp_crt_bundle_attach,
-        .method = post ? HTTP_METHOD_POST : HTTP_METHOD_GET,
-    };
-    esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    if (!c) return -1;
-    if (CONFIG_MYTOKI_DEVICE_TOKEN[0]) {
-        char auth[160];
-        snprintf(auth, sizeof auth, "Bearer %s", CONFIG_MYTOKI_DEVICE_TOKEN);
-        esp_http_client_set_header(c, "Authorization", auth);
+    esp_err_t err = http_once(url, post, body);
+    if (err != ESP_OK) {
+        if (body) body->len = 0;
+        err = http_once(url, post, body);
     }
-    if (post) {
-        esp_http_client_set_header(c, "Content-Type", "application/json");
-        esp_http_client_set_post_field(c, post, (int)strlen(post));
-    }
-    esp_err_t err = esp_http_client_perform(c);
-    int status = err == ESP_OK ? esp_http_client_get_status_code(c) : -1;
-    esp_http_client_cleanup(c);
-    return status;
+    return err == ESP_OK ? esp_http_client_get_status_code(conn) : -1;
 }
 
 /* What couldn't be sent yet, kept across restarts. */
@@ -365,15 +419,16 @@ static void button_task(void *arg)
 #define QMI_ADDR 0x6B           /* 0x6A when SA0 is pulled low */
 #define QMI_WHO_AM_I 0x00       /* reads 0x05 */
 #define QMI_CTRL1 0x02          /* 0x40: address auto-increment */
-#define QMI_CTRL2 0x03          /* 0x23: accel +-4 g, 100 Hz */
+#define QMI_CTRL2 0x03          /* 0x16: accel +-4 g (full scale bits 6:4 = 001), 125 Hz (ODR 0110); 0x23 was +-8 g, halving every reading */
 #define QMI_CTRL7 0x08          /* 0x01: accel on */
 #define QMI_AX_L 0x35
 /* Which sensor axis is the screen's x (right), y (12 o'clock), z (out of the screen), and its
- * sign: set on the bench by tilting the board and watching the log. */
-#define IMU_AX 0
-#define IMU_AY 1
+ * sign. Tilted on the board (2026-10-20): the chip sits a quarter turn from the screen, so the
+ * right edge down raises the sensor's y and the bottom edge down raises its x; screen up reads +z. */
+#define IMU_AX 1
+#define IMU_AY 0
 #define IMU_AZ 2
-#define IMU_SX 1
+#define IMU_SX -1
 #define IMU_SY 1
 #define IMU_SZ 1
 
@@ -400,7 +455,7 @@ static void motion_task(void *arg)
     uint8_t who = 0;
     if (!imu_read(QMI_WHO_AM_I, &who, 1) || who != 0x05) { ESP_LOGW(TAG, "QMI8658 not found (who am I 0x%02x): no motion", who); vTaskDelete(NULL); return; }
     imu_write(QMI_CTRL1, 0x40);
-    imu_write(QMI_CTRL2, 0x23);
+    imu_write(QMI_CTRL2, 0x16);
     imu_write(QMI_CTRL7, 0x01);
     ESP_LOGI(TAG, "motion: QMI8658 at 100 Hz");
     TickType_t wake = xTaskGetTickCount();
@@ -505,6 +560,7 @@ void hal_esp32_init(void)
 #endif
     outbox_load();
 }
+
 
 void hal_esp32_start(void)
 {

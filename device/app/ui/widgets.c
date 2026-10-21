@@ -1322,6 +1322,19 @@ void checkbox_tick(lv_obj_t *box)
     fx_ripple_from(box, d / 2, d / 2 + 26, C_DONE);
 }
 
+void checkbox_untick(lv_obj_t *box)
+{
+    if (!box || lv_obj_get_child_count(box) < 2) return;
+    lv_obj_t *fill = lv_obj_get_child(box, 0), *tick = lv_obj_get_child(box, 1);
+    if (lv_obj_has_flag(fill, LV_OBJ_FLAG_HIDDEN)) return;   /* already clear */
+    lv_anim_delete(fill, scale_exec);
+    lv_anim_delete(tick, scale_exec);
+    lv_anim_delete(box, border_opa_exec);
+    ui_show(fill, false);
+    ui_show(tick, false);
+    lv_obj_set_style_border_opa(box, LV_OPA_COVER, 0);
+}
+
 typedef struct { lv_color_t from, to; } recolor_t;
 static void recolor_exec(void *obj, int32_t v)
 {
@@ -1470,11 +1483,19 @@ static int wheel_clamp(wheel_list_t *w, int i)
     return i < 0 ? 0 : i;
 }
 
+/* LVGL's own snap or throw, or an earlier turn; not the list's other animations (ui_reveal's fade in,
+ * stopped halfway, left the list invisible) */
+static void wheel_stop(wheel_list_t *w)
+{
+    lv_obj_stop_scroll_anim(w->list);
+    lv_anim_delete(w->list, turn_exec);
+}
+
 void wheel_list_turn(wheel_list_t *w, int i, uint32_t delay_ms)
 {
     i = wheel_clamp(w, i);
     int32_t from = lv_obj_get_scroll_y(w->list), to = (int32_t)i * w->row_h;
-    lv_anim_delete(w->list, NULL);   /* LVGL's own snap or throw */
+    wheel_stop(w);
     if (from == to) { wheel_apply(w->list); return; }
     lv_anim_t a;
     lv_anim_init(&a);
@@ -1494,9 +1515,19 @@ void wheel_list_focus(wheel_list_t *w, int i, bool anim)
 {
     if (anim) { wheel_list_turn(w, i, 0); return; }
     i = wheel_clamp(w, i);
-    lv_anim_delete(w->list, NULL);
+    wheel_stop(w);
     lv_obj_scroll_to_y(w->list, (int32_t)i * w->row_h, LV_ANIM_OFF);
     wheel_apply(w->list);
+}
+
+void wheel_list_set_focus(wheel_list_t *w, int32_t focus_y)
+{
+    int at = wheel_list_current(w);
+    w->focus_y = focus_y;
+    lv_obj_set_style_pad_top(w->list, focus_y - w->row_h / 2, 0);
+    lv_obj_set_style_pad_bottom(w->list, lv_obj_get_height(w->list) - focus_y - w->row_h / 2, 0);
+    lv_obj_update_layout(w->list);
+    wheel_list_focus(w, at, false);
 }
 
 int wheel_list_current(const wheel_list_t *w)

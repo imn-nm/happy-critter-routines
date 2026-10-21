@@ -15,6 +15,8 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
 /* What the sheet covers (the Home page): it sits back, smaller and dimmer, while the sheet is on
  * its way up or being pulled down. */
 void overlay_set_backdrop(lv_obj_t *under);
+/* A sheet covers the day completely (nothing of it shows, so it needn't move). */
+bool overlay_covering(void);
 /* The day changed (a chore was ticked): redraw, keeping the row in the middle. */
 void schedule_refresh(const day_plan_t *p, const logic_now_t *n, int now_min);
 bool schedule_is_open(void);

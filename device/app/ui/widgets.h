@@ -204,6 +204,8 @@ lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked);
 /* An unchecked box ticks itself: the navy fill grows out of the middle, the tick pops in and a
  * mint ripple goes out. The same tick wherever a child finishes something. */
 void checkbox_tick(lv_obj_t *box);
+/* A ticked box clears again (a step unchecked): back to the empty ring at once. */
+void checkbox_untick(lv_obj_t *box);
 
 /* ---- motion shared by every move on the Circle ---- */
 /* ui_path_out: quick off the mark, a soft landing (a cubic ease-out, snappier than LVGL's).
@@ -237,6 +239,8 @@ void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, 
 lv_obj_t *wheel_list_add(wheel_list_t *w);
 /* Bring row i to the focus line (no animation when anim is false). */
 void wheel_list_focus(wheel_list_t *w, int i, bool anim);
+/* Move the focus line (focus_y from the list's top); the row on it stays on it. */
+void wheel_list_set_focus(wheel_list_t *w, int32_t focus_y);
 /* Turn to row i after delay_ms, with the settle. */
 void wheel_list_turn(wheel_list_t *w, int i, uint32_t delay_ms);
 /* The row on the focus line now. */

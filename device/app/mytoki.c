@@ -26,11 +26,14 @@
 #include <string.h>
 
 #define TICK_MS 250
-#define REFRESH_MS (5 * 60 * 1000)
+#define REFRESH_MS (30 * 1000)     /* a parent's change (a new time, a task marked done) shows within this */
 #define OFFLINE_RETRY_MS 15000
 #define DONE_HOLD_MS 3000
 #define DONE_OFFER_MS 5000         /* done early: "Press for Homework" while the ring at the button shrinks */
 #define SAY_MS 7000
+#define STEPS_ALL_MS 2500         /* the last step checked: the list stays a moment before the room comes back */
+#define STEPS_PEEK_MS 8000        /* "Steps done" tapped: the list again, to uncheck one */
+#define SLEEP_MS 3000             /* put down this long (and not touched), the screen goes off */
 #define PET_VIEW_MS 6000            /* the spin's result stays this long, then Biscuit plays it */
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
@@ -59,7 +62,9 @@ static struct {
     logic_now_t now;
     state_t state;
     int focus;
-    uint8_t steps[DAY_MAX_TASKS];
+    uint16_t ticks[DAY_MAX_TASKS];   /* the steps checked, in any order: bit i = step i */
+    int steps_peek;                  /* the task whose checked list shows again, or -1 */
+    uint32_t steps_peek_until;
     int done_task;
     uint32_t done_until;
     int32_t done_press_s;   /* when the button finished it (the 3 s cheer comes after) */
@@ -78,6 +83,7 @@ static struct {
     state_t last_state;
     bool requested, fetching;
     uint32_t last_fetch, retry_at;
+    uint32_t plan_hash;         /* the last day received, to skip one that hasn't changed */
     lv_obj_t *carousel, *pg_rewards, *pg_home, *pg_chores;
     int swipe_from;            /* the page a sideways swipe started on */
     bool swipe_pending;        /* ...and it is about to turn the carousel */
@@ -96,7 +102,31 @@ static struct {
     int battery_shown;          /* the last low-battery step shown (10, 5), or 0 */
     uint8_t brightness;
     int32_t last_now_s;         /* to notice the clock jumping back (the simulator's jumps) */
+    /* the screen off when put down */
+    bool screen_off, sleep_test;
+    uint32_t touch_ms, awake_ms;    /* the last touch or press; the screen last came on */
+    lv_obj_t *wake_catcher;         /* over everything while it's off: the touch that wakes it does nothing else */
 } app;
+
+static void screen_wake(void);
+static void screen_init(void);
+
+/* ---- a task's steps: checked in any order, and unchecked again ---- */
+static uint16_t steps_mask(int f) { return (uint16_t)((1u << app.plan->tasks[f].nsteps) - 1); }
+static bool steps_all(int f) { return app.plan->tasks[f].nsteps && (app.ticks[f] & steps_mask(f)) == steps_mask(f); }
+static int steps_first_left(int f)
+{
+    for (int i = 0; i < app.plan->tasks[f].nsteps; i++)
+        if (!(app.ticks[f] & (1u << i))) return i;
+    return -1;
+}
+/* What the button checks: the step on the checklist's line, or the first one left if that's checked. */
+static int steps_for_button(int f)
+{
+    int i = home_steps_current();
+    if (i < 0 || i >= app.plan->tasks[f].nsteps || (app.ticks[f] & (1u << i))) i = steps_first_left(f);
+    return i;
+}
 
 static void tick(lv_timer_t *timer);
 static void on_sched_chore(int i);
@@ -255,11 +285,11 @@ static void save_progress(void)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "date", app.plan->date);
     cJSON *done = cJSON_AddObjectToObject(root, "done");
-    cJSON *steps = cJSON_AddObjectToObject(root, "steps");
+    cJSON *steps = cJSON_AddObjectToObject(root, "ticks");
     for (int i = 0; i < app.plan->ntasks; i++) {
         const day_task_t *t = &app.plan->tasks[i];
         if (t->done_at >= 0) cJSON_AddNumberToObject(done, t->id, t->done_at);
-        if (app.steps[i]) cJSON_AddNumberToObject(steps, t->id, app.steps[i]);
+        if (app.ticks[i]) cJSON_AddNumberToObject(steps, t->id, app.ticks[i]);
     }
     cJSON *chores = cJSON_AddArrayToObject(root, "chores");
     for (int i = 0; i < app.plan->nchores; i++)
@@ -275,10 +305,36 @@ static void save_progress(void)
     cJSON_Delete(root);
 }
 
+/* A step checked or unchecked: a tap on it does either, the button only checks. The last one
+ * checked doesn't finish the task (the steps get Shower ready; then comes the shower): the list stays
+ * a moment, then the task goes on for its time until the button says it's done. At an event, all
+ * checked is "You're ready!". */
+static void set_step(int f, int i, bool on)
+{
+    if (f < 0 || i < 0 || i >= app.plan->tasks[f].nsteps) return;
+    if (!!(app.ticks[f] & (1u << i)) == on) return;
+    if (on) app.ticks[f] |= (uint16_t)(1u << i);
+    else app.ticks[f] &= (uint16_t)~(1u << i);
+    save_progress();
+    if (app.state == ST_EVENT_PREP && steps_all(f)) {
+        app.ready_task = f;
+        app.ready_until = now_ms() + DONE_HOLD_MS;
+        hal_play(HAL_SOUND_DONE);
+        return;
+    }
+    if (on && steps_all(f)) {
+        app.steps_peek = f;
+        app.steps_peek_until = now_ms() + STEPS_ALL_MS;
+    }
+    hal_play(HAL_SOUND_TICK);
+    if (on) pet_react(home_pet(), PET_CLIP_ENCOURAGE);
+}
+
 /* What the child did on this device today, laid over a fresh plan (the server may not have it yet). */
 static void apply_progress(day_plan_t *p)
 {
-    memset(app.steps, 0, sizeof app.steps);
+    memset(app.ticks, 0, sizeof app.ticks);
+    app.steps_peek = -1;
     app.alarm_ack = app.welcome_ack = false;
     app.snoozes = 0;
     app.snooze_until = 0;
@@ -293,9 +349,13 @@ static void apply_progress(day_plan_t *p)
             int i = day_task_index(p, it->string);
             if (i >= 0 && p->tasks[i].done_at < 0) p->tasks[i].done_at = (int32_t)it->valuedouble;
         }
-        cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "steps")) {
+        cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "steps")) {   /* (older: how many, in order) */
+            int i = day_task_index(p, it->string), k = (int)it->valuedouble;
+            if (i >= 0 && k > 0) app.ticks[i] = (uint16_t)((1u << LV_MIN(k, 16)) - 1);
+        }
+        cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "ticks")) {
             int i = day_task_index(p, it->string);
-            if (i >= 0) app.steps[i] = (uint8_t)it->valuedouble;
+            if (i >= 0) app.ticks[i] = (uint16_t)it->valuedouble;
         }
         cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "chores"))
             for (int i = 0; i < p->nchores; i++) if (cJSON_IsString(it) && !strcmp(p->chores[i].id, it->valuestring)) p->chores[i].done = true;
@@ -576,10 +636,13 @@ static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user
     return true;
 }
 
-/* Whether a flick up on Home would lift the schedule right now (on_base_swipe says the same). */
+/* Whether a flick up on Home would lift the schedule right now (on_base_swipe says the same): only
+ * from the hill at the bottom, where the schedule is, so a flick on the room or a list doesn't. */
+#define PULL_Y 340
 static bool can_lift_schedule(void)
 {
     if (app.page != 1 || app.night_lock || !app.have_plan || !app.plan) return false;
+    if (swipe_start().y < PULL_Y) return false;
     return app.state != ST_ALARM && app.state != ST_SNOOZE && app.state != ST_SLEEPY;
 }
 
@@ -735,6 +798,11 @@ static void on_home(home_event_t ev, int arg)
     case HOME_TAP_NEXT: schedule_open(app.plan, &app.now, app.now_s / 60, app.plan->child.picture, on_sched_chore); break;
     case HOME_TAP_CARD:
         if (app.state == ST_EVENT && app.now.nstill) others_open(app.plan, &app.now, app.now_s, on_other_done);
+        else if (app.state == ST_TASK && app.focus >= 0 && steps_all(app.focus)) {   /* "Steps done": the list again */
+            app.steps_peek = app.focus;
+            app.steps_peek_until = now_ms() + STEPS_PEEK_MS;
+            tick(NULL);
+        }
         break;
     case HOME_TAP_PLAY: app.free_pet_view = true; break;
     case HOME_TAP_WHEEL: app.free_pet_view = false; break;
@@ -754,7 +822,12 @@ static void on_home(home_event_t ev, int arg)
         break;
     case HOME_TAP_SPEAKER: read_out(); break;
     case HOME_TAP_PLAYTIME: mytoki_open_playtime(); break;
-    case HOME_TAP_STEP: mytoki_button(); break;
+    case HOME_TAP_STEP:
+        if ((app.state == ST_TASK || app.state == ST_EVENT_PREP) && app.focus >= 0 && arg >= 0 && arg < 16) {
+            set_step(app.focus, arg, !(app.ticks[app.focus] & (1u << arg)));
+            tick(NULL);
+        }
+        break;
     }
 }
 
@@ -797,7 +870,7 @@ static state_t derive(void)
         if (c->system == SYS_SCHOOL) return app.now_s < n->start[n->current] * 60 + SCHOOL_OFF_S ? ST_SCHOOL_OFF : ST_SCHOOL;
         if (c->event) {
             if (app.now_s / 60 < c->event_start) {
-                bool all = c->nsteps && app.steps[n->current] >= c->nsteps;
+                bool all = steps_all(n->current);
                 return all ? ST_EVENT_READY : ST_EVENT_PREP;
             }
             return ST_EVENT;
@@ -1036,14 +1109,21 @@ static void build_view(home_view_t *v)
             if (left < 10) v->sides = false;
         }
         if (n->overdue) v->sides = false;
-        if (t->nsteps && app.steps[app.focus] < t->nsteps) {
-            /* the steps as a checklist that turns, the one now in the middle, no room (Figma Morning ·
-             * Get dressed, the same as Going out · Get ready); the button or a tap ticks it */
+        bool peek = app.steps_peek == app.focus && (int32_t)(now_ms() - app.steps_peek_until) < 0;
+        if (t->nsteps && (!steps_all(app.focus) || peek)) {
+            /* the steps as a checklist that turns, no room (Figma Morning · Get dressed, the same as
+             * Going out · Get ready): checked in any order by a tap or the button, unchecked by a tap */
             v->mid = MID_STEPS;
             v->sides = false;
             v->steps_total = (int8_t)t->nsteps;
-            v->steps_done = (int8_t)app.steps[app.focus];
+            v->steps_ticked = app.ticks[app.focus];
             for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
+        } else if (t->nsteps && !n->overdue) {
+            /* all checked: the task goes on for its time; the note brings the list back to uncheck one */
+            v->card = CARDPOS_LOW;
+            snprintf(v->card_icon, sizeof v->card_icon, "listchecks");
+            snprintf(v->card_text, sizeof v->card_text, "Steps done");
+            v->card_end = CARD_END_DONE;
         }
         next_from(v, -1);
         /* Figma: his greeting at wake-up and dinner only, as the task starts */
@@ -1128,7 +1208,7 @@ static void build_view(home_view_t *v)
             v->mid = MID_STEPS;
             v->sides = false;
             v->steps_total = (int8_t)t->nsteps;
-            v->steps_done = (int8_t)app.steps[app.focus];
+            v->steps_ticked = app.ticks[app.focus];
             for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
         }
         app.say[0] = 0;   /* Figma Going out: no bubble; the note and the pill say it */
@@ -1364,16 +1444,17 @@ static void read_out(void)
     char line[128];
     const day_task_t *t = app.focus >= 0 ? &app.plan->tasks[app.focus] : NULL;
     if (!t) return;
-    int st = app.steps[app.focus];
-    if (app.state == ST_EVENT_PREP && t->nsteps && st < t->nsteps) snprintf(line, sizeof line, "Get ready for %s. Next step: %s", t->title, t->steps[st].text);
+    int st = steps_first_left(app.focus);
+    if (app.state == ST_EVENT_PREP && st >= 0) snprintf(line, sizeof line, "Get ready for %s. Next step: %s", t->title, t->steps[st].text);
     else if (app.state == ST_EVENT) snprintf(line, sizeof line, "Have fun at %s!", t->title);
-    else if (t->nsteps && st < t->nsteps) snprintf(line, sizeof line, "%s. Next step: %s", t->title, t->steps[st].text);
+    else if (st >= 0) snprintf(line, sizeof line, "%s. Next step: %s", t->title, t->steps[st].text);
     else snprintf(line, sizeof line, "%s", t->title);
     hal_speak(line);
 }
 
 static void on_state_change(state_t from, state_t to)
 {
+    screen_wake();   /* something new to see (it goes off again if still put down) */
     speak_state(to);
     app.say[0] = 0; /* a new screen: Biscuit says something new, or nothing */
     (void)from;
@@ -1391,6 +1472,7 @@ static void on_state_change(state_t from, state_t to)
 /* The panel: dim at night, darker on the dock, the sunrise over the alarm's first minute (full at school). */
 static void brightness(void)
 {
+    if (app.screen_off) return;
     uint8_t b = 100;
     switch (app.state) {
     case ST_SLEEPY: case ST_DAY_OVER: b = hal_docked() ? 20 : 35; break;
@@ -1498,7 +1580,7 @@ static void tick(lv_timer_t *timer)
     build_view(&v);
     home_render(&v);
     if (app.fresh) { pet_skip_intro(home_pet()); app.fresh = false; }
-    pet_set_paused(home_pet(), app.page != 1 || v.mid != MID_PET || play_is_open());
+    pet_set_paused(home_pet(), app.page != 1 || v.mid != MID_PET || play_is_open() || overlay_covering());
     chores_page_visible(app.page == 2);
     rewards_page_render(app.plan, available_stars(), app.plan->child.picture);
     chores_page_render(app.plan, app.now_s / 60, app.plan->child.picture);
@@ -1526,6 +1608,7 @@ void mytoki_start(void)
     app.free_window = -100000;
 
     swipe_init();
+    screen_init();
     swipe_set_base(on_base_swipe);
     swipe_set_drag(on_base_drag);
     ui_set_render(render_now);
@@ -1575,6 +1658,11 @@ void mytoki_start(void)
 void mytoki_day_received(const char *json, size_t len)
 {
     app.fetching = false;
+    /* the same day as last time (most refreshes): nothing to redo */
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) hash = (hash ^ (uint8_t)json[i]) * 16777619u;
+    if (app.have_plan && hash == app.plan_hash) return;
+    app.plan_hash = hash;
     hal_time_now(&app.t);
     ui_set_clock(app.t.hour * 60 + app.t.minute);   /* screens that open with the plan show the time too */
     day_plan_t *p = lv_malloc(sizeof(day_plan_t));
@@ -1660,13 +1748,84 @@ void mytoki_day_failed(int reason)
                 reason == 0 ? NULL : "The server did not answer.", on_retry);
 }
 
+/* ================================================================ the screen off when put down */
+/* Lying still (quieter than any hand) and untouched for 3 s, the screen goes off; picked up, the
+ * button or a touch brings it back, and that touch or press does nothing else. It stays on on the
+ * dock (the night clock), while the alarm rings, in Playtime, and without a motion sensor. */
+static bool may_sleep(void)
+{
+    if (!hal_screen_sleeps() && !app.sleep_test) return false;
+    if (!motion_alive(now_ms()) || hal_docked() || play_is_open()) return false;
+    return app.state != ST_ALARM && app.state != ST_SNOOZE && app.state != ST_IM_UP;
+}
+
+static void screen_wake(void)
+{
+    app.awake_ms = now_ms();
+    if (!app.screen_off) return;
+    app.screen_off = false;
+    /* a finger on it lifts first (on_catcher); picked up, it's gone at once */
+    lv_indev_t *in = lv_indev_active();
+    if (!in || lv_indev_get_active_obj() != app.wake_catcher) ui_show(app.wake_catcher, false);
+    hal_screen(true);
+    app.brightness = 0;   /* straight to the right brightness, no fade up */
+    brightness();
+}
+
+static void screen_sleep(void)
+{
+    app.screen_off = true;
+    ui_show(app.wake_catcher, true);
+    lv_obj_move_foreground(app.wake_catcher);
+    hal_screen(false);
+}
+
+static void screen_watch(void)
+{
+    uint32_t now = now_ms();
+    if (app.screen_off) {
+        if (motion_energy() > MOTION_PICKUP_G || !may_sleep()) screen_wake();
+        else if (lv_obj_get_index(app.wake_catcher) != (int32_t)lv_obj_get_child_count(lv_layer_top()) - 1)
+            lv_obj_move_foreground(app.wake_catcher);   /* still over anything that opened meanwhile */
+        return;
+    }
+    if (may_sleep() && motion_rest_ms() >= SLEEP_MS && now - app.touch_ms >= SLEEP_MS && now - app.awake_ms >= SLEEP_MS) screen_sleep();
+}
+
+static void on_catcher(lv_event_t *e)
+{
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED) screen_wake();
+    else if ((c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) && !app.screen_off) ui_show(app.wake_catcher, false);
+}
+
+static void on_touch(lv_event_t *e)
+{
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED || c == LV_EVENT_PRESSING || c == LV_EVENT_RELEASED) app.touch_ms = now_ms();
+}
+
+static void screen_init(void)
+{
+    app.wake_catcher = ui_box(lv_layer_top());
+    lv_obj_set_size(app.wake_catcher, SCREEN_W, SCREEN_H);
+    lv_obj_add_flag(app.wake_catcher, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(app.wake_catcher, on_catcher, LV_EVENT_ALL, NULL);
+    ui_show(app.wake_catcher, false);
+    for (lv_indev_t *i = lv_indev_get_next(NULL); i; i = lv_indev_get_next(i))
+        if (lv_indev_get_type(i) == LV_INDEV_TYPE_POINTER) lv_indev_add_event_cb(i, on_touch, LV_EVENT_ALL, NULL);
+}
+
 void mytoki_motion(float ax, float ay, float az)
 {
     motion_push(ax, ay, az, lv_tick_get());
+    screen_watch();
 }
 
 void mytoki_button(void)
 {
+    app.touch_ms = now_ms();
+    if (app.screen_off) { screen_wake(); return; }   /* a press on a dark screen only lights it */
     if (!app.have_plan) return;
     if (reminder_is_open()) return;
     /* free time, the games menu: the button goes home, to Biscuit's room (a game keeps it for play) */
@@ -1687,15 +1846,11 @@ void mytoki_button(void)
         if (t->fun) return;
         if (schedule_is_open()) overlays_close_all();
         go_page(1, true);
-        if (t->nsteps && app.steps[f] < t->nsteps) {
-            app.steps[f]++;
-            save_progress();
-            if (app.steps[f] < t->nsteps) {
-                hal_play(HAL_SOUND_TICK);
-                pet_react(home_pet(), PET_CLIP_ENCOURAGE);
-                break;
-            }
+        if (t->nsteps && !steps_all(f)) {
+            set_step(f, steps_for_button(f), true);
+            break;
         }
+        app.steps_peek = -1;
         /* finished: Biscuit cheers for 3 seconds, then it's marked done. Done early with a next task
          * that can move: 5 seconds, with the ring at the button, to start it now instead */
         app.done_task = f;
@@ -1749,17 +1904,9 @@ void mytoki_button(void)
         break;
     case ST_EVENT_PREP: {
         day_task_t *t = &app.plan->tasks[f];
-        if (!t->nsteps || app.steps[f] >= t->nsteps) return;
+        if (!t->nsteps || steps_all(f)) return;
         go_page(1, true);
-        app.steps[f]++;
-        save_progress();
-        if (app.steps[f] >= t->nsteps) {
-            app.ready_task = f;
-            app.ready_until = now_ms() + DONE_HOLD_MS;
-            hal_play(HAL_SOUND_DONE);
-        } else {
-            hal_play(HAL_SOUND_TICK);
-        }
+        set_step(f, steps_for_button(f), true);
         break;
     }
     case ST_ALARM:
@@ -1790,6 +1937,7 @@ void mytoki_show_wheel(void)
 void mytoki_debug(const char *cmd)
 {
     if (!strcmp(cmd, "refresh")) { request_plan(); return; }
+    if (!strcmp(cmd, "sleep")) { app.sleep_test = true; return; }   /* the simulator tries the screen going off */
     /* the simulator jumped straight to a task after wake-up: the child is up (and home), so the
      * task shows at once instead of the alarm; the jump back in time doesn't start the morning over */
     if (!strcmp(cmd, "awake")) {

@@ -1332,6 +1332,7 @@ void game_start(game_id_t id, const char *pet_name)
     memset(&parts, 0, sizeof parts);
     memset(&actor, 0, sizeof actor);
     motion_reset();
+    motion_level();   /* however it is held as the game starts is level */
     if (pet_name && *pet_name) snprintf(nick, sizeof nick, "%s", pet_name);
     switch (id) {
     case GAME_PEEKABOO: pk_start(); break;

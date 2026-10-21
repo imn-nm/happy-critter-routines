@@ -53,6 +53,12 @@ uint32_t hal_random_u32(void);
 /* The handheld is sitting on its dock (charging): the night clock. */
 bool hal_docked(void);
 
+/* Whether the screen goes off when the handheld is put down (the board; not the simulator or the
+ * web app). hal_screen turns it off, and stops drawing, or back on; on, it lights up once the
+ * screen is redrawn, at the brightness last asked for. */
+bool hal_screen_sleeps(void);
+void hal_screen(bool on);
+
 /* Battery charge, 0-100. */
 int hal_battery(void);
 

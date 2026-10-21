@@ -58,7 +58,7 @@ static void shop_scene(lv_obj_t *page)
         .buf = rw.buf, .d = SCREEN_W, .pitch = 3.8f,
         .room = shop_room, .body = NULL, .fx = NULL, .walls = shop_walls,
         .gw = shop_side, .gh = shop_side, .cx = shop_center, .cy = shop_center,
-        .dim = 40, .bg = C_SCREEN, .sparkles = -1, .palette = shop_palette, .extend = true, .solid = true,
+        .dim = 140, .bg = C_SCREEN, .sparkles = -1, .palette = shop_palette, .extend = true, .solid = true,   /* faded as in the Figma (its wall reads 22, 17, 33) */
     };
     led_render(&a);
 }
@@ -120,7 +120,7 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     page_dots_create(page, 0);
 }
 
-/* Figma "MyToki 2 / Shelf item": a 150 wide column, 4 px apart: the reward's line icon (64, cream),
+/* Figma "MyToki 2 / Shelf item": a 150 wide column, 4 px apart: the reward's line icon (48, cream),
  * its name (Label 20), then the price: lime when there are enough stars, a lavender number on a chip
  * when not, lavender "Asked" once asked. */
 static lv_obj_t *shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, int stars, int32_t x, int32_t y)
@@ -132,8 +132,8 @@ static lv_obj_t *shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, i
     lv_obj_add_event_cb(it, on_item, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
     lv_obj_set_style_transform_pivot_x(it, lv_pct(50), 0);
     lv_obj_set_style_transform_pivot_y(it, lv_pct(100), 0);   /* grows up off the shelf */
-    lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), 64, C_TEXT);
-    lv_obj_set_pos(ic, 43, 0);
+    lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), 48, C_TEXT);
+    lv_obj_set_pos(ic, 51, 16);
     lv_obj_t *name = ui_label(it, F_LABEL, C_TEXT, rd->title);
     lv_obj_set_size(name, 150, lv_font_get_line_height(F_LABEL));
     lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
@@ -150,7 +150,7 @@ static lv_obj_t *shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, i
 }
 
 /* A shelf: the blue plank (the Figma scene's, 12 px with a lighter top edge and a bracket under
- * each end) with its rewards standing on it. */
+ * each end, faded with the scene, Figma's colours) with its rewards standing on it. */
 static lv_obj_t *shelf_row(void)
 {
     lv_obj_t *row = ui_box(rw.shelves);
@@ -161,16 +161,16 @@ static lv_obj_t *shelf_row(void)
     lv_obj_t *plank = ui_box(row);
     lv_obj_set_size(plank, SCREEN_W, 12);
     lv_obj_set_pos(plank, 0, SHELF_PLANK);
-    ui_style_card(plank, 0x4F7AC4, 0, 0, 0);
+    ui_style_card(plank, 0x18253E, 0, 0, 0);
     lv_obj_t *edge = ui_box(row);
     lv_obj_set_size(edge, SCREEN_W, 3);
     lv_obj_set_pos(edge, 0, SHELF_PLANK);
-    ui_style_card(edge, 0x729FE3, 0, 0, 0);
+    ui_style_card(edge, 0x283850, 0, 0, 0);
     for (int i = 0; i < 2; i++) {
         lv_obj_t *b = ui_box(row);
         lv_obj_set_size(b, 5, 10);
         lv_obj_set_pos(b, i ? 440 : 21, SHELF_PLANK + 12);
-        ui_style_card(b, 0x2C457A, 0, 0, 0);
+        ui_style_card(b, 0x141E36, 0, 0, 0);
     }
     return row;
 }

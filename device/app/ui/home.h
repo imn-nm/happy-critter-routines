@@ -72,8 +72,8 @@ typedef struct {
     char card_text[56];
     card_end_t card_end;
     bool card_lime;
-    int8_t steps_total, steps_done;
-    bool steps_list;
+    int8_t steps_total;
+    uint16_t steps_ticked;      /* MID_STEPS: bit i = step i is checked (in any order) */
     char step_prev[56], step_next[56];
     char step_text[HOME_STEPS_MAX][56];   /* MID_STEPS: every step, in order */
     /* bottom: the hill */
@@ -101,7 +101,8 @@ typedef struct {
 
 typedef enum {
     HOME_TAP_REWARDS, HOME_TAP_CHORES, HOME_TAP_NEXT, HOME_TAP_CARD, HOME_TAP_PET,
-    HOME_TAP_PLAY, HOME_TAP_WHEEL, HOME_WHEEL_RESULT, HOME_TAP_SPEAKER, HOME_TAP_PLAYTIME, HOME_TAP_STEP,
+    HOME_TAP_PLAY, HOME_TAP_WHEEL, HOME_WHEEL_RESULT, HOME_TAP_SPEAKER, HOME_TAP_PLAYTIME,
+    HOME_TAP_STEP,              /* arg: the step tapped, to check or uncheck */
     HOME_HOLD_PET,              /* a long tap on the pet: My pet (choose the buddy, dress it up) */
 } home_event_t;
 
@@ -112,6 +113,8 @@ void home_render(const home_view_t *v);
 void home_set_wheel(const char options[][20], int n);
 void home_wheel_reset(void);
 lv_obj_t *home_pet(void);
+/* The step on the checklist's line, or -1 with no checklist showing. */
+int home_steps_current(void);
 /* The page is t screens from the middle of the carousel (0 at rest): layers shift for depth. */
 void home_parallax(float t);
 

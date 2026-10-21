@@ -74,6 +74,23 @@ static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *px)
     lv_display_flush_ready(d);
 }
 
+/* ---- the screen off (put down): the simulator only does it for a test (mytoki_debug "sleep") ---- */
+bool hal_screen_sleeps(void) { return false; }
+void hal_screen(bool on)
+{
+    lv_display_t *d = lv_display_get_default();
+    if (!on) {
+        lv_display_enable_invalidation(d, false);
+        lv_refr_now(d);   /* what was already waiting to be drawn, then black */
+        memset(fb, 0, sizeof fb);
+        dirty[0] = 0; dirty[1] = 0; dirty[2] = W - 1; dirty[3] = H - 1;
+        return;
+    }
+    lv_display_enable_invalidation(d, true);
+    lv_obj_invalidate(lv_display_get_screen_active(d));
+    lv_obj_invalidate(lv_display_get_layer_top(d));
+}
+
 /* ---- touch ---- */
 /* Every pointer sample the page sends is queued and handed to LVGL one by one (continue_reading),
  * so a quick tap or a fast flick is seen in full, as a touch controller reports it on the board. */

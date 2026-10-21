@@ -7,6 +7,7 @@
 #define FLICK_DY 70        /* a flick down: this far, this fast */
 #define FLICK_MS 400
 #define MAX_OWNERS 8
+#define TAP_SLOP 24        /* px: a finger that travelled further was a drag, not a tap */
 
 typedef struct { lv_obj_t *owner; swipe_cb_t cb; void *user; } entry_t;
 
@@ -15,7 +16,8 @@ static swipe_cb_t base;
 static int nowners;
 static lv_point_t start;
 static uint32_t start_ms;
-static bool swallow;       /* a swipe happened: the press doesn't also count as a tap */
+static bool swallow;       /* a swipe happened, or the finger travelled: the press doesn't also count as a tap */
+static bool scrolled;      /* a list took the finger: its flick up or down only scrolled it */
 
 static int find(lv_obj_t *o)
 {
@@ -52,6 +54,7 @@ static lv_obj_t *topmost(void)
 }
 
 void swipe_set_base(swipe_cb_t cb) { base = cb; }
+lv_point_t swipe_start(void) { return start; }
 
 static swipe_drag_cb_t drag;
 static bool dragging;      /* the press began on the day itself */
@@ -74,8 +77,10 @@ static void on_indev(lv_event_t *e)
         lv_indev_get_point(indev, &start);
         start_ms = lv_tick_get();
         swallow = false;
+        scrolled = false;
         dragging = drag && !topmost();
     } else if (code == LV_EVENT_PRESSING) {
+        if (lv_indev_get_scroll_obj(indev)) scrolled = true;
         if (!dragging) return;
         lv_point_t p;
         lv_indev_get_point(indev, &p);
@@ -88,11 +93,13 @@ static void on_indev(lv_event_t *e)
         int32_t dx = p.x - start.x, dy = p.y - start.y;
         uint32_t ms = lv_tick_elaps(start_ms);
         if (dragging) { dragging = false; drag(dx, dy, true); }
+        swallow = abs(dx) > TAP_SLOP || abs(dy) > TAP_SLOP;
         int dir;
         if (abs(dx) >= MIN_DX && abs(dy) <= abs(dx) * MAX_SLOPE && ms <= MAX_MS) dir = dx < 0 ? SWIPE_LEFT : SWIPE_RIGHT;
         else if (dy >= FLICK_DY && abs(dx) <= dy * MAX_SLOPE && ms <= FLICK_MS) dir = SWIPE_DOWN;
         else if (dy <= -FLICK_DY && abs(dx) <= -dy * MAX_SLOPE && ms <= FLICK_MS) dir = SWIPE_UP;
         else return;
+        if (scrolled && (dir == SWIPE_UP || dir == SWIPE_DOWN)) return;
         lv_obj_t *top = topmost();
         if (top) {
             int k = find(top);

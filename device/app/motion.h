@@ -16,10 +16,14 @@
 void motion_push(float ax, float ay, float az, uint32_t now_ms);
 
 /* Tilt in screen space, each -1..1: x > 0 the right edge is low, y > 0 the bottom edge is low.
- * Full tilt (1.0) is MOTION_TILT_FULL_G of gravity, about 30 degrees. */
+ * Full tilt (1.0) is MOTION_TILT_FULL_G of gravity, about 30 degrees. Measured from level, which is
+ * lying flat until motion_level() says otherwise. */
 void motion_tilt(float *x, float *y);
-/* How far from level, in g (0 = flat). */
+/* How far from level, in g (0 = level). */
 float motion_lean(void);
+/* However it is held now counts as level (a child holds it tipped towards them, not flat): a game
+ * calls it as it starts, so tipping it any way from there tilts. */
+void motion_level(void);
 /* Shaking, 0..1: peak-held, fading in about MOTION_SHAKE_DECAY_MS. */
 float motion_shake(void);
 /* Knocks (sharp taps on the body) since the last call; the count is cleared. */
@@ -28,6 +32,10 @@ int motion_taps(void);
 void motion_add_taps(int n);
 /* How long it has been quiet, in ms. */
 uint32_t motion_still_ms(void);
+/* How long it has lain still, in ms: quieter than a hand holding it (put down on a table). */
+uint32_t motion_rest_ms(void);
+/* The last sample's movement, in g (gravity taken out): a pickup is well over MOTION_PICKUP_G. */
+float motion_energy(void);
 /* Screen facing down. */
 bool motion_face_down(void);
 /* A sample arrived within MOTION_STALE_MS: the platform has a sensor. */
@@ -45,6 +53,8 @@ void motion_reset(void);
 #define MOTION_TAP_SETTLE_MS 120     /* it must go quiet again within this, else it was a shake */
 #define MOTION_TAP_GAP_MS 200        /* two knocks closer than this count once */
 #define MOTION_STILL_G 0.08f         /* quiet threshold */
+#define MOTION_REST_G 0.02f          /* put down: under a hand's tremble, over the sensor's own noise */
+#define MOTION_PICKUP_G 0.06f        /* picked up (or the table knocked) */
 #define MOTION_FACE_DOWN_G -0.5f
 #define MOTION_DT_MIN_MS 4
 #define MOTION_DT_MAX_MS 100

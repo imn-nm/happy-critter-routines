@@ -11,6 +11,7 @@
 #define SWIPE_RIGHT 1
 #define SWIPE_DOWN 2      /* a quick flick down: puts the schedule sheet away, snoozes the alarm */
 #define SWIPE_UP 3        /* a quick flick up: lifts the schedule sheet from Home */
+/* A flick up or down that scrolled a list (the checklist, the schedule) is only a scroll. */
 
 /* dir: SWIPE_LEFT, SWIPE_RIGHT, SWIPE_DOWN or SWIPE_UP; start: where the finger went down (screen px).
  * Called twice: first with commit = false, as the finger lifts, to ask whether it's a swipe for
@@ -31,3 +32,5 @@ void swipe_set_base(swipe_cb_t cb);
  * then once more with end = true as it lifts. The day can lean with it before the swipe lands. */
 typedef void (*swipe_drag_cb_t)(int32_t dx, int32_t dy, bool end);
 void swipe_set_drag(swipe_drag_cb_t cb);
+/* Where the finger went down (the press now, or the last one). */
+lv_point_t swipe_start(void);
