@@ -3701,34 +3701,34 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     if (child && systemTaskNames.includes(task.name)) {
       const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr, holidays);
       if (daySpecificSchedule) {
-        return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration };
+        return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration, placementHint: void 0 };
       }
     }
     const dateOverride = task.date_overrides?.[todayStr];
     const weekdayOverride = task.schedule_overrides?.[currentDay];
     const override = dateOverride || weekdayOverride;
+    const hintFor = (pinned) => !pinned && !task.after_task_id ? dateOverride?.window_start || task.window_start || void 0 : void 0;
     if (dateOverride?.anytime) {
-      const hint = dateOverride.window_start || task.window_start;
       return {
         ...task,
         type: task.type === "scheduled" ? "regular" : task.type,
-        scheduled_time: hint && !task.after_task_id ? hint : void 0,
+        scheduled_time: void 0,
+        placementHint: hintFor(null),
         duration: override.duration ?? task.duration
       };
     }
     if (override) {
+      const pinned = override.scheduled_time || task.scheduled_time;
       return {
         ...task,
-        scheduled_time: override.scheduled_time || task.scheduled_time,
+        scheduled_time: pinned,
+        placementHint: hintFor(pinned),
         duration: override.duration ?? task.duration
       };
     }
-    if (!task.scheduled_time && task.window_start && !task.after_task_id) {
-      return { ...task, scheduled_time: task.window_start };
-    }
-    return task;
+    return { ...task, placementHint: hintFor(task.scheduled_time) };
   }).filter((task) => {
-    const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== "";
+    const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== "" || !!task.placementHint;
     const isAnytime = task.type === "flexible" || task.type === "floating" || task.type === "regular";
     return hasTime || isAnytime;
   });
@@ -3736,7 +3736,7 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     id: task.id,
     name: task.name,
     type: task.type,
-    time: task.scheduled_time || null,
+    time: task.scheduled_time || task.placementHint || null,
     duration: task.duration ?? 0,
     baseTime: todaysTasks.find((t) => t.id === task.id)?.scheduled_time || task.window_start || null,
     movedToday: !!(task.date_overrides?.[todayStr] || task.schedule_overrides?.[currentDay]),
@@ -3749,7 +3749,8 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     const time = ties.times.get(task.id);
     const anchor = ties.anchors.get(task.id);
     if (!time && !anchor) return task;
-    return { ...task, ...time ? { scheduled_time: time } : {}, ...anchor ? { after_task_id: anchor } : {} };
+    const moved = !time ? {} : task.scheduled_time ? { scheduled_time: time } : { placementHint: time };
+    return { ...task, ...moved, ...anchor ? { after_task_id: anchor } : {} };
   });
   const wakeRow = resolvedTasks.find((t) => t.name === "Wake Up" && t.scheduled_time);
   const [ewh, ewm] = (wakeRow?.scheduled_time || child.wake_time || "07:00").slice(0, 5).split(":").map(Number);
@@ -3794,10 +3795,18 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     if (hasTime || task.type === "floating") continue;
     const duration = task.duration ?? 30;
     const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : void 0;
-    const slot = anchorEnd != null ? (() => {
-      const start = resolveDropStart(occupied, anchorEnd, duration, dayBounds);
-      return start == null ? null : `${Math.floor(start / 60).toString().padStart(2, "0")}:${(start % 60).toString().padStart(2, "0")}`;
-    })() : findNextSlot(duration);
+    const atMinute = (start) => start == null ? null : `${Math.floor(start / 60).toString().padStart(2, "0")}:${(start % 60).toString().padStart(2, "0")}`;
+    let slot;
+    if (anchorEnd != null) {
+      slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+    } else if (task.placementHint) {
+      const [hh, hm] = task.placementHint.slice(0, 5).split(":").map(Number);
+      const hint = hh * 60 + hm;
+      const clamped = Math.max(dayBounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
+      slot = atMinute(resolveDropStart(occupied, hint, duration, dayBounds) ?? clamped);
+    } else {
+      slot = findNextSlot(duration);
+    }
     if (!slot) continue;
     const [h, m] = slot.split(":").map(Number);
     occupied.push({ start: h * 60 + m, end: h * 60 + m + duration });

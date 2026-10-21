@@ -61,40 +61,43 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     if (child && systemTaskNames.includes(task.name)) {
       const daySpecificSchedule = getSystemTaskScheduleForDay(child, task.name, currentDay, todayStr, holidays);
       if (daySpecificSchedule) {
-        return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration };
+        return { ...task, scheduled_time: daySpecificSchedule.time, duration: daySpecificSchedule.duration, placementHint: undefined as string | undefined };
       }
     }
     // Non-system tasks: per-date override wins, then per-weekday override.
+    // A set time for the day pins the task. Without one, its window_start (or
+    // the day's) is only a hint, placed below the way the parent's timeline
+    // places it (TimelineScheduleView), so both show the same time. A task
+    // that follows another ("after this") is placed after its anchor instead.
     const dateOverride = task.date_overrides?.[todayStr];
     const weekdayOverride = task.schedule_overrides?.[currentDay];
     const override = dateOverride || weekdayOverride;
+    const hintFor = (pinned: string | null | undefined) =>
+      !pinned && !task.after_task_id ? dateOverride?.window_start || task.window_start || undefined : undefined;
     if (dateOverride?.anytime) {
       // "Whenever there is room" today: it sits at its hint until dragged.
-      const hint = dateOverride.window_start || task.window_start;
       return {
         ...task,
         type: task.type === 'scheduled' ? 'regular' : task.type,
-        scheduled_time: hint && !task.after_task_id ? hint : undefined,
+        scheduled_time: undefined,
+        placementHint: hintFor(null),
         duration: override.duration ?? task.duration,
       };
     }
     if (override) {
+      // An override saved without a time keeps the task's hint.
+      const pinned = override.scheduled_time || task.scheduled_time;
       return {
         ...task,
-        scheduled_time: override.scheduled_time || task.scheduled_time,
+        scheduled_time: pinned,
+        placementHint: hintFor(pinned),
         duration: override.duration ?? task.duration,
       };
     }
-    // Use window_start as a placement hint when there's no scheduled time.
-    // A task that follows another ("after this") is placed after its
-    // anchor below instead.
-    if (!task.scheduled_time && task.window_start && !task.after_task_id) {
-      return { ...task, scheduled_time: task.window_start };
-    }
-    return task;
+    return { ...task, placementHint: hintFor(task.scheduled_time) };
   }).filter(task => {
     // Drop tasks with no resolvable time unless they're anytime tasks (flexible/floating/regular).
-    const hasTime = task.scheduled_time && task.scheduled_time.toString().trim() !== '';
+    const hasTime = (task.scheduled_time && task.scheduled_time.toString().trim() !== '') || !!task.placementHint;
     const isAnytime = task.type === 'flexible' || task.type === 'floating' || task.type === 'regular';
     return hasTime || isAnytime;
   });
@@ -104,7 +107,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     id: task.id,
     name: task.name,
     type: task.type,
-    time: task.scheduled_time || null,
+    time: task.scheduled_time || task.placementHint || null,
     duration: task.duration ?? 0,
     baseTime: todaysTasks.find(t => t.id === task.id)?.scheduled_time || task.window_start || null,
     movedToday: !!(task.date_overrides?.[todayStr] || task.schedule_overrides?.[currentDay]),
@@ -119,7 +122,9 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
       const time = ties.times.get(task.id);
       const anchor = ties.anchors.get(task.id);
       if (!time && !anchor) return task;
-      return { ...task, ...(time ? { scheduled_time: time } : {}), ...(anchor ? { after_task_id: anchor } : {}) };
+      // A tie moves a hint along; it doesn't pin the task.
+      const moved = !time ? {} : task.scheduled_time ? { scheduled_time: time } : { placementHint: time };
+      return { ...task, ...moved, ...(anchor ? { after_task_id: anchor } : {}) };
     });
   // An event's block starts when getting ready does (never before wake-up),
   // so free time and overlaps count that time as taken. Its real start
@@ -184,12 +189,21 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     if (hasTime || task.type === 'floating') continue;
     const duration = task.duration ?? 30;
     const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : undefined;
-    const slot = anchorEnd != null
-      ? (() => {
-          const start = resolveDropStart(occupied, anchorEnd, duration, dayBounds);
-          return start == null ? null : `${Math.floor(start / 60).toString().padStart(2, '0')}:${(start % 60).toString().padStart(2, '0')}`;
-        })()
-      : findNextSlot(duration);
+    const atMinute = (start: number | null) =>
+      start == null ? null : `${Math.floor(start / 60).toString().padStart(2, '0')}:${(start % 60).toString().padStart(2, '0')}`;
+    let slot: string | null;
+    if (anchorEnd != null) {
+      slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+    } else if (task.placementHint) {
+      // The nearest free gap to its hint (snapped to a neighbour's edge within
+      // 15 minutes); with no gap left, still inside the waking day.
+      const [hh, hm] = task.placementHint.slice(0, 5).split(':').map(Number);
+      const hint = hh * 60 + hm;
+      const clamped = Math.max(dayBounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
+      slot = atMinute(resolveDropStart(occupied, hint, duration, dayBounds) ?? clamped);
+    } else {
+      slot = findNextSlot(duration);
+    }
     if (!slot) continue;
     const [h, m] = slot.split(':').map(Number);
     occupied.push({ start: h * 60 + m, end: h * 60 + m + duration });
