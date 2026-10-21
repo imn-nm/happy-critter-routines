@@ -32,8 +32,11 @@ int motion_taps(void);
 void motion_add_taps(int n);
 /* How long it has been quiet, in ms. */
 uint32_t motion_still_ms(void);
-/* How long it has lain still, in ms: quieter than a hand holding it (put down on a table). */
+/* How long it has lain flat (screen up or down) and still, in ms: put down on a table. A hand holds
+ * it tipped towards the child, so holding it, however steadily, doesn't count. */
 uint32_t motion_rest_ms(void);
+/* Lying flat now, screen up or down (within MOTION_FLAT_G of level). */
+bool motion_flat(void);
 /* The last sample's movement, in g (gravity taken out): a pickup is well over MOTION_PICKUP_G. */
 float motion_energy(void);
 /* Screen facing down. */
@@ -53,7 +56,8 @@ void motion_reset(void);
 #define MOTION_TAP_SETTLE_MS 120     /* it must go quiet again within this, else it was a shake */
 #define MOTION_TAP_GAP_MS 200        /* two knocks closer than this count once */
 #define MOTION_STILL_G 0.08f         /* quiet threshold */
-#define MOTION_REST_G 0.02f          /* put down: under a hand's tremble, over the sensor's own noise */
+#define MOTION_REST_G 0.015f         /* put down: under a hand's tremble, over the sensor's own noise */
+#define MOTION_FLAT_G 0.14f          /* flat: gravity this far off straight through the screen, about 8 degrees */
 #define MOTION_PICKUP_G 0.06f        /* picked up (or the table knocked) */
 #define MOTION_FACE_DOWN_G -0.5f
 #define MOTION_DT_MIN_MS 4

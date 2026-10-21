@@ -94,7 +94,7 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms)
 
     if (e < MOTION_STILL_G) m.still_ms += dt;
     else m.still_ms = 0;
-    if (e < MOTION_REST_G) m.rest_ms += dt;
+    if (e < MOTION_REST_G && motion_flat()) m.rest_ms += dt;
     else m.rest_ms = 0;
 
     if (m.gz < MOTION_FACE_DOWN_G) m.face_down_ms += dt;
@@ -135,6 +135,12 @@ int motion_taps(void)
 void motion_add_taps(int n) { m.taps += n; }
 uint32_t motion_still_ms(void) { return m.still_ms; }
 uint32_t motion_rest_ms(void) { return m.rest_ms; }
+
+bool motion_flat(void)
+{
+    float n = sqrtf(m.gx * m.gx + m.gy * m.gy + m.gz * m.gz);
+    return m.have_gravity && n > 0.8f && n < 1.2f && sqrtf(m.gx * m.gx + m.gy * m.gy) < MOTION_FLAT_G * n;
+}
 float motion_energy(void) { return m.e; }
 bool motion_face_down(void) { return m.face_down_ms >= 300; }
 bool motion_alive(uint32_t now_ms) { return m.last_ms && now_ms - m.last_ms < MOTION_STALE_MS; }
