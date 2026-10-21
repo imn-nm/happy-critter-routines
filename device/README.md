@@ -120,6 +120,22 @@ Use the board's own port in place of COM5. <kbd>Ctrl</kbd>+<kbd>]</kbd> leaves t
 - **Start time with no network:** empty starts the clock at the firmware's build time; a time like 15:20 starts the demo day there (after school: school hours lock the carousel).
 - **Button GPIO:** BOOT (GPIO0) until the enclosure's own button is wired.
 
+Change these in menuconfig (S, Enter, Q), not in an editor: an editor holding an older copy of `sdkconfig` can save it back over the build's own rewrite, and the values are gone.
+
+### More than one handheld
+
+The token is built into the firmware, so each handheld has its own settings and build folder, both git-ignored. `sdkconfig` and `build/` are the first handheld's; another one gets `sdkconfig.board-<name>` (a copy of `sdkconfig` with its own token from "Connect a MyToki") and `build-<name>`:
+
+```bash
+idf.py -B build-noora -D SDKCONFIG=sdkconfig.board-noora menuconfig
+```
+
+```bash
+idf.py -B build-noora -D SDKCONFIG=sdkconfig.board-noora -p COM4 build flash monitor
+```
+
+Each board shows up on its own COM port; the chip's ID is in Device Manager (the USB Composite Device's instance path ends in its MAC). Pairing will replace this: the token will come over Bluetooth and live in NVS, and every handheld will run the same image.
+
 The component manager fetches Waveshare's BSP (`waveshare/esp32_s3_touch_amoled_1_75c` ^3.0.0) and LVGL 9.5.0, the versions Waveshare's `02_lvgl_demo_v9` uses.
 
 What the board layer does (`main/main.c`, `main/hal_esp32.c`):

@@ -10,3 +10,6 @@ platform/esp32s3/managed_components/
 platform/esp32s3/dependencies.lock
 platform/esp32s3/sdkconfig
 platform/esp32s3/sdkconfig.old
+# a second handheld's own settings and build (README: "More than one handheld"); they hold Wi-Fi and a token
+platform/esp32s3/sdkconfig.board-*
+platform/esp32s3/build-*/
