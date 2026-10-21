@@ -7,6 +7,7 @@ import { realtimeChannel } from "@/lib/realtime";
 import { getMyHouseholdId } from "@/utils/household";
 import { onResync, resyncOnReconnect } from "@/lib/resync";
 import { normalizeOutfit, type PetOutfit } from "@/components/pets/pixel/accessories";
+import { childFromRow } from "@/lib/childRow";
 
 // Map any stored pet_type (including legacy values) onto a current critter.
 const convertPetType = (dbPetType: string): PetId => resolvePetId(dbPetType);
@@ -106,35 +107,8 @@ export const useChildren = () => {
 
       if (error) throw error;
       
-      // Map database format to interface format
-      const mappedData = (data || []).map(child => {
-        const convertedPetType = convertPetType(child.pet_type);
-
-        return {
-          ...child,
-          petType: convertedPetType,
-          pet_color: resolvePetColour(convertedPetType, child.pet_color),
-          currentCoins: child.current_coins,
-          petHappiness: child.pet_happiness,
-          pet_outfit: normalizeOutfit(child.pet_outfit),
-          display_mode: (child.display_mode ?? null) as Child['display_mode'],
-          rest_day_date: child.rest_day_date ?? null,
-          rest_dates: child.rest_dates ?? [],
-          wake_time: child.wake_time,
-          breakfast_time: child.breakfast_time,
-          school_start_time: child.school_start_time,
-          lunch_time: child.lunch_time,
-          school_end_time: child.school_end_time,
-          dinner_time: child.dinner_time,
-          bedtime: child.bedtime,
-          school_schedule_overrides: child.school_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-          breakfast_schedule_overrides: child.breakfast_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-          lunch_schedule_overrides: child.lunch_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-          dinner_schedule_overrides: child.dinner_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-          bedtime_schedule_overrides: child.bedtime_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-          wake_schedule_overrides: child.wake_schedule_overrides as Record<string, { time: string; duration: number }> | undefined,
-        };
-      });
+      // Map database format to interface format (the MyToki handheld's server does the same)
+      const mappedData = (data || []).map(childFromRow);
       
       setChildren(mappedData);
       setLoadError(false);

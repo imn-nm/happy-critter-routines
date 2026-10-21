@@ -472,6 +472,44 @@ export type Database = {
         }
         Relationships: []
       }
+      mytoki_devices: {
+        Row: {
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          last_seen_at: string | null
+          name: string
+          token_hash: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          token_hash: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mytoki_devices_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parent_events: {
         Row: {
           child_id: string

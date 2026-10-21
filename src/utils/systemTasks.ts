@@ -155,15 +155,13 @@ export const updateSystemTaskForChild = async (
  * here, a cleanup that used to remove "duplicates" could take a parent's own
  * task with its history.
  */
-export const ensureSystemTasksExist = async (childId: string) => {
-  const existingTasks = await getSystemTasksForChild(childId);
+/** The built-in rows a child is missing, given the built-in rows they have (the MyToki handheld's
+ * server makes the same ones: supabase/functions/mytoki-device). */
+export const missingSystemTaskRows = (childId: string, existingTasks: { name: string }[]) => {
   const existingTaskNames = existingTasks.map(task => task.name);
-  const missingTemplates = systemTaskTemplates.filter(
-    template => !existingTaskNames.includes(template.name)
-  );
-
-  for (const [index, template] of missingTemplates.entries()) {
-    const { error } = await supabase.from('tasks').insert({
+  return systemTaskTemplates
+    .filter(template => !existingTaskNames.includes(template.name))
+    .map((template, index) => ({
       child_id: childId,
       name: template.name,
       type: template.type,
@@ -175,7 +173,13 @@ export const ensureSystemTasksExist = async (childId: string) => {
       description: template.description,
       sort_order: existingTasks.length + index,
       is_active: true,
-    });
+    }));
+};
+
+export const ensureSystemTasksExist = async (childId: string) => {
+  const existingTasks = await getSystemTasksForChild(childId);
+  for (const row of missingSystemTaskRows(childId, existingTasks)) {
+    const { error } = await supabase.from('tasks').insert(row);
     // 23505: another device created it first.
     if (error && error.code !== '23505') {
       console.error('Error creating missing system task:', error);

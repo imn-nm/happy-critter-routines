@@ -5,7 +5,6 @@
  * here now. Nothing in it reads React state: the inputs are the child, the
  * tasks with their completion flags, and the holidays.
  */
-import { format } from 'date-fns';
 import type { Child } from '@/hooks/useChildren';
 import type { Task } from '@/hooks/useTasks';
 import type { Holiday } from '@/hooks/useHolidays';
@@ -15,7 +14,7 @@ import { withGetReadyTime } from '@/utils/eventWindow';
 import { resolveDropStart } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
 import { clampScheduleOverlaps } from '@/utils/scheduleOverlap';
-import { getPSTDateString, getPSTDayName } from '@/utils/pstDate';
+import { getPSTDateString, getPSTDayName, toPSTDateString } from '@/utils/pstDate';
 
 export type TaskRow = Task & { isCompleted?: boolean };
 
@@ -44,7 +43,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
       return task.task_date === todayStr;
     }
     if (!task.is_recurring && !task.task_date && task.created_at) {
-      const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+      const createdDate = toPSTDateString(task.created_at);   // the household's day, on any clock (the handheld's server runs on UTC)
       return createdDate === todayStr;
     }
     return false;
@@ -255,7 +254,7 @@ export function todaysChores(tasksWithCompletion: TaskRow[]) {
     }
     if (task.task_date) return task.task_date === todayStr;
     if (task.created_at) {
-      const createdDate = format(new Date(task.created_at), 'yyyy-MM-dd');
+      const createdDate = toPSTDateString(task.created_at);
       return createdDate === todayStr;
     }
     return false;

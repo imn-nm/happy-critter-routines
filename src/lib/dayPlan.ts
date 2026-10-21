@@ -8,7 +8,7 @@ import type { Child } from '@/hooks/useChildren';
 import type { TaskCompletion } from '@/hooks/useTasks';
 import type { Reward, RewardPurchase } from '@/hooks/useRewards';
 import type { ParentNote } from '@/hooks/useParentNotes';
-import { isApprovedStatus } from '@/hooks/useRewards';
+import { isApprovedStatus } from '@/lib/rewardStatus';
 import { petNick, resolvePetColour } from '@/components/pets/petCatalog';
 import { displayModeFor } from '@/utils/displayMode';
 import { isBedtimeRoutine } from '@/utils/dayTies';

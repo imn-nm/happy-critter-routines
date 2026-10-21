@@ -36,7 +36,7 @@ export interface RewardPurchase {
   status: PurchaseStatus | string;
 }
 
-export const isApprovedStatus = (s: string) => s === 'approved' || s === 'completed';
+export { isApprovedStatus } from '@/lib/rewardStatus';
 
 /**
  * The star functions raise fixed codes (see 20260925035254_atomic_stars.sql).

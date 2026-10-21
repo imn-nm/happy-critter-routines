@@ -16,6 +16,7 @@ import SchoolScheduleManager from "@/components/SchoolScheduleManager";
 import { supabase } from "@/integrations/supabase/client";
 import { syncSchoolRoutines } from "@/hooks/useRoutines";
 import DisplayModePicker from "@/components/DisplayModePicker";
+import MyTokiConnect from "@/components/MyTokiConnect";
 import { displayModeFor, type DisplayMode } from "@/utils/displayMode";
 import { Caption, ChoiceButton, SectionHeading, SelectTile, SheetHeader, TimeTile } from "@/components/sheet/SheetParts";
 import { fmtLen, fmtTime, sheetFooterClass } from "@/components/sheet/sheetStyles";
@@ -360,6 +361,12 @@ const ChildProfileEdit = ({ child, onUpdateChild, onDeleteChild, open, onOpenCha
               age={formData.age ? parseInt(formData.age) : child.age}
               childName={formData.name.trim() || child.name}
             />
+          </section>
+
+          {/* The MyToki handhelds that get this child's day */}
+          <section className="flex flex-col gap-2.5">
+            <SectionHeading id="q-mytoki">MyToki</SectionHeading>
+            <MyTokiConnect childId={child.id} childName={formData.name.trim() || child.name} />
           </section>
 
           {/* Daily routine — each anchor starts at a time and lasts a while.

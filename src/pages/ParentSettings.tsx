@@ -24,6 +24,7 @@ import { soundsEnabled, setSoundsEnabled } from "@/lib/sounds";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EditButton } from "@/components/IconActionButtons";
+import MyTokiConnect from "@/components/MyTokiConnect";
 
 /**
  * Parent account settings.
@@ -450,6 +451,12 @@ function EditChildDialog({
               childName={name.trim() || child?.name}
             />
           </div>
+          {child && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-12 text-focus-muted">MyToki</Label>
+              <MyTokiConnect childId={child.id} childName={name.trim() || child.name} />
+            </div>
+          )}
           {err && <p className="text-12 text-focus-coral">{err}</p>}
           <DialogFooter className="gap-sp-2 pt-sp-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>

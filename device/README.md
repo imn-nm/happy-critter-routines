@@ -1,6 +1,6 @@
 # MyToki on the device
 
-The child's round screen, built for the **Waveshare ESP32-S3-Touch-AMOLED-1.75C** (466 × 466 AMOLED, CO5300 over QSPI, CST9217 touch, ES8311 speaker, 8 MB PSRAM). It follows the Figma section **Child UI · New UI** (node 1052:5356) and its **MyToki 2** design system: the whole day from the morning alarm to the night clock on the dock, the button at 1 o'clock, the carousel, picture view and Playtime. Biscuit's room fills the round screen and shrinks into the middle circle once fewer than 10 minutes are left; a dashed timer runs round the rim (mint, amber under 10 minutes, coral when running late); the hill at the bottom says what's next and opens the day. Today's schedule, Chores and Other things to finish are wheels: the row now sits on the focus line, the ones before and after are smaller and fainter, and the list scrolls under the finger. The shared parts (Header, Pill, Timer, Hill, Note, Speech, Side nav, Button, Tab) are placed and coloured as the Figma components are; `platform/sim/snap.mjs` renders every screen so it can be laid next to its Figma frame.
+The child's round screen, built for the **Waveshare ESP32-S3-Touch-AMOLED-1.75C** (466 × 466 AMOLED, CO5300 over QSPI, CST9217 touch, ES8311 speaker, 8 MB PSRAM). It follows the Figma section **Child UI · New UI** (node 1052:5356) and its **MyToki 2** design system: the whole day from the morning alarm to the night clock on the dock, the button at 1 o'clock, the carousel, picture view and Playtime. Biscuit's room fills the round screen and shrinks into the middle circle once fewer than 10 minutes are left; a dashed timer runs round the rim (mint, amber under 10 minutes, coral when running late); the hill at the bottom says what's next and opens the day. Today's schedule, Chores and Other things to finish are wheels: the row now sits on the focus line, the ones before and after are smaller and fainter, and the list scrolls under the finger and always stops on a row: a flick moves exactly one row, a longer drag lands on the row nearest the line (`wheel_released` in `ui/widgets.c`). The shared parts (Header, Pill, Timer, Hill, Note, Speech, Side nav, Button, Tab) are placed and coloured as the Figma components are; `platform/sim/snap.mjs` renders every screen so it can be laid next to its Figma frame.
 
 The same C code runs in two places:
 
@@ -34,6 +34,18 @@ device/
 ## On the web app
 
 The same firmware is the child view: `/child/:childId` draws the Circle on a canvas (the older list view is at `/child/:childId/list`) and feeds it the child's real day, built by `src/lib/dayPlan.ts` from the same schedule the list view uses (`src/utils/todaysSchedule.ts`). What the child does on it (a task or chore done, a reward asked for, an outfit, their buddy) is saved the way the list view saves it. The device draws Biscuit, the Robot and the Fox; a child whose character is not on the device yet (Dino, Dragon) sees Biscuit there. After changing `app/`, run `npm run circle:build` to rebuild `public/mytoki.wasm`.
+
+## The server (for the handheld)
+
+A handheld gets the same plan from the `mytoki-device` Supabase Edge Function (`supabase/functions/mytoki-device`). `GET` answers with today's plan: it loads what the browser's hooks load and builds it with the browser's own code (`src/lib/devicePlan.ts`, bundled into the function's `plan.js` by `npm run device:function`). `POST` takes one event (`docs/day-plan.md`) and saves it as `ChildCircleView` does, after checking the task, reward or note is this child's. An event keeps its own date and time, so what the child did offline lands when it happened. What can never be saved is answered 200 "ignored", since the handheld retries anything else, oldest first.
+
+Each handheld has its own token, tied to one child in `mytoki_devices`. The table keeps only the token's SHA-256, and the parent sees the token once, when they connect it in the child's settings (`src/components/MyTokiConnect.tsx`). The gateway's JWT check is off for this function (`supabase/config.toml`), as the function checks the token itself.
+
+After changing the plan code, run `npm run device:function`, then deploy:
+
+```bash
+npx supabase@2.121.0 functions deploy mytoki-device --project-ref xbtgkklhdhgwxtzbcvgd --no-verify-jwt --use-api
+```
 
 ## Run the simulator
 
@@ -72,7 +84,17 @@ node device/platform/sim/snap.mjs shots.json device/build/snaps
 
 ## Run it on the board
 
-Install ESP-IDF 5.5 (or 6.0), then:
+Install ESP-IDF 5.5 (it builds with 5.5.6). On Windows, Espressif's installer does it in one go and adds an "ESP-IDF PowerShell" shortcut, the terminal to run `idf.py` in:
+
+```bash
+winget install Espressif.EIM-CLI
+```
+
+```bash
+eim install -i v5.5.6 -t esp32s3
+```
+
+Plug the board in with a USB-C cable that carries data (hold BOOT while plugging in if no COM port appears), then:
 
 ```bash
 cd device/platform/esp32s3
@@ -87,36 +109,44 @@ idf.py menuconfig
 ```
 
 ```bash
-idf.py build flash monitor
+idf.py -p COM5 build flash monitor
 ```
 
-Under **MyToki** in menuconfig:
+Use the board's own port in place of COM5. <kbd>Ctrl</kbd>+<kbd>]</kbd> leaves the monitor. Menuconfig can be skipped for the demo day. Under **MyToki** in menuconfig:
 
 - **Wi-Fi network and password.**
-- **Day plan URL:** leave it empty to run the built-in demo day with no server.
-- **Events URL.**
-- **Device token.**
+- **Day plan URL, Events URL and Device token:** "Connect a MyToki" in the child's settings (Settings → the child's edit button, or the settings sheet on their dashboard) gives the token, shown once, and the URL, the same for both (the `mytoki-device` Edge Function, below). Leave the URL empty to run the built-in demo day with no server.
 - **Time zone:** Pacific by default, the same as the web app.
+- **Start time with no network:** empty starts the clock at the firmware's build time; a time like 15:20 starts the demo day there (after school: school hours lock the carousel).
 - **Button GPIO:** BOOT (GPIO0) until the enclosure's own button is wired.
 
 The component manager fetches Waveshare's BSP (`waveshare/esp32_s3_touch_amoled_1_75c` ^3.0.0) and LVGL 9.5.0, the versions Waveshare's `02_lvgl_demo_v9` uses.
 
-What the board layer does (`main/hal_esp32.c`):
+What the board layer does (`main/main.c`, `main/hal_esp32.c`):
 
 | | |
 |---|---|
-| Display, touch | the BSP (`bsp_display_start`, CO5300 QSPI + CST9217); LVGL runs in the BSP's task, and every call into the app takes `bsp_display_lock` |
+| Display, touch | the BSP's panel and touch (`bsp_display_new`, `bsp_touch_new`: CO5300 QSPI at 40 MHz + CST9217) handed to LVGL by `main.c` with its own draw buffers: two of 64 rows in internal RAM, which the SPI driver sends straight out (it can't from PSRAM: 466 px rows never meet its 64-byte alignment, so it tried to copy every strip into internal RAM and failed). LVGL runs in the adapter's task with a 16 KB stack; every call into the app takes `bsp_display_lock` |
 | Clock | SNTP when online; the server's `Date` header as a fallback; the firmware's build time with no network, so the demo runs offline |
 | Day plan | `GET` the plan URL with `Authorization: Bearer <token>`, refreshed every 5 minutes and at midnight |
 | Events | `POST` to the events URL; kept in NVS and retried every 20 s while offline |
 | Storage | NVS namespace `mytoki`: the day's progress, celebrations already shown, the outfit, the game bests (`carrot-best`, `maze-best-0..2`, `says-best`, `stack-best`) |
-| Button | GPIO, active low, 30 ms debounce |
-| Motion | the board's QMI8658 over the BSP's I2C bus at 100 Hz (`CONFIG_MYTOKI_IMU`), handed to `mytoki_motion()`; the product's LIS2DH12 swaps in behind the same call, its click interrupt feeding `motion_add_taps()`. The axis mapping (`IMU_AX/AY/AZ`, `IMU_S*`) is set on the bench |
+| Button | GPIO, active low, 30 ms debounce; queued and handed to the app by an LVGL timer, like motion |
+| Motion | the board's QMI8658 over the BSP's I2C bus at 100 Hz (`CONFIG_MYTOKI_IMU`), handed to `mytoki_motion()` in LVGL's task; the product's LIS2DH12 swaps in behind the same call, its click interrupt feeding `motion_add_taps()`. The axis mapping (`IMU_AX/AY/AZ`, `IMU_S*`) is set on the bench |
 | Sound | chimes synthesised into the ES8311 (start, done, tick, "soon", the MyToki chime G5→C6, bedtime) |
 | Speech | not on the board yet (picture view's read-aloud is a no-op there; the simulator uses the browser's voice) |
 | Brightness | `bsp_display_brightness_set`: dimmed at night |
+| Memory | internal RAM is kept for what needs it (the draw buffers, task stacks, the speaker's and the panel's DMA, Wi-Fi): the app's static buffers (Biscuit's room grids, the game stage, ~126 KB) live in PSRAM through `main/linker.lf`, LVGL allocates from PSRAM first (`main/lv_mem_psram.c`), and LVGL's code stays in flash rather than IRAM. Wi-Fi starts last, after the display has its buffers, with its code out of IRAM, fewer buffers than PSRAM's defaults (6 RX, 8 TX, RX window 6) and TLS buffers in PSRAM: with the defaults the display, then Wi-Fi, failed to start |
 
-> **Not yet built on hardware.** The board project was written against the BSP 3.0.0 API but hasn't been compiled here: this machine has no ESP-IDF. The simulator build compiles the same `app/` code with Clang and no warnings.
+Runs on the board (first flashed 2026-10-20): screen, touch, the speaker, the QMI8658 and the demo day all come up. Changing `sdkconfig.defaults` doesn't touch an existing `sdkconfig`: delete it (it is generated and git-ignored) to pick the defaults up again.
+
+**Speed on the board.** A frame where the whole screen changes (a page turn, the day's sheet rising) takes about 60 ms to draw, so those run at roughly 16 to 20 frames a second; Biscuit animating on Home costs about 7 ms a frame plus a ~10 ms partial redraw. What it took, and what to keep in mind when adding screens:
+
+- `UI_DEPTH 0` (set in `main/CMakeLists.txt`): no effects that draw through a layer of their own every frame. The carousel slides flat instead of the pyramid (which managed 3 frames a turn), and the wheels' rows fade part by part without shrinking (`ui_row_scale`, `ui_row_fade`). Scaling something, `opa_layered`, blend modes and bitmap masks each cost a full off-screen render on this chip.
+- Biscuit's rooms and the Playtime stage repaint only the cells that changed since the last frame and invalidate only that rectangle (`led_cache_t` in `pet/led.h`). Repainting the whole 466 px room took 64 ms a frame. The simulator and the web app keep invalidating the whole room, so they look exactly as before.
+- LVGL calls a draw handler once per 64-row strip, so handlers that draw many small shapes skip the ones outside the strip (`ui_in_strip`): the timer's dashes alone made 500 draw tasks a frame.
+
+To profile on the board, turn on LVGL's built-in profiler in `sdkconfig` (`CONFIG_LV_USE_PROFILER`, `CONFIG_LV_PROFILER_DRAW`, with `CONFIG_LV_PROFILER_INCLUDE="src/misc/lv_profiler_builtin.h"`, as the component folder isn't called `lvgl`) and give it a buffer of 1 MB in PSRAM, so it doesn't print mid-frame over the 115200-baud console.
 
 ## How it's put together
 
@@ -139,7 +169,7 @@ What the board layer does (`main/hal_esp32.c`):
 
 ## Not done yet
 
-- **A server endpoint for the plan.** Today the simulator and the board use demo plans. The next step is a Supabase Edge Function that builds `docs/day-plan.md` from the parent's data and accepts the events.
-- **Device pairing and Wi-Fi setup.** With no device token the board shows its pairing code (`mytoki_day_failed(3)`); the app side that turns the code into a token does not exist yet, and Wi-Fi still comes from menuconfig.
-- **Motion on hardware.** The QMI8658 task is written against the datasheet and the esp-bsp I2C helpers (`bsp_i2c_init`, `bsp_i2c_get_handle`) but has never run; the axis signs need a bench test, and knocks may need the sensor's own click detector.
+- **Device pairing and Wi-Fi setup.** A handheld is connected by pasting its token into menuconfig, and Wi-Fi comes from there too. The pairing the board was built for (it shows a 4-digit code with no token, `mytoki_day_failed(3)`, and the app sends Wi-Fi over Bluetooth) needs an app side that turns the code into a token.
+- **Motion on hardware.** The QMI8658 answers on the board (who-am-I 0x05) and streams at 100 Hz, but the axis signs (`IMU_S*`) still need a bench test with the motion games, and knocks may need the sensor's own click detector.
+- **Smoother full-screen motion.** Page turns and the day's sheet run at 16 to 20 frames a second on the board (see Speed on the board). The next step would be to draw each moving page once into a picture as the gesture starts and slide the pictures, rather than redrawing everything every frame.
 - **Speech on the board.** The dock and the battery are read through `hal_docked()` and `hal_battery()`, which the board answers with "no" and 100% until the enclosure's charger-detect pin and fuel gauge exist.
