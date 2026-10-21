@@ -260,7 +260,7 @@ void header_create(lv_obj_t *parent, header_t *h)
     lv_obj_set_flex_flow(h->root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(h->root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(h->root, 0, 0);
-    h->clock = ui_label(h->root, F_CLOCK_LINE, C_TEXT, "");
+    h->clock = ui_label(h->root, F_HEADER_CLOCK, C_TEXT_MUTED, "");
     h->title = ui_label(h->root, F_TITLE, C_TEXT, "");
     lv_obj_set_style_max_width(h->title, 256, 0);
     lv_obj_set_style_text_align(h->title, LV_TEXT_ALIGN_CENTER, 0);
@@ -282,9 +282,11 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     if (c) ui_set_text(h->clock, clock);
     ui_show(h->title, t);
     if (t) ui_set_text(h->title, title);
-    /* the title's text box starts 24 px under the clock's (Figma: 28 px line, -4 gap); with no title
-     * the pill sits right under the clock, clear of the wheel's pointer at y 90 */
-    if (lv_obj_get_style_margin_top(h->title, 0) != (c ? -4 : 0)) lv_obj_set_style_margin_top(h->title, c ? -4 : 0, 0);
+    /* the title's text box starts 20 px under the clock's (Figma: 18 px clock on a 24 px line, -4 gap:
+     * the title at y 43); with no title the pill sits right under the clock, clear of the wheel's
+     * pointer at y 90 */
+    int32_t title_gap = c ? 20 - lv_font_get_line_height(F_HEADER_CLOCK) : 0;
+    if (lv_obj_get_style_margin_top(h->title, 0) != title_gap) lv_obj_set_style_margin_top(h->title, title_gap, 0);
     /* the pill alone (Figma Free time · Spin: clock and title hidden) sits 30 down, at y 53 */
     int32_t pill_gap = !c && !t ? 30 : c && !t ? 0 : 6;
     if (lv_obj_get_style_margin_top(h->pill.root, 0) != pill_gap) lv_obj_set_style_margin_top(h->pill.root, pill_gap, 0);
@@ -572,6 +574,8 @@ lv_obj_t *scrim_create(lv_obj_t *parent)
 /* Figma "Fade" on the screens with a scroll list: black behind the title, so rows that turn up under
  * the header slip out of sight. 370 x 99 from x 48, solid to 33 %, clear by 69 %. Put it on after the
  * list and before the header. `y` is its top (the Younger schedule: 89). */
+static void free_user_grad(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
+
 lv_obj_t *list_fade_create(lv_obj_t *parent, int32_t y)
 {
     lv_obj_t *o = ui_box(parent);
@@ -584,6 +588,22 @@ lv_obj_t *list_fade_create(lv_obj_t *parent, int32_t y)
     g.stops[1].color = COL(C_SCREEN); g.stops[1].opa = LV_OPA_TRANSP; g.stops[1].frac = 176;
     lv_obj_set_style_bg_grad(o, &g, 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    return o;
+}
+
+lv_obj_t *top_fade_create(lv_obj_t *parent, int32_t black_to, int32_t clear_by)
+{
+    lv_obj_t *o = ui_box(parent);
+    lv_obj_set_size(o, 400, clear_by);
+    lv_obj_set_pos(o, 33, 0);
+    lv_grad_dsc_t *g = lv_malloc_zeroed(sizeof *g);
+    g->dir = LV_GRAD_DIR_VER;
+    g->stops_count = 2;
+    g->stops[0].color = COL(C_SCREEN); g->stops[0].opa = LV_OPA_COVER; g->stops[0].frac = (uint8_t)(255 * black_to / clear_by);
+    g->stops[1].color = COL(C_SCREEN); g->stops[1].opa = LV_OPA_TRANSP; g->stops[1].frac = 255;
+    lv_obj_set_style_bg_grad(o, g, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_add_event_cb(o, free_user_grad, LV_EVENT_DELETE, g);
     return o;
 }
 

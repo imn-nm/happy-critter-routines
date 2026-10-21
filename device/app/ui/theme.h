@@ -71,7 +71,8 @@
 #define COL(hex) lv_color_hex(hex)
 
 /* ---- type: the MyToki 2/ text styles ---- */
-#define F_CLOCK_LINE (&font_pop500_22)   /* Clock: the small time above the title */
+#define F_CLOCK_LINE (&font_pop500_22)   /* Clock 22 ("You earned it!") */
+#define F_HEADER_CLOCK (&font_pop500_18) /* the Header's clock above the title: 18, muted */
 #define F_TITLE      (&font_pop700_30)   /* Title 30, Poppins Bold */
 #define F_DISPLAY    (&font_mon700_32)   /* Display 32: celebrations */
 #define F_CLOCK      (&font_mon600_52)   /* Big number 52: the night clock, the pairing code (digits) */
@@ -80,7 +81,8 @@
 #define F_NEXT_LABEL (&font_sg500_22)    /* "Next" on the hill */
 #define F_NEXT_TIME  (&font_sg700_22)    /* its start time */
 #define F_NEXT_TASK  (&font_sg700_24)    /* its name */
-#define F_ITEM       (&font_pop600_22)   /* Item 22: row titles */
+#define F_ITEM       (&font_pop600_24)   /* Item 24: row titles */
+#define F_ITEM_BIG   (&font_pop600_32)   /* the picture view's row now (Today's schedule · Younger) */
 #define F_BODY_P     (&font_pop500_22)   /* Body 22 */
 #define F_DETAIL     (&font_pop500_20)   /* Detail 20: second lines, the smallest a child reads */
 #define F_BUTTON     (&font_pop700_22)   /* Button 22 */

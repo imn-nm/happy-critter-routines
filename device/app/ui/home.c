@@ -27,8 +27,8 @@ static const char *const WORM[] = {
 /* the Get ready checklist: rows 59 apart round the centre line */
 #define STEPS_Y 100
 #define STEPS_H 268
-#define STEPS_ROW 87          /* row centres 145, 232, 319 (Figma) */
-#define STEPS_FOCUS 232
+#define STEPS_ROW 92          /* row centres 145, 238, 330 (Figma Going out · Get ready, 1093:8088) */
+#define STEPS_FOCUS 238
 #define TAP_D 412             /* the tap ring: just inside the timer (223 out, 9 wide), round the middle */
 #define TAP_CY CENTER
 
@@ -170,44 +170,52 @@ static void twinkle_exec(void *obj, int32_t v)
 }
 
 /* Figma Going out · Get ready (Step rows): the step now is a lime row 348 wide, fully round, on the
- * centre line; the one above (done, mint) shows at 30%, the one below (lime) at 50%, both 0.865 the
- * size; further ones fade out. A black fade over the top row lets it slip under the header. */
+ * centre line, its words Pill 24; the ones above (done, mint) and below (lime) are 301 wide at 30%,
+ * their words Detail 20 (the number and the Checkbox stay their size); further ones fade out. A black
+ * fade over the top lets the row above slip under the header. */
 static void steps_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), near = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 1.0f);
-    float base = (intptr_t)lv_obj_get_user_data(card) ? 0.30f : 0.50f;
-    float opa = (1.0f - (1.0f - base) * near) * fmaxf(0.0f, 1.0f - far / 0.6f);
-    int32_t s = (int32_t)(256 * (1.0f - 0.135f * near - 0.05f * far));
-    ui_row_scale(card, s, false);
-    ui_row_fade(card, (lv_opa_t)(255 * opa));   /* the row fades as one, like Figma */
+    int32_t w = (int32_t)lroundf(348 - 47 * near);
+    if (lv_obj_get_width(card) != w) {
+        lv_obj_set_width(card, w);
+        lv_obj_t *l = lv_obj_get_child(card, 1);
+        const lv_font_t *f = near < 0.5f ? F_PILL : F_DETAIL;   /* the words switch half way out */
+        if (lv_obj_get_style_text_font(l, 0) != f) {
+            lv_obj_set_style_text_font(l, f, 0);
+            lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(f) - 2, 0);   /* two lines at most */
+        }
+    }
+    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.7f * near) * fmaxf(0.0f, 1.0f - far / 0.6f)));   /* the row fades as one, like Figma */
 }
 
 /* a tap on any step checks or unchecks it, in any order; sent once the click is over */
 static void step_tapped(void *i) { if (h.cb) h.cb(HOME_TAP_STEP, (int)(intptr_t)i); }
 static void on_step(lv_event_t *e) { lv_async_call(step_tapped, lv_event_get_user_data(e)); }
 
-/* Figma "Step": 348 wide, 12 / 16 padding, gap 8: "2." (Detail 20), the step (Pill 24, up to two
- * lines of 30), the Checkbox (48). 72 high with one line, 84 with two. */
+/* Figma "Step": 348 wide, 16 / 24 padding, gap 16: the number ("2.", Detail 20 in cream) on a 35 px
+ * amber disc, the step (Pill 24, up to two lines of 30), the Checkbox (48). 80 high with one line. */
 static void steps_build(const home_view_t *v)
 {
     wheel_list_clear(&h.steps);
     for (int i = 0; i < v->steps_total && i < HOME_STEPS_MAX; i++) {
         bool done = v->steps_ticked & (1u << i);
         lv_obj_t *slot = wheel_list_add(&h.steps);
-        lv_obj_t *row = ui_row(slot, 8);
+        lv_obj_t *row = ui_row(slot, 16);
         lv_obj_set_width(row, 348);
         lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_min_height(row, 72, 0);
+        lv_obj_set_style_min_height(row, 80, 0);
         lv_obj_center(row);
         ui_style_card(row, done ? C_DONE : C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
-        lv_obj_set_style_pad_ver(row, 12, 0);
-        lv_obj_set_style_pad_hor(row, 16, 0);
-        lv_obj_set_style_transform_pivot_x(row, lv_pct(50), 0);
-        lv_obj_set_style_transform_pivot_y(row, lv_pct(50), 0);
+        lv_obj_set_style_pad_ver(row, 16, 0);
+        lv_obj_set_style_pad_hor(row, 24, 0);
         lv_obj_set_user_data(row, (void *)(intptr_t)done);
         char num[8];
         snprintf(num, sizeof num, "%d.", i + 1);
-        ui_label(row, F_DETAIL, C_ON_COLOR, num);
+        lv_obj_t *disc = ui_box(row);
+        lv_obj_set_size(disc, 35, 35);
+        ui_style_card(disc, C_HURRY, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_center(ui_label(disc, F_DETAIL, C_TEXT, num));
         lv_obj_t *l = ui_label(row, F_PILL, C_ON_COLOR, v->step_text[i]);
         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_line_space(l, -2, 0);                       /* 30 px lines, as Figma's 125% */
@@ -319,19 +327,9 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     /* Get ready: the checklist */
     wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, STEPS_FOCUS - STEPS_Y, STEPS_ROW);
     h.steps.style = steps_style;
-    /* Figma "Fade" over the top row: black down past the header's pill (y 131), clear by the top of
-     * the row on the line (y 196), so the finished step slips under the header instead of showing
-     * through it */
-    h.steps_fade = ui_box(page);
-    lv_obj_set_pos(h.steps_fade, 59, STEPS_Y);
-    lv_obj_set_size(h.steps_fade, 348, 96);
-    static lv_grad_dsc_t fade;
-    fade.dir = LV_GRAD_DIR_VER;
-    fade.stops_count = 2;
-    fade.stops[0].color = COL(C_SCREEN); fade.stops[0].opa = LV_OPA_COVER; fade.stops[0].frac = 90;    /* y 134 */
-    fade.stops[1].color = COL(C_SCREEN); fade.stops[1].opa = LV_OPA_TRANSP; fade.stops[1].frac = 255;
-    lv_obj_set_style_bg_grad(h.steps_fade, &fade, 0);
-    lv_obj_set_style_bg_opa(h.steps_fade, LV_OPA_COVER, 0);
+    /* Figma "Fade" over the top: black down to y 86, clear by 152, so the finished step slips under
+     * the header and its pill instead of showing through them */
+    h.steps_fade = top_fade_create(page, 86, 152);
     h.graphic = (home_graphic_t)-1;
 
     h.scrim = scrim_create(page);

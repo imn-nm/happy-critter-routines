@@ -88,6 +88,9 @@ void hill_set_dots(hill_t *h, int page);
 lv_obj_t *faint_circle_create(lv_obj_t *parent);
 lv_obj_t *scrim_create(lv_obj_t *parent);
 lv_obj_t *list_fade_create(lv_obj_t *parent, int32_t y);
+/* Figma "Fade" over the top of a wheel (Today's schedule, the checklist): 400 wide from x 33, black
+ * from the top of the screen down to `black_to`, clear by `clear_by`; the header goes on top of it. */
+lv_obj_t *top_fade_create(lv_obj_t *parent, int32_t black_to, int32_t clear_by);
 
 /* ---- the old dot ring: still used by the loading comet, the reward spotlight and the halos ---- */
 typedef struct {
