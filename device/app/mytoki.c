@@ -270,6 +270,15 @@ static void first_word(char *dst, size_t n, const char *title)
     dst[i] = 0;
 }
 
+/* A length for the child to read: "45 min" under an hour, then "2 hr" or "3 hr 47 min". */
+static const char *hr_min(char *dst, size_t n, int minutes)
+{
+    if (minutes < 60) snprintf(dst, n, "%d min", minutes);
+    else if (minutes % 60 == 0) snprintf(dst, n, "%d hr", minutes / 60);
+    else snprintf(dst, n, "%d hr %d min", minutes / 60, minutes % 60);
+    return dst;
+}
+
 static void say(const char *key, const char *text, uint32_t ms)
 {
     if (!text) return;
@@ -1088,7 +1097,7 @@ static void build_view(home_view_t *v)
     const day_plan_t *p = app.plan;
     const logic_now_t *n = &app.now;
     const int now_m = app.now_s / 60;
-    char buf[96];
+    char buf[96], len[24];
     v->sides = v->dots = true;
     v->title_color = C_TEXT;
     v->icon_color = C_TEXT;
@@ -1140,7 +1149,7 @@ static void build_view(home_view_t *v)
         } else {
             int left = logic_minutes_left(n, p, app.focus, app.now_s);
             v->below = BELOW_TIME;
-            snprintf(v->status, sizeof v->status, "%d min left", left);
+            snprintf(v->status, sizeof v->status, "%s left", hr_min(len, sizeof len, left));
             snprintf(v->status_icon, sizeof v->status_icon, "timer");
             int32_t total = (t->end - n->start[app.focus]) * 60, rem = t->end * 60 - app.now_s;
             if (n->run_start[app.focus] >= 0) {   /* started by the button: its own full length from the press */
@@ -1201,7 +1210,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d min \xC2\xB7 waiting", t->end - t->start);
+        snprintf(v->status, sizeof v->status, "%s \xC2\xB7 waiting", hr_min(len, sizeof len, t->end - t->start));
         snprintf(v->status_icon, sizeof v->status_icon, "clock");
         v->timer_show = true;
         v->timer_tone = TIMER_PLENTY;
@@ -1235,7 +1244,7 @@ static void build_view(home_view_t *v)
         int mins = t->event_start - now_m;
         snprintf(v->icon, sizeof v->icon, "backpack");
         snprintf(v->title, sizeof v->title, ready ? "You\xE2\x80\x99re ready!" : "Get ready");
-        snprintf(v->status, sizeof v->status, "%s in %d min", shortname, mins);
+        snprintf(v->status, sizeof v->status, "%s in %s", shortname, hr_min(len, sizeof len, mins));
         v->below = BELOW_TIME;
         snprintf(v->status_icon, sizeof v->status_icon, "%s", ready ? "check" : t->icon);
         int32_t total = (t->event_start - n->start[app.focus]) * 60, rem = t->event_start * 60 - app.now_s;
@@ -1262,7 +1271,7 @@ static void build_view(home_view_t *v)
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
         int left = logic_minutes_left(n, p, app.focus, app.now_s);
-        snprintf(v->status, sizeof v->status, "%d min left", left);
+        snprintf(v->status, sizeof v->status, "%s left", hr_min(len, sizeof len, left));
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
         int32_t total = (t->end - t->event_start) * 60, rem = t->end * 60 - app.now_s;
         timed(v, left, rem, total, PILL_CALM);
@@ -1277,7 +1286,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "kite");
         snprintf(v->title, sizeof v->title, "Free time");
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d min left", left);
+        snprintf(v->status, sizeof v->status, "%s left", hr_min(len, sizeof len, left));
         snprintf(v->status_icon, sizeof v->status_icon, "kite");
         timed(v, left, rem, total, PILL_DONE);
         bool can_play = rem - GET_READY_S > 0;
@@ -1396,7 +1405,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Bedtime soon");
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "Starts in %d min", mins);
+        snprintf(v->status, sizeof v->status, "Starts in %s", hr_min(len, sizeof len, mins));
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
         timed(v, mins, left, BED_SOON_S, PILL_CALM);
         v->mood = PET_MOOD_DROWSY;
@@ -1509,8 +1518,8 @@ static void free_time_gift(void)
         const char *id = app.plan->free[i].id;
         if (now_m < app.plan->free[i].start || now_m >= app.plan->free[i].end || !strcmp(id, app.gift_seen)) continue;
         snprintf(app.gift_seen, sizeof app.gift_seen, "%s", id);
-        char line[48], key[48];
-        snprintf(line, sizeof line, "Free time! %d minutes", app.plan->free[i].end - app.plan->free[i].start);
+        char line[48], key[48], len[24];
+        snprintf(line, sizeof line, "Free time! %s", hr_min(len, sizeof len, app.plan->free[i].end - app.plan->free[i].start));
         snprintf(key, sizeof key, "free:%.40s", id);
         screen_wake();
         if (schedule_is_open()) overlays_close_all();
