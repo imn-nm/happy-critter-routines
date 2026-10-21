@@ -2,6 +2,8 @@
 // handheld's server builds its day plan with the browser's own code. Run after changing anything
 // the plan is built from (npm run device:function), then deploy the function.
 import { build } from "esbuild";
+import { createHash } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,9 +34,10 @@ const resolve = {
   },
 };
 
-await build({
+const outfile = path.join(root, "supabase/functions/mytoki-device/plan.js");
+const out = await build({
   entryPoints: [path.join(root, "src/lib/devicePlan.ts")],
-  outfile: path.join(root, "supabase/functions/mytoki-device/plan.js"),
+  outfile,
   bundle: true,
   format: "esm",
   platform: "neutral",
@@ -47,4 +50,11 @@ await build({
   banner: { js: "// Generated from src/lib/devicePlan.ts by `npm run device:function`: don't edit by hand." },
   plugins: [resolve],
   logLevel: "info",
+  write: false,
 });
+
+// PLAN_REV: which build of the plan code made a day, so the function's ETag changes with it (a
+// handheld's "not changed" from before a deploy can't hold back a day built a new way)
+const code = out.outputFiles[0].text;
+const rev = createHash("sha256").update(code).digest("hex").slice(0, 10);
+writeFileSync(outfile, `${code}export const PLAN_REV = "${rev}";\n`);

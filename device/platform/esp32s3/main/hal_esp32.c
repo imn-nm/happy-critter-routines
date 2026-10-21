@@ -32,6 +32,8 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "nvs_flash.h"
+#include "esp_partition.h"
+#include "esp_timer.h"
 #include "nvs.h"
 #include "driver/gpio.h"
 #include "bsp/esp-bsp.h"
@@ -96,19 +98,20 @@ static time_t utc_mktime(struct tm *t)
 }
 
 /* "Tue, 06 Oct 2026 22:31:05 GMT" from the server, when SNTP hasn't answered yet */
-static void clock_from_http_date(const char *v)
+static bool clock_from_http_date(const char *v)
 {
     static const char *MON = "JanFebMarAprMayJunJulAugSepOctNovDec";
     char mon[4] = { 0 };
     struct tm t = { 0 };
-    if (sscanf(v, "%*3s, %d %3s %d %d:%d:%d", &t.tm_mday, mon, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec) != 6) return;
+    if (sscanf(v, "%*3s, %d %3s %d %d:%d:%d", &t.tm_mday, mon, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec) != 6) return false;
     const char *p = strstr(MON, mon);
-    if (!p) return;
+    if (!p) return false;
     t.tm_mon = (int)(p - MON) / 3;
     t.tm_year -= 1900;
     struct timeval tv = { .tv_sec = utc_mktime(&t) };
     settimeofday(&tv, NULL);
     ESP_LOGI(TAG, "clock set from the server: %s", v);
+    return true;
 }
 
 /* The firmware's build time: better than 1970 for a demo with no network. CONFIG_MYTOKI_DEMO_TIME
@@ -220,10 +223,14 @@ void hal_send(const char *json)
 
 typedef struct { char *buf; size_t len, cap; } body_t;
 
+static char got_etag[84];          /* the day's ETag, as the last answer gave it */
+static volatile bool clock_good;   /* SNTP, the server's Date, or kept through a reset: not the build time */
+
 static esp_err_t on_http(esp_http_client_event_t *e)
 {
     body_t *b = e->user_data;
-    if (e->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(e->header_key, "Date") && !clock_is_set()) clock_from_http_date(e->header_value);
+    if (e->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(e->header_key, "Date") && !clock_good && clock_from_http_date(e->header_value)) clock_good = true;
+    if (e->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(e->header_key, "ETag")) snprintf(got_etag, sizeof got_etag, "%s", e->header_value);
     if (e->event_id == HTTP_EVENT_ON_DATA && b) {
         if (b->len + e->data_len + 1 > b->cap) {
             size_t cap = (b->len + e->data_len + 1) * 2;
@@ -241,10 +248,11 @@ static esp_err_t on_http(esp_http_client_event_t *e)
 
 /* One connection kept open to the server (the day plan every 30 s, and the events): a fresh secure
  * connection each time would cost the board a TLS handshake. Only the net task uses it. When the
- * server has closed it meanwhile, the request goes again on a new one. */
+ * server has closed it meanwhile, the request goes again on a new one (only then: a request that
+ * failed on a fresh connection waits for the next try, so a struggling server isn't asked twice). */
 static esp_http_client_handle_t conn;
 
-static esp_err_t http_once(const char *url, const char *post, body_t *body)
+static esp_err_t http_once(const char *url, const char *post, const char *if_none_match, body_t *body)
 {
     if (!conn) {
         esp_http_client_config_t cfg = {
@@ -267,18 +275,21 @@ static esp_err_t http_once(const char *url, const char *post, body_t *body)
     esp_http_client_set_method(conn, post ? HTTP_METHOD_POST : HTTP_METHOD_GET);
     if (post) esp_http_client_set_header(conn, "Content-Type", "application/json");
     else esp_http_client_delete_header(conn, "Content-Type");
+    if (if_none_match) esp_http_client_set_header(conn, "If-None-Match", if_none_match);
+    else esp_http_client_delete_header(conn, "If-None-Match");
     esp_http_client_set_post_field(conn, post, post ? (int)strlen(post) : 0);
     esp_err_t err = esp_http_client_perform(conn);
     if (err != ESP_OK) { esp_http_client_cleanup(conn); conn = NULL; }
     return err;
 }
 
-static int http(const char *url, const char *post, body_t *body)
+static int http(const char *url, const char *post, const char *if_none_match, body_t *body)
 {
-    esp_err_t err = http_once(url, post, body);
-    if (err != ESP_OK) {
+    bool reused = conn != NULL;
+    esp_err_t err = http_once(url, post, if_none_match, body);
+    if (err != ESP_OK && reused) {
         if (body) body->len = 0;
-        err = http_once(url, post, body);
+        err = http_once(url, post, if_none_match, body);
     }
     return err == ESP_OK ? esp_http_client_get_status_code(conn) : -1;
 }
@@ -307,18 +318,100 @@ static void outbox_load(void)
     cJSON_Delete(a);
 }
 
+/* After the server fails to take one, the next try waits 20 s, then twice as long each time up to
+ * 5 minutes (a server in trouble isn't asked every 20 s); something new the child does tries at once. */
+#define OUTBOX_WAIT_MS 20000
+#define OUTBOX_WAIT_MAX_MS (5 * 60 * 1000)
+static uint32_t outbox_wait_ms;
+static int64_t outbox_next_us;
+
 static void outbox_flush(void)
 {
-    if (!CONFIG_MYTOKI_EVENTS_URL[0] || !wifi_up) return;
+    if (!CONFIG_MYTOKI_EVENTS_URL[0] || !wifi_up || !outbox_n || esp_timer_get_time() < outbox_next_us) return;
     bool changed = false;
     while (outbox_n) {
-        int st = http(CONFIG_MYTOKI_EVENTS_URL, outbox[0], NULL);
-        if (st < 200 || st >= 300) break;
+        int st = http(CONFIG_MYTOKI_EVENTS_URL, outbox[0], NULL, NULL);
+        if (st < 200 || st >= 300) {
+            outbox_wait_ms = !outbox_wait_ms ? OUTBOX_WAIT_MS : outbox_wait_ms * 2 > OUTBOX_WAIT_MAX_MS ? OUTBOX_WAIT_MAX_MS : outbox_wait_ms * 2;
+            outbox_next_us = esp_timer_get_time() + (int64_t)outbox_wait_ms * 1000;
+            break;
+        }
+        outbox_wait_ms = 0;
         free(outbox[0]);
         memmove(outbox, outbox + 1, sizeof(char *) * (size_t)--outbox_n);
         changed = true;
     }
     if (changed) outbox_save();
+}
+
+/* ================================================================ the last day, kept */
+/* The day as the server last sent it, with its ETag: sent back with the next ask, so while nothing
+ * has changed the server answers 304 (one small query) and the app gets this copy again. It is kept
+ * in its own flash partition ("plan") too: after a restart while the server can't be reached,
+ * MyToki carries on with it (the app takes it only if it is today's) instead of waiting on
+ * "Getting your day ready". */
+#define PLAN_MAGIC 0x4d544b31u   /* "MTK1" */
+typedef struct { uint32_t magic, len, hash; char etag[84]; } plan_head_t;
+static char *day_body;            /* PSRAM */
+static size_t day_len;
+static uint32_t day_saved_hash;
+static char day_etag[84];
+static bool cache_offered;
+
+static uint32_t fnv1a(const char *s, size_t n)
+{
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; i++) h = (h ^ (uint8_t)s[i]) * 16777619u;
+    return h;
+}
+
+static const esp_partition_t *plan_partition(void)
+{
+    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "plan");
+}
+
+static void plan_cache_load(void)
+{
+    const esp_partition_t *pt = plan_partition();
+    plan_head_t h;
+    if (!pt || esp_partition_read(pt, 0, &h, sizeof h) != ESP_OK) return;
+    if (h.magic != PLAN_MAGIC || !h.len || sizeof h + h.len > pt->size) return;
+    char *b = heap_caps_malloc(h.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!b) return;
+    if (esp_partition_read(pt, sizeof h, b, h.len) != ESP_OK || fnv1a(b, h.len) != h.hash) { free(b); return; }
+    b[h.len] = 0;
+    day_body = b;
+    day_len = h.len;
+    day_saved_hash = h.hash;
+    h.etag[sizeof h.etag - 1] = 0;
+    snprintf(day_etag, sizeof day_etag, "%s", h.etag);
+    ESP_LOGI(TAG, "kept day: %u bytes", (unsigned)h.len);
+}
+
+/* Written only when the day has changed (a few times a day): erasing stalls the screen a moment. */
+static void plan_cache_save(void)
+{
+    const esp_partition_t *pt = plan_partition();
+    uint32_t hash = fnv1a(day_body, day_len);
+    if (!pt || hash == day_saved_hash || sizeof(plan_head_t) + day_len > pt->size) return;
+    plan_head_t h = { .magic = PLAN_MAGIC, .len = (uint32_t)day_len, .hash = hash };
+    snprintf(h.etag, sizeof h.etag, "%s", day_etag);
+    size_t erase = (sizeof h + day_len + pt->erase_size - 1) / pt->erase_size * pt->erase_size;
+    if (esp_partition_erase_range(pt, 0, erase) != ESP_OK) return;
+    /* the header last: a write cut short leaves no header, so no half a day */
+    if (esp_partition_write(pt, sizeof h, day_body, day_len) == ESP_OK && esp_partition_write(pt, 0, &h, sizeof h) == ESP_OK)
+        day_saved_hash = hash;
+}
+
+/* The kept day to the app, once, while it has none and the clock can tell whether it's today's. */
+static void plan_cache_offer(void)
+{
+    if (cache_offered || !day_body || !clock_good) return;
+    cache_offered = true;
+    if (bsp_display_lock(-1) == ESP_OK) {
+        mytoki_day_cached(day_body, day_len);
+        bsp_display_unlock();
+    }
 }
 
 static void fetch_day(void)
@@ -329,15 +422,29 @@ static void fetch_day(void)
         return;
     }
     if (!CONFIG_MYTOKI_DEVICE_TOKEN[0]) { with_lock_fail(3); return; } /* not paired: the device shows its code */
+    plan_cache_offer();
     /* asked just after start-up: give Wi-Fi a moment to join before saying "Let's reconnect" */
     for (int i = 0; i < 100 && !wifi_up && CONFIG_MYTOKI_WIFI_SSID[0]; i++) vTaskDelay(pdMS_TO_TICKS(100));
-    if (!wifi_up) { with_lock_fail(0); return; }
+    if (!wifi_up) { plan_cache_offer(); with_lock_fail(0); return; }
     outbox_flush();   /* what the child did goes first, so the day that comes back has it */
     body_t b = { 0 };
-    int st = http(CONFIG_MYTOKI_DAY_URL, NULL, &b);
-    if (st == 200 && b.buf) with_lock_day(b.buf, b.len);
-    else {
+    got_etag[0] = 0;
+    int st = http(CONFIG_MYTOKI_DAY_URL, NULL, day_body && day_etag[0] ? day_etag : NULL, &b);
+    if (st == 304 && day_body) with_lock_day(day_body, day_len);   /* nothing changed */
+    else if (st == 200 && b.buf) {
+        char *keep = heap_caps_malloc(b.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (keep) {
+            memcpy(keep, b.buf, b.len + 1);
+            free(day_body);
+            day_body = keep;
+            day_len = b.len;
+            snprintf(day_etag, sizeof day_etag, "%s", got_etag);
+        }
+        with_lock_day(b.buf, b.len);
+        if (keep) plan_cache_save();
+    } else {
         ESP_LOGW(TAG, "day plan: HTTP %d", st);
+        plan_cache_offer();   /* the server's answer may have set the clock */
         with_lock_fail(st < 0 ? 0 : 1);
     }
     free(b.buf);
@@ -354,6 +461,7 @@ static void net_task(void *arg)
                 if (outbox_n == OUTBOX_MAX) { free(outbox[0]); memmove(outbox, outbox + 1, sizeof(char *) * (OUTBOX_MAX - 1)); outbox_n--; }
                 outbox[outbox_n++] = m.json;
                 outbox_save();
+                outbox_next_us = 0;
             }
         }
         outbox_flush();
@@ -370,6 +478,12 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         ESP_LOGI(TAG, "online");
         hal_request_day();
     }
+}
+
+static void on_sntp(struct timeval *tv)
+{
+    (void)tv;
+    if (!CONFIG_MYTOKI_DEMO_TIME[0]) clock_good = true;
 }
 
 static void wifi_start(void)
@@ -389,6 +503,7 @@ static void wifi_start(void)
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     esp_wifi_start();
     esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    sntp.sync_cb = on_sntp;
     esp_netif_sntp_init(&sntp);
 }
 
@@ -548,7 +663,9 @@ void hal_esp32_init(void)
     nvs_open("mytoki", NVS_READWRITE, &nvs);
     setenv("TZ", CONFIG_MYTOKI_TIMEZONE, 1);
     tzset();
-    /* the chip keeps its clock through a reset, so a demo start time is applied on every boot */
+    /* the chip keeps its clock through a reset, so a demo start time is applied on every boot (and
+     * stays: the server's Date doesn't move it) */
+    clock_good = clock_is_set() || CONFIG_MYTOKI_DEMO_TIME[0];
     if (!clock_is_set() || CONFIG_MYTOKI_DEMO_TIME[0]) {
         clock_from_build();
         time_t now = time(NULL);
@@ -561,6 +678,7 @@ void hal_esp32_init(void)
     sound_q = xQueueCreate(4, sizeof(hal_sound_t));
 #endif
     outbox_load();
+    plan_cache_load();
 }
 
 

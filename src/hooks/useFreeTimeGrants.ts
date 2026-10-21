@@ -8,8 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { freeWindows, type FreeTimeGrant } from "@/utils/liveDay";
 import { getPSTDateString } from "@/utils/pstDate";
 
-/** Kept up to date this often, so a parent's gift reaches the child's screen without a reload. */
-const REFRESH_MS = 30 * 1000;
+/** Kept up to date this often while the page is on screen (and at once when it comes back), so a
+ * parent's gift reaches the child's screen without a reload; a hidden tab doesn't ask. */
+const REFRESH_MS = 60 * 1000;
 
 export const useFreeTimeGrants = (childId?: string) => {
   const [grants, setGrants] = useState<FreeTimeGrant[]>([]);
@@ -29,8 +30,10 @@ export const useFreeTimeGrants = (childId?: string) => {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, REFRESH_MS);
-    return () => clearInterval(t);
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, REFRESH_MS);
+    const onShow = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
   }, [load]);
 
   /** Free time starting now. */

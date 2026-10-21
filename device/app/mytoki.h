@@ -20,6 +20,10 @@ void mytoki_motion(float ax, float ay, float az);
 /* Today's day plan arrived (JSON, device/docs/day-plan.md). The text is copied. */
 void mytoki_day_received(const char *json, size_t len);
 
+/* The day plan the platform kept from before a restart, while the server can't be reached: taken
+ * only if it is today's and no day has arrived yet. The text is copied. */
+void mytoki_day_cached(const char *json, size_t len);
+
 /* The plan could not be fetched. reason: 0 = no network, 3 = not paired yet (the device shows its
  * pairing code), otherwise a server or parse error. */
 void mytoki_day_failed(int reason);

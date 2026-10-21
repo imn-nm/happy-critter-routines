@@ -3,7 +3,9 @@
 // in mytoki_devices, so the gateway's JWT check is off for this function and it checks the token.
 //   GET   the child's day plan (device/docs/day-plan.md), built from the same rows and the same
 //         code as the Circle in the browser: plan.js is src/lib/devicePlan.ts, bundled by
-//         `npm run device:function`.
+//         `npm run device:function`. Its ETag is the child's change number (child_plan_versions,
+//         bumped by every row the plan is built from), today and the plan code's build: a handheld
+//         that sends it back (If-None-Match) while nothing changed gets 304, for one small query.
 //   POST  one thing the child did on the handheld, saved as the browser's ChildCircleView saves it.
 //         The handheld retries anything but a 2xx, oldest first, so what can never be saved (a task
 //         that isn't this child's) is answered 200 "ignored" rather than blocking the rest.
@@ -13,6 +15,7 @@ import {
   getPSTDateString,
   missingSystemTaskRows,
   normalizeOutfit,
+  PLAN_REV,
   resolvePetColour,
   resolvePetId,
   SYSTEM_TASK_NAMES,
@@ -26,25 +29,28 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 // token gets an answer, so any origin may ask.
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, content-type, if-none-match",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Expose-Headers": "etag",
 };
 
-const reply = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...cors } });
+const reply = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...cors, ...headers } });
 
 const sha256 = async (text: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-/** The handheld behind the request's token, or null. */
+/** The handheld behind the request's token and its child's change number, or null (one call, which
+ * also notes the handheld was seen, at most every 10 minutes). */
 async function deviceFor(req: Request) {
   const token = req.headers.get("authorization")?.match(/^Bearer\s+(\S{20,})$/i)?.[1];
   if (!token) return null;
-  const { data, error } = await db.from("mytoki_devices").select("id, child_id").eq("token_hash", await sha256(token)).maybeSingle();
+  const { data, error } = await db.rpc("mytoki_device_check", { p_token_hash: await sha256(token) });
   if (error) throw error;
-  return data as { id: string; child_id: string } | null;
+  const row = (data as { device_id: string; child_id: string; plan_version: number | string }[] | null)?.[0];
+  return row ? { id: row.device_id, child_id: row.child_id, version: String(row.plan_version) } : null;
 }
 
 const must = <T>({ data, error }: { data: T; error: unknown }) => {
@@ -222,8 +228,13 @@ Deno.serve(async (req) => {
   try {
     const device = await deviceFor(req);
     if (!device) return reply(401, { error: "unknown handheld: connect it in the child's settings" });
-    await db.from("mytoki_devices").update({ last_seen_at: new Date().toISOString() }).eq("id", device.id);
-    if (req.method === "GET") return reply(200, await dayPlan(device.child_id));
+    if (req.method === "GET") {
+      // the number is read before the day is built, so a change made meanwhile shows next time
+      const etag = `"${PLAN_REV}-${getPSTDateString()}-${device.child_id.slice(0, 8)}-${device.version}"`;
+      // (W/: a gateway that compresses the answer may weaken the tag on the way out)
+      if (req.headers.get("if-none-match")?.replace(/^W\//, "") === etag) return new Response(null, { status: 304, headers: { ETag: etag, ...cors } });
+      return reply(200, await dayPlan(device.child_id), { ETag: etag });
+    }
     if (req.method === "POST") {
       let ev: DeviceEvent;
       try { ev = await req.json(); } catch { return reply(200, ignored("not JSON")); }

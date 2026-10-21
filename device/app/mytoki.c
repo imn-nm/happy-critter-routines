@@ -28,7 +28,9 @@
 
 #define TICK_MS 250
 #define REFRESH_MS (30 * 1000)     /* a parent's change (a new time, a task marked done) shows within this */
+#define REFRESH_MAX_MS (5 * 60 * 1000)   /* while the server fails, each look waits twice as long, up to this */
 #define OFFLINE_RETRY_MS 15000
+#define OFFLINE_RETRY_MAX_MS (2 * 60 * 1000)   /* the same with no day yet ("Getting your day ready") */
 #define DONE_HOLD_MS 3000
 #define DONE_OFFER_MS 5000         /* done early: "Press for Homework" while the ring at the button shrinks */
 #define SAY_MS 7000
@@ -87,6 +89,7 @@ static struct {
     state_t last_state;
     bool requested, fetching;
     uint32_t last_fetch, retry_at;
+    uint32_t refresh_ms, retry_ms;   /* the waits now: longer while the server fails, back to the start once it answers */
     uint32_t plan_hash;         /* the last day received, to skip one that hasn't changed */
     int32_t reapply_until_s;    /* until then (s of the day) a day is laid over again even unchanged: something done here is in its grace */
     lv_obj_t *carousel, *pg_rewards, *pg_home, *pg_chores;
@@ -1593,8 +1596,7 @@ static void tick(lv_timer_t *timer)
         if (app.battery_shown != step) { app.battery_shown = step; battery_open(bat); }
     }
     /* a new day, or time to look for changes (at most once a minute, in case the clock and the plan disagree) */
-    uint32_t since = now_ms() - app.last_fetch;
-    if (!app.fetching && ((strcmp(app.today, app.plan->date) && since > 60000) || since > REFRESH_MS)) request_plan();
+    if (!app.fetching && now_ms() - app.last_fetch > app.refresh_ms) request_plan();
 
     logic_now(app.plan, app.now_s, &app.now);
     app.state = derive();
@@ -1673,6 +1675,8 @@ void mytoki_start(void)
     app.done_task = -1;
     app.ready_task = -1;
     app.last_current = -2;
+    app.refresh_ms = REFRESH_MS;
+    app.retry_ms = OFFLINE_RETRY_MS;
     app.page = 1;
     app.free_window = -100000;
 
@@ -1725,9 +1729,10 @@ void mytoki_start(void)
     request_plan();
 }
 
-void mytoki_day_received(const char *json, size_t len)
+/* cached: the day kept from before a restart (the server can't be reached yet), taken only if it is
+ * today's and there is no day yet */
+static void take_day(const char *json, size_t len, bool cached)
 {
-    app.fetching = false;
     hal_time_now(&app.t);
     int32_t now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
     /* the same day as last time (most refreshes): nothing to redo, unless something done here is
@@ -1741,8 +1746,13 @@ void mytoki_day_received(const char *json, size_t len)
     if (!p) return;
     if (!day_parse(json, len, p)) {
         lv_free(p);
-        if (!app.have_plan) system_show(SYS_SCREEN_ERROR, "The day plan from the server could not be read.", on_retry);
+        if (!app.have_plan && !cached) system_show(SYS_SCREEN_ERROR, "The day plan from the server could not be read.", on_retry);
         return;
+    }
+    if (cached) {
+        char today[11];
+        snprintf(today, sizeof today, "%04d-%02d-%02d", app.t.year, app.t.month, app.t.day);
+        if (app.have_plan || strcmp(p->date, today)) { lv_free(p); return; }
     }
     if (!p->date[0]) snprintf(p->date, sizeof p->date, "%s", app.today);
 #ifdef MYTOKI_NO_SCHOOL
@@ -1806,6 +1816,19 @@ void mytoki_day_received(const char *json, size_t len)
     tick(NULL);
 }
 
+void mytoki_day_received(const char *json, size_t len)
+{
+    app.fetching = false;
+    app.refresh_ms = REFRESH_MS;
+    app.retry_ms = OFFLINE_RETRY_MS;
+    take_day(json, len, false);
+}
+
+void mytoki_day_cached(const char *json, size_t len)
+{
+    if (!app.have_plan) take_day(json, len, true);
+}
+
 /* The four digits a grown-up types into the app; kept until the device is paired. */
 static const char *pair_code(void)
 {
@@ -1821,8 +1844,13 @@ static const char *pair_code(void)
 void mytoki_day_failed(int reason)
 {
     app.fetching = false;
-    if (app.have_plan) return; /* keep going with what we have */
-    app.retry_at = now_ms() + OFFLINE_RETRY_MS;
+    if (app.have_plan) {   /* keep going with what we have, and look again later */
+        app.refresh_ms = app.refresh_ms * 2 > REFRESH_MAX_MS ? REFRESH_MAX_MS : app.refresh_ms * 2;
+        return;
+    }
+    if (reason == 3) app.retry_ms = OFFLINE_RETRY_MS;   /* not paired: nothing was asked of the server */
+    app.retry_at = now_ms() + app.retry_ms;
+    app.retry_ms = app.retry_ms * 2 > OFFLINE_RETRY_MAX_MS ? OFFLINE_RETRY_MAX_MS : app.retry_ms * 2;
     if (reason == 3) { system_show(SYS_SCREEN_PAIRING, pair_code(), on_retry); return; }
     system_show(reason == 0 ? SYS_SCREEN_OFFLINE : SYS_SCREEN_ERROR,
                 reason == 0 ? NULL : "The server did not answer.", on_retry);

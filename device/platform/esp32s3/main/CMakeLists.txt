@@ -5,7 +5,7 @@ file(GLOB_RECURSE APP_SOURCES ${APP_DIR}/*.c)
 idf_component_register(
     SRCS main.c hal_esp32.c lv_mem_psram.c ${APP_SOURCES}
     INCLUDE_DIRS . ${APP_DIR} ${APP_DIR}/vendor/cjson
-    REQUIRES nvs_flash esp_wifi esp_netif esp_event esp_http_client esp_timer esp_driver_gpio esp_driver_i2c esp-tls mbedtls
+    REQUIRES nvs_flash esp_partition esp_wifi esp_netif esp_event esp_http_client esp_timer esp_driver_gpio esp_driver_i2c esp-tls mbedtls
     EMBED_TXTFILES ${CMAKE_CURRENT_LIST_DIR}/../../sim/web/demo/school-day.json
     LDFRAGMENTS linker.lf)
 
