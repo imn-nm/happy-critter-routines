@@ -353,7 +353,7 @@ static bool chore_now(const day_chore_t *c, int now_min)
 }
 
 /* Figma "Chore row": 360 x 72, r 24: the icon, the name, when (or "Done!"), and a ring to tap;
- * lavender to do, a night card with a mint tick when done. */
+ * lavender to do, a night card with a mint tick when done (a tap on it unchecks it). */
 static void chore_card(const day_chore_t *c, int idx, bool picture)
 {
     lv_obj_t *slot = wheel_list_add(&ch.wl);
@@ -395,14 +395,11 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
         lv_label_set_long_mode(w, LV_LABEL_LONG_DOT);
         lv_obj_set_size(w, lv_pct(100), lv_font_get_line_height(F_DETAIL));
     }
-    if (done) {
-        checkbox_create(card, 48, true);
-    } else {
-        checkbox_create(card, 48, false);
-        lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_bg_color(card, COL(C_TEXT), LV_STATE_PRESSED);
-        lv_obj_add_event_cb(card, on_chore, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
-    }
+    /* a tap checks it, or unchecks one done by mistake */
+    checkbox_create(card, 48, done);
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(card, COL(done ? C_CHIP : C_TEXT), LV_STATE_PRESSED);
+    lv_obj_add_event_cb(card, on_chore, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
 }
 
 static const day_plan_t *sort_plan;
@@ -439,7 +436,8 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
     snprintf(s, sizeof s, "%d of %d done", done, shown);
     header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "listchecks", s);   /* the same icon as Home's Chores button */
     if (!rows_same) {
-        if (ch.just >= 0 && tick_in_place(ch.just, picture)) {
+        if (ch.just >= 0 && !p->chores[ch.just].done) ch.flip = true;   /* unchecked: it slides back up among the ones to do */
+        if (ch.just >= 0 && p->chores[ch.just].done && tick_in_place(ch.just, picture)) {
             /* ticked here: it turns done where it is, the count bounces, and after a beat the
              * finished one slides down to the end while the rest close up */
             fx_bounce(ch.head.pill.root, 8, 120);

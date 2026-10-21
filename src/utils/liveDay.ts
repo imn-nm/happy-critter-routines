@@ -17,10 +17,17 @@
  *   a meal or event in the way pauses it and it carries on after. Nothing
  *   moves past bedtime: whatever no longer fits is "didn't get to it".
  *
+ * - A grown-up gives free time "right now" (free_time_grants rows): the
+ *   task that was on pauses and carries on after it, and the movable tasks
+ *   behind move later until a gap or a set-time thing takes up the slack
+ *   (applyFreeTime). The handheld gets the moved times in its day plan.
+ *
  * The device (device/app/logic.c) carries the same rules on its own clock.
  */
 import type { TaskRow } from '@/utils/todaysSchedule';
 import { isSystemTaskName } from '@/utils/systemTasks';
+import { clampScheduleOverlaps } from '@/utils/scheduleOverlap';
+import { toPSTDateString } from '@/utils/pstDate';
 
 export interface TaskStart {
   task_id: string;
@@ -129,6 +136,78 @@ export function applyNextNow<T extends TaskRow>(schedule: T[], starts: Map<strin
     });
   }
   return rows;
+}
+
+/** Free time a grown-up gave "right now" (free_time_grants). */
+export interface FreeTimeGrant { id: string; minutes: number; starts_at: string }
+export interface FreeWindow { id: string; start: number; end: number }
+
+/** Today's free time from grown-ups, as minutes of the day, earliest first. */
+export const freeWindows = (grants: FreeTimeGrant[], today: string): FreeWindow[] => grants
+  .filter(g => g.minutes > 0 && toPSTDateString(g.starts_at) === today)
+  .map(g => { const start = minuteOfDay(g.starts_at); return { id: g.id, start, end: Math.min(24 * 60, start + g.minutes) }; })
+  .sort((a, b) => a.start - b.start);
+
+/** What free time never moves: a real appointment, school, bedtime. */
+const staysPut = (t: { is_event?: boolean | null; name: string }) => !!t.is_event || t.name === 'School' || t.name === 'Bedtime';
+
+/**
+ * Free time a grown-up gave ("play time at any time"): its whole window is
+ * kept clear. The task that was on when it began pauses and what's left of
+ * it runs right after; whatever would have started inside it (a meal or a
+ * set-time task too) moves to after it; the movable tasks behind move later
+ * only as far as they must (a gap takes up the slack), and set-time things
+ * after it hold their time. A task that would start inside one of those, or
+ * run into one when it keeps its whole length (late policy other than
+ * "shorten"), moves past it; one set to shorten is cut short
+ * (clampScheduleOverlaps). Events, school and bedtime never move; nothing
+ * moves past bedtime, and nothing done moves.
+ */
+export function applyFreeTime<T extends TaskRow>(schedule: T[], windows: FreeWindow[]): T[] {
+  if (!windows.length) return schedule;
+  const rows = schedule.map(r => ({ ...r }));
+  const byStart = () => rows.filter(r => timed(r)).sort((a, b) => toMin(a.scheduled_time) - toMin(b.scheduled_time));
+  const bedtimeRow = rows.find(r => r.name === 'Bedtime' && timed(r));
+  const bedtime = bedtimeRow ? toMin(bedtimeRow.scheduled_time) : 24 * 60;
+  for (const w of windows) {
+    // what keeps its place: set-time things after the window, and what never moves
+    const holds = byStart().filter(r => (isFixedRow(r) && toMin(r.scheduled_time) >= w.end) || staysPut(r))
+      .map(r => ({ start: toMin(r.scheduled_time), end: toMin(r.scheduled_time) + (r.duration ?? 0) }));
+    let prevEnd = w.end;
+    const place = (r: T) => {
+      const dur = r.duration ?? 0, whole = r.late_policy !== 'shorten';
+      let start = prevEnd;
+      for (let moved = true; moved; ) {
+        moved = false;
+        for (const h of holds) {
+          const inside = start >= h.start && start < h.end, runsInto = whole && start < h.start && start + dur > h.start;
+          if ((inside || runsInto) && h.end < bedtime) { start = h.end; moved = true; }
+        }
+      }
+      r.scheduled_time = hhmm(start);
+      prevEnd = start + dur;
+    };
+    for (const r of byStart()) {
+      if (r.isCompleted || staysPut(r)) continue;
+      const start = toMin(r.scheduled_time), end = start + (r.duration ?? 0);
+      if (end <= w.start) continue;   // over before the free time began
+      if (start < w.start) {          // on when it began: it pauses, and the rest runs after
+        r.duration = end - w.start;
+        place(r);
+        continue;
+      }
+      if (start < w.end) { place(r); continue; }   // would have started inside it: after it
+      if (isFixedRow(r)) continue;    // a set-time thing after it holds its time
+      if (start >= prevEnd) break;    // the slack is taken up: the rest stay
+      place(r);
+    }
+  }
+  const sorted = rows.sort((a, b) => {
+    const ta = timed(a) ? toMin(a.scheduled_time) : Number.POSITIVE_INFINITY;
+    const tb = timed(b) ? toMin(b.scheduled_time) : Number.POSITIVE_INFINITY;
+    return ta - tb || (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  });
+  return clampScheduleOverlaps(sorted) as T[];
 }
 
 /**

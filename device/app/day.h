@@ -12,6 +12,7 @@
 #define DAY_MAX_TASKS 40
 #define DAY_MAX_STEPS 10
 #define DAY_MAX_CHORES 16
+#define DAY_MAX_FREE 4
 #define DAY_MAX_REWARDS 12
 #define DAY_MAX_STREAKS 4
 #define DAY_MAX_WHEEL 8
@@ -94,6 +95,9 @@ typedef struct {
         int16_t star_note_stars; /* how many stars it came with (to replay them if it comes late) */
     } child;
     bool rest_day;
+    /* free time a grown-up gave today; the tasks already make room for it (minutes of the day) */
+    struct { char id[40]; int16_t start, end; } free[DAY_MAX_FREE];
+    uint8_t nfree;
     uint8_t ntasks, nchores, nrewards, nstreaks, nwheel;
     day_task_t tasks[DAY_MAX_TASKS];          /* sorted by start */
     day_chore_t chores[DAY_MAX_CHORES];

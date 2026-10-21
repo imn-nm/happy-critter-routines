@@ -95,6 +95,7 @@
     const hhmm = () => { const d = simNow(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
     if (msg.type === 'task_done') (s.done ||= {})[msg.task_id] = msg.at || hhmm();
     if (msg.type === 'chore_done') (s.chores ||= {})[msg.task_id] = true;
+    if (msg.type === 'chore_undo' && s.chores) delete s.chores[msg.task_id];
     if (msg.type === 'reward_request') (s.asked ||= {})[msg.reward_id] = true;
     if (msg.type === 'outfit') s.outfit = msg.outfit;
     saveServerState(s);

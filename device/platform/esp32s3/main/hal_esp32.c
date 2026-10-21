@@ -332,6 +332,7 @@ static void fetch_day(void)
     /* asked just after start-up: give Wi-Fi a moment to join before saying "Let's reconnect" */
     for (int i = 0; i < 100 && !wifi_up && CONFIG_MYTOKI_WIFI_SSID[0]; i++) vTaskDelay(pdMS_TO_TICKS(100));
     if (!wifi_up) { with_lock_fail(0); return; }
+    outbox_flush();   /* what the child did goes first, so the day that comes back has it */
     body_t b = { 0 };
     int st = http(CONFIG_MYTOKI_DAY_URL, NULL, &b);
     if (st == 200 && b.buf) with_lock_day(b.buf, b.len);

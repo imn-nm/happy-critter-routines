@@ -61,10 +61,10 @@ async function dayPlan(childId: string) {
     if (error && error.code !== "23505") throw error; // 23505: another screen made it first
   }
   // What the browser's hooks load (useChildren, useTasks, useRewards, useTaskSessions, useHolidays,
-  // useUnseenParentNotes).
+  // useUnseenParentNotes, useFreeTimeGrants).
   const today = getPSTDateString();
   const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-  const [child, tasks, completions, rewards, purchases, sessions, holidays, notes] = await Promise.all([
+  const [child, tasks, completions, rewards, purchases, sessions, holidays, notes, freeTime] = await Promise.all([
     db.from("children").select("*").eq("id", childId).single(),
     db.from("tasks").select("*").eq("child_id", childId).order("sort_order", { ascending: true }),
     db.from("task_completions").select("*").eq("child_id", childId).eq("date", today),
@@ -73,6 +73,7 @@ async function dayPlan(childId: string) {
     db.from("task_sessions").select("*").eq("child_id", childId).gte("started_at", since).order("started_at", { ascending: true }),
     db.from("holidays").select("*").eq("child_id", childId).order("date", { ascending: true }),
     db.from("parent_notes").select("*").eq("child_id", childId).is("seen_at", null).order("created_at", { ascending: true }).limit(20),
+    db.from("free_time_grants").select("id, minutes, starts_at").eq("child_id", childId).gte("starts_at", since).order("starts_at", { ascending: true }),
   ]);
   return devicePlan({
     child: must(child),
@@ -83,6 +84,7 @@ async function dayPlan(childId: string) {
     sessions: must(sessions) ?? [],
     holidays: must(holidays) ?? [],
     notes: must(notes) ?? [],
+    freeTime: must(freeTime) ?? [],
   });
 }
 
@@ -156,6 +158,16 @@ async function save(childId: string, ev: DeviceEvent) {
           must(await db.from("task_sessions").update({ is_active: false, ended_at: new Date().toISOString(), total_duration: seconds }).eq("id", s.id));
         }
       }
+      return { saved: ev.type };
+    }
+    case "chore_undo": {
+      // a chore checked by mistake on the handheld: today's completion goes, unless a grown-up
+      // has already given stars for it (taking those back is the parent's Undo)
+      if (!(await owned("tasks", ev.task_id, childId))) return ignored("not this child's task");
+      const date = ev.date && /^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? ev.date : getPSTDateString();
+      const rows = must(await db.from("task_completions").select("id, coins_earned").eq("child_id", childId).eq("task_id", ev.task_id!).eq("date", date)) ?? [];
+      if (rows.some((r) => (r.coins_earned ?? 0) > 0)) return ignored("stars given");
+      for (const r of rows) must(await db.from("task_completions").delete().eq("id", r.id));
       return { saved: ev.type };
     }
     case "task_start":

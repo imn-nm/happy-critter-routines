@@ -20,6 +20,9 @@ bool overlay_covering(void);
 /* The day changed (a chore was ticked): redraw, keeping the row in the middle. */
 void schedule_refresh(const day_plan_t *p, const logic_now_t *n, int now_min);
 bool schedule_is_open(void);
+/* The row now tapped on the schedule (the controller does what the button does at home). */
+typedef void (*schedule_now_cb_t)(void);
+void schedule_set_on_now(schedule_now_cb_t cb);
 void schedule_close(void);
 
 /* Rewards · 02 · Choose and ask: the reward bigger, its price, Ask for this / Not now.
@@ -71,5 +74,7 @@ void system_show(sys_screen_t which, const char *detail, overlay_cb_t on_retry);
 sys_screen_t system_showing(void);
 
 void overlays_close_all(void);
+/* Something is open over the day (a sheet, a celebration, a reminder). */
+bool overlays_any_open(void);
 /* Left alone for a while: the schedule and the to-finish list slide away. */
 void overlays_close_idle(void);

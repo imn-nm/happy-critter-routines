@@ -142,6 +142,15 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
         k->done = flag(c, "done");
     }
 
+    const cJSON *f;
+    cJSON_ArrayForEach(f, cJSON_GetObjectItemCaseSensitive(root, "free_time")) {
+        if (p->nfree >= DAY_MAX_FREE) break;
+        copy(p->free[p->nfree].id, sizeof p->free[p->nfree].id, f, "id");
+        p->free[p->nfree].start = (int16_t)hhmm(f, "start");
+        p->free[p->nfree].end = (int16_t)hhmm(f, "end");
+        if (p->free[p->nfree].start >= 0 && p->free[p->nfree].end > p->free[p->nfree].start) p->nfree++;
+    }
+
     const cJSON *r;
     cJSON_ArrayForEach(r, cJSON_GetObjectItemCaseSensitive(root, "rewards")) {
         if (p->nrewards >= DAY_MAX_REWARDS) break;

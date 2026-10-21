@@ -10,7 +10,7 @@ import type { Task, TaskCompletion } from '@/hooks/useTasks';
 import type { Reward, RewardPurchase } from '@/hooks/useRewards';
 import type { ParentNote } from '@/hooks/useParentNotes';
 import type { Holiday } from '@/hooks/useHolidays';
-import type { TaskStart } from '@/utils/liveDay';
+import type { FreeTimeGrant, TaskStart } from '@/utils/liveDay';
 import { childFromRow } from '@/lib/childRow';
 import { buildDayPlan, type DayPlan } from '@/lib/dayPlan';
 import { buildTodaysSchedule, todaysChores } from '@/utils/todaysSchedule';
@@ -38,6 +38,8 @@ export interface DevicePlanRows {
   holidays: Holiday[];
   /** parent_notes not seen yet, oldest first */
   notes: ParentNote[];
+  /** free_time_grants from the last 36 hours (freeWindows keeps today's) */
+  freeTime?: FreeTimeGrant[];
 }
 
 export function devicePlan(rows: DevicePlanRows): DayPlan {
@@ -61,5 +63,6 @@ export function devicePlan(rows: DevicePlanRows): DayPlan {
     restDay: isRestDate(child, today),
     starts: rows.sessions.filter(s => toPSTDateString(s.started_at) === today),
     notes: rows.notes,
+    freeTime: rows.freeTime ?? [],
   });
 }

@@ -24,6 +24,8 @@ void play_open_pet(const char *pet_name, play_outfit_cb_t on_outfit, play_charac
 bool play_is_open(void);
 /* The games menu is showing (not a game, My pet or See you later). */
 bool play_in_menu(void);
+/* A game is being played (not the menu, My pet or the goodbye). */
+bool play_in_game(void);
 void play_close(void);
 /* The hardware button while Playtime is open (Biscuit says: "Button"; the goodbye: close). */
 void play_button(void);

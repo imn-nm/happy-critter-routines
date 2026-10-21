@@ -18,6 +18,7 @@
 #include "ui/wheel.h"
 #include "ui/swipe.h"
 #include "play/play.h"
+#include "play/games.h"
 #include "motion.h"
 #include <ctype.h>
 #include <math.h>
@@ -33,7 +34,8 @@
 #define SAY_MS 7000
 #define STEPS_ALL_MS 2500         /* the last step checked: the list stays a moment before the room comes back */
 #define STEPS_PEEK_MS 8000        /* "Steps done" tapped: the list again, to uncheck one */
-#define SLEEP_MS 3000             /* put down this long (and not touched), the screen goes off */
+#define SLEEP_MS 10000            /* put down this long (and not touched), the screen goes off */
+#define SYNC_GRACE_S 120          /* what the child did here wins over a fresh plan this long (the server may not have it yet); then the plan, where a grown-up may have changed it, wins */
 #define PET_VIEW_MS 6000            /* the spin's result stays this long, then Biscuit plays it */
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
@@ -64,6 +66,8 @@ static struct {
     int focus;
     uint16_t ticks[DAY_MAX_TASKS];   /* the steps checked, in any order: bit i = step i */
     int steps_peek;                  /* the task whose checked list shows again, or -1 */
+    int32_t chore_at[DAY_MAX_CHORES]; /* when the child last checked or unchecked each chore here (s of the day), or -1 */
+    char gift_seen[40];               /* the last grown-up's free time greeted */
     uint32_t steps_peek_until;
     int done_task;
     uint32_t done_until;
@@ -84,6 +88,7 @@ static struct {
     bool requested, fetching;
     uint32_t last_fetch, retry_at;
     uint32_t plan_hash;         /* the last day received, to skip one that hasn't changed */
+    int32_t reapply_until_s;    /* until then (s of the day) a day is laid over again even unchanged: something done here is in its grace */
     lv_obj_t *carousel, *pg_rewards, *pg_home, *pg_chores;
     int swipe_from;            /* the page a sideways swipe started on */
     bool swipe_pending;        /* ...and it is about to turn the carousel */
@@ -291,9 +296,14 @@ static void save_progress(void)
         if (t->done_at >= 0) cJSON_AddNumberToObject(done, t->id, t->done_at);
         if (app.ticks[i]) cJSON_AddNumberToObject(steps, t->id, app.ticks[i]);
     }
-    cJSON *chores = cJSON_AddArrayToObject(root, "chores");
-    for (int i = 0; i < app.plan->nchores; i++)
-        if (app.plan->chores[i].done) cJSON_AddItemToArray(chores, cJSON_CreateString(app.plan->chores[i].id));
+    /* chores checked or unchecked here: done or not, and when */
+    cJSON *chores = cJSON_AddObjectToObject(root, "chores");
+    for (int i = 0; i < app.plan->nchores; i++) {
+        if (app.chore_at[i] < 0) continue;
+        cJSON *c = cJSON_AddObjectToObject(chores, app.plan->chores[i].id);
+        cJSON_AddBoolToObject(c, "done", app.plan->chores[i].done);
+        cJSON_AddNumberToObject(c, "at", app.chore_at[i]);
+    }
     cJSON *asked = cJSON_AddArrayToObject(root, "asked");
     for (int i = 0; i < app.plan->nrewards; i++)
         if (app.plan->rewards[i].state == REWARD_WAITING) cJSON_AddItemToArray(asked, cJSON_CreateString(app.plan->rewards[i].id));
@@ -330,10 +340,13 @@ static void set_step(int f, int i, bool on)
     if (on) pet_react(home_pet(), PET_CLIP_ENCOURAGE);
 }
 
-/* What the child did on this device today, laid over a fresh plan (the server may not have it yet). */
-static void apply_progress(day_plan_t *p)
+/* What the child did on this device today, laid over a fresh plan. A task done or a chore checked or
+ * unchecked here counts only for SYNC_GRACE_S (the server may not have heard yet); after that the
+ * plan says, so a grown-up undoing it in the app undoes it here too. Steps are only kept here. */
+static void apply_progress(day_plan_t *p, int32_t now_s)
 {
     memset(app.ticks, 0, sizeof app.ticks);
+    for (int i = 0; i < DAY_MAX_CHORES; i++) app.chore_at[i] = -1;
     app.steps_peek = -1;
     app.alarm_ack = app.welcome_ack = false;
     app.snoozes = 0;
@@ -347,7 +360,8 @@ static void apply_progress(day_plan_t *p)
         const cJSON *it;
         cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "done")) {
             int i = day_task_index(p, it->string);
-            if (i >= 0 && p->tasks[i].done_at < 0) p->tasks[i].done_at = (int32_t)it->valuedouble;
+            int32_t at = (int32_t)it->valuedouble;
+            if (i >= 0 && p->tasks[i].done_at < 0 && now_s - at < SYNC_GRACE_S) p->tasks[i].done_at = at;
         }
         cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "steps")) {   /* (older: how many, in order) */
             int i = day_task_index(p, it->string), k = (int)it->valuedouble;
@@ -357,8 +371,15 @@ static void apply_progress(day_plan_t *p)
             int i = day_task_index(p, it->string);
             if (i >= 0) app.ticks[i] = (uint16_t)it->valuedouble;
         }
-        cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "chores"))
-            for (int i = 0; i < p->nchores; i++) if (cJSON_IsString(it) && !strcmp(p->chores[i].id, it->valuestring)) p->chores[i].done = true;
+        cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "chores")) {   /* (an older list of ids: past its grace) */
+            const cJSON *at = cJSON_GetObjectItem(it, "at");
+            if (!it->string || !cJSON_IsNumber(at)) continue;
+            for (int i = 0; i < p->nchores; i++) {
+                if (strcmp(p->chores[i].id, it->string)) continue;
+                app.chore_at[i] = (int32_t)at->valuedouble;
+                if (now_s - app.chore_at[i] < SYNC_GRACE_S) p->chores[i].done = cJSON_IsTrue(cJSON_GetObjectItem(it, "done"));
+            }
+        }
         cJSON_ArrayForEach(it, cJSON_GetObjectItem(root, "asked"))
             for (int i = 0; i < p->nrewards; i++)
                 if (cJSON_IsString(it) && !strcmp(p->rewards[i].id, it->valuestring) && p->rewards[i].state == REWARD_NONE) p->rewards[i].state = REWARD_WAITING;
@@ -707,6 +728,7 @@ static void finish_task_at(int i, int32_t at_s)
     day_task_t *t = &app.plan->tasks[i];
     if (t->done_at >= 0) return;
     t->done_at = at_s;
+    app.reapply_until_s = app.now_s + SYNC_GRACE_S + REFRESH_MS / 1000 * 2;
     int32_t spent = at_s - logic_start(&app.now, app.plan, i) * 60;
     char at[8];
     snprintf(at, sizeof at, "%02d:%02d", (int)(at_s / 3600), (int)(at_s / 60 % 60));
@@ -719,23 +741,36 @@ static void finish_task_at(int i, int32_t at_s)
 
 static void finish_task(int i) { finish_task_at(i, app.now_s); }
 
+/* A tap on a chore checks it, or unchecks one checked by mistake; the server hears either. */
 static void on_chore(int i)
 {
     day_chore_t *c = &app.plan->chores[i];
-    if (c->done) return;
-    c->done = true;
-    send("chore_done", "task_id", c->id, 0);
+    c->done = !c->done;
+    app.chore_at[i] = app.now_s;
+    app.reapply_until_s = app.now_s + SYNC_GRACE_S + REFRESH_MS / 1000 * 2;
+    send(c->done ? "chore_done" : "chore_undo", "task_id", c->id, 0);
     save_progress();
-    hal_play(HAL_SOUND_DONE);
-    pet_react(chores_page_pet(), PET_CLIP_CELEBRATE);
+    if (c->done) {
+        hal_play(HAL_SOUND_DONE);
+        pet_react(chores_page_pet(), PET_CLIP_CELEBRATE);
+    } else {
+        hal_play(HAL_SOUND_TICK);
+    }
     chores_page_render(app.plan, app.now_s / 60, app.plan->child.picture);
 }
 
-/* a chore ticked from the schedule wheel */
+/* the task now tapped on the schedule: the sheet goes and the button's action happens at home */
+static void on_sched_now(void)
+{
+    overlays_close_all();
+    mytoki_button();
+}
+
+/* a chore ticked (or unticked) from the schedule wheel */
 static void on_sched_chore(int i)
 {
     on_chore(i);
-    pet_react(home_pet(), PET_CLIP_CELEBRATE);
+    if (app.plan->chores[i].done) pet_react(home_pet(), PET_CLIP_CELEBRATE);
     schedule_refresh(app.plan, &app.now, app.now_s / 60);
 }
 
@@ -1257,7 +1292,10 @@ static void build_view(home_view_t *v)
             /* Figma Free time · Play with Biscuit: the clock and the pill, his room, tap him to play */
             v->hide_title = true;
             v->activity = app.free_act;
-            snprintf(v->say, sizeof v->say, "Tap to play!");
+            /* a grown-up's free time just given: he says that first ("Free time! 15 minutes") */
+            bool gift = !strncmp(app.say_key, "free:", 5) && (int32_t)(now_ms() - app.say_until) < 0;
+            snprintf(v->say, sizeof v->say, "%s", gift ? app.say : "Tap to play!");
+            v->tap_ring = can_play;   /* the lime ring pulses round him: a tap opens the games */
         }
         if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !v->hide_title && can_play) {
             snprintf(buf, sizeof buf, "Press to start %s", nx->title);
@@ -1404,7 +1442,7 @@ static void build_view(home_view_t *v)
         /* Figma Quiet days: his words beside him; a free day is a tap away from Playtime */
         if (rest) snprintf(v->say, sizeof v->say, "Take it easy today");
         else if (all) snprintf(v->say, sizeof v->say, "You did it, %s!", p->child.name);
-        else snprintf(v->say, sizeof v->say, "Tap me to play!");
+        else { snprintf(v->say, sizeof v->say, "Tap me to play!"); v->tap_ring = app.state == ST_FREE_DAY; }
         break;
     }
     default:
@@ -1452,6 +1490,30 @@ static void read_out(void)
     hal_speak(line);
 }
 
+/* Free time a grown-up gave (the day already makes room for it): the first time it's on, MyToki
+ * comes home and Biscuit says so (read out in picture view), with the chime. Once per gift. */
+static void free_time_gift(void)
+{
+    const int now_m = app.now_s / 60;
+    for (int i = 0; i < app.plan->nfree; i++) {
+        const char *id = app.plan->free[i].id;
+        if (now_m < app.plan->free[i].start || now_m >= app.plan->free[i].end || !strcmp(id, app.gift_seen)) continue;
+        snprintf(app.gift_seen, sizeof app.gift_seen, "%s", id);
+        char line[48], key[48];
+        snprintf(line, sizeof line, "Free time! %d minutes", app.plan->free[i].end - app.plan->free[i].start);
+        snprintf(key, sizeof key, "free:%.40s", id);
+        screen_wake();
+        if (schedule_is_open()) overlays_close_all();
+        go_page(1, true);
+        app.free_pet_view = true;    /* Biscuit says it, Games under him */
+        app.pet_view_at = 0;
+        say(key, line, SAY_MS);
+        if (app.plan->child.picture) hal_speak(line);
+        hal_play(HAL_SOUND_CHIME);
+        return;
+    }
+}
+
 static void on_state_change(state_t from, state_t to)
 {
     screen_wake();   /* something new to see (it goes off again if still put down) */
@@ -1473,13 +1535,13 @@ static void on_state_change(state_t from, state_t to)
 static void brightness(void)
 {
     if (app.screen_off) return;
-    uint8_t b = 100;
+    uint8_t b = 80;   /* full brightness was too bright (user, 2026-10-20) */
     switch (app.state) {
     case ST_SLEEPY: case ST_DAY_OVER: b = hal_docked() ? 20 : 35; break;
-    case ST_BEDTIME: b = 60; break;
+    case ST_BEDTIME: b = 50; break;
     /* still asleep while the alarm rings or snoozes: the screen stays dim until he's up */
     case ST_ALARM: case ST_SNOOZE: b = hal_docked() ? 20 : 35; break;
-    case ST_BED_SOON: b = 80; break;
+    case ST_BED_SOON: b = 65; break;
     default: break;
     }
     /* fade to it, a step a tick (about two seconds from dim to full), so waking up brightens */
@@ -1563,6 +1625,7 @@ static void tick(lv_timer_t *timer)
             }
         }
     }
+    free_time_gift();   /* after the new window's reset above, so Biscuit's room stays */
     if (play_is_open()) play_set_time_left(app.state == ST_FREE ? app.now.free_remaining - GET_READY_S : 0);
     if (reminder_is_open()) reminder_update(app.now.free_remaining);
 
@@ -1609,6 +1672,7 @@ void mytoki_start(void)
 
     swipe_init();
     screen_init();
+    schedule_set_on_now(on_sched_now);
     swipe_set_base(on_base_swipe);
     swipe_set_drag(on_base_drag);
     ui_set_render(render_now);
@@ -1658,12 +1722,14 @@ void mytoki_start(void)
 void mytoki_day_received(const char *json, size_t len)
 {
     app.fetching = false;
-    /* the same day as last time (most refreshes): nothing to redo */
+    hal_time_now(&app.t);
+    int32_t now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
+    /* the same day as last time (most refreshes): nothing to redo, unless something done here is
+     * still in (or just past) its grace, when the plan has to be laid over again */
     uint32_t hash = 2166136261u;
     for (size_t i = 0; i < len; i++) hash = (hash ^ (uint8_t)json[i]) * 16777619u;
-    if (app.have_plan && hash == app.plan_hash) return;
+    if (app.have_plan && hash == app.plan_hash && now_s > app.reapply_until_s) return;
     app.plan_hash = hash;
-    hal_time_now(&app.t);
     ui_set_clock(app.t.hour * 60 + app.t.minute);   /* screens that open with the plan show the time too */
     day_plan_t *p = lv_malloc(sizeof(day_plan_t));
     if (!p) return;
@@ -1676,7 +1742,7 @@ void mytoki_day_received(const char *json, size_t len)
     /* keep step ticks and the "Done!" hold across a refresh */
     char done_id[40] = "";
     if (app.have_plan && app.done_task >= 0) snprintf(done_id, sizeof done_id, "%s", app.plan->tasks[app.done_task].id);
-    apply_progress(p);
+    apply_progress(p, now_s);
     lv_free(app.plan);
     app.plan = p;
     if (done_id[0]) app.done_task = day_task_index(p, done_id);
@@ -1749,7 +1815,7 @@ void mytoki_day_failed(int reason)
 }
 
 /* ================================================================ the screen off when put down */
-/* Lying flat and still on a table, untouched, for 3 s, the screen goes off (held in a hand, however
+/* Lying flat and still on a table, untouched, for 10 s, the screen goes off (held in a hand, however
  * steadily, it stays on); picked up or tipped, the button or a touch brings it back, and that touch
  * or press does nothing else. It stays on on the
  * dock (the night clock), while the alarm rings, in Playtime, and without a motion sensor. */
@@ -1828,18 +1894,18 @@ void mytoki_button(void)
     app.touch_ms = now_ms();
     if (app.screen_off) { screen_wake(); return; }   /* a press on a dark screen only lights it */
     if (!app.have_plan) return;
-    if (reminder_is_open()) return;
-    /* free time, the games menu: the button goes home, to Biscuit's room (a game keeps it for play) */
-    if (play_is_open() && play_in_menu() && app.state == ST_FREE) {
-        play_close();
-        app.free_pet_view = true;
-        app.pet_view_at = 0;
+    /* away from Home (another page, something over the day, Playtime): the button brings the child
+     * home to the pet, and does nothing else. Biscuit says keeps it: "Button" is part of the game. */
+    if (play_in_game() && game_current() == GAME_SAYS) { play_button(); return; }
+    if (app.page != 1 || overlays_any_open() || play_is_open()) {
+        if (play_is_open()) play_close();
+        overlays_close_all();
         go_page(1, true);
+        if (app.state == ST_FREE) { app.free_pet_view = true; app.pet_view_at = 0; }
         hal_play(HAL_SOUND_TICK);
         tick(NULL);
         return;
     }
-    if (play_is_open()) { play_button(); return; }   /* Biscuit says: "Button" */
     const int f = app.focus;
     switch (app.state) {
     case ST_TASK: {

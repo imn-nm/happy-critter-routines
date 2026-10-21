@@ -40,7 +40,8 @@ import { ensureSystemTasksExist, getSystemTaskScheduleForDay, isSystemTaskName, 
 import { isBedtimeRoutine, tieDay } from "@/utils/dayTies";
 import { clampScheduleOverlaps } from "@/utils/scheduleOverlap";
 import { buildTodaysSchedule } from "@/utils/todaysSchedule";
-import { applyNextNow, applyRunWindows, canPullForward, hhmm as hhmmOf, markMissed, pausedBy, runWindows, runningRemaining, startsByTask, toMin as minOf } from "@/utils/liveDay";
+import { applyFreeTime, applyNextNow, applyRunWindows, canPullForward, freeWindows, hhmm as hhmmOf, markMissed, pausedBy, runWindows, runningRemaining, startsByTask, toMin as minOf } from "@/utils/liveDay";
+import { useFreeTimeGrants } from "@/hooks/useFreeTimeGrants";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { lockParentMode } from "@/lib/parentLock";
@@ -71,6 +72,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const { children, loading: childrenLoading, loadError: childrenLoadError, refetch: refetchChildren, updateChildHappiness, updateChild } = useChildren();
   const { tasks, completions, completeTask, uncompleteTask, pendingCount, updateTask, getTasksWithCompletionStatus, refetch: refetchTasks } = useTasks(childId);
   const { sessions, startSession, endSession, getActiveSessionForTask } = useTaskSessions(childId);
+  const { grants: freeTimeGrants } = useFreeTimeGrants(childId);
   const { holidays, isHoliday } = useHolidays(childId);
 
   const [showSchedule, setShowSchedule] = useState(false);
@@ -389,7 +391,8 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
   const startMarks = startsByTask(sessions);
   const nowMinLive = (() => { const [h, m] = getPSTTimeString().split(':').map(Number); return h * 60 + m; })();
   const plannedSchedule = (() => {
-    const planned = applyNextNow(getTodaysSchedule(), startMarks);
+    // Free time a grown-up gave makes room in the day (utils/liveDay applyFreeTime).
+    const planned = applyFreeTime(applyNextNow(getTodaysSchedule(), startMarks), freeWindows(freeTimeGrants, getPSTDateString()));
     if (!preview) return planned;
     const now = getPSTDate();
     const nowMin = now.getHours() * 60 + now.getMinutes();

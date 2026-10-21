@@ -43,19 +43,40 @@ function runShot(shot) {
   const withString = (s, fn) => { const b = enc.encode(s + '\0'); const p = ex.sim_alloc(b.length); mem().set(b, p); try { return fn(p, b.length - 1); } finally { ex.sim_free(p); } };
   let pendingDay = false;
   let seed = 12345;
+  // a pretend server: what the device sends lands in the day it is sent next. A shot's stored
+  // progress stands for things it sent earlier (the device's own record wins only for a moment).
+  const server = { done: {}, chores: {} };
+  const hhmm = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
+  try {
+    const pr = JSON.parse(kv.get('progress') || 'null');
+    for (const [id, s] of Object.entries((pr && pr.done) || {})) server.done[id] = hhmm(s);
+    const ch = pr && pr.chores;
+    if (Array.isArray(ch)) for (const id of ch) server.chores[id] = true;
+    else for (const [id, c] of Object.entries(ch || {})) server.chores[id] = !!c.done;
+  } catch { /* no stored progress */ }
+  const receive = (json) => {
+    try {
+      const m = JSON.parse(json);
+      if (m.type === 'task_done') server.done[m.task_id] = m.at;
+      if (m.type === 'chore_done') server.chores[m.task_id] = true;
+      if (m.type === 'chore_undo') server.chores[m.task_id] = false;
+    } catch { /* not an event */ }
+  };
   const planJson = () => {
     const p = JSON.parse(fs.readFileSync(path.join(HERE, 'web', 'demo', shot.plan || 'school-day.json'), 'utf8'));
     const d = new Date(simMs);
     p.date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     p.weekday = d.getDay();
     if (shot.picture) p.child.picture = true;
+    for (const t of p.tasks || []) if (server.done[t.id]) t.done_at = server.done[t.id];
+    for (const c of p.chores || []) if (c.id in server.chores) c.done = server.chores[c.id];
     if (shot.patch) Object.assign(p, shot.patch);
     return JSON.stringify(p);
   };
   const mytoki = {
     time_now(ptr) { const d = new Date(simMs); new Int32Array(ex.memory.buffer, ptr, 8).set([d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds(), d.getDay()]); },
     request_day() { pendingDay = true; },
-    send(p, n) { sent.push(str(p, n)); },
+    send(p, n) { const j = str(p, n); sent.push(j); receive(j); },
     store_get(kp, kl, buf, len) { const v = kv.get(str(kp, kl)); if (v == null) return 0; const b = enc.encode(v); const n = Math.min(b.length, len - 1); mem().set(b.subarray(0, n), buf); mem()[buf + n] = 0; return n + 1; },
     store_set(kp, kl, vp, vl) { kv.set(str(kp, kl), str(vp, vl)); },
     play() {}, speak() {}, brightness() {},

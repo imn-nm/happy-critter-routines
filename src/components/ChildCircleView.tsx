@@ -12,6 +12,7 @@ import { useRewards } from "@/hooks/useRewards";
 import { useTaskSessions } from "@/hooks/useTaskSessions";
 import { useHolidays } from "@/hooks/useHolidays";
 import { markParentNoteSeen, useUnseenParentNotes } from "@/hooks/useParentNotes";
+import { useFreeTimeGrants } from "@/hooks/useFreeTimeGrants";
 import { buildTodaysSchedule, todaysChores } from "@/utils/todaysSchedule";
 import { buildDayPlan } from "@/lib/dayPlan";
 import { ensureSystemTasksExist } from "@/utils/systemTasks";
@@ -30,12 +31,14 @@ interface Props {
 
 const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
   const { children, loadError, updateChild, updateChildHappiness } = useChildren();
-  const { completions, completeTask, getTasksWithCompletionStatus, loading: tasksLoading } = useTasks(childId);
+  const { completions, completeTask, uncompleteTask, getTasksWithCompletionStatus, loading: tasksLoading } = useTasks(childId);
   const { rewards, purchases, purchaseReward } = useRewards(childId);
   const { sessions, startSession, getActiveSessionForTask, endSession } = useTaskSessions(childId);
   const { holidays, isHoliday } = useHolidays(childId);
   // Grown-ups' notes go into the plan; the Circle shows each once and sends "note_seen".
   const { notes } = useUnseenParentNotes(childId);
+  // Free time a grown-up gave: the day makes room for it.
+  const { grants: freeTime } = useFreeTimeGrants(childId);
   const [systemTasksReady, setSystemTasksReady] = useState(false);
 
   useEffect(() => {
@@ -61,11 +64,12 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
       restDay: isRestDate(child, today),
       starts: sessions,
       notes,
+      freeTime,
     });
     return JSON.stringify(plan);
     // getTasksWithCompletionStatus makes a fresh array each render; the pieces it is made of are the inputs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, sessions, notes, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
+  }, [child, systemTasksReady, tasksLoading, completions, rewards, purchases, holidays, todaysHoliday, today, sessions, notes, freeTime, tasksWithCompletion.length, JSON.stringify(tasksWithCompletion.map(t => [t.id, t.isCompleted, t.updated_at]))]);
 
   const onEvent = async (ev: CircleEvent & { note_id?: string }) => {
     if (!child) return;
@@ -83,6 +87,10 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
         await startSession(ev.task_id, "next_now");
       } else if (ev.type === "chore_done" && ev.task_id) {
         await completeTask(ev.task_id, 0, 0);
+      } else if (ev.type === "chore_undo" && ev.task_id) {
+        // checked by mistake on the Circle: undone, unless a grown-up has already given stars for it
+        const row = completions.find(c => c.task_id === ev.task_id && c.date === today);
+        if (row && !((row.coins_earned ?? 0) > 0)) await uncompleteTask(ev.task_id);
       } else if (ev.type === "reward_request" && ev.reward_id) {
         await purchaseReward(ev.reward_id, ev.value ?? 0, "pending");
       } else if (ev.type === "note_seen" && ev.note_id) {

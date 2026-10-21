@@ -234,6 +234,41 @@ export type Database = {
           },
         ]
       }
+      free_time_grants: {
+        Row: {
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          minutes: number
+          starts_at: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          minutes: number
+          starts_at?: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          minutes?: number
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_time_grants_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_connections: {
         Row: {
           access_token: string | null

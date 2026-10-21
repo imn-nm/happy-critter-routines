@@ -44,6 +44,7 @@ import { describeClash, findStartClash, runsOn, tasksOnDate, upcomingDates, type
 import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 import StarBadge from "@/components/StarBadge";
+import FreeTimeGift from "@/components/FreeTimeGift";
 
 const ChildDashboard = () => {
   const { childId } = useParams();
@@ -872,6 +873,9 @@ const ChildDashboard = () => {
             </span>
           </button>
         </div>
+
+        {/* Free time a grown-up gives right now: the child's day makes room for it */}
+        {isViewingToday && !isRestDay && <FreeTimeGift childId={child.id} childName={child.name} />}
 
         {isDayTab ? (
           <>

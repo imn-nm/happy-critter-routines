@@ -17,7 +17,7 @@ import { taskIconKey } from '@/utils/taskIcon';
 import { wheelOptionsFor } from '@/lib/spinningWheel';
 import { getPSTDateString, toPSTDateString } from '@/utils/pstDate';
 import type { TaskRow } from '@/utils/todaysSchedule';
-import { applyNextNow, hhmm as hhmmOf, startsByTask, type TaskStart } from '@/utils/liveDay';
+import { applyFreeTime, applyNextNow, freeWindows, hhmm as hhmmOf, startsByTask, type FreeTimeGrant, type TaskStart } from '@/utils/liveDay';
 
 export interface DayPlanTask {
   id: string;
@@ -63,6 +63,8 @@ export interface DayPlan {
   };
   rest_day: boolean;
   tasks: DayPlanTask[];
+  /** Free time a grown-up gave today ("HH:MM"): the tasks above already make room for it. */
+  free_time?: { id: string; start: string; end: string; minutes: number }[];
   chores: { id: string; title: string; icon: string; from?: string; to?: string; done: boolean }[];
   rewards: { id: string; title: string; icon: string; color: string; cost: number; state: 'waiting' | 'approved' | 'denied' | null; note?: string; note_id?: string }[];
   wheel: string[];
@@ -102,6 +104,8 @@ export interface DayPlanInput {
   starts?: TaskStart[];
   /** Grown-ups' notes the child hasn't seen yet (parent_notes); the Circle shows each once. */
   notes?: ParentNote[];
+  /** Free time a grown-up gave (free_time_grants): the day makes room for it. */
+  freeTime?: FreeTimeGrant[];
 }
 
 /** A note as the Circle keeps it: 120 bytes at most (its buffer is 128), cut at a word with "…". */
@@ -119,12 +123,13 @@ const clipNote = (text: string) => {
   return `${(cut > out.length * 0.6 ? out.slice(0, cut) : out).replace(/[\s.,;:!?]+$/, '')}…`;
 };
 
-export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [] }: DayPlanInput): DayPlan {
+export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [] }: DayPlanInput): DayPlan {
   const today = getPSTDateString();
   // "Next now" pulls are applied here so the device gets concrete times; the
   // waits, Start taps and pauses it works out on its own clock (logic.c).
   const marks = startsByTask(starts);
-  const schedule = applyNextNow(planned, marks);
+  const windows = freeWindows(freeTime, today);
+  const schedule = applyFreeTime(applyNextNow(planned, marks), windows);
   const doneAt = (taskId: string) => {
     const c = completions.find(x => x.task_id === taskId && (x.date === today || toPSTDateString(x.completed_at) === today));
     if (!c) return undefined;
@@ -199,6 +204,7 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
     },
     rest_day: restDay,
     tasks,
+    ...(windows.length ? { free_time: windows.map(w => ({ id: w.id, start: hhmm(w.start), end: hhmm(w.end), minutes: w.end - w.start })) } : {}),
     chores: chores.map(c => ({
       id: c.id,
       title: c.name,

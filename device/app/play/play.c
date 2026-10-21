@@ -45,7 +45,9 @@ static struct {
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
     lv_obj_t *back_wheel;       /* the menu's way out: back to the wheel */
-    lv_obj_t *back_game;        /* a game's way out: back to the menu */
+    lv_obj_t *back_game;        /* a game's way out: back to the menu ("Games", then "Leave?") */
+    pill_t back_pill;
+    lv_timer_t *leave_timer;    /* "Leave?" turns back into "Games" if not tapped again */
     lv_obj_t *buddy_pet;        /* My pet: the pet trying each choice on */
     bool buddy;                 /* My pet is showing */
     bool standalone;            /* opened by a long tap on the pet, not from Playtime */
@@ -141,7 +143,8 @@ static void set_header(const char *icon, const char *title)
         return;
     }
     /* the menu: the clock and the pill only (a 32 px "Play with Biscuit" would wrap onto the games) */
-    header_set(&pl.head, ui_clock(), pl.in_game ? head_title : NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+    /* a game: the play time left only; the Games button stands where the clock and its name were */
+    header_set(&pl.head, pl.in_game ? NULL : ui_clock(), NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */
@@ -495,12 +498,37 @@ static void open_menu(void)
 
 static void close_sliding(int dir);
 
-/* The back buttons do what a swipe right does: a game back to the menu, the menu back to the wheel. */
+/* A game's way out, at the top: "Games" asks "Leave?", and a second tap within 3 s leaves, so a
+ * stray tap during play doesn't. */
+static void back_label(bool ask)
+{
+    if (!pl.back_game) return;
+    pill_set(&pl.back_pill, ask ? PILL_ACTION : PILL_CALM, ask ? NULL : "chevron-left", ask ? "Leave?" : "Games");
+    lv_obj_update_layout(pl.back_game);
+    lv_obj_align(pl.back_game, LV_ALIGN_TOP_MID, 0, 10);
+}
+
+static void leave_reset(lv_timer_t *t)
+{
+    (void)t;
+    pl.leave_timer = NULL;
+    back_label(false);
+}
+
 static void on_back_game(lv_event_t *e)
 {
     (void)e;
     if (!pl.in_game || pl.see_you) return;
     hal_play(HAL_SOUND_TICK);
+    if (!pl.leave_timer) {
+        back_label(true);
+        pl.leave_timer = lv_timer_create(leave_reset, 3000, NULL);
+        lv_timer_set_repeat_count(pl.leave_timer, 1);
+        return;
+    }
+    lv_timer_delete(pl.leave_timer);
+    pl.leave_timer = NULL;
+    back_label(false);
     open_menu();
 }
 
@@ -514,18 +542,16 @@ static void on_back_wheel(lv_event_t *e)
 }
 
 bool play_in_menu(void) { return pl.root && !pl.in_game && !pl.see_you && !pl.buddy && !pl.standalone; }
+bool play_in_game(void) { return pl.root && pl.in_game && !pl.see_you; }
 
-/* Swipe left or right: a game goes back to the menu; the menu turns its pages (left for the
- * motion games, right to come back), and from the first page a swipe right leaves. In Carrot
- * catch and Bath time a sideways drag on the stage is play, so there the swipe has to start
- * outside it (the title or the controls), unless the game is over. Tilting never swipes. */
+/* Swipe left or right: the menu turns its pages (left for the motion games, right to come back),
+ * and from the first page a swipe right leaves. A game ignores swipes (a sideways drag is play):
+ * its Games button is the way out. Tilting never swipes. */
 static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, bool commit)
 {
     (void)owner; (void)user;
     if (dir == SWIPE_DOWN) return false;
-    if (pl.in_game && !pl.see_you && game_drag_active()) {
-        if (start.y > 100 && start.y < 330) return false;
-    }
+    if (pl.in_game && !pl.see_you) return false;   /* a game is left only by its Games button: a swipe in play was too easy */
     if (!commit) return true;
     /* My pet: left for Dress up, right back to My buddy; right from My buddy leaves it */
     if (pl.buddy && !pl.see_you) {
@@ -535,7 +561,6 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
         close_sliding(dir);
         return true;
     }
-    if (pl.in_game && !pl.see_you) { open_menu(); return true; }
     if (!pl.see_you) {
         if (dir == SWIPE_LEFT) { if (pl.page < MENU_PAGES - 1) { menu_page(pl.page + 1); hal_play(HAL_SOUND_TICK); } return true; }
         if (pl.page > 0) { menu_page(pl.page - 1); hal_play(HAL_SOUND_TICK); return true; }
@@ -641,6 +666,7 @@ static void free_buf(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
 static void forget(void)
 {
     if (pl.timer_obj) lv_timer_delete(pl.timer_obj);
+    if (pl.leave_timer) lv_timer_delete(pl.leave_timer);
     if (pl.root && pl.buf) lv_obj_add_event_cb(pl.root, free_buf, LV_EVENT_DELETE, pl.buf);
     else lv_free(pl.buf);
     forget_cache();
@@ -746,16 +772,14 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);
 
-    /* in a game: a round back arrow at the top left, clear of the stage's play area */
-    pl.back_game = ui_box(pl.root);
-    lv_obj_set_size(pl.back_game, 40, 40);
-    lv_obj_set_pos(pl.back_game, 66, 66);
-    ui_style_card(pl.back_game, C_GLASS, LV_RADIUS_CIRCLE, C_LINE, LV_OPA_COVER);
-    lv_obj_set_style_bg_color(pl.back_game, COL(C_LINE), LV_STATE_PRESSED);
+    /* in a game: "‹ Games" at the top, over the play time left (a small arrow wasn't seen as the way
+     * out, and a swipe left too easily) */
+    pill_create(pl.root, &pl.back_pill);
+    pl.back_game = pl.back_pill.root;
     lv_obj_add_flag(pl.back_game, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(pl.back_game, 10);
+    lv_obj_set_ext_click_area(pl.back_game, 12);
     lv_obj_add_event_cb(pl.back_game, on_back_game, LV_EVENT_CLICKED, NULL);
-    lv_obj_center(ui_icon(pl.back_game, "chevron-left", 18, C_BONE));
+    back_label(false);
     ui_show(pl.back_game, false);
 
     pl.bottom = ui_box(pl.root);

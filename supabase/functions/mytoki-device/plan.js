@@ -3436,6 +3436,61 @@ function applyNextNow(schedule, starts) {
   }
   return rows;
 }
+var freeWindows = (grants, today) => grants.filter((g) => g.minutes > 0 && toPSTDateString(g.starts_at) === today).map((g) => {
+  const start = minuteOfDay(g.starts_at);
+  return { id: g.id, start, end: Math.min(24 * 60, start + g.minutes) };
+}).sort((a, b) => a.start - b.start);
+var staysPut = (t) => !!t.is_event || t.name === "School" || t.name === "Bedtime";
+function applyFreeTime(schedule, windows) {
+  if (!windows.length) return schedule;
+  const rows = schedule.map((r) => ({ ...r }));
+  const byStart = () => rows.filter((r) => timed(r)).sort((a, b) => toMin(a.scheduled_time) - toMin(b.scheduled_time));
+  const bedtimeRow = rows.find((r) => r.name === "Bedtime" && timed(r));
+  const bedtime = bedtimeRow ? toMin(bedtimeRow.scheduled_time) : 24 * 60;
+  for (const w of windows) {
+    const holds = byStart().filter((r) => isFixedRow(r) && toMin(r.scheduled_time) >= w.end || staysPut(r)).map((r) => ({ start: toMin(r.scheduled_time), end: toMin(r.scheduled_time) + (r.duration ?? 0) }));
+    let prevEnd = w.end;
+    const place = (r) => {
+      const dur = r.duration ?? 0, whole = r.late_policy !== "shorten";
+      let start = prevEnd;
+      for (let moved = true; moved; ) {
+        moved = false;
+        for (const h of holds) {
+          const inside = start >= h.start && start < h.end, runsInto = whole && start < h.start && start + dur > h.start;
+          if ((inside || runsInto) && h.end < bedtime) {
+            start = h.end;
+            moved = true;
+          }
+        }
+      }
+      r.scheduled_time = hhmm(start);
+      prevEnd = start + dur;
+    };
+    for (const r of byStart()) {
+      if (r.isCompleted || staysPut(r)) continue;
+      const start = toMin(r.scheduled_time), end = start + (r.duration ?? 0);
+      if (end <= w.start) continue;
+      if (start < w.start) {
+        r.duration = end - w.start;
+        place(r);
+        continue;
+      }
+      if (start < w.end) {
+        place(r);
+        continue;
+      }
+      if (isFixedRow(r)) continue;
+      if (start >= prevEnd) break;
+      place(r);
+    }
+  }
+  const sorted = rows.sort((a, b) => {
+    const ta = timed(a) ? toMin(a.scheduled_time) : Number.POSITIVE_INFINITY;
+    const tb = timed(b) ? toMin(b.scheduled_time) : Number.POSITIVE_INFINITY;
+    return ta - tb || (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  });
+  return clampScheduleOverlaps(sorted);
+}
 
 // src/lib/dayPlan.ts
 var hhmm2 = (minutes) => `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -3471,10 +3526,11 @@ var clipNote = (text) => {
   const cut = out.lastIndexOf(" ");
   return `${(cut > out.length * 0.6 ? out.slice(0, cut) : out).replace(/[\s.,;:!?]+$/, "")}\u2026`;
 };
-function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [] }) {
+function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [] }) {
   const today = getPSTDateString();
   const marks = startsByTask(starts);
-  const schedule = applyNextNow(planned, marks);
+  const windows = freeWindows(freeTime, today);
+  const schedule = applyFreeTime(applyNextNow(planned, marks), windows);
   const doneAt = (taskId) => {
     const c = completions.find((x) => x.task_id === taskId && (x.date === today || toPSTDateString(x.completed_at) === today));
     if (!c) return void 0;
@@ -3548,6 +3604,7 @@ function buildDayPlan({ child, schedule: planned, chores, completions, rewards, 
     },
     rest_day: restDay,
     tasks,
+    ...windows.length ? { free_time: windows.map((w) => ({ id: w.id, start: hhmm2(w.start), end: hhmm2(w.end), minutes: w.end - w.start })) } : {},
     chores: chores.map((c) => ({
       id: c.id,
       title: c.name,
@@ -3886,7 +3943,8 @@ function devicePlan(rows) {
     purchases: rows.purchases,
     restDay: isRestDate(child, today),
     starts: rows.sessions.filter((s) => toPSTDateString(s.started_at) === today),
-    notes: rows.notes
+    notes: rows.notes,
+    freeTime: rows.freeTime ?? []
   });
 }
 export {

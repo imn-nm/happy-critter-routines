@@ -158,7 +158,7 @@ static lv_obj_t *ov_line(lv_obj_t *o, const lv_font_t *f, uint32_t color, const 
  * size, with a lime outline; the one before sits above it and the next ones below, smaller and
  * fainter the further they are. It scrolls under the finger (with momentum, settling a row on the
  * line) and always opens on now. Chores come after the timed rows, by when they're due, then
- * anytime; tap a chore's ring to tick it. A tap on Next or a flick up opens it; it slides back down
+ * anytime; tap a chore's ring to tick it (or untick it). A tap on Next or a flick up opens it; it slides back down
  * from its top edge (a drag down from the header, or a flick down that starts there). */
 typedef enum { ROW_DONE, ROW_NOW, ROW_NEXT, ROW_FREE, ROW_CHORE, ROW_CHORE_DONE } row_state_t;
 typedef struct { int task, chore; int16_t start, end; row_state_t state; } srow_t;
@@ -322,11 +322,31 @@ static void sched_rows(void)
     sc.focus = focus_row >= 0 ? focus_row : 0;
 }
 
-static void on_row_chore(lv_event_t *e)
+/* A tap anywhere on a chore's row checks it or unchecks it; on the row now, does what the button
+ * does at home (done, a step ticked, Start). Both run once the tap is over: the rows are rebuilt. */
+static void chore_tapped(void *chore)
 {
-    int chore = (int)(intptr_t)lv_event_get_user_data(e);
-    sc.just = chore;
-    if (sc.on_chore) sc.on_chore(chore);
+    if (!sched) return;
+    sc.just = (int)(intptr_t)chore;
+    if (sc.on_chore) sc.on_chore(sc.just);
+}
+static void on_row_chore(lv_event_t *e) { lv_async_call(chore_tapped, lv_event_get_user_data(e)); }
+
+static schedule_now_cb_t on_now;
+void schedule_set_on_now(schedule_now_cb_t cb) { on_now = cb; }
+static void now_tapped(void *unused) { (void)unused; if (sched && on_now) on_now(); }
+static void on_row_now(lv_event_t *e) { (void)e; lv_async_call(now_tapped, NULL); }
+
+/* the whole row answers a tap: a chore, or the task now */
+static void row_tappable(lv_obj_t *card, const srow_t *r)
+{
+    if (r->chore >= 0) {
+        lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(card, on_row_chore, LV_EVENT_CLICKED, (void *)(intptr_t)r->chore);
+    } else if (r->state == ROW_NOW) {
+        lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(card, on_row_now, LV_EVENT_CLICKED, NULL);
+    }
 }
 
 /* A row rebuilt as done right after its chore was ticked here: it starts as it was (lavender, an
@@ -340,7 +360,8 @@ static void row_just_done(lv_obj_t *card, lv_obj_t *box)
 /* Figma "Schedule row" (Center): the icon (36), the name (Item 22) and the detail (Detail 20) from
  * x 66, then the Checkbox (48) or "Now". Done: a cream icon, muted words, ticked. Now: a lime outline,
  * the detail in lime, "Now". Next: the detail muted, nothing at the end. Free time: a mint dashed
- * outline, mint icon and words, an empty ring. Chores: lavender with navy words; tap the ring. */
+ * outline, mint icon and words, an empty ring. Chores: lavender with navy words. A tap on a chore's
+ * row ticks it (or unticks it); on the row now, it's the button at home. */
 static void sched_row(lv_obj_t *slot, const srow_t *r)
 {
     const day_plan_t *p = sc.p;
@@ -417,12 +438,8 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         lv_obj_set_pos(box, 336, 18);
         lv_obj_set_user_data(box, PART(PART_PLAIN, 336, 18));
         if (just) row_just_done(card, box);
-        if (r->state == ROW_CHORE) {
-            lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_ext_click_area(box, 10);
-            lv_obj_add_event_cb(box, on_row_chore, LV_EVENT_CLICKED, (void *)(intptr_t)r->chore);
-        }
     }
+    row_tappable(card, r);
 }
 
 /* Figma "Picture card" (Today's schedule · Younger): fully round, hugging its words. On the line:
@@ -484,6 +501,8 @@ static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
     bool just = r->state == ROW_CHORE_DONE && r->chore == sc.just;
     lv_obj_t *box = checkbox_create(tile, 48, done && !just);
     if (just) row_just_done(tile, box);
+    /* a chore or the task now: the tap ticks it; any other: the tap reads it out */
+    if (r->chore >= 0 || r->state == ROW_NOW) { row_tappable(tile, r); return; }
     static char said[DAY_MAX_TASKS * 2 + DAY_MAX_CHORES][64];
     snprintf(said[idx], sizeof said[idx], "%s at %s", name, t);
     lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -1215,6 +1234,11 @@ void overlays_close_idle(void)
 {
     if (sched) schedule_close();
     if (others) overlay_slide_away(others, -1);
+}
+
+bool overlays_any_open(void)
+{
+    return sched || others || reminder || approved || denied || chosen || asked || stars || streak || battery;
 }
 
 void overlays_close_all(void)

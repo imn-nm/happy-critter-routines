@@ -29,12 +29,14 @@ static const char *const WORM[] = {
 #define STEPS_H 268
 #define STEPS_ROW 87          /* row centres 145, 232, 319 (Figma) */
 #define STEPS_FOCUS 232
+#define TAP_D 412             /* the tap ring: just inside the timer (223 out, 9 wide), round the middle */
+#define TAP_CY CENTER
 
 static struct {
     home_cb_t cb;
     lv_obj_t *page, *pet, *faint, *wheel, *scrim, *timer;
     lv_obj_t *overdue, *overdue_text, *worm;
-    lv_obj_t *tap_in, *tap_out;
+    lv_obj_t *tap_in, *tap_out, *tap_stars;
     lv_obj_t *left, *right;
     lv_obj_t *bigclock;
     pill_t bigclock_pill;
@@ -159,6 +161,12 @@ static void worm_layout(void)
 }
 
 static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
+/* a star twinkles: it brightens and swells a little, then fades and shrinks away */
+static void twinkle_exec(void *obj, int32_t v)
+{
+    lv_obj_set_style_image_opa(obj, (lv_opa_t)v, 0);
+    lv_image_set_scale(obj, (uint32_t)(150 + v * 130 / 255));
+}
 
 /* Figma Going out · Get ready (Step rows): the step now is a lime row 348 wide, fully round, on the
  * centre line; the one above (done, mint) shows at 30%, the one below (lime) at 50%, both 0.865 the
@@ -340,36 +348,58 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_anim_set_repeat_count(&ca, LV_ANIM_REPEAT_INFINITE);
     lv_anim_start(&ca);
 
-    /* Biscuit can be tapped: a lime ring and a ripple that pulses out (Figma "Tap ring", 260 here) */
+    /* Biscuit can be tapped: a clean lime ring round him with a soft glow that breathes, and little
+     * stars twinkling about it, each in its own time (no badge: the ring says it) */
     h.tap_out = ui_box(page);
-    lv_obj_set_size(h.tap_out, 272, 272);
-    lv_obj_set_pos(h.tap_out, CENTER - 136, 252 - 136);
+    lv_obj_set_size(h.tap_out, TAP_D + 16, TAP_D + 16);
+    lv_obj_set_pos(h.tap_out, CENTER - (TAP_D + 16) / 2, TAP_CY - (TAP_D + 16) / 2);
     lv_obj_set_style_radius(h.tap_out, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(h.tap_out, 2, 0);
+    lv_obj_set_style_border_width(h.tap_out, 10, 0);
     lv_obj_set_style_border_color(h.tap_out, COL(C_ACTION), 0);
-    lv_obj_set_style_border_opa(h.tap_out, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_opa(h.tap_out, 70, 0);
     h.tap_in = ui_box(page);
-    lv_obj_set_size(h.tap_in, 260, 260);
-    lv_obj_set_pos(h.tap_in, CENTER - 130, 252 - 130);
+    lv_obj_set_size(h.tap_in, TAP_D, TAP_D);
+    lv_obj_set_pos(h.tap_in, CENTER - TAP_D / 2, TAP_CY - TAP_D / 2);
     lv_obj_set_style_radius(h.tap_in, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(h.tap_in, 3, 0);
+    lv_obj_set_style_border_width(h.tap_in, 2, 0);
     lv_obj_set_style_border_color(h.tap_in, COL(C_ACTION), 0);
     lv_obj_set_style_border_opa(h.tap_in, LV_OPA_COVER, 0);
-    lv_obj_t *badge = ui_box(h.tap_in);
-    lv_obj_set_size(badge, 40, 40);
-    lv_obj_set_pos(badge, 196, 196);
-    ui_style_card(badge, C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
-    lv_obj_t *hand = ui_icon(badge, "hand", 24, C_ON_COLOR);
-    lv_obj_center(hand);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, h.tap_out);
     lv_anim_set_exec_cb(&a, ring_opa);
-    lv_anim_set_values(&a, 140, 20);
-    lv_anim_set_duration(&a, 900);
-    lv_anim_set_playback_duration(&a, 900);
+    lv_anim_set_values(&a, 255, 50);
+    lv_anim_set_duration(&a, 1300);
+    lv_anim_set_playback_duration(&a, 1300);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_anim_start(&a);
+    /* the stars: just inside the ring, clear of the header, the side buttons and the hill */
+    static const struct { int16_t deg, size; uint16_t ms, delay; } STARS[] = {
+        { 210, 16, 900, 0 }, { 236, 12, 700, 350 }, { 304, 14, 800, 600 },
+        { 330, 18, 1000, 150 }, { 150, 12, 750, 800 }, { 30, 16, 850, 450 },
+    };
+    h.tap_stars = ui_box(page);
+    lv_obj_set_size(h.tap_stars, SCREEN_W, SCREEN_H);
+    for (unsigned i = 0; i < sizeof STARS / sizeof STARS[0]; i++) {
+        float ang = STARS[i].deg * 3.14159265f / 180.0f;
+        int32_t r = TAP_D / 2 - 20, sz = STARS[i].size;
+        lv_obj_t *s = ui_icon(h.tap_stars, "star-fill", sz, i % 2 ? C_TEXT : C_ACTION);
+        lv_obj_set_pos(s, CENTER + (int32_t)(cosf(ang) * r) - sz / 2, TAP_CY + (int32_t)(sinf(ang) * r) - sz / 2);
+        lv_image_set_pivot(s, sz / 2, sz / 2);
+        lv_anim_t t;
+        lv_anim_init(&t);
+        lv_anim_set_var(&t, s);
+        lv_anim_set_exec_cb(&t, twinkle_exec);
+        lv_anim_set_values(&t, 0, 255);
+        lv_anim_set_duration(&t, STARS[i].ms);
+        lv_anim_set_playback_duration(&t, STARS[i].ms);
+        lv_anim_set_repeat_delay(&t, 300 + STARS[i].delay / 2);
+        lv_anim_set_delay(&t, STARS[i].delay);
+        lv_anim_set_path_cb(&t, lv_anim_path_ease_in_out);
+        lv_anim_set_repeat_count(&t, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&t);
+    }
 
     hill_create(page, &h.hill, on_hill);
 
@@ -479,6 +509,7 @@ void home_render(const home_view_t *v)
     }
     ui_show(h.tap_in, pet_on && v->tap_ring);
     ui_show(h.tap_out, pet_on && v->tap_ring);
+    ui_show(h.tap_stars, pet_on && v->tap_ring);
     ui_show(h.cue, v->cue);
     if (v->cue) cue_set(h.cue, v->cue_ring, v->cue_dark);
 
