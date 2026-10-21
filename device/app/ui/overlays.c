@@ -184,12 +184,7 @@ static void sched_style(lv_obj_t *card, float d)
     /* Two rows away (the fourth row, low on the round screen) is an Edge row at 94 % and 55 %, so its
      * corners clear the rim; past that it fades out. */
     float ad = fabsf(d), k = fminf(ad, 1.0f), k2 = fminf(fmaxf(0.0f, ad - 1.0f), 1.0f), far = fmaxf(0.0f, ad - 2.0f);
-    int32_t sc2 = (int32_t)lroundf(256 - 14 * k2);
-    if (lv_obj_get_style_transform_scale_x(card, 0) != sc2) {
-        lv_obj_set_style_transform_scale(card, sc2, 0);
-        lv_obj_set_style_transform_pivot_x(card, LV_PCT(50), 0);
-        lv_obj_set_style_transform_pivot_y(card, LV_PCT(50), 0);
-    }
+    ui_row_scale(card, (int32_t)lroundf(256 - 14 * k2), true);
     int32_t w = (int32_t)lroundf(400 - 40 * k), h = (int32_t)lroundf(84 - 18 * k);
     if (lv_obj_get_width(card) != w || lv_obj_get_height(card) != h) {
         lv_obj_set_size(card, w, h);
@@ -209,8 +204,7 @@ static void sched_style(lv_obj_t *card, float d)
             if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_3)) lv_obj_set_style_text_color(c, COL(k > 0.5f ? C_TEXT : C_ACTION), 0);
         }
     }
-    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f));
-    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
+    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f)));   /* the row fades as one, like Figma */
 }
 
 static struct {
@@ -442,8 +436,7 @@ static void sched_tile_style(lv_obj_t *card, float d)
         lv_image_set_scale(ic, (uint32_t)(256 * sz / 48));
     }
     float base = lv_obj_has_flag(card, LV_OBJ_FLAG_USER_2) ? 0.6f : 1.0f;   /* done: faded */
-    lv_opa_t o = (lv_opa_t)(255 * base * fmaxf(0.0f, 1.0f - far / 0.6f));
-    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
+    ui_row_fade(card, (lv_opa_t)(255 * base * fmaxf(0.0f, 1.0f - far / 0.6f)));   /* the row fades as one, like Figma */
 }
 
 static void on_tile_say(lv_event_t *e)

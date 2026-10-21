@@ -12,9 +12,10 @@
 #define SCREEN_H 466
 #define CENTER 233
 
-/* The carousel's pyramid (pages sink back, smaller and clipped to their circles, as they turn)
- * draws whole pages through a layer while they move; a platform that can't afford that sets this
- * to 0 and keeps the plain slide. */
+/* Effects that draw through a layer of their own every frame: the carousel's pyramid (pages sink
+ * back, smaller and clipped to their circles, as they turn) and the wheels' rows shrinking and
+ * fading as one piece (ui_row_scale, ui_row_fade). A platform that can't afford them (the board)
+ * sets this to 0: the pages slide flat and the rows only fade, part by part. */
 #ifndef UI_DEPTH
 #define UI_DEPTH 1
 #endif

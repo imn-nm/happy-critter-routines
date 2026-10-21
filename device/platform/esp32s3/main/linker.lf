@@ -1,0 +1,8 @@
+# The app's static buffers (Biscuit's room grids, the game stage) live in PSRAM: next to Wi-Fi,
+# the task stacks and the display's DMA they don't fit in internal RAM. Nothing in main/ or
+# device/app is touched from an interrupt, so none of it has to stay internal.
+[mapping:mytoki_extram]
+archive: libmain.a
+entries:
+    if SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY = y:
+        * (extram_bss)

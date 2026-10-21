@@ -10,7 +10,8 @@
  *  - sound:   simple chimes synthesised into the ES8311 speaker codec.
  *  - motion:  the board's QMI8658 accelerometer over I2C at 100 Hz (CONFIG_MYTOKI_IMU);
  *             the product's LIS2DH12 goes behind the same mytoki_motion() call.
- * Every call into the app (mytoki_*) happens with the LVGL lock held.
+ * Every call into the app (mytoki_*) happens with the LVGL lock held. The button and motion
+ * are queued and handed to the app from an LVGL timer, so they run on LVGL's own (big) stack.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@
 #include "driver/gpio.h"
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
+#include "lvgl.h"
 #include "esp_codec_dev.h"
 #include "esp_heap_caps.h"
 #include "cJSON.h"
@@ -49,9 +51,10 @@ extern const char demo_day_end[] asm("_binary_school_day_json_end");
 
 static nvs_handle_t nvs;
 static volatile bool wifi_up;
-static QueueHandle_t net_q, sound_q;
+static QueueHandle_t net_q, sound_q, input_q;
 
 typedef struct { int kind; char *json; } net_msg_t; /* kind 0: fetch the plan, 1: send */
+typedef struct { int kind; float x, y, z; } input_t; /* kind 0: the button, 1: a motion sample */
 
 /* ================================================================ app lock helpers */
 static void with_lock_day(const char *json, size_t len)
@@ -108,7 +111,8 @@ static void clock_from_http_date(const char *v)
     ESP_LOGI(TAG, "clock set from the server: %s", v);
 }
 
-/* The firmware's build time: better than 1970 for a demo with no network. */
+/* The firmware's build time: better than 1970 for a demo with no network. CONFIG_MYTOKI_DEMO_TIME
+ * moves it to another time of day. */
 static void clock_from_build(void)
 {
     static const char *MON = "JanFebMarAprMayJunJulAugSepOctNovDec";
@@ -116,6 +120,8 @@ static void clock_from_build(void)
     struct tm t = { 0 };
     sscanf(__DATE__, "%3s %d %d", mon, &t.tm_mday, &t.tm_year);
     sscanf(__TIME__, "%d:%d:%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
+    int h, m;
+    if (sscanf(CONFIG_MYTOKI_DEMO_TIME, "%d:%d", &h, &m) == 2) { t.tm_hour = h; t.tm_min = m; t.tm_sec = 0; }
     t.tm_mon = (int)(strstr(MON, mon) - MON) / 3;
     t.tm_year -= 1900;
     t.tm_isdst = -1;
@@ -154,7 +160,7 @@ void hal_store_set(const char *key, const char *value)
 }
 
 /* ================================================================ misc */
-uint32_t hal_random(void) { return esp_random(); }
+uint32_t hal_random_u32(void) { return esp_random(); }
 bool hal_online(void) { return wifi_up; }
 /* TODO: the dock's charger-detect pin and the fuel gauge once the enclosure exists. */
 bool hal_docked(void) { return false; }
@@ -269,6 +275,8 @@ static void fetch_day(void)
         return;
     }
     if (!CONFIG_MYTOKI_DEVICE_TOKEN[0]) { with_lock_fail(3); return; } /* not paired: the device shows its code */
+    /* asked just after start-up: give Wi-Fi a moment to join before saying "Let's reconnect" */
+    for (int i = 0; i < 100 && !wifi_up && CONFIG_MYTOKI_WIFI_SSID[0]; i++) vTaskDelay(pdMS_TO_TICKS(100));
     if (!wifi_up) { with_lock_fail(0); return; }
     body_t b = { 0 };
     int st = http(CONFIG_MYTOKI_DAY_URL, NULL, &b);
@@ -341,10 +349,8 @@ static void button_task(void *arg)
         int v = gpio_get_level(pin);
         if (v != last) { stable = 0; last = v; }
         else if (++stable == 3 && v == 0) { /* pressed for 30 ms */
-            if (bsp_display_lock(-1) == ESP_OK) {
-                mytoki_button();
-                bsp_display_unlock();
-            }
+            input_t in = { 0 };
+            xQueueSend(input_q, &in, 0);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -404,12 +410,8 @@ static void motion_task(void *arg)
         if (!imu_read(QMI_AX_L, raw, 6)) continue;
         float a[3];
         for (int i = 0; i < 3; i++) a[i] = (int16_t)(raw[i * 2] | (raw[i * 2 + 1] << 8)) * (4.0f / 32768.0f);
-        float x = IMU_SX * a[IMU_AX], y = IMU_SY * a[IMU_AY], z = IMU_SZ * a[IMU_AZ];
-        /* a 10 ms wait at most: a dropped sample costs nothing, a stalled screen would */
-        if (bsp_display_lock(10) == ESP_OK) {
-            mytoki_motion(x, y, z);
-            bsp_display_unlock();
-        }
+        input_t in = { 1, IMU_SX * a[IMU_AX], IMU_SY * a[IMU_AY], IMU_SZ * a[IMU_AZ] };
+        xQueueSend(input_q, &in, 0); /* full: a dropped sample costs nothing */
     }
 }
 #endif
@@ -466,6 +468,18 @@ static void sound_task(void *arg)
     }
 }
 
+/* ================================================================ button and motion into the app */
+/* Runs in LVGL's task, which already holds the lock. */
+static void input_timer(lv_timer_t *t)
+{
+    (void)t;
+    input_t in;
+    while (xQueueReceive(input_q, &in, 0) == pdTRUE) {
+        if (in.kind == 0) mytoki_button();
+        else mytoki_motion(in.x, in.y, in.z);
+    }
+}
+
 /* ================================================================ start-up */
 void hal_esp32_init(void)
 {
@@ -477,21 +491,34 @@ void hal_esp32_init(void)
     nvs_open("mytoki", NVS_READWRITE, &nvs);
     setenv("TZ", CONFIG_MYTOKI_TIMEZONE, 1);
     tzset();
-    if (!clock_is_set()) clock_from_build();
+    /* the chip keeps its clock through a reset, so a demo start time is applied on every boot */
+    if (!clock_is_set() || CONFIG_MYTOKI_DEMO_TIME[0]) {
+        clock_from_build();
+        time_t now = time(NULL);
+        struct tm tm;
+        localtime_r(&now, &tm);
+        ESP_LOGI(TAG, "clock starts at %02d:%02d (%s)", tm.tm_hour, tm.tm_min, CONFIG_MYTOKI_DEMO_TIME[0] ? "demo start time" : "build time");
+    }
     net_q = xQueueCreate(16, sizeof(net_msg_t));
 #ifdef CONFIG_MYTOKI_SOUND
     sound_q = xQueueCreate(4, sizeof(hal_sound_t));
 #endif
     outbox_load();
-    wifi_start();
 }
 
 void hal_esp32_start(void)
 {
+    input_q = xQueueCreate(32, sizeof(input_t));
+    if (bsp_display_lock(-1) == ESP_OK) {
+        lv_timer_create(input_timer, 5, NULL);
+        bsp_display_unlock();
+    }
     xTaskCreate(button_task, "mytoki-button", 4096, NULL, 5, NULL);
     xTaskCreate(net_task, "mytoki-net", 12288, NULL, 4, NULL);
     if (sound_q) xTaskCreate(sound_task, "mytoki-sound", 6144, NULL, 3, NULL);
 #ifdef CONFIG_MYTOKI_IMU
     xTaskCreate(motion_task, "mytoki-motion", 3072, NULL, 4, NULL);
 #endif
+    /* last: the display's draw buffers took their internal RAM first (main.c), Wi-Fi gets the rest */
+    wifi_start();
 }

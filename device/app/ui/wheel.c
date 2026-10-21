@@ -236,12 +236,12 @@ static void on_hub(lv_event_t *e)
     lv_obj_t *obj = lv_event_get_user_data(e);
     wheel_t *w = lv_obj_get_user_data(obj);
     if (w->spinning || !w->n) return;
-    int target = (int)(hal_random() % (uint32_t)w->n);
+    int target = (int)(hal_random_u32() % (uint32_t)w->n);
     float slice = 360.0f / w->n;
     /* land the target's centre under the pointer after 3 to 4 whole turns */
     float base = w->angle - fmodf(w->angle, 360.0f);
-    float end = base + 360.0f * (3 + (int)(hal_random() % 2)) - target * slice;
-    end += ((int)(hal_random() % 60) - 30) / 100.0f * slice;
+    float end = base + 360.0f * (3 + (int)(hal_random_u32() % 2)) - target * slice;
+    end += ((int)(hal_random_u32() % 60) - 30) / 100.0f * slice;
     w->spinning = true;
     w->result = -1;
     show_result(w);

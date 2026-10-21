@@ -118,7 +118,7 @@ static void worm_draw(lv_event_t *e)
             if (WORM[j][i] != '#') continue;
             float x0 = wx + i * WORM_CELL, y0 = wy + j * WORM_CELL + dy;
             lv_area_t a = { (int32_t)x0, (int32_t)y0, (int32_t)(x0 + WORM_CELL) - 1, (int32_t)(y0 + WORM_CELL) - 1 };
-            lv_draw_rect(layer, &d, &a);
+            if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
         }
     }
     /* the dots it hasn't reached; the one at its mouth shrinks bite by bite */
@@ -131,7 +131,7 @@ static void worm_draw(lv_event_t *e)
         if (cx < mouth + DOT_STEP) r *= 0.55f + 0.45f * (0.5f + 0.5f * cosf(ph * 2.0f));
         d.bg_color = COL(C_DONE);
         lv_area_t a = { (int32_t)(c.x1 + cx - r), (int32_t)(c.y1 + ROW_H / 2 - r), (int32_t)(c.x1 + cx + r), (int32_t)(c.y1 + ROW_H / 2 + r) };
-        lv_draw_rect(layer, &d, &a);
+        if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
     }
 }
 
@@ -169,9 +169,8 @@ static void steps_style(lv_obj_t *card, float d)
     float base = (intptr_t)lv_obj_get_user_data(card) ? 0.30f : 0.50f;
     float opa = (1.0f - (1.0f - base) * near) * fmaxf(0.0f, 1.0f - far / 0.6f);
     int32_t s = (int32_t)(256 * (1.0f - 0.135f * near - 0.05f * far));
-    if (lv_obj_get_style_transform_scale_x(card, 0) != s) lv_obj_set_style_transform_scale(card, s, 0);
-    lv_opa_t o = (lv_opa_t)(255 * opa);
-    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);   /* the row fades as one, like Figma */
+    ui_row_scale(card, s, false);
+    ui_row_fade(card, (lv_opa_t)(255 * opa));   /* the row fades as one, like Figma */
 }
 
 /* Figma "Step": 348 wide, 12 / 16 padding, gap 8: "2." (Detail 20), the step (Pill 24, up to two

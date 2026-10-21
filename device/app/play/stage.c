@@ -5,7 +5,7 @@
 #include <math.h>
 #include <string.h>
 
-float frand(void) { return (float)(hal_random() >> 8) / 16777216.0f; }
+float frand(void) { return (float)(hal_random_u32() >> 8) / 16777216.0f; }
 bool blinking(float now, float period, float offset) { return fmodf(now + offset, period) < 150.0f; }
 int front_x_for(int side_x, bool mirror) { return side_x + (mirror ? 5 : 2); }
 
@@ -175,14 +175,15 @@ void stage_pose(stage_t *s, const pose_t *p, int clip_below)
 
 void stage_pose_grid(stage_t *s, const uint8_t *grid, int x, int y) { draw_grid(s, grid, x, y, 1, 1, -1); }
 
-void stage_render(const stage_t *s, uint16_t *buf)
+led_rect_t stage_render(const stage_t *s, uint16_t *buf, led_cache_t *cache)
 {
     led_args_t a = {
         .buf = buf, .d = STAGE_D, .pitch = STAGE_D / 116.0f,
         .room = s->room, .body = s->body, .fx = NULL, .walls = s->walls, .gw = ST_W, .gh = ST_H,
         .cx = LW / 2 + ST_OX, .cy = LH / 2 + ST_OY, .dim = 0, .bg = 0x040605, .sparkles = -1, .solid = true,
+        .cache = cache,
     };
-    led_render(&a);
+    return led_render(&a);
 }
 
 /* ---------------------------------------------------------------- particles */

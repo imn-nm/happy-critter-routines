@@ -69,9 +69,27 @@ static void timer_line(lv_layer_t *layer, const lv_draw_arc_dsc_t *d, float a0, 
     lv_draw_line(layer, &l);
 }
 
+/* The stroke's bounding box (its ends, and the arc's extremes at 0/90/180/270 degrees between them)
+ * against the strip being drawn. */
+static bool stroke_in_strip(const lv_layer_t *layer, const lv_draw_arc_dsc_t *d, float a0, float a1)
+{
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    for (float k = ceilf(a0 / 90.0f) * 90.0f - 180.0f; ; k += 90.0f) {
+        float ang = k < a0 ? a0 : k > a1 ? a1 : k;
+        float p = ang * PI_F / 180.0f, x = d->center.x + TIMER_R * cosf(p), y = d->center.y + TIMER_R * sinf(p);
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+        if (k >= a1) break;
+    }
+    const int32_t m = TIMER_W + 2;
+    return ui_in_strip(layer, (int32_t)x0 - m, (int32_t)y0 - m, (int32_t)x1 + m, (int32_t)y1 + m);
+}
+
 static void timer_stroke(lv_layer_t *layer, lv_draw_arc_dsc_t *d, float a0, float a1)
 {
-    if (a1 - a0 < 0.05f) return;
+    if (a1 - a0 < 0.05f || !stroke_in_strip(layer, d, a0, a1)) return;
     int32_t s = (int32_t)ceilf(a0), e = (int32_t)floorf(a1);
     if (e <= s) { timer_line(layer, d, a0, a1); return; }
     d->start_angle = s % 360;
@@ -596,7 +614,7 @@ static void ring_dot(lv_layer_t *layer, float x, float y, float r, lv_color_t c,
     a.y1 = (int32_t)lroundf(y - dia / 2.0f);
     a.x2 = a.x1 + dia - 1;
     a.y2 = a.y1 + dia - 1;
-    lv_draw_rect(layer, &d, &a);
+    if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
 }
 
 static void ring_draw(lv_event_t *e)
@@ -1130,7 +1148,7 @@ static void outline_draw(lv_event_t *e)
             else if ((q -= PI_F * r / 2) < h) { x = x0; y = y1 - r - q; }
             else { q -= h; float a = q / r; x = x0 + r - r * cosf(a); y = y0 + r - r * sinf(a); }
             lv_area_t a = { (int32_t)(x - 1), (int32_t)(y - 1), (int32_t)(x), (int32_t)(y) };
-            lv_draw_rect(layer, &d, &a);
+            if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
         }
     }
 }
@@ -1365,15 +1383,38 @@ static void wheel_apply(lv_obj_t *list)
         int32_t s = (int32_t)(256 * scale);
         lv_opa_t opa = (lv_opa_t)(255 * fmaxf(0.0f, 1.0f - w->fade * ad));
         int32_t ty = (int32_t)lroundf(-(d > 0 ? 1 : -1) * w->row_h * (w->shrink / 2) * ad * ad);
-        if (lv_obj_get_style_transform_scale_x(card, 0) != s) {
-            lv_obj_set_style_transform_scale(card, s, 0);
-        }
+        ui_row_scale(card, s, false);
         if (lv_obj_get_style_opa(card, 0) != opa) lv_obj_set_style_opa(card, opa, 0);
         if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
     }
 }
 
 static void wheel_scroll(lv_event_t *e) { wheel_apply(lv_event_get_target(e)); }
+
+/* A flick stops on the next row instead of coasting past several: a finger that dragged the list
+ * onto another row lands on the row nearest the line, a shorter flick moves exactly one row, and a
+ * touch that hardly moved settles back. */
+#define WHEEL_FLICK_PX 12
+static void wheel_grabbed(lv_event_t *e)
+{
+    lv_obj_t *list = lv_event_get_target(e);
+    wheel_list_t *w = lv_obj_get_user_data(list);
+    lv_indev_t *in = lv_indev_active();
+    /* a finger's begin has no parameter (LVGL's own scroll animations pass themselves) */
+    if (w && !lv_event_get_param(e) && in && lv_indev_get_scroll_obj(in) == list) w->grab_y = lv_obj_get_scroll_y(list);
+}
+
+static void wheel_released(lv_event_t *e)
+{
+    if (!lv_event_get_param(e)) return;   /* the end of a turn, not of a finger */
+    lv_obj_t *list = lv_event_get_target(e);
+    wheel_list_t *w = lv_obj_get_user_data(list);
+    if (!w) return;
+    int32_t y = lv_obj_get_scroll_y(list), moved = y - w->grab_y;
+    int from = (int)lroundf((float)w->grab_y / w->row_h), at = (int)lroundf((float)y / w->row_h);
+    if (at == from && LV_ABS(moved) >= WHEEL_FLICK_PX) at += moved > 0 ? 1 : -1;
+    wheel_list_turn(w, at, 0);   /* in place of LVGL's snap, which it stops */
+}
 
 void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, int32_t width, int32_t height,
                        int32_t focus_y, int32_t row_h)
@@ -1383,11 +1424,12 @@ void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, 
     w->shrink = WHEEL_SHRINK;
     w->fade = WHEEL_FADE;
     w->style = NULL;
+    w->grab_y = 0;
     w->list = ui_box(parent);
     lv_obj_set_pos(w->list, x, y);
     lv_obj_set_size(w->list, width, height);
-    lv_obj_add_flag(w->list, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLL_MOMENTUM | LV_OBJ_FLAG_SCROLL_ELASTIC);
-    lv_obj_remove_flag(w->list, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+    lv_obj_add_flag(w->list, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLL_ELASTIC);
+    lv_obj_remove_flag(w->list, LV_OBJ_FLAG_SCROLL_CHAIN_VER | LV_OBJ_FLAG_SCROLL_MOMENTUM);   /* a row per flick: wheel_released */
     lv_obj_set_scroll_dir(w->list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(w->list, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_scroll_snap_y(w->list, LV_SCROLL_SNAP_CENTER);
@@ -1399,6 +1441,8 @@ void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, 
     lv_obj_set_user_data(w->list, w);
     lv_obj_add_event_cb(w->list, wheel_scroll, LV_EVENT_SCROLL, NULL);
     lv_obj_add_event_cb(w->list, wheel_scroll, LV_EVENT_SIZE_CHANGED, NULL);
+    lv_obj_add_event_cb(w->list, wheel_grabbed, LV_EVENT_SCROLL_BEGIN, NULL);
+    lv_obj_add_event_cb(w->list, wheel_released, LV_EVENT_SCROLL_END, NULL);
 }
 
 lv_obj_t *wheel_list_add(wheel_list_t *w)
@@ -1440,6 +1484,9 @@ void wheel_list_turn(wheel_list_t *w, int i, uint32_t delay_ms)
     lv_anim_set_duration(&a, 420);
     lv_anim_set_delay(&a, delay_ms);
     lv_anim_set_path_cb(&a, ui_path_settle);
+    /* not applied at once: started as a finger lets go, the input device still holds the list then,
+     * and turn_exec would take that for a finger taking over */
+    lv_anim_set_early_apply(&a, false);
     lv_anim_start(&a);
 }
 

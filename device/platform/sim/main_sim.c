@@ -52,7 +52,7 @@ void hal_store_set(const char *key, const char *value)
 void hal_play(hal_sound_t s) { js_play((int32_t)s); }
 void hal_speak(const char *text) { js_speak(text, (int32_t)strlen(text)); }
 void hal_set_brightness(uint8_t p) { js_brightness(p); }
-uint32_t hal_random(void) { return js_random(); }
+uint32_t hal_random_u32(void) { return js_random(); }
 bool hal_online(void) { return js_online() != 0; }
 bool hal_docked(void) { return js_docked() != 0; }
 int hal_battery(void) { return (int)js_battery(); }

@@ -28,6 +28,14 @@ menu "MyToki"
         help
             Sent as "Authorization: Bearer <token>" with every request.
 
+    config MYTOKI_DEMO_TIME
+        string "Start time with no network (HH:MM)"
+        default ""
+        help
+            With no network the clock starts from the firmware's build time. A time of day here starts
+            it at that time today instead, to try a part of the demo day: 15:20 is after school, with
+            Biscuit's room, the carousel and the day's sheet (school hours lock the carousel).
+
     config MYTOKI_TIMEZONE
         string "Time zone (POSIX TZ)"
         default "PST8PDT,M3.2.0,M11.1.0"

@@ -109,8 +109,17 @@ static void disc(const led_args_t *a, float cx, float cy, float r, rgbf_t c)
  * leave a 1 px gap, which shows as a dark line through the scene). */
 static inline int cell_start(float R, float P, int i) { return (int)floorf(R + (i - 0.5f) * P + 0.5f); }
 
-/* The LED's square, cut to the circle `edge` with a soft rim. */
-static void square(const led_args_t *a, int i, int j, float P, float edge, rgbf_t c, rgbf_t bg)
+static inline void grow(led_rect_t *r, int x0, int y0, int x1, int y1)
+{
+    if (x1 <= x0 || y1 <= y0) return;
+    if (x0 < r->x0) r->x0 = x0;
+    if (y0 < r->y0) r->y0 = y0;
+    if (x1 > r->x1) r->x1 = x1;
+    if (y1 > r->y1) r->y1 = y1;
+}
+
+/* The LED's square, cut to the circle `edge` with a soft rim; the pixels it covers go into `dirty`. */
+static void square(const led_args_t *a, int i, int j, float P, float edge, rgbf_t c, rgbf_t bg, led_rect_t *dirty)
 {
     const float R = a->d / 2.0f, X = R + i * P, Y = R + j * P;
     int x0 = cell_start(R, P, i), x1 = cell_start(R, P, i + 1);
@@ -119,6 +128,7 @@ static void square(const led_args_t *a, int i, int j, float P, float edge, rgbf_
     if (y0 < 0) y0 = 0;
     if (x1 > a->d) x1 = a->d;
     if (y1 > a->d) y1 = a->d;
+    if (dirty) grow(dirty, x0, y0, x1, y1);
     bool rim = sqrtf((X - R) * (X - R) + (Y - R) * (Y - R)) + P * 0.75f > edge;
     uint16_t c565 = to565(c);
     for (int y = y0; y < y1; y++) {
@@ -132,21 +142,49 @@ static void square(const led_args_t *a, int i, int j, float P, float edge, rgbf_
     }
 }
 
+#define SPARK_IDX 255   /* a cell lit by Celebrate's sparkles (the palette stops well short of it) */
+
+/* Everything besides the cells that decides a solid picture: when it changes, all of it is repainted. */
+static uint32_t solid_key(const led_args_t *a)
+{
+    uint32_t pitch;
+    memcpy(&pitch, &a->pitch, sizeof pitch);
+    const uint32_t v[] = { (uint32_t)(uintptr_t)a->buf, (uint32_t)a->d, pitch, (uint32_t)a->cx, (uint32_t)a->cy,
+                           a->dim, a->bg, (uint32_t)(uintptr_t)pal, a->extend };
+    uint32_t h = 2166136261u;
+    for (unsigned k = 0; k < sizeof v / sizeof v[0]; k++) { h ^= v[k]; h *= 16777619u; }
+    return h | 1;   /* never 0, which a fresh cache holds */
+}
+
+static uint8_t *cur;   /* this render's cells */
+static int cur_cap;
+
 /* MyToki 2 (Figma "Scene"): the room as plain pixel art, every cell a full square in the app's own
  * colour, Biscuit on the same grid. With `extend` the room's edge cells carry on to the rim, so a
- * room fills the whole round screen; the circle's edge is soft. */
-static void solid_render(const led_args_t *a)
+ * room fills the whole round screen; the circle's edge is soft. With a cache, only the cells that
+ * changed since the last render are painted (from one frame to the next that's Biscuit, not the
+ * room). */
+static led_rect_t solid_render(const led_args_t *a)
 {
     const float P = a->pitch, R = a->d / 2.0f;
-    const int n = (int)ceilf(R / P) + 1;
+    const int n = (int)ceilf(R / P) + 1, side = 2 * n + 1, cells = side * side;
     const rgbf_t bg = rgb_of(a->bg);
-    const uint16_t bg565 = to565(bg);
-    for (int k = 0; k < a->d * a->d; k++) a->buf[k] = bg565;
-    const float edge = R;
+    const float edge = R, lim = (R + P) * (R + P);
+    led_rect_t dirty = { a->d, a->d, 0, 0 };
+    if (cells > cur_cap) {
+        lv_free(cur);
+        cur = lv_malloc((size_t)cells);
+        cur_cap = cur ? cells : 0;
+        if (!cur) return dirty;
+    }
+
+    /* what each cell shows (0: the background) */
     for (int j = -n; j <= n; j++) {
         for (int i = -n; i <= n; i++) {
+            uint8_t *out = &cur[(j + n) * side + (i + n)];
+            *out = 0;
             float X = i * P, Y = j * P;
-            if (sqrtf(X * X + Y * Y) > R + P) continue;
+            if (X * X + Y * Y > lim) continue;
             int gx = a->cx + i, gy = a->cy + j;
             uint8_t b = 0, f = 0, r = 0, w = 0;
             if (gx >= 0 && gy >= 0 && gx < a->gw && gy < a->gh) {
@@ -162,29 +200,58 @@ static void solid_render(const led_args_t *a)
                 w = a->walls ? a->walls[c] : 0;
             }
             if (a->room_off) { r = 0; w = 0; }
-            uint8_t idx = b ? b : f ? f : r ? r : w;
-            if (!idx) continue;
-            square(a, i, j, P, edge, dimmed(rgb_of(pal[idx]), a->dim), bg);
+            *out = b ? b : f ? f : r ? r : w;
         }
     }
     if (a->sparkles >= 0) {
         static const int8_t SPARK[5][2] = { { -15, -16 }, { 14, -18 }, { 0, -23 }, { -18, -4 }, { 17, -2 } };
         static const int8_t PLUS[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-        rgbf_t lime = dimmed(rgb_of(0xDCEF70), a->dim);
         for (int s = 0; s < 5; s++) {
             bool big = ((a->sparkles / 3) + s) % 4 != 0;
             for (int q = 0; q < (big ? 5 : 1); q++) {
                 int i = SPARK[s][0] + PLUS[q][0], j = SPARK[s][1] + PLUS[q][1];
                 if (i < -n || i > n || j < -n || j > n) continue;
-                square(a, i, j, P, edge, lime, bg);
+                cur[(j + n) * side + (i + n)] = SPARK_IDX;
             }
         }
     }
+
+    /* paint them: all of it, or only what changed since the last render into this canvas */
+    led_cache_t *c = a->cache;
+    if (c && c->cap < cells) {
+        lv_free(c->cells);
+        c->cells = lv_malloc((size_t)cells);
+        c->cap = c->cells ? cells : 0;
+        c->key = 0;
+    }
+    const uint32_t key = solid_key(a);
+    const bool full = !c || !c->cells || c->key != key;
+    if (full) {
+        const uint16_t bg565 = to565(bg);
+        for (int k = 0; k < a->d * a->d; k++) a->buf[k] = bg565;
+        dirty = (led_rect_t){ 0, 0, a->d, a->d };
+    }
+    const rgbf_t lime = dimmed(rgb_of(0xDCEF70), a->dim);
+    for (int j = -n; j <= n; j++) {
+        for (int i = -n; i <= n; i++) {
+            int li = (j + n) * side + (i + n);
+            uint8_t idx = cur[li];
+            if (full ? !idx : c->cells[li] == idx) continue;
+            rgbf_t col = idx == SPARK_IDX ? lime : idx ? dimmed(rgb_of(pal[idx]), a->dim) : bg;
+            square(a, i, j, P, edge, col, bg, full ? NULL : &dirty);
+        }
+    }
+    if (c && c->cells) {
+        memcpy(c->cells, cur, (size_t)cells);
+        c->key = key;
+    }
+    return dirty;
 }
 
-void led_render(const led_args_t *a)
+led_rect_t led_render(const led_args_t *a)
 {
-    if (a->solid) { pal = a->palette ? a->palette : pet_palette; solid_render(a); return; }
+    const led_rect_t all = { 0, 0, a->d, a->d };
+    if (a->solid) { pal = a->palette ? a->palette : pet_palette; return solid_render(a); }
     const float P = a->pitch, R = a->d / 2.0f;
     const int n = (int)ceilf(R / P), side = 2 * n + 1;
     if (side * side > cap) {
@@ -193,7 +260,7 @@ void led_render(const led_args_t *a)
         kind = lv_malloc((size_t)cap);
         col = lv_malloc((size_t)cap);
         rad = lv_malloc((size_t)cap * sizeof(float));
-        if (!kind || !col || !rad) { cap = 0; return; }
+        if (!kind || !col || !rad) { cap = 0; return (led_rect_t){ 0, 0, 0, 0 }; }
     }
     pal = a->palette ? a->palette : pet_palette;
     const rgbf_t bg = rgb_of(a->bg);
@@ -228,7 +295,7 @@ void led_render(const led_args_t *a)
             if (a->room_off) { r = 0; w = 0; }
             if (!b && (r || w)) {
                 float k = PANEL_RIM + (PANEL_MIDDLE - PANEL_RIM) * t;
-                square(a, i, j, P, edge, dimmed(mix(bg, r ? feature_colour(r) : wall_colour(w), k), a->dim), bg);
+                square(a, i, j, P, edge, dimmed(mix(bg, r ? feature_colour(r) : wall_colour(w), k), a->dim), bg, NULL);
             }
             if (b) {
                 kind[li] = K_SOLID; col[li] = b;
@@ -283,4 +350,5 @@ void led_render(const led_args_t *a)
             }
         }
     }
+    return all;
 }

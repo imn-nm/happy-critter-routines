@@ -48,7 +48,7 @@ void hal_speak(const char *text);
 /* Panel brightness, 0-100. Night drops it. */
 void hal_set_brightness(uint8_t percent);
 
-uint32_t hal_random(void);
+uint32_t hal_random_u32(void);
 
 /* The handheld is sitting on its dock (charging): the night clock. */
 bool hal_docked(void);

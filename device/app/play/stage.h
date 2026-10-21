@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "../pet/pet_data.h"
+#include "../pet/led.h"
 
 #define LW 96
 #define LH 64
@@ -44,8 +45,9 @@ void stage_pose(stage_t *s, const pose_t *p, int clip_below);   /* clip_below: r
 void stage_pose_cells(pet_pose_id_t pose, uint8_t *grid, bool dressed);
 void stage_pose_grid(stage_t *s, const uint8_t *grid, int x, int y);
 
-/* Render to a STAGE_D x STAGE_D RGB565 buffer. */
-void stage_render(const stage_t *s, uint16_t *buf);
+/* Render to a STAGE_D x STAGE_D RGB565 buffer; with a cache only what changed since the last
+ * render into buf is painted. Returns the pixels that changed. */
+led_rect_t stage_render(const stage_t *s, uint16_t *buf, led_cache_t *cache);
 
 /* ---- little things that fly about (particles.ts) ---- */
 typedef enum { PT_STAR, PT_BUBBLE, PT_SPLASH, PT_CRUMB, PT_TEXT } part_kind_t;

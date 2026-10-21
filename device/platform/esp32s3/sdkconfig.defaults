@@ -16,23 +16,33 @@ CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
 CONFIG_SPIRAM_RODATA=y
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_SPIRAM_USE_MALLOC=y
+# Internal RAM was 97% full before boot. The app's static buffers (Biscuit's room grids, the
+# game stage: ~126 KB) move to PSRAM through main/linker.lf, Wi-Fi's and lwIP's with them, so
+# internal RAM is left for the task stacks and the display's DMA.
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
 CONFIG_ESP32S3_DATA_CACHE_64KB=y
 CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_FREERTOS_HZ=1000
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+# mytoki_start builds every screen on this stack; it is freed when app_main returns.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 
-# LVGL (keep in step with platform/sim/lv_conf.h)
+# LVGL (keep in step with platform/sim/lv_conf.h, except the allocator: PSRAM first here,
+# main/lv_mem_psram.c)
 CONFIG_LV_COLOR_DEPTH_16=y
-CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_CUSTOM_MALLOC=y
 CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_DEF_REFR_PERIOD=15
 CONFIG_LV_DPI_DEF=200
 CONFIG_LV_OS_FREERTOS=y
+# Two draw threads: a full frame takes 63 ms, 75 ms with one.
 CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
-CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
+# LV_ATTRIBUTE_FAST_MEM_USE_IRAM stays off: LVGL's hot code in IRAM took ~105 KB of the internal
+# RAM the 64-row draw buffers need (main.c), and fewer, bigger strips save more than IRAM gives.
+CONFIG_LV_OBJ_STYLE_CACHE=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_USE_FONT_COMPRESSED=y
 CONFIG_LV_USE_CANVAS=y
@@ -43,7 +53,16 @@ CONFIG_LV_USE_LOG=n
 CONFIG_LV_USE_SYSMON=n
 CONFIG_LV_USE_PERF_MONITOR=n
 
-# Networking
+# Networking. Internal RAM goes to the draw buffers first (main.c): Wi-Fi's code stays out of IRAM
+# (a day plan every 5 minutes doesn't need its speed) and TLS keeps its buffers in PSRAM.
+# CONFIG_ESP_WIFI_IRAM_OPT is not set
+# CONFIG_ESP_WIFI_RX_IRAM_OPT is not set
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+# Wi-Fi's buffers sized for a 3 KB plan every 5 minutes, not throughput tests (PSRAM raises the
+# defaults to 16 each, ~1.6 KB apiece in internal RAM, and Wi-Fi then failed to start).
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+CONFIG_ESP_WIFI_RX_BA_WIN=6
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
 CONFIG_ESP_TLS_USING_MBEDTLS=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y

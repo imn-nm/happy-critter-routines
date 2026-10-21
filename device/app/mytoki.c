@@ -744,7 +744,7 @@ static void on_home(home_event_t ev, int arg)
         static const char *const HI[] = { "Hi!", "We\xE2\x80\x99ve got this!", "Happy to see you!", "What\xE2\x80\x99s next?" };
         if (app.state == ST_ALARM || app.state == ST_SNOOZE) { say(NULL, "I\xE2\x80\x99m up! Are you?", 2500); break; }
         if (app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_BEDTIME) say(NULL, "Zzz\xE2\x80\xA6", 2500);
-        else say(NULL, HI[hal_random() % 4], 2500);
+        else say(NULL, HI[hal_random_u32() % 4], 2500);
         break;
     }
     case HOME_WHEEL_RESULT:
@@ -1643,7 +1643,7 @@ static const char *pair_code(void)
 {
     static char code[8];
     if (!code[0] && !hal_store_get("pair_code", code, sizeof code)) {
-        uint32_t r = hal_random() % 10000;
+        uint32_t r = hal_random_u32() % 10000;
         snprintf(code, sizeof code, "%02u %02u", (unsigned)(r / 100), (unsigned)(r % 100));
         hal_store_set("pair_code", code);
     }

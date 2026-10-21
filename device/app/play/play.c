@@ -54,6 +54,7 @@ static struct {
     header_t head;
     char left_text[16];
     uint16_t *buf;
+    led_cache_t cache;          /* what's in buf: a step repaints only what moved */
     lv_timer_t *timer_obj;
     bool in_game, see_you;
     int page;
@@ -108,8 +109,20 @@ static void draw_stage(void)
 {
     if (pl.in_game) game_draw(&stage);
     else menu_draw(&stage, pl.t);
-    stage_render(&stage, pl.buf);
-    lv_obj_invalidate(pl.canvas);
+    led_rect_t px = stage_render(&stage, pl.buf, &pl.cache);
+    if (px.x1 > px.x0 && px.y1 > px.y0) {
+        lv_area_t at;
+        lv_obj_get_coords(pl.canvas, &at);
+        lv_area_t changed = { at.x1 + px.x0, at.y1 + px.y0, at.x1 + px.x1 - 1, at.y1 + px.y1 - 1 };
+        lv_obj_invalidate_area(pl.canvas, &changed);
+    }
+}
+
+/* The stage's buffer is going: what the cache remembers of it goes with it. */
+static void forget_cache(void)
+{
+    lv_free(pl.cache.cells);
+    memset(&pl.cache, 0, sizeof pl.cache);
 }
 
 /* ---------------------------------------------------------------- the header */
@@ -562,6 +575,7 @@ static void see_you_later(void)
     memset(pl.circle, 0, sizeof pl.circle);
     lv_free(pl.buf);
     pl.buf = NULL;
+    forget_cache();
     lv_obj_add_event_cb(pl.root, on_ok, LV_EVENT_CLICKED, NULL);
     /* Figma "Playtime · See you later": the room, Biscuit waving, "Time to get ready", what's next */
     lv_obj_t *pet = pet_create(pl.root, SCREEN_W);
@@ -629,6 +643,7 @@ static void forget(void)
     if (pl.timer_obj) lv_timer_delete(pl.timer_obj);
     if (pl.root && pl.buf) lv_obj_add_event_cb(pl.root, free_buf, LV_EVENT_DELETE, pl.buf);
     else lv_free(pl.buf);
+    forget_cache();
     memset(&pl, 0, sizeof pl);
 }
 

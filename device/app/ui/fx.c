@@ -15,7 +15,7 @@ static uint32_t brand(uint32_t i) { return FX_BRAND[i % 7]; }
 #define CREAM 0xFFFFF0
 #define SALMON 0xF59A76
 
-static uint32_t rnd(uint32_t n) { return n ? hal_random() % n : 0; }
+static uint32_t rnd(uint32_t n) { return n ? hal_random_u32() % n : 0; }
 static float frand(void) { return (float)rnd(10000) / 10000.0f; }
 static float clampf(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 static float ease_out(float t) { t = 1 - clampf(t); return 1 - t * t * t; }
@@ -279,7 +279,7 @@ static void disc(lv_layer_t *layer, float x, float y, float r, lv_color_t c, lv_
     lv_area_t a = { (int32_t)lroundf(x - dia / 2.0f), (int32_t)lroundf(y - dia / 2.0f), 0, 0 };
     a.x2 = a.x1 + dia - 1;
     a.y2 = a.y1 + dia - 1;
-    lv_draw_rect(layer, &d, &a);
+    if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
 }
 
 static void burst_draw(lv_event_t *e)
@@ -306,7 +306,8 @@ static void burst_draw(lv_event_t *e)
             float ang = i * PI_F / 8 + tau * 0.35f;
             l.p1.x = cx + 70 * cosf(ang); l.p1.y = cy + 70 * sinf(ang);
             l.p2.x = cx + r2 * cosf(ang); l.p2.y = cy + r2 * sinf(ang);
-            lv_draw_line(layer, &l);
+            if (ui_in_strip(layer, LV_MIN(l.p1.x, l.p2.x) - 1, LV_MIN(l.p1.y, l.p2.y) - 1, LV_MAX(l.p1.x, l.p2.x) + 1, LV_MAX(l.p1.y, l.p2.y) + 1))
+                lv_draw_line(layer, &l);
         }
     }
     /* the charge: 24 dots light up one after another, then squeeze in */

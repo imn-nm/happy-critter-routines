@@ -12,6 +12,7 @@
 #include "pet.h"
 #include "led.h"
 #include "../hal.h"
+#include "../ui/theme.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,7 +85,7 @@ static struct {
     pet_activity_t fav[5];
 } personality = { .pace = 1.0f, .fav = { PET_ACT_READING, PET_ACT_SPORTS, PET_ACT_DRAWING, PET_ACT_BUBBLES, PET_ACT_OUTSIDE } };
 
-static float rand01(void) { return (float)(hal_random() >> 8) / 16777216.0f; }
+static float rand01(void) { return (float)(hal_random_u32() >> 8) / 16777216.0f; }
 
 void pet_set_personality(const char *seed)
 {
@@ -211,6 +212,7 @@ typedef struct pet {
     lv_obj_t *obj;
     uint16_t *buf;
     int32_t d;
+    led_cache_t cache;      /* what's in buf, so a frame repaints only his cells */
     pet_look_t look;
     pet_mood_t mood;
     pet_activity_t act;
@@ -424,10 +426,21 @@ static void render(pet_t *p)
         .cx = PET_RING_CX + p->look.dx, .cy = PET_RING_CY + p->look.dy,
         .dim = p->look.dim, .room_off = p->look.room_off,
         .bg = lv_color_to_u32(p->look.bg) & 0xFFFFFF, .sparkles = celebrate ? p->frame : -1,
-        .palette = NULL, .extend = p->look.wide, .solid = p->look.solid,
+        .palette = NULL, .extend = p->look.wide, .solid = p->look.solid, .cache = &p->cache,
     };
-    led_render(&a);
-    lv_obj_invalidate(p->obj);
+    led_rect_t px = led_render(&a);
+    if (UI_DEPTH) {
+        /* The whole room, as before: with layered rows (UI_DEPTH) LVGL can leave a pixel row of a
+         * fading row behind, which this repaint 12 times a second cleaned up. The browser can afford
+         * it; the board (UI_DEPTH 0, no layered rows) repaints only what changed. */
+        lv_obj_invalidate(p->obj);
+    } else if (px.x1 > px.x0 && px.y1 > px.y0) {
+        /* only what changed: from one frame to the next that's him, not the whole room */
+        lv_area_t at;
+        lv_obj_get_coords(p->obj, &at);
+        lv_area_t changed = { at.x1 + px.x0, at.y1 + px.y0, at.x1 + px.x1 - 1, at.y1 + px.y1 - 1 };
+        lv_obj_invalidate_area(p->obj, &changed);
+    }
     p->dirty = false;
     if (landed && land_cb) land_cb(p->obj, land_user);
 }
@@ -486,11 +499,12 @@ static void on_event(lv_event_t *e)
     if (code == LV_EVENT_DELETE) {
         for (pet_t **pp = &pets; *pp; pp = &(*pp)->next) if (*pp == p) { *pp = p->next; break; }
         lv_free(p->buf);
+        lv_free(p->cache.cells);
         lv_free(p);
         if (!pets && ticker) { lv_timer_delete(ticker); ticker = NULL; }
     } else if (code == LV_EVENT_CLICKED && p->tappable) {
         const plan_t *pl = &PLANS[p->mood];
-        if (p->forced < 0 && !busy(p) && pl->ntap) request(p, pl->tap[hal_random() % pl->ntap]);
+        if (p->forced < 0 && !busy(p) && pl->ntap) request(p, pl->tap[hal_random_u32() % pl->ntap]);
     }
 }
 
@@ -520,7 +534,7 @@ lv_obj_t *pet_create(lv_obj_t *parent, int32_t diameter)
     p->forced = -1;
     p->queued = -1;
     p->tappable = true;
-    p->start_delay = (int)(hal_random() % MAX_START_DELAY);
+    p->start_delay = (int)(hal_random_u32() % MAX_START_DELAY);
     p->ground = -1;
     p->prev_bottom = -1;
     play(p, PET_CLIP_IDLE, false);

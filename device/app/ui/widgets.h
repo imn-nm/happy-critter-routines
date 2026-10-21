@@ -7,6 +7,34 @@
 #include "lvgl.h"
 #include "theme.h"
 
+/* LVGL draws the screen in strips and calls a draw handler once for each; a shape outside the strip
+ * being drawn still costs a draw task, so handlers that draw many small shapes skip those (on the
+ * board, the timer's dashes alone made 500 tasks a frame). */
+static inline bool ui_in_strip(const lv_layer_t *layer, int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+{
+    const lv_area_t *c = &layer->_clip_area;
+    return x1 <= c->x2 && x2 >= c->x1 && y1 <= c->y2 && y2 >= c->y1;
+}
+
+/* A wheel's row off the focus line: smaller (256 = full size; `centred`: about its middle) and
+ * fainter, the whole row as one piece. Both draw it through a layer; with UI_DEPTH 0 it keeps its
+ * size and fades part by part. */
+static inline void ui_row_scale(lv_obj_t *row, int32_t scale, bool centred)
+{
+    if (!UI_DEPTH) scale = 256;
+    if (lv_obj_get_style_transform_scale_x(row, 0) == scale) return;
+    lv_obj_set_style_transform_scale(row, scale, 0);
+    if (centred) {
+        lv_obj_set_style_transform_pivot_x(row, LV_PCT(50), 0);
+        lv_obj_set_style_transform_pivot_y(row, LV_PCT(50), 0);
+    }
+}
+static inline void ui_row_fade(lv_obj_t *row, lv_opa_t opa)
+{
+    if (!UI_DEPTH) { if (lv_obj_get_style_opa(row, 0) != opa) lv_obj_set_style_opa(row, opa, 0); }
+    else if (lv_obj_get_style_opa_layered(row, 0) != opa) lv_obj_set_style_opa_layered(row, opa, 0);
+}
+
 /* ---- MyToki 2 Timer: the dashed arc round the rim, open at the bottom (80 px dashes, 14 px gaps,
  * 9 px wide, round ends, 223 px out). Lit dashes are the time left, from the bottom-left end. ---- */
 typedef enum { TIMER_PLENTY, TIMER_HURRY, TIMER_LATE, TIMER_NIGHT } timer_tone_t;
@@ -201,6 +229,7 @@ typedef struct {
     float shrink, fade;      /* per row away from the line (0.16 and 0.30 unless changed) */
     /* when set, it styles each row instead: d is how many rows the row is from the line (signed) */
     void (*style)(lv_obj_t *card, float d);
+    int32_t grab_y;          /* where the list was when a finger took it */
 } wheel_list_t;
 void wheel_list_create(lv_obj_t *parent, wheel_list_t *w, int32_t x, int32_t y, int32_t width, int32_t height,
                        int32_t focus_y, int32_t row_h);

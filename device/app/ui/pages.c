@@ -89,10 +89,8 @@ static void shelves_apply(lv_obj_t *list)
         lv_area_t a;
         lv_obj_get_coords(row, &a);
         float k = fminf(1.0f, fmaxf(0.0f, ((a.y1 + 68) - SHELF_FADE_Y) / 100.0f));
-        lv_opa_t o = (lv_opa_t)lroundf(255 * (1.0f - 0.8f * k));
-        int32_t sc = (int32_t)lroundf(256 * (1.0f - 0.08f * k));
-        if (lv_obj_get_style_opa_layered(row, 0) != o) lv_obj_set_style_opa_layered(row, o, 0);   /* the row fades as one */
-        if (lv_obj_get_style_transform_scale_x(row, 0) != sc) lv_obj_set_style_transform_scale(row, sc, 0);
+        ui_row_fade(row, (lv_opa_t)lroundf(255 * (1.0f - 0.8f * k)));   /* the row fades as one */
+        ui_row_scale(row, (int32_t)lroundf(256 * (1.0f - 0.08f * k)), false);
     }
 }
 
@@ -327,14 +325,8 @@ static void fmt_hour(char *buf, size_t n, int minutes)
 static void chore_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), k = fminf(ad, 1.0f), k2 = fminf(fmaxf(0.0f, ad - 1.0f), 1.0f), far = fmaxf(0.0f, ad - 2.0f);
-    int32_t s = (int32_t)lroundf(256 * (1.0f - 0.10f * k - 0.06f * k2));
-    if (lv_obj_get_style_transform_scale_x(card, 0) != s) {
-        lv_obj_set_style_transform_scale(card, s, 0);
-        lv_obj_set_style_transform_pivot_x(card, LV_PCT(50), 0);
-        lv_obj_set_style_transform_pivot_y(card, LV_PCT(50), 0);
-    }
-    lv_opa_t o = (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f));
-    if (lv_obj_get_style_opa_layered(card, 0) != o) lv_obj_set_style_opa_layered(card, o, 0);
+    ui_row_scale(card, (int32_t)lroundf(256 * (1.0f - 0.10f * k - 0.06f * k2)), true);
+    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f)));
 }
 
 void chores_page_create(lv_obj_t *page, page_cb_t cb)
