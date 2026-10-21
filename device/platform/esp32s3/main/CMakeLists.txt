@@ -17,5 +17,10 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE "-u lv_malloc_core")
 # board slides the pages flat and fades the rows part by part.
 target_compile_definitions(${COMPONENT_LIB} PRIVATE UI_DEPTH=0)
 
+# A test setting (Kconfig): the day runs as if there were no School.
+if(CONFIG_MYTOKI_NO_SCHOOL)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE MYTOKI_NO_SCHOOL=1)
+endif()
+
 # ESP-IDF turns warnings into errors; GCC warns about things the simulator build (Clang) does not.
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error -Wno-unused-function -Wno-format-truncation -Wno-missing-braces)

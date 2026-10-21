@@ -61,7 +61,7 @@ export function cssPxPerInch(): number {
 /** The housing size (CSS px) that draws the 466 px screen 1.75 inches across: the real handheld's
  * display. */
 export const circleRealSizePx = () => Math.round(1.75 * cssPxPerInch() * 600 / W);
-const SOUNDS = [sounds.start, sounds.done, sounds.stillToDo, sounds.soon, sounds.approved, sounds.bedtime];
+const SOUNDS = [sounds.start, sounds.done, sounds.stillToDo, sounds.soon, sounds.approved, sounds.bedtime, sounds.soon /* the morning alarm */];
 
 type Exports = {
   memory: WebAssembly.Memory;

@@ -52,6 +52,13 @@ menu "MyToki"
         bool "Chimes on the speaker"
         default y
 
+    config MYTOKI_NO_SCHOOL
+        bool "Test: no school mode (the day runs as if there were no School)"
+        default n
+        help
+            For trying MyToki during school hours: the School row is left out of the day it gets,
+            so those hours are ordinary time. Set it in the board's own sdkconfig, never for a child.
+
     config MYTOKI_IMU
         bool "Motion from the board's QMI8658 (the motion games)"
         default y

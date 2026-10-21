@@ -40,8 +40,8 @@
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
 #define IDLE_HOME_MS 45000
-#define ALARM_WINDOW_S (30 * 60)   /* the alarm gives up after half an hour and just shows the day */
-#define ALARM_CHIRPS_S (5 * 60)    /* it sounds again every minute for the first five */
+#define ALARM_RING_S 30            /* the alarm's tone again every half minute while it rings... */
+#define ALARM_CHIRPS_S (15 * 60)   /* ...for a quarter of an hour (it stays on screen until the button) */
 #define SNOOZE_S (5 * 60)
 #define MAX_SNOOZES 2
 #define SCHOOL_OFF_S (3 * 60)      /* "Off to school!" for the first three minutes of School */
@@ -101,6 +101,7 @@ static struct {
     int32_t snooze_until;       /* seconds of the day */
     uint32_t imup_until;        /* ms: the 3 s "You're up!" */
     int32_t alarm_chirp_s;      /* when the alarm last sounded */
+    int32_t alarm_ring_s;       /* when it began ringing (again, after a snooze) */
     int school_task;            /* today's School row, or -1 */
     /* the device */
     uint32_t hello_until;       /* ms: "Hi, Amira!" after pairing */
@@ -889,13 +890,15 @@ static state_t derive(void)
     }
     if (app.plan->rest_day) return ST_REST;
     if (n->day_over) return ST_DAY_OVER;
-    /* the morning alarm: from wake-up until the button says I'm up (or half an hour passes) */
+    /* the morning alarm: from wake-up until the button says I'm up (only the button ends it: user,
+     * 2026-10-21) */
     if (n->has_timed && !n->before_wake && !app.alarm_ack) {
         app.focus = n->current;
         if (app.imup_until && (int32_t)(now_ms() - app.imup_until) < 0) return ST_IM_UP;
-        if (app.imup_until) { app.imup_until = 0; app.alarm_ack = true; save_progress(); }
-        else if (app.now_s < n->wake * 60 + ALARM_WINDOW_S) return app.now_s < app.snooze_until ? ST_SNOOZE : ST_ALARM;
-        else { app.alarm_ack = true; save_progress(); }
+        if (!app.imup_until) return app.now_s < app.snooze_until ? ST_SNOOZE : ST_ALARM;
+        app.imup_until = 0;
+        app.alarm_ack = true;
+        save_progress();
         app.focus = -1;
     }
     if (n->current >= 0) {
@@ -1521,7 +1524,7 @@ static void on_state_change(state_t from, state_t to)
     app.say[0] = 0; /* a new screen: Biscuit says something new, or nothing */
     (void)from;
     if (to == ST_BEDTIME) hal_play(HAL_SOUND_BEDTIME);
-    if (to == ST_ALARM) { hal_play(HAL_SOUND_CHIME); app.alarm_chirp_s = app.now_s; }
+    if (to == ST_ALARM) { hal_play(HAL_SOUND_ALARM); app.alarm_chirp_s = app.alarm_ring_s = app.now_s; }
     if (to == ST_WELCOME || to == ST_SCHOOL_OFF) hal_play(HAL_SOUND_START);
     if (to == ST_BED_SOON) { hal_play(HAL_SOUND_SOON); pet_react(home_pet(), PET_CLIP_SLEEPY); }   /* a yawn */
     if (to == ST_FREE || to == ST_ALL_DONE) app.free_act = pet_pick_free_time_activity();
@@ -1629,10 +1632,10 @@ static void tick(lv_timer_t *timer)
     if (play_is_open()) play_set_time_left(app.state == ST_FREE ? app.now.free_remaining - GET_READY_S : 0);
     if (reminder_is_open()) reminder_update(app.now.free_remaining);
 
-    /* the alarm sounds again every minute for the first five */
-    if (app.state == ST_ALARM && app.now_s - app.alarm_chirp_s >= 60 && app.now_s - app.now.wake * 60 < ALARM_CHIRPS_S) {
+    /* the alarm's soft tone again every half minute while it rings, for the first quarter of an hour */
+    if (app.state == ST_ALARM && app.now_s - app.alarm_chirp_s >= ALARM_RING_S && app.now_s - app.alarm_ring_s < ALARM_CHIRPS_S) {
         app.alarm_chirp_s = app.now_s;
-        hal_play(HAL_SOUND_START);
+        hal_play(HAL_SOUND_ALARM);
     }
     brightness();
     bool locked = app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_ALARM || app.state == ST_SNOOZE
@@ -1739,6 +1742,14 @@ void mytoki_day_received(const char *json, size_t len)
         return;
     }
     if (!p->date[0]) snprintf(p->date, sizeof p->date, "%s", app.today);
+#ifdef MYTOKI_NO_SCHOOL
+    /* a test setting on the board (CONFIG_MYTOKI_NO_SCHOOL): the day runs as if there were no School */
+    for (int i = 0; i < p->ntasks; ) {
+        if (p->tasks[i].system != SYS_SCHOOL) { i++; continue; }
+        memmove(&p->tasks[i], &p->tasks[i + 1], (size_t)(p->ntasks - i - 1) * sizeof p->tasks[0]);
+        p->ntasks--;
+    }
+#endif
     /* keep step ticks and the "Done!" hold across a refresh */
     char done_id[40] = "";
     if (app.have_plan && app.done_task >= 0) snprintf(done_id, sizeof done_id, "%s", app.plan->tasks[app.done_task].id);

@@ -481,6 +481,7 @@ static const note_t SOUNDS[][3] = {
     [HAL_SOUND_SOON] = { { 880, 0, 300, .5f }, { 659, 280, 400, .5f } },
     [HAL_SOUND_CHIME] = { { 784, 0, 350, .5f }, { 1047, 220, 600, .5f } }, /* the MyToki chime: G5 then C6 */
     [HAL_SOUND_BEDTIME] = { { 523, 0, 500, .35f }, { 392, 400, 800, .35f } },
+    [HAL_SOUND_ALARM] = { { 659, 0, 260, .3f }, { 784, 240, 260, .3f }, { 988, 480, 520, .3f } },   /* E5 G5 B5, softer than the chimes */
 };
 
 void hal_play(hal_sound_t s)
