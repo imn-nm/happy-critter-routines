@@ -1280,7 +1280,10 @@ static void build_view(home_view_t *v)
         const day_task_t *nx = n->nupcoming ? &p->tasks[n->upcoming[0]] : NULL;
         next_from(v, -1);
         if (!can_play) {
-            /* the last five minutes (Figma Free time · Last 5 minutes) */
+            /* the last five minutes (Figma Free time · Last 5 minutes, 1080:5604): his room fills
+             * the screen again but faded to 30%, he stays solid, the timer and pill amber */
+            v->graphic = GRAPHIC_FULL;
+            v->room_fade = 179;
             v->mood = PET_MOOD_EXCITED;
             v->force_clip = PET_CLIP_CURIOUS;
             (void)nx;

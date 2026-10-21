@@ -12,7 +12,7 @@
  * (from one of Biscuit's frames to the next that's him, not the room). Zero it to start; free
  * `cells` with lv_free. */
 typedef struct {
-    uint8_t *cells;         /* the palette index each cell shows */
+    uint16_t *cells;        /* the palette index each cell shows (LED_FADED set: a faded room cell) */
     int cap;
     uint32_t key;           /* everything else that decides the picture */
 } led_cache_t;
@@ -35,8 +35,13 @@ typedef struct {
     bool extend;            /* a wide room: the walls carry on sideways past the grid */
     bool room_off;          /* draw only Biscuit and his effects; no walls, features or unlit dots */
     bool solid;             /* MyToki 2: plain pixel art, every cell a full square in its own colour (no LED dots) */
+    uint8_t room_fade;      /* solid only: the room drawn this much towards bg (0 = as it is, 179 = at 30%);
+                             * Biscuit and his effects stay as they are */
     led_cache_t *cache;     /* solid only: repaint just what changed since the last render into buf (NULL: all of it) */
 } led_args_t;
+
+/* A room cell drawn faded (room_fade), so the cache tells it from Biscuit's cell of the same colour. */
+#define LED_FADED 0x100
 
 led_rect_t led_render(const led_args_t *a);
 

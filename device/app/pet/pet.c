@@ -426,7 +426,8 @@ static void render(pet_t *p)
         .cx = PET_RING_CX + p->look.dx, .cy = PET_RING_CY + p->look.dy,
         .dim = p->look.dim, .room_off = p->look.room_off,
         .bg = lv_color_to_u32(p->look.bg) & 0xFFFFFF, .sparkles = celebrate ? p->frame : -1,
-        .palette = NULL, .extend = p->look.wide, .solid = p->look.solid, .cache = &p->cache,
+        .palette = NULL, .extend = p->look.wide, .solid = p->look.solid, .room_fade = p->look.room_fade,
+        .cache = &p->cache,
     };
     led_rect_t px = led_render(&a);
     if (UI_DEPTH) {

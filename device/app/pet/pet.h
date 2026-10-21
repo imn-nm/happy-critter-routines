@@ -47,6 +47,8 @@ typedef struct {
     bool wide;          /* a strip across the screen: the room's walls carry on sideways */
     bool room_off;      /* only Biscuit (and his effects): the room's LEDs stay dark */
     bool solid;         /* MyToki 2: plain pixel art, full squares (no LED dots) */
+    uint8_t room_fade;  /* MyToki 2: the room behind him faded towards bg (0 = as it is, 179 = at 30%);
+                         * he stays solid */
 } pet_look_t;
 
 /* MyToki 2 (Figma "Scene"): Biscuit is the same size in every room, 3.609 px per cell, the room

@@ -150,13 +150,13 @@ static uint32_t solid_key(const led_args_t *a)
     uint32_t pitch;
     memcpy(&pitch, &a->pitch, sizeof pitch);
     const uint32_t v[] = { (uint32_t)(uintptr_t)a->buf, (uint32_t)a->d, pitch, (uint32_t)a->cx, (uint32_t)a->cy,
-                           a->dim, a->bg, (uint32_t)(uintptr_t)pal, a->extend };
+                           a->dim, a->bg, (uint32_t)(uintptr_t)pal, a->extend, a->room_fade };
     uint32_t h = 2166136261u;
     for (unsigned k = 0; k < sizeof v / sizeof v[0]; k++) { h ^= v[k]; h *= 16777619u; }
     return h | 1;   /* never 0, which a fresh cache holds */
 }
 
-static uint8_t *cur;   /* this render's cells */
+static uint16_t *cur;  /* this render's cells */
 static int cur_cap;
 
 /* MyToki 2 (Figma "Scene"): the room as plain pixel art, every cell a full square in the app's own
@@ -173,7 +173,7 @@ static led_rect_t solid_render(const led_args_t *a)
     led_rect_t dirty = { a->d, a->d, 0, 0 };
     if (cells > cur_cap) {
         lv_free(cur);
-        cur = lv_malloc((size_t)cells);
+        cur = lv_malloc((size_t)cells * sizeof *cur);
         cur_cap = cur ? cells : 0;
         if (!cur) return dirty;
     }
@@ -181,7 +181,7 @@ static led_rect_t solid_render(const led_args_t *a)
     /* what each cell shows (0: the background) */
     for (int j = -n; j <= n; j++) {
         for (int i = -n; i <= n; i++) {
-            uint8_t *out = &cur[(j + n) * side + (i + n)];
+            uint16_t *out = &cur[(j + n) * side + (i + n)];
             *out = 0;
             float X = i * P, Y = j * P;
             if (X * X + Y * Y > lim) continue;
@@ -200,7 +200,8 @@ static led_rect_t solid_render(const led_args_t *a)
                 w = a->walls ? a->walls[c] : 0;
             }
             if (a->room_off) { r = 0; w = 0; }
-            *out = b ? b : f ? f : r ? r : w;
+            uint8_t room = r ? r : w;
+            *out = b ? b : f ? f : room && a->room_fade ? (uint16_t)(room | LED_FADED) : room;
         }
     }
     if (a->sparkles >= 0) {
@@ -220,7 +221,7 @@ static led_rect_t solid_render(const led_args_t *a)
     led_cache_t *c = a->cache;
     if (c && c->cap < cells) {
         lv_free(c->cells);
-        c->cells = lv_malloc((size_t)cells);
+        c->cells = lv_malloc((size_t)cells * sizeof *c->cells);
         c->cap = c->cells ? cells : 0;
         c->key = 0;
     }
@@ -232,17 +233,19 @@ static led_rect_t solid_render(const led_args_t *a)
         dirty = (led_rect_t){ 0, 0, a->d, a->d };
     }
     const rgbf_t lime = dimmed(rgb_of(0xDCEF70), a->dim);
+    const float room_k = (255 - a->room_fade) / 255.0f;
     for (int j = -n; j <= n; j++) {
         for (int i = -n; i <= n; i++) {
             int li = (j + n) * side + (i + n);
-            uint8_t idx = cur[li];
+            uint16_t idx = cur[li];
             if (full ? !idx : c->cells[li] == idx) continue;
-            rgbf_t col = idx == SPARK_IDX ? lime : idx ? dimmed(rgb_of(pal[idx]), a->dim) : bg;
+            rgbf_t col = idx == SPARK_IDX ? lime : idx ? dimmed(rgb_of(pal[idx & 0xFF]), a->dim) : bg;
+            if (idx & LED_FADED) col = mix(bg, col, room_k);
             square(a, i, j, P, edge, col, bg, full ? NULL : &dirty);
         }
     }
     if (c && c->cells) {
-        memcpy(c->cells, cur, (size_t)cells);
+        memcpy(c->cells, cur, (size_t)cells * sizeof *cur);
         c->key = key;
     }
     return dirty;

@@ -58,6 +58,7 @@ static struct {
     char title_sig[48];
     home_graphic_t graphic;
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
+    uint8_t room_fade;
 } h;
 
 static bool pet_held;   /* a long tap on the pet: its release isn't also a tap */
@@ -475,11 +476,13 @@ void home_render(const home_view_t *v)
     bool pet_on = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
     pet_set_paused(h.pet, !pet_on);
     if (pet_on) {
-        if (h.pet_dim != v->pet_dim) {
+        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade) {
             pet_look_t look = pet_default_look(lv_obj_get_width(h.pet));
             look.dim = v->pet_dim;
+            look.room_fade = v->room_fade;
             pet_set_look(h.pet, &look);
             h.pet_dim = v->pet_dim;
+            h.room_fade = v->room_fade;
         }
         pet_set_mood(h.pet, v->mood);
         pet_set_activity(h.pet, v->activity);

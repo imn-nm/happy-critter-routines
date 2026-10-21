@@ -57,6 +57,7 @@ typedef struct {
     pet_activity_t activity;
     int force_clip;             /* -1 none */
     uint8_t pet_dim;
+    uint8_t room_fade;          /* the room faded behind him, he stays solid (Free time · Last 5 minutes: 179 = 30%) */
     bool room_off;              /* (old) */
     int16_t pet_d, pet_xy;      /* (old) */
     bool pet_wide;              /* (old) */
