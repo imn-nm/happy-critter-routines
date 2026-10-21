@@ -46,6 +46,9 @@ import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/s
 import StarBadge from "@/components/StarBadge";
 import FreeTimeGift from "@/components/FreeTimeGift";
 
+/** The sticky Add Routine / Add to Schedule bar; the To-do tray pins on top of it. */
+const BOTTOM_BAR_HEIGHT = 85;
+
 const ChildDashboard = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
@@ -55,6 +58,8 @@ const ChildDashboard = () => {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
+  // A new item from the To-do tray's "+ Add" opens the sheet as a to-do.
+  const [newAs, setNewAs] = useState<'task' | 'chore'>('task');
   const [currentDate, setCurrentDate] = useState(getPSTDate());
   const [scheduleTab, setScheduleTab] = useState("timeline");
   const [showRewards, setShowRewards] = useState(false);
@@ -127,6 +132,13 @@ const ChildDashboard = () => {
     // instead of discovering it after saving. When adding to today that slot
     // starts at the current time — never a gap that has already passed.
     setPrefillTime(safeTime ?? suggestSlot(format(currentDate, 'yyyy-MM-dd'), DEFAULT_SLOT_MINUTES));
+    setNewAs('task');
+    setShowTaskForm(true);
+  };
+  const handleAddTodo = () => {
+    setEditingTask(null);
+    setPrefillTime(undefined);
+    setNewAs('chore');
     setShowTaskForm(true);
   };
   const handleEditTask = (task) => {
@@ -911,12 +923,14 @@ const ChildDashboard = () => {
                   onDateChange={setCurrentDate}
                   onReorderTasks={handleReorderTasks}
                   onTaskTimeUpdate={handleTaskTimeUpdate}
+                  onAddTodo={handleAddTodo}
+                  todoTrayOffset={BOTTOM_BAR_HEIGHT}
                 />
               )}
             </div>
 
             {/* Sticky bottom bar (Figma 356:479) */}
-            <div className="sticky bottom-0 z-10 mt-auto flex items-center gap-[10px] border-t border-focus-surface bg-focus-bg pt-3 pb-6">
+            <div className="sticky bottom-0 z-10 mt-auto flex items-center gap-[10px] border-t border-focus-surface bg-focus-bg pt-3 pb-6" style={{ height: BOTTOM_BAR_HEIGHT }}>
               <button
                 type="button"
                 onClick={() => setShowRoutines(true)}
@@ -1106,16 +1120,19 @@ const ChildDashboard = () => {
       </AlertDialog>
 
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
-        {/* TaskForm draws its own sheet header (title + 44px close), so the
-            dialog's title is screen-reader only and its close button hidden. */}
-        <DialogContent className="h-[92vh] supports-[height:100dvh]:h-[92dvh] sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
-          <DialogTitle className="sr-only">{editingTask ? "Edit" : "Add to Schedule"}</DialogTitle>
-          <DialogDescription className="sr-only">{editingTask ? "Change what is on the schedule" : "Add a task, chore or event"}</DialogDescription>
+        {/* The sheet rises only as far as it needs, so the day stays in view
+            above it. It opens straight on the name: the title is for screen
+            readers, and the grabber, a tap outside or Esc closes it. */}
+        <DialogContent className="sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
+          <DialogTitle className="sr-only">{editingTask ? "Edit" : newAs === 'chore' ? "Add a to-do" : "Add to the day"}</DialogTitle>
+          <DialogDescription className="sr-only">{editingTask ? "Change what is on the day" : newAs === 'chore' ? "A to-do they tick off" : "Something on their day"}</DialogDescription>
           <TaskForm
             wakeTime={child?.wake_time}
             childAge={child?.age}
-            key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}`}
+            key={`${showTaskForm}-${format(currentDate, 'yyyy-MM-dd')}-${editingTask?.id || 'new'}-${prefillTime || ''}-${newAs}`}
             task={editingTask} onSave={handleSaveTask}
+            startAs={newAs}
+            showHeader={false}
             onCancel={() => { setShowTaskForm(false); setEditingTask(null); setPrefillTime(undefined); }}
             onDelete={(taskId, mode, dateStr) => {
               handleDeleteTask(taskId, mode, dateStr);

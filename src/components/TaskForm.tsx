@@ -1,11 +1,12 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, isValid, parse } from "date-fns";
-import { ArrowDown, ArrowUp, Bookmark, Check, Circle, Copy, Plus, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Backpack, Bookmark, Check, Circle, ListChecks, Plus, Smile, Sparkles, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import TimeSelect from "@/components/TimeSelect";
 import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
@@ -19,16 +20,15 @@ import { toast } from "sonner";
 import {
   Caption,
   ChoiceButton,
-  OptionCard,
   SectionHeading,
   SelectTile,
   SheetHeader,
   StarStepper,
   SwitchRow,
+  TileText,
   TimeTile,
-  ToggleCard,
 } from "@/components/sheet/SheetParts";
-import { choiceClass, fmtLen, fmtRange, fmtTime, sheetFooterClass } from "@/components/sheet/sheetStyles";
+import { choiceClass, fmtLen, fmtRange, fmtTime, sheetFooterClass, tileClass } from "@/components/sheet/sheetStyles";
 
 interface TaskFormProps {
   task?: Task;
@@ -38,12 +38,14 @@ interface TaskFormProps {
   isEdit?: boolean;
   currentDate: Date;
   prefillTime?: string;
+  /** A new item opened from the To-do tray starts as a to-do (a chore). */
+  startAs?: 'task' | 'chore';
   otherChildren?: { id: string; name: string }[];
   /** The child's wake-up time ("HH:MM"), so Bedtime can't land after midnight. */
   wakeTime?: string | null;
   /** The child's age, for age-appropriate checklist suggestions. */
   childAge?: number | null;
-  /** The child's timed tasks, for "Starts after…" on a flexible task. */
+  /** The child's timed tasks, for "after…" on a floating task. */
   anchorOptions?: { id: string; name: string; after_task_id?: string | null }[];
   /** The child's routines, so a task can repeat with one. */
   routines?: Routine[];
@@ -57,9 +59,8 @@ interface TaskFormProps {
    */
   builtInRunsOn?: (name: string, date: string) => boolean;
   /**
-   * Draw the sheet's own header (grabber, "New Task" title, 44px close
-   * button). On by default; a host that already draws a visible title and
-   * close button can turn it off.
+   * Draw the sheet's own header (title and 44px close button). On by default;
+   * the day's bottom sheet turns it off: it opens straight on the name.
    */
   showHeader?: boolean;
 }
@@ -78,15 +79,25 @@ const DAYS_OF_WEEK = [
   { id: "saturday", label: "S", short: "Sat", name: "Saturday" },
 ];
 
-/** ["monday", …, "friday"] → "Every weekday" */
-const daysPhrase = (days: string[]) => {
+/** ["monday", …, "friday"] → "weekdays"; ["saturday"] → "Saturdays". */
+const daysWords = (days: string[]) => {
   const set = new Set(days);
   const has = (ids: string[]) => ids.length === set.size && ids.every(d => set.has(d));
-  if (set.size === 0) return "Pick days";
-  if (set.size === 7) return "Every day";
-  if (has(["monday", "tuesday", "wednesday", "thursday", "friday"])) return "Every weekday";
-  if (has(["saturday", "sunday"])) return "Every weekend";
-  return `Every ${DAYS_OF_WEEK.filter(d => set.has(d.id)).map(d => d.short).join(", ")}`;
+  if (set.size === 0) return "no days yet";
+  if (set.size === 7) return "every day";
+  if (has(["monday", "tuesday", "wednesday", "thursday", "friday"])) return "weekdays";
+  if (has(["saturday", "sunday"])) return "weekends";
+  const picked = DAYS_OF_WEEK.filter(d => set.has(d.id));
+  if (picked.length === 1) return `${picked[0].name}s`;
+  const shorts = picked.map(d => d.short);
+  return `${shorts.slice(0, -1).join(", ")} and ${shorts[shorts.length - 1]}`;
+};
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "15:00" → "3:00" when the other end of the range says pm too. */
+const fmtStartOf = (start: string, end: string) => {
+  const sameHalf = (Number(start.slice(0, 2)) >= 12) === (Number(end.slice(0, 2)) >= 12);
+  return sameHalf ? fmtTime(start).slice(0, -3) : fmtTime(start);
 };
 
 // One curated duration list instead of separate hour + minute dropdowns —
@@ -99,27 +110,87 @@ const DURATION_OPTIONS = [
 /** Every task has a length; this is what a new one starts at. */
 const DEFAULT_DURATION_MINUTES = 30;
 
-// How a task (or fun time) sits in the day. Anytime to-dos are chores, so
-// they're asked under Chore, not here.
-type Kind = 'fixed' | 'flexible' | 'chore';
-const KIND_OPTIONS: { value: Kind; label: string }[] = [
-  { value: 'fixed', label: 'At a Set Time' },
-  { value: 'flexible', label: 'Whenever There Is Room' },
-];
-
 type LatePolicy = 'keep' | 'shorten' | 'skip';
-
-// What gives when the day runs late. Parents only choose "Must Get Done";
-// otherwise a task keeps its time and fun time is the first to go.
-type Priority = 'must' | LatePolicy;
 const MIN_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
 /** A sensible ceiling for one task's stars; rewards are priced against these. */
 const MAX_STARS = 20;
 
-const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy, builtInRunsOn, showHeader = true }: TaskFormProps) => {
+// ---------------------------------------------------------------------------
+// Pieces of this sheet — module level so they don't remount on every keystroke.
+// ---------------------------------------------------------------------------
+
+/**
+ * A lime, dotted-underlined part of the summary ("3:00", "weekdays") that
+ * opens its own small picker.
+ */
+const SummaryPart = ({ children, label, picker }: { children: ReactNode; label: string; picker: ReactNode }) => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <button
+        type="button"
+        aria-label={label}
+        className="rounded-[4px] font-semibold text-focus-lime underline decoration-dotted decoration-2 decoration-focus-lime/70 underline-offset-[6px] transition-colors hover:text-focus-lime/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+      >
+        {children}
+      </button>
+    </PopoverTrigger>
+    <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+      {picker}
+    </PopoverContent>
+  </Popover>
+);
+
+const PickerLabel = ({ children }: { children: ReactNode }) => (
+  <p className="text-12 font-medium text-focus-muted mb-2">{children}</p>
+);
+
+/** Two-way switch at the top of the settings block: Set time | Floats. */
+function Segmented<T extends string>({ value, options, onChange, label }: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid grid-cols-2 gap-1">
+      {options.map(o => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "h-11 rounded-[12px] text-14 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+            value === o.value ? "bg-focus-lavender text-focus-bg" : "text-focus-text/80 hover:bg-focus-raised",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "+ Steps", "+ Stars", "+ Get ready", "+ Others" under the settings. */
+const extraChipClass =
+  "tap-target h-9 inline-flex items-center gap-1.5 rounded-full bg-focus-surface px-3 text-13 font-semibold leading-none text-focus-text transition-colors hover:bg-focus-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
+const ExtraChip = ({ icon: Icon, label, onClick }: { icon: typeof Star; label: string; onClick?: () => void }) => (
+  <button type="button" onClick={onClick} className={extraChipClass}>
+    <Icon className="w-4 h-4 text-focus-lime" aria-hidden />
+    + {label}
+  </button>
+);
+
+/** Tiles inside the settings block sit a step lighter than the block. */
+const blockTile = "bg-focus-raised hover:bg-focus-raised/80";
+
+const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDate, prefillTime, startAs = 'task', otherChildren = [], wakeTime, childAge, anchorOptions = [], routines = [], schoolDays, onCopy, builtInRunsOn, showHeader = true }: TaskFormProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [additionalChildIds, setAdditionalChildIds] = useState<string[]>([]);
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [starsChipOpen, setStarsChipOpen] = useState(false);
   // The other children this task is shared with (it was copied to them).
   const { data: linkedSiblings = [] } = useQuery({
     queryKey: ["linked-siblings", task?.id, task?.link_id],
@@ -130,7 +201,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   // Built-in rows (Wake Up, Breakfast, School, Lunch, Dinner, Bedtime) keep
   // their time, length and days in the child's profile, so they get the short
-  // form: no rename, stars, type, checklist or delete that would be dropped.
+  // form: no rename, stars, settings, steps or delete that would be dropped.
   const isSystemEvent =
     (!!task?.id && !task.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ||
     (isEdit && isSystemTaskName(task?.name));
@@ -145,11 +216,13 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // blank and makes edits look like they didn't load. Normalize to HH:MM.
   const toHHMM = (t?: string) => (t ? t.slice(0, 5) : "");
 
+  const startsAsChore = task ? task.type === 'floating' : startAs === 'chore';
   const [formData, setFormData] = useState({
     name: task?.name || "",
-    mode: (task?.type === 'floating' ? 'chore' : task?.is_event ? 'event' : 'task') as 'task' | 'chore' | 'event',
-    scheduledTime: toHHMM(task?.scheduled_time) || toHHMM(prefillTime) || "",
-    choreAnytime: task?.type === 'floating' && !task?.window_start,
+    mode: (startsAsChore ? 'chore' : task?.is_event ? 'event' : 'task') as 'task' | 'chore' | 'event',
+    scheduledTime: startsAsChore ? "" : toHHMM(task?.scheduled_time) || toHHMM(prefillTime) || "",
+    // A new to-do starts as "any time"; one with a window opens on Between.
+    choreAnytime: task ? task.type === 'floating' && !task.window_start : true,
     // Tasks always carry a length now; ones saved before that (and new ones)
     // start at the same 30m the timeline already assumed for placement.
     durationHours: Math.floor((task?.duration || DEFAULT_DURATION_MINUTES) / 60).toString(),
@@ -159,9 +232,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     isRecurring: task?.is_recurring ?? false,
     recurringDays: task?.recurring_days || [] as string[],
     taskDate: initialTaskDate,
+    // Must finish: the day waits until they press Done.
     isImportant: task?.is_important ?? false,
     // Waits on the child's screen for a Start tap; the timer runs from then.
     needsStart: task?.needs_start ?? false,
+    // TV, games, playtime: no done button on the child's side. Set from the
+    // name, and only saved while Can shrink is on.
     isFunTime: task?.is_fun_time ?? false,
     windowStart: toHHMM(task?.window_start) || "15:00",
     windowEnd: toHHMM(task?.window_end) || "18:00",
@@ -186,16 +262,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [badEnd, setBadEnd] = useState<string | null>(null);
   const { saved: savedChecklists, saveChecklist, saving: savingChecklist } = useChecklistTemplates();
 
-  // Time to restore when the task is switched back to a fixed time. A flexible
-  // task still has a slot in the day — it's kept in window_start — so pinning
-  // it should keep it where it already sits rather than jumping to a default.
+  // Time to restore when the task is switched back to a set time. A floating
+  // task still has a slot in the day (kept in window_start), so pinning it
+  // keeps it where it already sits rather than jumping to a default.
   const [lastTime, setLastTime] = useState(
     toHHMM(task?.scheduled_time) || toHHMM(task?.window_start) || toHHMM(prefillTime) || "09:00",
   );
 
-  // The checklist editor opens on "+ Add a Checklist" (or when there already is one).
+  // The steps editor opens on "+ Steps" (or when there already are some).
   const [checklistOpen, setChecklistOpen] = useState((task?.subtasks?.length ?? 0) > 0);
-  const [dateOpen, setDateOpen] = useState(false);
   const newStepRef = useRef<HTMLInputElement>(null);
 
   const addSubtask = () => {
@@ -221,8 +296,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const isChore = formData.mode === 'chore';
-  // Something they go to (a game, class): a set time, no done button, and it
-  // ends by itself. Optional get-ready time before it holds its steps.
+  // Something they go to (a game, class) with get-ready time before it: a
+  // set time, no done button, and it ends by itself.
   const isEvent = formData.mode === 'event';
   const atTime = !!formData.scheduledTime;
 
@@ -234,7 +309,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const repeats = isChore ? formData.isRecurring : (followsRoutine || formData.isRecurring);
   const repeatDays = followsRoutine ? routineDayList : formData.recurringDays;
 
-  // "Starts after…": any timed task except this one and the ones that already
+  // "after…": any timed task except this one and the ones that already
   // follow it (that would go round in a circle).
   const followers = new Set(task?.id ? [task.id] : []);
   for (let grew = true; grew;) {
@@ -261,19 +336,35 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     });
   };
 
-  const priority: Priority = formData.isImportant ? 'must' : formData.latePolicy;
-  // Once the parent has set the Start tap themselves, Must Get Done stops changing it.
+  // The two busy-day toggles. They can't both be on: a task can't both
+  // shrink and run over.
+  const mustFinish = formData.isImportant;
+  const canShrink = !formData.isImportant && formData.latePolicy !== 'keep';
+  // Once the parent has set the Start tap themselves, Must finish stops changing it.
   const [needsStartTouched, setNeedsStartTouched] = useState(isEdit && !!task?.needs_start);
-  const setPriority = (next: Priority) =>
+  // An older task could wait for a Start tap without Must finish; it keeps it.
+  const ownStartTap = !!task?.needs_start && !task?.is_important;
+  const setMustFinish = (on: boolean) =>
     setFormData({
       ...formData,
-      isImportant: next === 'must',
+      isImportant: on,
       // A must-finish task never gives up its own time.
-      latePolicy: next === 'must' ? 'keep' : next,
-      // Must finish on a task with a timer: it waits for a Start tap, so the
-      // full time runs from when the child really begins.
-      needsStart: next === 'must' && !needsStartTouched && durationTotal > 0 ? true : formData.needsStart,
+      latePolicy: 'keep',
+      // On by default with Must finish (the full time runs from when the
+      // child really begins), and it goes with it.
+      needsStart: on
+        ? (needsStartTouched ? formData.needsStart : true)
+        : (ownStartTap ? formData.needsStart : false),
     });
+  const setCanShrink = (on: boolean) => {
+    setFunTouched(true);
+    setFormData({
+      ...formData,
+      isImportant: false,
+      // Shrinks from the front until it's gone (an older "shorten to" stays).
+      latePolicy: on ? (formData.latePolicy === 'keep' ? 'skip' : formData.latePolicy) : 'keep',
+    });
+  };
   // "Keep at least" must be shorter than the task itself; a 5-minute task
   // has nothing to shorten to, so it simply gives up its time.
   const minOptions = MIN_DURATION_OPTIONS.filter(m => m < durationTotal);
@@ -281,51 +372,39 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     ? formData.minDuration
     : minOptions.filter(m => m <= formData.minDuration).pop() ?? minOptions[0] ?? 0;
 
-  // Task, Fun Time (a task with no done button, is_fun_time), Chore or Event.
-  const isFun = !isChore && !isEvent && formData.isFunTime;
-  type WhatKind = 'task' | 'fun' | 'chore' | 'event';
-  const setWhat = (next: WhatKind) => {
-    if (next === 'chore') return setFormData({ ...formData, mode: 'chore', isFunTime: false });
-    // An event always has a set time. Steps it already had become its
-    // get-ready steps. Stars, Fun Time and Must Get Done stay in the form in
-    // case the parent switches back, but an event saves without them.
-    if (next === 'event') {
-      return setFormData({
-        ...formData,
-        mode: 'event',
-        scheduledTime: formData.scheduledTime || lastTime,
-        getReady: formData.getReady || formData.subtasks.length > 0,
-      });
-    }
-    const on = next === 'fun';
-    setFormData({
-      ...formData,
-      mode: 'task',
-      isFunTime: on,
-      // Fun time has no done button, so it can't be must-finish; it's the
-      // first thing to give way on a late day unless the parent says otherwise.
-      isImportant: on ? false : formData.isImportant,
-      latePolicy: on
-        ? (formData.isImportant || formData.latePolicy === 'keep' ? 'skip' : formData.latePolicy)
-        // Back to a plain task: its own saved setting, or keep its full time
-        // (never the "skip" that fun time put there).
-        : (!task?.is_fun_time && task?.late_policy ? task.late_policy as LatePolicy : 'keep'),
-    });
+  // Fun time as it will be saved: no done button on the child's side, so no
+  // stars and no Start tap either.
+  const isFun = !isChore && !isEvent && formData.isFunTime && canShrink;
+
+  type Kind = 'fixed' | 'flexible';
+  const kind: Kind = atTime ? 'fixed' : 'flexible';
+  const setKind = (next: Kind) => {
+    if (next === 'fixed') return setFormData({ ...formData, scheduledTime: formData.scheduledTime || lastTime });
+    // Only changes whether the task is pinned, never where it sits. Get-ready
+    // time counts back from a start, so a floating task is a plain task.
+    if (formData.scheduledTime) setLastTime(formData.scheduledTime);
+    if (isEvent) setWhatTouched(true);
+    setFormData({ ...formData, mode: isEvent ? 'task' : formData.mode, scheduledTime: '' });
   };
 
-  const kind: Kind = isChore ? 'chore' : atTime ? 'fixed' : 'flexible';
-  const setKind = (next: Kind) => {
-    // "Anytime To-Do" is an anytime chore.
-    if (next === 'chore') return setFormData({ ...formData, mode: 'chore', choreAnytime: true });
-    if (next === 'fixed') return setFormData({ ...formData, mode: 'task', scheduledTime: formData.scheduledTime || lastTime });
-    // Only changes whether the task is pinned, never where it sits.
-    if (formData.scheduledTime) setLastTime(formData.scheduledTime);
-    setFormData({ ...formData, mode: 'task', scheduledTime: '' });
+  // "+ Get ready" makes it something they go to, with steps before it.
+  const addGetReady = () => {
+    setWhatTouched(true);
+    setChecklistOpen(true);
+    setFormData({
+      ...formData,
+      mode: 'event',
+      scheduledTime: formData.scheduledTime || lastTime,
+      getReady: true,
+    });
+  };
+  const removeGetReady = () => {
+    setWhatTouched(true);
+    setFormData({ ...formData, mode: 'task', getReady: false });
   };
 
   // What the name suggests: a length and an icon (applied while untouched)
   // and checklist steps (offered, never applied on their own).
-  const template = isSystemEvent ? null : templateForName(formData.name);
   const onNameChange = (name: string) => {
     const t = isSystemEvent ? null : templateForName(name);
     const next = { ...formData, name };
@@ -335,8 +414,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     }
     if (t && !iconTouched) next.icon = t.icon;
     if (!t && !iconTouched) next.icon = '';
-    // Games, practices and lessons become Events on their own, with
-    // get-ready time, until the parent picks what it is themselves.
+    // Games, practices and lessons get get-ready time on their own, until
+    // the parent adds or removes it themselves.
     if (!whatTouched && next.mode !== 'chore') {
       if (t?.event && next.mode !== 'event') {
         next.mode = 'event';
@@ -347,8 +426,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         next.mode = 'task';
       }
     }
-    // TV, games, playtime… become Fun Time on their own (no done button,
-    // first to go on a busy day) until the parent flips it themselves.
+    // TV, games, playtime… come with Can shrink on (and no done button)
+    // until the parent flips it themselves.
     if (!funTouched && next.mode === 'task') {
       const fun = !!t?.fun;
       if (fun !== next.isFunTime) {
@@ -403,8 +482,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       type: derivedType,
       scheduled_time: !isChore && scheduledTimeStr ? scheduledTimeStr : undefined,
       duration: !isChore && totalMinutes > 0 ? totalMinutes : undefined,
-      // Events have no done button, so nothing to give stars for.
-      coins: isEvent ? 0 : parseInt(formData.coins),
+      // Events and fun time have no done button, so nothing to give stars for.
+      coins: isEvent || isFun ? 0 : parseInt(formData.coins),
       // Parent-chosen icon; null clears it so the child view falls back to the
       // name-based icon.
       icon: formData.icon || null,
@@ -418,17 +497,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       is_active: task?.is_active ?? true,
       // A one-off (task or chore) pins to its date; repeats use weekdays.
       task_date: !repeats ? formData.taskDate : undefined,
-      // Important / fun-time / checklist are task-mode-only concepts.
+      // Must finish / fun time / Start tap are for tasks only.
       is_important: isChore || isEvent ? false : formData.isImportant,
-      needs_start: !isChore && !isEvent && !formData.isFunTime && totalMinutes > 0 ? formData.needsStart : false,
-      is_fun_time: isChore || isEvent ? false : formData.isFunTime,
+      needs_start: !isChore && !isEvent && !isFun && totalMinutes > 0 ? formData.needsStart : false,
+      is_fun_time: isFun,
       is_event: isEvent,
       prep_minutes: isEvent && formData.getReady ? formData.prepMinutes : 0,
       window_start: derivedType === 'floating' && !formData.choreAnytime
         ? formData.windowStart
         // Non-chore task without a set time — preserve a placement hint so
         // its slot in the timeline survives. Priority: prior scheduled_time
-        // (when the parent just switched to Anytime) → existing window_start
+        // (when the parent just switched to Floats) → existing window_start
         // → the gap time the form was opened from.
         : (!isChore && !scheduledTimeStr
             ? (task?.scheduled_time
@@ -444,7 +523,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       min_duration: !isChore && !isEvent && !formData.isImportant && formData.latePolicy === 'shorten' ? effectiveMin : null,
       routine_id: routine?.id ?? null,
       days_override: !!routine && formData.daysOverride,
-      // Only a flexible task follows another; a fixed time is its own start.
+      // Only a floating task follows another; a set time is its own start.
       after_task_id: !isChore && !scheduledTimeStr && anchor ? anchor.id : null,
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
@@ -459,9 +538,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     : null;
   const hhmmOf = (min: number) =>
     `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-  // An event is set by its start and end; the end moves with the start.
-  const eventEnd = startMinutes != null ? hhmmOf(startMinutes + durationTotal) : '';
-  const prepStart = startMinutes != null ? hhmmOf(Math.max(0, startMinutes - formData.prepMinutes)) : '';
+  // Set by its start and end; the end moves with the start.
+  const endTime = startMinutes != null ? hhmmOf(startMinutes + durationTotal) : '';
   const isBedtimeRow = isSystemEvent && task?.name === 'Bedtime';
   const wakeMinutes = wakeTime ? Number(wakeTime.slice(0, 2)) * 60 + Number(wakeTime.slice(3, 5)) : null;
   const timeProblem = startMinutes == null
@@ -477,80 +555,28 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     && !!builtInRunsOn && !builtInRunsOn(reserved, formData.taskDate);
   const nameClash = addsBuiltIn ? undefined : reserved;
   const builtInElsewhere = !!reserved && !!builtInRunsOn && !isEdit && !builtInRunsOn(reserved, formData.taskDate);
-  // A chore window that ends before it starts would never be open.
+  // A to-do window that ends before it starts would never be open.
   const windowBackwards = isChore && !formData.choreAnytime && formData.windowEnd <= formData.windowStart;
-  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !(isEvent && badEnd);
-
+  const canSubmit = formData.name.trim().length > 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !badEnd;
 
   const coinCount = parseInt(formData.coins) || 0;
   const setCoins = (n: number) => setFormData({ ...formData, coins: String(n) });
+  const hasStars = !isEvent && !isFun && !isSystemEvent;
 
-
-  // Switching to Chore drops task-only settings at save time — say so instead
-  // of letting them vanish silently.
-  const choreWouldDrop = (() => {
-    if (!isChore) return null;
-    const lost: string[] = [];
-    if (formData.isImportant || formData.isFunTime) lost.push('how it works');
-    if (formData.subtasks.length > 0) lost.push('checklist');
-    if (!lost.length) return null;
-    return `Chores don't use ${lost.join(', ')} — that will be cleared when you save.`;
-  })();
-  // Likewise for an event, which has no done button.
-  const eventWouldDrop = (() => {
-    if (!isEvent) return null;
-    const lost: string[] = [];
-    if (coinCount > 0) lost.push('stars');
-    if (formData.isImportant || formData.isFunTime) lost.push('Fun Time or Must Get Done');
-    if (!formData.getReady && formData.subtasks.length > 0) lost.push('steps (turn on Getting Ready to keep them)');
-    if (!lost.length) return null;
-    return `Events don't use ${lost.join(', ')}. That will be cleared when you save.`;
-  })();
-
-  // The single date, as the summary and "Which Days?" say it.
+  // The single date, as the summary and the Days tile say it.
   const dateObj = parse(formData.taskDate, 'yyyy-MM-dd', new Date());
   const dateLabel = isValid(dateObj) ? format(dateObj, 'EEE, MMM d') : formData.taskDate;
   const dateWeekday = isValid(dateObj) ? format(dateObj, 'EEEE').toLowerCase() : '';
-
-  // The line under the title, written from the answers below it.
-  const summarySentence = (() => {
-    const starsText = coinCount > 0 ? `Earn ${coinCount} star${coinCount === 1 ? '' : 's'}` : '';
-    if (isChore) {
-      return [
-        repeats ? daysPhrase(repeatDays) : dateLabel,
-        formData.choreAnytime ? 'Anytime' : fmtRange(formData.windowStart, formData.windowEnd),
-        starsText,
-      ].filter(Boolean).join(' · ');
-    }
-    if (isEvent && formData.scheduledTime) {
-      const lead = repeats ? daysPhrase(repeatDays) : dateLabel;
-      const parts = [`${lead}, ${fmtRange(formData.scheduledTime, eventEnd)}.`];
-      if (formData.getReady) parts.push(`Get ready ${formData.prepMinutes} min before.`);
-      return parts.join(' ');
-    }
-    const when = atTime
-      ? `at ${fmtTime(formData.scheduledTime)}`
-      : anchor ? `after ${anchor.name}` : 'whenever there is room';
-    const lead = isSystemEvent ? '' : repeats ? daysPhrase(repeatDays) : dateLabel;
-    const first = lead ? `${lead} ${when}` : when.charAt(0).toUpperCase() + when.slice(1);
-    const parts = [isBedtimeRow ? `${first}, until wake-up.` : `${first} for ${fmtLen(durationTotal)}.`];
-    if (!isSystemEvent) {
-      if (formData.isFunTime) parts.push('Fun time.');
-      if (priority === 'must') parts.push('Must finish.');
-      if (formData.needsStart && durationTotal > 0) parts.push('Waits for a Start tap.');
-      if (priority === 'shorten') parts.push(effectiveMin > 0 ? `Can be shortened to ${effectiveMin} min.` : 'Can be shortened.');
-      if (priority === 'skip') parts.push('Can be skipped.');
-      if (starsText && !formData.isFunTime) parts.push(`${starsText}.`);
-    }
-    return parts.join(' ');
-  })();
+  const daysText = repeats ? daysWords(repeatDays) : dateLabel;
+  // The tile is a third of the row: a one-off date drops its weekday there.
+  const daysTileText = repeats ? capitalize(daysText) : isValid(dateObj) ? format(dateObj, 'MMM d') : dateLabel;
 
   const AutoIcon = getTaskIconComponent(formData.name);
   const SelectedIcon = formData.icon
     ? (ICON_OPTIONS.find(o => o.key === formData.icon)?.Icon ?? AutoIcon)
     : AutoIcon;
   // Blank card: a placeholder ring until there's a name or a chosen icon.
-  const SummaryIcon = !formData.name.trim() && !formData.icon ? Circle : SelectedIcon;
+  const NameIcon = !formData.name.trim() && !formData.icon ? Circle : SelectedIcon;
 
   // === Which days ===
   const chooseSingleDate = () => {
@@ -577,88 +603,515 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     });
   };
   const daysCaption = !repeats
-      ? `Only on ${dateLabel}. Tap the date to change it.`
+      ? `Only on ${dateLabel}.`
       : followsRoutine && routine
-        ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Tap a day to give this task its own days.`
+        ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Tap a day to give it days of its own.`
         : routine
           ? `Part of ${routine.name}, on days of its own.`
           : 'Runs again on the days you pick.';
 
-  // === Pickers ===
-  const durationOptions = (DURATION_OPTIONS.includes(durationTotal)
+  // === Pickers, each used by a tile and by the lime part of the summary ===
+  const daysPicker = (
+    <div className="flex w-[280px] max-w-full flex-col gap-2.5">
+      <PickerLabel>Days</PickerLabel>
+      <div role="radiogroup" aria-label="One day or repeats" className="grid grid-cols-2 gap-2 -mt-1">
+        <ChoiceButton selected={!repeats} onClick={chooseSingleDate} disabled={followsRoutine}>One day</ChoiceButton>
+        <ChoiceButton selected={repeats} onClick={chooseRepeats}>Repeats</ChoiceButton>
+      </div>
+      {!repeats && (
+        <Input
+          type="date"
+          aria-label="Date"
+          value={formData.taskDate}
+          onChange={(e) => { if (e.target.value) setFormData({ ...formData, taskDate: e.target.value }); }}
+          onKeyDown={(e) => e.stopPropagation()}
+          className="rounded-[12px] px-3"
+        />
+      )}
+      {repeats && (
+        <div role="group" aria-label="Repeat days" className="grid grid-cols-7 gap-1">
+          {DAYS_OF_WEEK.map(({ id, label, name }) => (
+            <ChoiceButton
+              key={id}
+              role="checkbox"
+              selected={repeatDays.includes(id)}
+              onClick={() => toggleDay(id)}
+              ariaLabel={name}
+              className="rounded-[10px] px-0"
+            >
+              {label}
+            </ChoiceButton>
+          ))}
+        </div>
+      )}
+      {needsDays ? <Caption tone="error" role="alert">Pick at least one day.</Caption> : <Caption>{daysCaption}</Caption>}
+      {/* A routine's tasks repeat together on its days; one task can still
+          keep days of its own. */}
+      {!isChore && !isSystemEvent && routines.length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-focus-raised pt-2.5">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <span className="text-14 font-semibold text-focus-text">Routine</span>
+            <Select
+              value={routine ? routine.id : 'none'}
+              onValueChange={(v) => setFormData({ ...formData, routineId: v === 'none' ? '' : v, daysOverride: false })}
+            >
+              <SelectTrigger className="w-[160px] shrink-0 rounded-[12px] border-0 bg-focus-surface px-3 gap-1 text-focus-text" aria-label="Routine">
+                <SelectValue>{routine ? routine.name : 'None'}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {routines.map(r => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {routine && (
+            <SwitchRow
+              id="daysOverride"
+              label="Own days"
+              checked={formData.daysOverride}
+              onCheckedChange={(checked) => setFormData({
+                ...formData,
+                daysOverride: checked,
+                // Start from the routine's days, then change what differs.
+                isRecurring: checked ? true : formData.isRecurring,
+                recurringDays: checked ? routineDayList : formData.recurringDays,
+              })}
+              className="py-1.5"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+  const setStart = (value: string) => {
+    if (value) setLastTime(value);
+    // The end moves with the start, keeping the length (as calendars do).
+    setBadEnd(null);
+    setFormData({ ...formData, scheduledTime: value });
+  };
+  const setEnd = (value: string) => {
+    if (!value || startMinutes == null) return;
+    const length = Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) - startMinutes;
+    if (length <= 0) return setBadEnd(value);
+    setBadEnd(null);
+    setDuration(length);
+  };
+  const timePicker = (label: string, value: string, onChange: (v: string) => void) => (
+    <>
+      <PickerLabel>{label}</PickerLabel>
+      <TimeSelect value={value} onChange={onChange} stepMinutes={5} />
+    </>
+  );
+  const durationValues = DURATION_OPTIONS.includes(durationTotal)
     ? DURATION_OPTIONS
-    : [...DURATION_OPTIONS, durationTotal].sort((a, b) => a - b)
-  ).map(m => ({ value: String(m), label: fmtLen(m) }));
-  const lastsTile = (
+    : [...DURATION_OPTIONS, durationTotal].sort((a, b) => a - b);
+  const lengthPicker = (
+    <div className="w-[264px] max-w-full">
+      <PickerLabel>Length</PickerLabel>
+      <div className="grid max-h-64 grid-cols-3 gap-1.5 overflow-y-auto">
+        {durationValues.map(m => (
+          <ChoiceButton key={m} selected={m === durationTotal} onClick={() => setDuration(m)} className="rounded-[10px] px-1">
+            {fmtLen(m)}
+          </ChoiceButton>
+        ))}
+      </div>
+    </div>
+  );
+  const placePicker = (
+    <div className="flex w-[264px] max-w-full flex-col gap-1.5">
+      <PickerLabel>Where it goes</PickerLabel>
+      <ChoiceButton selected={!anchor} onClick={() => setFormData({ ...formData, afterTaskId: '' })} className="rounded-[12px] justify-start px-3">
+        Wherever there's room
+      </ChoiceButton>
+      {anchors.map(a => (
+        <ChoiceButton key={a.id} selected={anchor?.id === a.id} onClick={() => setFormData({ ...formData, afterTaskId: a.id })} className="rounded-[12px] justify-start px-3">
+          After {a.name}
+        </ChoiceButton>
+      ))}
+      <button
+        type="button"
+        onClick={() => setKind('fixed')}
+        className="mt-1 min-h-11 rounded-[12px] text-13 font-semibold text-focus-lavender hover:text-focus-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+      >
+        Give it a set time instead
+      </button>
+    </div>
+  );
+  const prepPicker = (
+    <div className="w-[240px] max-w-full">
+      <PickerLabel>Time to get ready</PickerLabel>
+      <div className="grid grid-cols-3 gap-1.5">
+        <ChoiceButton selected={!formData.getReady} onClick={() => setFormData({ ...formData, getReady: false })} className="rounded-[10px] px-1">
+          None
+        </ChoiceButton>
+        {(PREP_OPTIONS.includes(formData.prepMinutes) ? PREP_OPTIONS : [...PREP_OPTIONS, formData.prepMinutes].sort((a, b) => a - b)).map(m => (
+          <ChoiceButton
+            key={m}
+            selected={formData.getReady && formData.prepMinutes === m}
+            onClick={() => setFormData({ ...formData, getReady: true, prepMinutes: m })}
+            className="rounded-[10px] px-1"
+          >
+            {fmtLen(m)}
+          </ChoiceButton>
+        ))}
+      </div>
+    </div>
+  );
+  const starsPicker = (
+    <div className="w-[240px] max-w-full">
+      <PickerLabel>Stars you give when it's done</PickerLabel>
+      <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
+    </div>
+  );
+  const mustFinishRow = (id = "mustFinish") => (
+    <SwitchRow
+      id={id}
+      tone="lavender"
+      label="Must finish"
+      caption="The day waits until they press Done."
+      checked={mustFinish}
+      disabled={canShrink || isEvent}
+      onCheckedChange={setMustFinish}
+    />
+  );
+  const startTapRow = (id = "needsStart") => (
+    <SwitchRow
+      id={id}
+      tone="lavender"
+      label="Wait for their Start tap"
+      caption={formData.needsStart ? "The full time runs from when they tap Start." : undefined}
+      checked={formData.needsStart}
+      onCheckedChange={(on) => { setNeedsStartTouched(true); setFormData({ ...formData, needsStart: on }); }}
+    />
+  );
+  const canShrinkRow = (id = "canShrink") => (
+    <SwitchRow
+      id={id}
+      tone="lavender"
+      label="Can shrink"
+      caption={formData.latePolicy === 'shorten' && canShrink && effectiveMin > 0
+        ? `Shrinks to ${effectiveMin} min if needed.`
+        : "Shrinks first, then drops if needed."}
+      checked={canShrink}
+      disabled={mustFinish || isEvent}
+      onCheckedChange={setCanShrink}
+    />
+  );
+  // The Start tap sits under Must finish, shown only while it's on (or when
+  // an older task already waits for one).
+  const showStartTap = !isFun && !isEvent && (mustFinish || formData.needsStart);
+
+  // === The summary: written from the answers, every setting in lime ===
+  const name = formData.name.trim();
+  const subject = name || "It's";
+  const daysPart = (
+    <SummaryPart label={`Days: ${daysText}. Change`} picker={daysPicker}>{daysText}</SummaryPart>
+  );
+  const onDays = repeats && daysText === 'every day' ? <> {daysPart}</> : <> on {daysPart}</>;
+  const starsSentence = coinCount > 0 && hasStars ? (
+    <SummaryPart label={`${coinCount} stars. Change`} picker={starsPicker}>{coinCount} ★</SummaryPart>
+  ) : null;
+  const summary: ReactNode = (() => {
+    if (isChore) {
+      return (
+        <>
+          {subject}{' '}
+          {formData.choreAnytime ? (
+            <SummaryPart label="Any time. Change" picker={(
+              <div className="w-[240px] max-w-full">
+                <PickerLabel>When</PickerLabel>
+                <Segmented value="any" label="When" options={[{ value: 'any', label: 'Any time' }, { value: 'between', label: 'Between' }]} onChange={(v) => setFormData({ ...formData, choreAnytime: v === 'any' })} />
+              </div>
+            )}>any time</SummaryPart>
+          ) : (
+            <>
+              between{' '}
+              <SummaryPart label={`From ${fmtTime(formData.windowStart)}. Change`} picker={timePicker('From', formData.windowStart, (v) => setFormData({ ...formData, windowStart: v }))}>
+                {fmtStartOf(formData.windowStart, formData.windowEnd)}
+              </SummaryPart>{' '}
+              and{' '}
+              <SummaryPart label={`Until ${fmtTime(formData.windowEnd)}. Change`} picker={timePicker('Until', formData.windowEnd, (v) => setFormData({ ...formData, windowEnd: v }))}>
+                {fmtTime(formData.windowEnd)}
+              </SummaryPart>
+            </>
+          )}
+          {onDays}.{' '}
+          {starsSentence
+            ? <>They tick it off, and you give {starsSentence} when it's done.</>
+            : <>They tick it off.</>}
+        </>
+      );
+    }
+    if (isSystemEvent) {
+      if (!atTime) return <>{subject} for {fmtLen(durationTotal)}.</>;
+      if (isBedtimeRow) {
+        return (
+          <>
+            {subject} at{' '}
+            <SummaryPart label={`Starts ${fmtTime(formData.scheduledTime)}. Change`} picker={timePicker('Starts', formData.scheduledTime, setStart)}>
+              {fmtTime(formData.scheduledTime)}
+            </SummaryPart>, until wake-up.
+          </>
+        );
+      }
+    }
+    const rules: ReactNode[] = [];
+    if (!isSystemEvent && !isEvent) {
+      if (mustFinish) {
+        const must = <SummaryPart label="Must finish. Change" picker={mustFinishRow("mustFinishPart")}>must finish</SummaryPart>;
+        rules.push(formData.needsStart
+          ? <Fragment key="must"> It {must}: it waits for <SummaryPart label="Waits for their Start tap. Change" picker={startTapRow("needsStartPart")}>their Start tap</SummaryPart>, and the day doesn't move on until they press Done.</Fragment>
+          : <Fragment key="must"> It {must}: the day doesn't move on until they press Done.</Fragment>);
+      } else if (formData.needsStart && !isFun) {
+        rules.push(<Fragment key="start"> It waits for <SummaryPart label="Waits for their Start tap. Change" picker={startTapRow("needsStartPart")}>their Start tap</SummaryPart>.</Fragment>);
+      }
+      if (canShrink) {
+        const shrink = canShrinkRow("canShrinkPart");
+        rules.push(formData.latePolicy === 'shorten' && effectiveMin > 0
+          ? <Fragment key="shrink"> It <SummaryPart label="Can shrink. Change" picker={shrink}>can shrink</SummaryPart> to {effectiveMin} min if the day runs late.</Fragment>
+          : <Fragment key="shrink"> It <SummaryPart label="Shrinks first. Change" picker={shrink}>shrinks first</SummaryPart>, then drops if the day runs late.</Fragment>);
+      }
+      if (starsSentence) rules.push(<Fragment key="stars"> You give {starsSentence} when it's done.</Fragment>);
+    }
+    if (atTime) {
+      return (
+        <>
+          {subject} from{' '}
+          <SummaryPart label={`Starts ${fmtTime(formData.scheduledTime)}. Change`} picker={timePicker('Starts', formData.scheduledTime, setStart)}>
+            {fmtStartOf(formData.scheduledTime, endTime)}
+          </SummaryPart>{' '}
+          to{' '}
+          <SummaryPart label={`Ends ${fmtTime(endTime)}. Change`} picker={timePicker('Ends', badEnd ?? endTime, setEnd)}>
+            {fmtTime(endTime)}
+          </SummaryPart>
+          {!isSystemEvent && onDays}
+          {isEvent ? (
+            <>, with{' '}
+              <SummaryPart label="Time to get ready. Change" picker={prepPicker}>
+                {formData.getReady ? `${fmtLen(formData.prepMinutes)} to get ready` : 'no time to get ready'}
+              </SummaryPart>.
+            </>
+          ) : '.'}
+          {rules}
+        </>
+      );
+    }
+    return (
+      <>
+        {subject} for{' '}
+        <SummaryPart label={`Length ${fmtLen(durationTotal)}. Change`} picker={lengthPicker}>{fmtLen(durationTotal)}</SummaryPart>
+        {!isSystemEvent && onDays},{' '}
+        <SummaryPart label={`${anchor ? `After ${anchor.name}` : "Wherever there's room"}. Change`} picker={placePicker}>
+          {anchor ? `after ${anchor.name}` : "wherever there's room"}
+        </SummaryPart>.
+        {rules}
+      </>
+    );
+  })();
+
+  // === Tiles ===
+  const daysTile = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={cn(tileClass, blockTile)} aria-label={`Days: ${daysText}`}>
+          <TileText label="Days" value={daysTileText} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+        {daysPicker}
+      </PopoverContent>
+    </Popover>
+  );
+  const startsTile = <TimeTile label="Starts" value={formData.scheduledTime} onChange={setStart} className={blockTile} />;
+  const endsTile = <TimeTile label="Ends" value={badEnd ?? endTime} onChange={setEnd} className={blockTile} />;
+  const lengthTile = (
     <SelectTile
-      label="Lasts"
+      label="Length"
       value={String(durationTotal)}
       display={fmtLen(durationTotal)}
       onChange={(v) => setDuration(parseInt(v))}
-      options={durationOptions}
-    />
-  );
-  const startsTimeTile = (
-    <TimeTile
-      label="Starts"
-      value={formData.scheduledTime}
-      onChange={(value) => {
-        if (value) setLastTime(value);
-        // The end moves with the start, keeping the length (as calendars do).
-        setBadEnd(null);
-        setFormData({ ...formData, scheduledTime: value });
-      }}
-    />
-  );
-  const endsTimeTile = (
-    <TimeTile
-      label="Ends"
-      value={badEnd ?? eventEnd}
-      onChange={(value) => {
-        if (!value || startMinutes == null) return;
-        const length = Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) - startMinutes;
-        if (length <= 0) return setBadEnd(value);
-        setBadEnd(null);
-        setDuration(length);
-      }}
-    />
-  );
-  const prepTile = (
-    <SelectTile
-      label="Get Ready"
-      value={String(formData.prepMinutes)}
-      display={`${fmtLen(formData.prepMinutes)} before`}
-      onChange={(v) => setFormData({ ...formData, prepMinutes: parseInt(v) })}
-      options={(PREP_OPTIONS.includes(formData.prepMinutes) ? PREP_OPTIONS : [...PREP_OPTIONS, formData.prepMinutes].sort((a, b) => a - b))
-        .map(m => ({ value: String(m), label: `${fmtLen(m)} before` }))}
+      options={durationValues.map(m => ({ value: String(m), label: fmtLen(m) }))}
+      className={blockTile}
     />
   );
 
-  const noun = isChore ? 'Chore' : isEvent ? 'Event' : isFun ? 'Fun Time' : 'Task';
+  const noun = isChore ? 'To-do' : isEvent ? 'Event' : 'Task';
   const sheetTitle = `${isEdit ? 'Edit' : 'New'} ${noun}`;
   const stepInputClass =
     "h-11 flex-1 min-w-0 rounded-[12px] border-0 bg-focus-surface px-3 text-[16px] text-focus-text placeholder:text-focus-muted/70 focus:outline-none focus:ring-2 focus:ring-focus-lavender";
   const iconButtonClass =
     "tap-target h-11 shrink-0 rounded-[12px] flex items-center justify-center text-focus-muted transition-colors hover:enabled:text-focus-text disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
 
+  // Steps: a task's checklist, or an event's get-ready steps (in its card).
+  const showSteps = !isSystemEvent && !isChore && (isEvent || checklistOpen || formData.subtasks.length > 0);
+  const openSteps = () => {
+    setChecklistOpen(true);
+    requestAnimationFrame(() => newStepRef.current?.focus({ preventScroll: false }));
+  };
+  const stepsEditor = (
+    <>
+      <div className="flex items-center gap-2">
+        <input
+          ref={newStepRef}
+          value={newSubtaskText}
+          onChange={(e) => setNewSubtaskText(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              addSubtask();
+            }
+          }}
+          aria-label="New step"
+          enterKeyHint="next"
+          autoComplete="off"
+          placeholder="Add a step…"
+          className={stepInputClass}
+        />
+        <button
+          type="button"
+          onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
+          onClick={addSubtask}
+          disabled={!newSubtaskText.trim()}
+          className={cn(iconButtonClass, "w-11 bg-focus-surface text-focus-lavender hover:enabled:bg-focus-raised")}
+          aria-label="Add step"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
+      {formData.subtasks.length > 0 && (
+        <ol className="flex flex-col gap-1.5">
+          {formData.subtasks.map((sub, idx) => (
+            <li key={sub.id} className="flex items-center gap-1">
+              <span className="text-12 text-focus-muted w-4 text-right shrink-0 mr-0.5">{idx + 1}.</span>
+              <input
+                value={sub.text}
+                onChange={(e) => updateSubtaskText(sub.id, e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                aria-label={`Step ${idx + 1}`}
+                className={stepInputClass}
+              />
+              <button
+                type="button"
+                onClick={() => moveSubtask(idx, -1)}
+                disabled={idx === 0}
+                className={cn(iconButtonClass, "w-9")}
+                aria-label="Move step up"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveSubtask(idx, 1)}
+                disabled={idx === formData.subtasks.length - 1}
+                className={cn(iconButtonClass, "w-9")}
+                aria-label="Move step down"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeSubtask(sub.id)}
+                className={cn(iconButtonClass, "w-9 hover:enabled:text-focus-coral hover:bg-focus-coral/10")}
+                aria-label="Remove step"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {/* Suggested steps for this name (a saved checklist of the same name
+          first). Added after what's there, never replacing it. */}
+      {stepIdeas.length > 0 && remainingIdeas.length > 0 && (
+        <div className="rounded-[14px] border border-focus-lavender/30 bg-focus-lavender/5 p-3 flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
+            <Caption>{matchingSaved ? `From your saved "${matchingSaved.name}" checklist. Tap one to add it.` : 'Ideas. Tap one to add it.'}</Caption>
+          </div>
+          {stepIdeas.map(step => {
+            const added = existingSteps.has(step.trim().toLowerCase());
+            return (
+              <button
+                key={step}
+                type="button"
+                disabled={added}
+                onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
+                onClick={() => addSteps([step])}
+                className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-2 text-left text-14 text-focus-text hover:enabled:bg-focus-lavender/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender disabled:text-focus-muted"
+                aria-label={added ? step + ', added' : 'Add ' + step}
+              >
+                {added ? <Check className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden /> : <Plus className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden />}
+                <span className="min-w-0 flex-1 break-words">{step}</span>
+                {added && <span className="text-12 text-focus-muted">Added</span>}
+              </button>
+            );
+          })}
+          <Button type="button" size="sm" variant="secondary" className="min-h-11 self-start mt-1" onClick={() => addSteps(remainingIdeas)}>
+            Add All Ideas
+          </Button>
+        </div>
+      )}
+      {/* Other checklists the family saved, for tasks with a new name. */}
+      {!matchingSaved && savedChecklists.length > 0 && formData.subtasks.length === 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {savedChecklists.slice(0, 6).map(c => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => addSteps(c.steps)}
+              className={choiceClass(false, "rounded-[12px] px-3 gap-1.5")}
+            >
+              <Bookmark className="w-3.5 h-3.5" aria-hidden /> {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {formData.subtasks.length >= 2 && formData.name.trim() && (
+        <button
+          type="button"
+          disabled={savingChecklist}
+          onClick={async () => {
+            try {
+              await saveChecklist({ name: formData.name.trim(), steps: formData.subtasks.map(s => s.text.trim()).filter(Boolean) });
+              toast.success(`Saved "${formData.name.trim()}" checklist for reuse`);
+            } catch {
+              toast.error("Couldn't save the checklist. Please try again.");
+            }
+          }}
+          className="self-start min-h-11 text-13 font-semibold text-focus-lavender hover:text-focus-text flex items-center gap-1.5 disabled:opacity-40"
+        >
+          <Bookmark className="w-3.5 h-3.5" aria-hidden /> Save These Steps for Reuse
+        </button>
+      )}
+    </>
+  );
+
+  // What "+ …" can still add. Each chip goes once its part is on the sheet.
+  const canAddOthers = !isSystemEvent && (isEdit ? !!onCopy && !!task?.id : otherChildren.length > 0 && !othersOpen);
+  // Kept while its picker is open, or the first star would close it.
+  const showStarsChip = hasStars && (coinCount === 0 || starsChipOpen);
+  const showStepsChip = !isSystemEvent && !isChore && !isEvent && !showSteps;
+  const showGetReadyChip = !isSystemEvent && !isChore && !isEvent && atTime;
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6 w-full min-w-0">
-      {/* === HEADER === title, 44px close (the sheet draws the grabber) */}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full min-w-0">
       {showHeader && <SheetHeader title={sheetTitle} onClose={onCancel} />}
 
-      {/* === SUMMARY === the name is typed here; the line under it writes
-          itself from the answers below. */}
+      {/* === NAME === with its icon (auto from the name, or picked) */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-3 rounded-[18px] border border-focus-lavender/40 bg-focus-lavender/10 p-3.5 transition-colors focus-within:border-focus-lavender">
+        <div className="flex items-center gap-3 rounded-[16px] bg-focus-surface p-2 pr-3.5 transition-shadow focus-within:ring-2 focus-within:ring-focus-lavender">
           {!isSystemEvent ? (
             <Popover open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
                   aria-label={formData.icon ? 'Change icon' : 'Icon: auto, based on the name. Tap to choose one.'}
-                  className="h-12 w-12 shrink-0 rounded-[14px] bg-focus-bg text-focus-lime flex items-center justify-center transition-colors hover:bg-focus-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                  className="h-11 w-11 shrink-0 rounded-[12px] bg-focus-bg text-focus-lime flex items-center justify-center transition-colors hover:bg-focus-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
                 >
-                  <SummaryIcon className="w-6 h-6" />
+                  <NameIcon className="w-5 h-5" />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-[316px] max-h-[min(26rem,var(--radix-popover-content-available-height))] overflow-y-auto p-3 bg-focus-sheet border-focus-raised" align="start">
@@ -694,541 +1147,136 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               </PopoverContent>
             </Popover>
           ) : (
-            <span className="h-12 w-12 shrink-0 rounded-[14px] bg-focus-bg text-focus-lime flex items-center justify-center" aria-hidden>
-              <SummaryIcon className="w-6 h-6" />
+            <span className="h-11 w-11 shrink-0 rounded-[12px] bg-focus-bg text-focus-lime flex items-center justify-center" aria-hidden>
+              <NameIcon className="w-5 h-5" />
             </span>
           )}
-          <label htmlFor="taskName" className="flex-1 min-w-0 min-h-11 flex flex-col justify-center gap-0.5 cursor-text">
-            <input
-              id="taskName"
-              aria-label={isChore ? 'Chore name' : isEvent ? 'Event name' : 'Task name'}
-              value={formData.name}
-              onChange={(e) => onNameChange(e.target.value)}
-              onKeyDown={(e) => {
-                          e.stopPropagation();
-                          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                            e.preventDefault();
-                            newStepRef.current?.focus({ preventScroll: true });
-                          }
-                        }}
-              placeholder="Title"
-              required
-              autoComplete="off"
-              disabled={!!isSystemEvent}
-              aria-invalid={!!nameClash}
-              aria-describedby={nameClash ? "taskNameClash" : undefined}
-              className="w-full min-w-0 bg-transparent border-0 p-0 text-16 font-semibold leading-[21px] text-focus-text placeholder:text-focus-text/80 focus:outline-none disabled:cursor-default disabled:opacity-100"
-            />
-            {/* Always shown, even before there's a name, so the parent sees
-                what they're setting up as they answer below. */}
-            <span className="text-12 leading-[17px] text-focus-muted">{summarySentence}</span>
-          </label>
+          <input
+            id="taskName"
+            aria-label={isChore ? 'To-do name' : 'Name'}
+            value={formData.name}
+            onChange={(e) => onNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder={isChore ? "What needs doing?" : "What is it?"}
+            required
+            autoComplete="off"
+            disabled={!!isSystemEvent}
+            aria-invalid={!!nameClash}
+            aria-describedby={nameClash ? "taskNameClash" : undefined}
+            className="flex-1 min-w-0 h-11 bg-transparent border-0 p-0 text-16 leading-[21px] text-focus-text placeholder:text-focus-muted focus:outline-none disabled:cursor-default disabled:opacity-100"
+          />
         </div>
-        {/* What the name suggested, so a length that changed on its own is
-            never a surprise. */}
-        {!isEdit && template && !reserved && (
-          <div className="flex items-center gap-1.5 px-1">
-            <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
-            <Caption>
-              {isChore
-                ? 'Icon suggested from the name.'
-                : isEvent && template.event
-                  ? `Suggested from the name: an event of ${fmtLen(durationTotal)} with time to get ready. Change anything.`
-                  : `Suggested from the name: ${fmtLen(durationTotal)} and an icon. Change anything.`}
-            </Caption>
-          </div>
-        )}
         {addsBuiltIn && (
           <Caption>Adds {reserved} to {dateLabel} only. Its usual days stay as they are.</Caption>
         )}
         {nameClash && (
           <Caption tone="error" id="taskNameClash">
             {builtInElsewhere
-              ? `${nameClash} is part of the daily routine. To add it just for this day, make it a one-day Task; its usual days are set in the profile.`
-              : `${nameClash} is already on the schedule. Tap it on the timeline to change its time, or use another name, like "${nameClash} at Grandma's".`}
+              ? `${nameClash} is part of the daily routine. To add it just for this day, make it a one-day task; its usual days are set in the profile.`
+              : `${nameClash} is already on the schedule. Tap it on the day to change its time, or use another name, like "${nameClash} at Grandma's".`}
           </Caption>
         )}
       </div>
 
-      {/* === WHAT IS IT? === */}
-      {!isSystemEvent && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeading id="q-what">What Is It?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-what" className="grid grid-cols-3 gap-2">
-            <ChoiceButton selected={!isChore && !isEvent} onClick={() => { setWhatTouched(true); setWhat(formData.isFunTime ? 'fun' : 'task'); }} className="min-h-12 rounded-[16px] text-14">
-              Task
-            </ChoiceButton>
-            <ChoiceButton selected={isChore} onClick={() => { setWhatTouched(true); setWhat('chore'); }} className="min-h-12 rounded-[16px] text-14">
-              Chore
-            </ChoiceButton>
-            <ChoiceButton selected={isEvent} onClick={() => { setWhatTouched(true); setWhat('event'); }} className="min-h-12 rounded-[16px] text-14">
-              Event
-            </ChoiceButton>
+      {/* === SUMMARY === written from the answers; every lime part opens
+          its own small picker. */}
+      <div className="rounded-[20px] border-[1.5px] border-focus-lavender bg-focus-bg px-[18px] py-4 text-[20px] leading-[32px] text-focus-text break-words">
+        {summary}
+      </div>
+
+      {/* === GET-READY STEPS === something they go to: steps before it starts */}
+      {isEvent && (
+        <section className="flex flex-col gap-2 rounded-[18px] border border-focus-raised p-3" aria-labelledby="getReadyHeading">
+          <div className="flex items-center gap-2">
+            <Backpack className="w-4 h-4 shrink-0 text-focus-lime" aria-hidden />
+            <h3 id="getReadyHeading" className="flex-1 min-w-0 text-14 font-semibold text-focus-text">Get-ready steps</h3>
+            <span className="text-12 text-focus-lavender">Shown before it starts</span>
+            <button type="button" onClick={removeGetReady} aria-label="Remove get-ready time" className={cn(iconButtonClass, "w-9 h-9 -my-1 -mr-1.5 hover:enabled:text-focus-coral")}>
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <Caption>
-            {isChore
-              ? "A to-do that doesn't take up schedule time."
-              : isEvent
-                ? 'Something your child attends, like a game or a class. It has no done button and ends by itself.'
-                : 'Something on their schedule, like homework, brushing teeth or TV.'}
-          </Caption>
-          {eventWouldDrop && <Caption tone="warn">{eventWouldDrop}</Caption>}
+          {stepsEditor}
         </section>
       )}
 
-      {/* === WHEN DOES IT HAPPEN? === */}
-      <section className="flex flex-col gap-2.5">
-        <SectionHeading id="q-when">{isChore ? 'When Should It Happen?' : 'When Does It Happen?'}</SectionHeading>
-        {isSystemEvent ? (
-          <div className="flex gap-2">
-            {atTime && startsTimeTile}
-            {/* Bedtime runs until wake-up: there's no length to set. */}
-            {!isBedtimeRow && lastsTile}
-          </div>
-        ) : isEvent ? (
-          <>
-            <div className="flex gap-2">{startsTimeTile}{endsTimeTile}</div>
-            {badEnd
-              ? <Caption tone="error" role="alert">It has to end after it starts.</Caption>
-              : <Caption>It keeps this time, even when the day runs late.</Caption>}
-          </>
-        ) : !isChore ? (
-          <div role="radiogroup" aria-labelledby="q-when" className="flex flex-col gap-2">
-            {KIND_OPTIONS.map(option => {
-              const selected = kind === option.value;
-              return (
-                <OptionCard
-                  key={option.value}
-                  selected={selected}
-                  label={option.label}
-                  onSelect={() => setKind(option.value)}
-                  caption={
-                    option.value === 'fixed'
-                      ? `Starts at ${fmtTime(formData.scheduledTime)} and lasts ${fmtLen(durationTotal)}.`
-                      : option.value === 'flexible'
-                        ? (anchor
-                            ? `Follows ${anchor.name}. Drag it on the schedule to move it.`
-                            : "We'll fit it into the first free gap. Drag it on the schedule to move it.")
-                        : undefined
-                  }
-                >
-                  {option.value === 'fixed' && (
-                    <div className="flex gap-2">{startsTimeTile}{lastsTile}</div>
-                  )}
-                  {option.value === 'flexible' && (
-                    <div className="flex gap-2">{lastsTile}</div>
-                  )}
-                </OptionCard>
-              );
-            })}
-          </div>
-        ) : (
-          <div role="radiogroup" aria-labelledby="q-when" className="flex flex-col gap-2">
-            <OptionCard
-              selected={formData.choreAnytime}
-              label="Anytime Today"
-              onSelect={() => setFormData({ ...formData, choreAnytime: true })}
-              caption="A separate to-do that doesn't take up schedule time."
-            />
-            <OptionCard
-              selected={!formData.choreAnytime}
-              label="Time Window"
-              onSelect={() => setFormData({ ...formData, choreAnytime: false })}
-              caption={`Can be done between ${fmtTime(formData.windowStart)} and ${fmtTime(formData.windowEnd)}.`}
-            >
-              <div className="flex gap-2">
-                <TimeTile
-                  label="Starts"
-                  value={formData.windowStart}
-                  onChange={(value) => setFormData({ ...formData, windowStart: value })}
-                />
-                <TimeTile
-                  label="Ends"
-                  value={formData.windowEnd}
-                  onChange={(value) => setFormData({ ...formData, windowEnd: value })}
-                />
-              </div>
-              {windowBackwards && (
-                <Caption tone="error" role="alert">The window has to end after it starts.</Caption>
+      {/* === SETTINGS === Set time | Floats (Any time | Between for a to-do),
+          its tiles, then the two busy-day toggles. */}
+      <div className="flex flex-col gap-1.5 rounded-[18px] bg-focus-surface p-1.5">
+        {isChore ? (
+          <Segmented
+            label="When"
+            value={formData.choreAnytime ? 'any' : 'between'}
+            options={[{ value: 'any', label: 'Any time' }, { value: 'between', label: 'Between' }]}
+            onChange={(v) => setFormData({ ...formData, choreAnytime: v === 'any' })}
+          />
+        ) : !isSystemEvent && (
+          <Segmented
+            label="Set time or floats"
+            value={kind}
+            options={[{ value: 'fixed', label: 'Set time' }, { value: 'flexible', label: 'Floats' }]}
+            onChange={setKind}
+          />
+        )}
+        <div className="flex gap-1.5">
+          {isChore ? (
+            <>
+              {!formData.choreAnytime && (
+                <>
+                  <TimeTile label="From" value={formData.windowStart} onChange={(value) => setFormData({ ...formData, windowStart: value })} className={blockTile} />
+                  <TimeTile label="Until" value={formData.windowEnd} onChange={(value) => setFormData({ ...formData, windowEnd: value })} className={blockTile} />
+                </>
               )}
-            </OptionCard>
+              {daysTile}
+            </>
+          ) : isSystemEvent ? (
+            <>
+              {atTime && startsTile}
+              {/* Bedtime runs until wake-up: there's no end to set. */}
+              {!isBedtimeRow && (atTime ? endsTile : lengthTile)}
+            </>
+          ) : atTime ? (
+            <>{startsTile}{endsTile}{daysTile}</>
+          ) : (
+            <>{lengthTile}{daysTile}</>
+          )}
+        </div>
+        {!isChore && !isSystemEvent && (
+          <div className="flex flex-col divide-y divide-focus-bg border-t border-focus-bg px-2.5">
+            {canShrinkRow()}
+            {mustFinishRow()}
+            {showStartTap && startTapRow()}
           </div>
         )}
-        {timeProblem && <Caption tone="error" role="alert">{timeProblem}</Caption>}
-        {choreWouldDrop && <Caption tone="warn">{choreWouldDrop}</Caption>}
-      </section>
-
-      {/* === WHICH DAYS? === one date, or repeating weekdays */}
-      {!isSystemEvent && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeading id="q-days">Which Days?</SectionHeading>
-          <div role="radiogroup" aria-labelledby="q-days" className="grid grid-cols-2 gap-2">
-            <Popover open={dateOpen && !repeats} onOpenChange={(open) => setDateOpen(open && !repeats)}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!repeats}
-                  aria-label={repeats ? `Just one day: ${dateLabel}` : `${dateLabel}. Tap to change the date.`}
-                  disabled={followsRoutine}
-                  onClick={() => { if (repeats) chooseSingleDate(); }}
-                  className={choiceClass(!repeats)}
-                >
-                  {dateLabel}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-auto p-3 bg-focus-sheet border-focus-raised">
-                <label htmlFor="taskDate" className="block text-12 font-medium text-focus-muted mb-2">Date</label>
-                <Input
-                  id="taskDate"
-                  type="date"
-                  value={formData.taskDate}
-                  onChange={(e) => { if (e.target.value) setFormData({ ...formData, taskDate: e.target.value }); }}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="w-[200px] rounded-[12px] px-3"
-                />
-              </PopoverContent>
-            </Popover>
-            <ChoiceButton selected={repeats} onClick={chooseRepeats}>
-              Repeats
-            </ChoiceButton>
-          </div>
-          {repeats && (
-            <div role="group" aria-label="Repeat days" className="grid grid-cols-7 gap-1">
-              {DAYS_OF_WEEK.map(({ id, label, name }) => (
-                <ChoiceButton
-                  key={id}
-                  role="checkbox"
-                  selected={repeatDays.includes(id)}
-                  onClick={() => toggleDay(id)}
-                  ariaLabel={name}
-                  className="rounded-[12px] px-0"
-                >
-                  {label}
-                </ChoiceButton>
-              ))}
-            </div>
-          )}
-          {needsDays ? (
-            <Caption tone="error" role="alert">Pick at least one day.</Caption>
-          ) : (
-            <Caption>{daysCaption}</Caption>
-          )}
-        </section>
+      </div>
+      {isEvent && atTime && (
+        <Caption>With get-ready time it always runs {fmtRange(formData.scheduledTime, endTime)}, so it doesn't shrink or run over.</Caption>
       )}
+      {badEnd && <Caption tone="error" role="alert">It has to end after it starts.</Caption>}
+      {windowBackwards && <Caption tone="error" role="alert">The window has to end after it starts.</Caption>}
+      {needsDays && <Caption tone="error" role="alert">Pick at least one day.</Caption>}
+      {timeProblem && <Caption tone="error" role="alert">{timeProblem}</Caption>}
 
-      {/* === TOGGLES === Fun Time (on by itself for TV, games, playtime…) and
-          Must Get Done, the one timing choice that needs a person. The rest
-          is automatic: a task keeps its full time, fun time is the first to
-          go on a busy day. (Older tasks keep whatever they were set to.) */}
-      {!isChore && !isEvent && !isSystemEvent && (
-        <ToggleCard>
-          <SwitchRow
-            id="funTime"
-            label="Fun Time"
-            caption={isFun
-              ? "No done button: it simply ends when its time is up. If the day runs behind, its time shrinks or it's skipped first, so everything else still fits."
-              : "For TV, games or playtime. There's no done button, and its time adjusts on its own if the day runs behind."}
-            checked={isFun}
-            onCheckedChange={(on) => { setFunTouched(true); setWhat(on ? 'fun' : 'task'); }}
-          />
-          {!isFun && (
-            <SwitchRow
-              id="mustGetDone"
-              label="Must Get Done"
-              caption="It stays on their screen until it's finished, even if it runs over. You get an alert."
-              checked={priority === 'must'}
-              onCheckedChange={(on) => on
-                ? setPriority('must')
-                : setFormData({ ...formData, isImportant: false, latePolicy: formData.latePolicy })}
-            />
-          )}
-          {!isFun && durationTotal > 0 && (
-            <SwitchRow
-              id="needsStart"
-              label="Needs a Start Tap"
-              caption={formData.needsStart
-                ? "It waits on their screen until they press Start, then the full time runs from that moment. Waiting counts like running late."
-                : "The timer starts at its set time, whether or not they have begun."}
-              checked={formData.needsStart}
-              onCheckedChange={(on) => { setNeedsStartTouched(true); setFormData({ ...formData, needsStart: on }); }}
-            />
-          )}
-        </ToggleCard>
-      )}
-
-      {/* === STARS === tasks and chores (fun time has no done button).
-          Never earned automatically: the parent gives them once it's done. */}
-      {!isFun && !isEvent && !isSystemEvent && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeading>Stars for Completing It</SectionHeading>
-          <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
-          <Caption>You give these once it's done: tap Give ★ on their Schedule. Spent in the Rewards shop.</Caption>
-        </section>
-      )}
-
-      {/* === STEPS === tasks and fun time; chores don't have steps. */}
-      {!isSystemEvent && !isChore && (
+      {/* === STEPS === a task's checklist (an event's are in its card) */}
+      {showSteps && !isEvent && (
         <section id="checklist-section" className="flex flex-col gap-2">
-          {/* An event's steps are for getting ready before it: finishing them
-              shows "You're Ready!" and never ends the event itself. */}
-          {isEvent ? (
-            <ToggleCard>
-              <SwitchRow
-                id="getReady"
-                label="Getting Ready"
-                caption={formData.getReady
-                  ? `Starts at ${fmtTime(prepStart)}. Finishing the steps shows "You're Ready!" but never ends the event.`
-                  : 'Time before it starts to get ready, with steps to tick off.'}
-                checked={formData.getReady}
-                onCheckedChange={(on) => setFormData({ ...formData, getReady: on })}
-              />
-            </ToggleCard>
-          ) : (
-            <SectionHeading
-              aside={formData.subtasks.length > 0
-                ? `Optional · ${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}`
-                : 'Optional'}
-            >
-              Steps
-            </SectionHeading>
-          )}
-          {(!isEvent || formData.getReady) && (
-            <>
-              {isEvent && <div className="flex gap-2">{prepTile}<span className="flex-1" aria-hidden /></div>}
-              {(checklistOpen || formData.subtasks.length > 0) && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={newStepRef}
-                      value={newSubtaskText}
-                      onChange={(e) => setNewSubtaskText(e.target.value)}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                          e.preventDefault();
-                          addSubtask();
-                        }
-                      }}
-                      aria-label="New step"
-                      enterKeyHint="next"
-                      autoComplete="off"
-                      placeholder="Add a step…"
-                      className={stepInputClass}
-                    />
-                    <button
-                      type="button"
-                      onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
-                      onClick={addSubtask}
-                      disabled={!newSubtaskText.trim()}
-                      className={cn(iconButtonClass, "w-11 bg-focus-surface text-focus-lavender hover:enabled:bg-focus-raised")}
-                      aria-label="Add step"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </div>
-              )}
-              {formData.subtasks.length > 0 && (
-                <ol className="flex flex-col gap-1.5">
-                  {formData.subtasks.map((sub, idx) => (
-                    <li key={sub.id} className="flex items-center gap-1">
-                      <span className="text-12 text-focus-muted w-5 text-right shrink-0 mr-1">{idx + 1}.</span>
-                      <input
-                        value={sub.text}
-                        onChange={(e) => updateSubtaskText(sub.id, e.target.value)}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        aria-label={`Step ${idx + 1}`}
-                        className={stepInputClass}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => moveSubtask(idx, -1)}
-                        disabled={idx === 0}
-                        className={cn(iconButtonClass, "w-11")}
-                        aria-label="Move step up"
-                      >
-                        <ArrowUp className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveSubtask(idx, 1)}
-                        disabled={idx === formData.subtasks.length - 1}
-                        className={cn(iconButtonClass, "w-11")}
-                        aria-label="Move step down"
-                      >
-                        <ArrowDown className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeSubtask(sub.id)}
-                        className={cn(iconButtonClass, "w-11 hover:enabled:text-focus-coral hover:bg-focus-coral/10")}
-                        aria-label="Remove step"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-
-              {!checklistOpen && formData.subtasks.length === 0 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setChecklistOpen(true)}
-                    className={choiceClass(false, "w-full rounded-[12px]")}
-                  >
-                    {isEvent ? '+ Add Get-Ready Steps' : '+ Add a Checklist'}
-                  </button>
-                  {stepIdeas.length > 0 ? (
-                    <Caption>Ideas: {stepIdeas.slice(0, 3).join(', ')}</Caption>
-                  ) : (
-                    <Caption>
-                      {isEvent
-                        ? 'Things to do before leaving, like shoes on and a water bottle.'
-                        : 'Break the task into steps your child can tick off one by one.'}
-                    </Caption>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Suggested steps for this name (a saved checklist of the
-                      same name first). Added after what's there, never
-                      replacing it. */}
-                  {stepIdeas.length > 0 && (
-                    <div className="rounded-[14px] border border-focus-lavender/30 bg-focus-lavender/5 p-3 flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 shrink-0 text-focus-lavender" aria-hidden />
-                        <Caption>{matchingSaved ? `From your saved "${matchingSaved.name}" checklist` : 'Ideas'}</Caption>
-                      </div>
-                      <Caption>Tap an idea to add it, or write your own above.</Caption>
-                      {stepIdeas.map(step => {
-                        const added = existingSteps.has(step.trim().toLowerCase());
-                        return (
-                          <button
-                            key={step}
-                            type="button"
-                            disabled={added}
-                            onPointerDown={(e) => { if (document.activeElement === newStepRef.current) e.preventDefault(); }}
-                            onClick={() => addSteps([step])}
-                            className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-2 text-left text-14 text-focus-text hover:enabled:bg-focus-lavender/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender disabled:text-focus-muted"
-                            aria-label={added ? step + ', added' : 'Add ' + step}
-                          >
-                            {added ? <Check className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden /> : <Plus className="w-4 h-4 shrink-0 text-focus-lavender" aria-hidden />}
-                            <span className="min-w-0 flex-1 break-words">{step}</span>
-                            {added && <span className="text-12 text-focus-muted">Added</span>}
-                          </button>
-                        );
-                      })}
-                      <Button type="button" size="sm" variant="secondary" className="min-h-11 self-start mt-1" disabled={remainingIdeas.length === 0} onClick={() => addSteps(remainingIdeas)}>
-                        {remainingIdeas.length === 0 ? 'All Ideas Added' : 'Add All Ideas'}
-                      </Button>
-                    </div>
-                  )}
-                  {/* Other checklists the family saved, for tasks with a new name. */}
-                  {!matchingSaved && savedChecklists.length > 0 && formData.subtasks.length === 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {savedChecklists.slice(0, 6).map(c => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => addSteps(c.steps)}
-                          className={choiceClass(false, "rounded-[12px] px-3 gap-1.5")}
-                        >
-                          <Bookmark className="w-3.5 h-3.5" aria-hidden /> {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {formData.subtasks.length >= 2 && formData.name.trim() && (
-                    <button
-                      type="button"
-                      disabled={savingChecklist}
-                      onClick={async () => {
-                        try {
-                          await saveChecklist({ name: formData.name.trim(), steps: formData.subtasks.map(s => s.text.trim()).filter(Boolean) });
-                          toast.success(`Saved "${formData.name.trim()}" checklist for reuse`);
-                        } catch {
-                          toast.error("Couldn't save the checklist. Please try again.");
-                        }
-                      }}
-                      className="self-start min-h-11 text-13 font-semibold text-focus-lavender hover:text-focus-text flex items-center gap-1.5 disabled:opacity-40"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" aria-hidden /> Save This Checklist for Reuse
-                    </button>
-                  )}
-                </>
-              )}
-            </>
-          )}
+          <SectionHeading aside={formData.subtasks.length > 0 ? `${formData.subtasks.length} step${formData.subtasks.length === 1 ? '' : 's'}` : undefined}>
+            Steps
+          </SectionHeading>
+          {stepsEditor}
+          <Caption>They tick these off as they go. Finishing them doesn't finish the task.</Caption>
         </section>
       )}
 
-      {/* === ROUTINE === its tasks repeat together on the routine's days; one
-          task can still keep days of its own. */}
-      {!isChore && !isSystemEvent && routines.length > 0 && (
+      {/* === OTHER CHILDREN === also add (new) */}
+      {!isEdit && othersOpen && otherChildren.length > 0 && (
         <section className="flex flex-col gap-2">
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <SectionHeading>Routine</SectionHeading>
-            <Select
-              value={routine ? routine.id : 'none'}
-              onValueChange={(v) => setFormData({ ...formData, routineId: v === 'none' ? '' : v, daysOverride: false })}
-            >
-              <SelectTrigger className="w-[184px] shrink-0 rounded-[12px] border-0 bg-focus-surface px-3 gap-1 text-focus-text" aria-label="Routine">
-                <SelectValue>{routine ? routine.name : 'None'}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {routines.map(r => (
-                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {routine && (
-            <Caption>
-              {followsRoutine
-                ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Change the whole routine's days in Routines.`
-                : `Part of ${routine.name}, on days of its own.`}
-            </Caption>
-          )}
-          {routine && (
-            <SwitchRow
-              id="daysOverride"
-              label="Own Days"
-              checked={formData.daysOverride}
-              onCheckedChange={(checked) => setFormData({
-                ...formData,
-                daysOverride: checked,
-                // Start from the routine's days, then change what differs.
-                isRecurring: checked ? true : formData.isRecurring,
-                recurringDays: checked ? routineDayList : formData.recurringDays,
-              })}
-            />
-          )}
-        </section>
-      )}
-
-      {/* === OTHER CHILDREN === copy (edit) or also add (create) */}
-      {isEdit && onCopy && !isSystemEvent && task?.id && (
-        <section className="flex flex-col gap-2">
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <SectionHeading>Copy</SectionHeading>
-            <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={onCopy}>
-              <Copy className="w-4 h-4" /> Copy to Another Child
-            </Button>
-          </div>
-          {linkedNames.length > 0 ? (
-            <Caption>
-              Shared with {linkedNames.join(" and ")}: changing the name, stars, length or details here changes it for {linkedNames.length === 1 ? "them" : "all of them"} too. Time and days stay each child's own.
-            </Caption>
-          ) : (
-            <Caption>Make the same {noun.toLowerCase()} for another child, with its own time and length.</Caption>
-          )}
-        </section>
-      )}
-      {!isEdit && otherChildren.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <SectionHeading>Also Add To</SectionHeading>
+          <SectionHeading>Also add to</SectionHeading>
           <div className="flex flex-wrap gap-1.5">
             {otherChildren.map(c => (
               <ChoiceButton
@@ -1244,20 +1292,49 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               </ChoiceButton>
             ))}
           </div>
-          <Caption>Create the same {noun.toLowerCase()} for other kids at once.</Caption>
+          <Caption>The same {noun.toLowerCase()}, each with their own time and days.</Caption>
         </section>
+      )}
+      {isEdit && linkedNames.length > 0 && (
+        <Caption>
+          Shared with {linkedNames.join(" and ")}: changing the name, stars, length or steps here changes it for {linkedNames.length === 1 ? "them" : "all of them"} too. Time and days stay each child's own.
+        </Caption>
+      )}
+
+      {/* === EXTRAS === */}
+      {(showStepsChip || showStarsChip || showGetReadyChip || canAddOthers) && (
+        <div className="flex flex-wrap gap-2">
+          {showStepsChip && <ExtraChip icon={ListChecks} label="Steps" onClick={openSteps} />}
+          {showStarsChip && (
+            <Popover open={starsChipOpen} onOpenChange={setStarsChipOpen}>
+              <PopoverTrigger asChild>
+                <button type="button" className={extraChipClass}>
+                  <Star className="w-4 h-4 text-focus-lime" aria-hidden />
+                  + Stars
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-3 bg-focus-sheet border-focus-raised">
+                {starsPicker}
+              </PopoverContent>
+            </Popover>
+          )}
+          {showGetReadyChip && <ExtraChip icon={Backpack} label="Get ready" onClick={addGetReady} />}
+          {canAddOthers && (
+            <ExtraChip icon={Smile} label="Others" onClick={isEdit ? onCopy : () => setOthersOpen(true)} />
+          )}
+        </div>
       )}
 
       {/* Submit — pinned to the bottom of the sheet so the action is always
-          reachable without scrolling the (often tall) form. */}
+          reachable without scrolling. */}
       <div className={sheetFooterClass}>
         <Button
           type="submit"
           variant="primary"
           disabled={!canSubmit}
-          className="w-full h-[52px] rounded-[12px] text-13"
+          className="w-full h-[52px] rounded-[16px] text-16 font-semibold"
         >
-          {isEdit ? 'Save Changes' : (isChore ? 'Add Chore' : 'Add to Schedule')}
+          {isEdit ? 'Save changes' : isChore ? 'Add to the to-dos' : 'Add to the day'}
         </Button>
 
         {/* A built-in row (School, a meal) can be skipped for one day: no
@@ -1313,7 +1390,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                 onClick={() => setShowDeleteConfirm(true)}
                 className="w-full text-focus-coral hover:text-focus-coral hover:bg-focus-coral/10"
               >
-                Delete {noun}
+                Delete {name || noun.toLowerCase()}
               </Button>
             ) : (
               <div className="rounded-[18px] border border-focus-coral/30 bg-focus-coral/5 p-3 flex flex-col gap-2">

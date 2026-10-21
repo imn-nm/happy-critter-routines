@@ -166,15 +166,17 @@ export const TimeTile = ({
   value,
   onChange,
   stepMinutes = 5,
+  className,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   stepMinutes?: number;
+  className?: string;
 }) => (
   <Popover>
     <PopoverTrigger asChild>
-      <button type="button" className={tileClass} aria-label={`${label}: ${fmtTime(value) || "not set"}`}>
+      <button type="button" className={cn(tileClass, className)} aria-label={`${label}: ${fmtTime(value) || "not set"}`}>
         <TileText label={label} value={fmtTime(value) || "Pick a time"} />
       </button>
     </PopoverTrigger>
@@ -192,12 +194,14 @@ export const SelectTile = ({
   display,
   onChange,
   options,
+  className,
 }: {
   label: string;
   value: string;
   display: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  className?: string;
 }) => (
   <Select value={value} onValueChange={onChange}>
     <SelectTrigger
@@ -205,6 +209,7 @@ export const SelectTile = ({
       className={cn(
         tileClass,
         "h-auto w-auto border-0 text-left ring-offset-0 focus:ring-2 focus:ring-focus-lavender focus:ring-offset-0 [&>svg]:hidden [&>span]:line-clamp-none",
+        className,
       )}
     >
       <TileText label={label} value={<SelectValue>{display}</SelectValue>} />
@@ -242,6 +247,8 @@ export const StarStepper = ({ value, onChange, max }: { value: number; onChange:
 /**
  * A labelled switch: label with its caption underneath on the left, the
  * switch lined up with the label on the right. Tapping the label toggles it.
+ * "lavender" is the task sheet's settings block (lavender when on, a lavender
+ * knob when off); a disabled row greys out as a whole.
  */
 export const SwitchRow = ({
   id,
@@ -250,6 +257,8 @@ export const SwitchRow = ({
   checked,
   onCheckedChange,
   className,
+  disabled,
+  tone = "lime",
 }: {
   id: string;
   label: string;
@@ -257,13 +266,24 @@ export const SwitchRow = ({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   className?: string;
+  disabled?: boolean;
+  tone?: "lime" | "lavender";
 }) => (
-  <div className={cn("flex items-start justify-between gap-3 py-3", className)}>
-    <label htmlFor={id} className="min-w-0 flex flex-1 flex-col gap-1 cursor-pointer">
+  <div className={cn("flex items-start justify-between gap-3 py-3", disabled && "opacity-40", className)}>
+    <label htmlFor={id} className={cn("min-w-0 flex flex-1 flex-col gap-1", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
       <span className="text-14 font-semibold leading-5 text-focus-text">{label}</span>
       {caption && <span className="text-12 leading-[17px] text-focus-muted">{caption}</span>}
     </label>
-    <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="-mt-0.5" />
+    <Switch
+      id={id}
+      checked={checked}
+      onCheckedChange={onCheckedChange}
+      disabled={disabled}
+      className={cn(
+        "-mt-0.5 disabled:opacity-100",
+        tone === "lavender" && "data-[state=checked]:bg-focus-lavender [&[data-state=unchecked]>span]:bg-focus-lavender",
+      )}
+    />
   </div>
 );
 

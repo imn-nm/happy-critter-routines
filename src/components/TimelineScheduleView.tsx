@@ -108,6 +108,13 @@ interface TimelineScheduleViewProps {
    * takes back given stars, so this prop is not used.
    */
   onToggleCompletion?: (taskId: string) => void;
+  /** "+ Add" in the To-do tray: a new to-do (a chore) for this day. */
+  onAddTodo?: () => void;
+  /**
+   * How far above the bottom of the screen the To-do tray pins (the height of
+   * the host's own sticky bar), so it stays in view while the day scrolls.
+   */
+  todoTrayOffset?: number;
   /**
    * When true, the date navigation row, holiday banner and week strip are
    * skipped. Use this when the parent renders its own `<TimelineHeader>`
@@ -521,24 +528,45 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           const isDoneLate = event.isCompleted && event.status === 'late';
           const showNowChip = isCurrent && !event.isCompleted;
 
+          // The busy-day rule the sheet sets: Must finish (the day waits for
+          // Done; lime tag and edge) or Can shrink (shrinks first, then drops;
+          // mint tint and tag). Built-in rows and events have neither.
+          const t = event.task;
+          const mustFinish = !!t?.is_important && !t?.is_event && event.type !== 'system';
+          const canShrink = !!t && !t.is_important && !t.is_event && event.type !== 'system'
+            && (t.late_policy ? t.late_policy !== 'keep' : !!t.is_fun_time);
+          // No set time: it sits in the first free gap and can be dragged
+          // (dotted edge, "floats" in place of am/pm).
+          const floats = !hasFixedTime && event.type !== 'system' && !t?.is_event && !event.isCompleted;
+
+          const edge = isOverdueImportant
+            ? "border border-focus-coral/50"
+            : isCurrent
+              ? "border-[1.5px] border-focus-pink"
+              : mustFinish
+                ? "border-[1.5px] border-focus-lime"
+                : floats
+                  ? "border-[1.5px] border-dashed border-focus-lavender/70"
+                  : "border border-transparent";
           const cardTone = event.isCompleted
             ? "border border-focus-surface bg-transparent hover:bg-focus-surface/40"
-            : isOverdueImportant
-              ? "border border-focus-coral/50 bg-focus-surface hover:bg-focus-raised/70"
-              : isCurrent
-                ? "border-[1.5px] border-focus-pink bg-focus-surface hover:bg-focus-raised/70"
-                : "border border-transparent bg-focus-surface hover:bg-focus-raised/70";
+            : cn(edge, canShrink ? "bg-focus-mint/15 hover:bg-focus-mint/20" : "bg-focus-surface hover:bg-focus-raised/70");
 
-          // Meta line: "7:00 – 7:15 · 15 min" (+ stars). Bedtime has no
-          // length, so it reads "Lights Out" as in the Figma.
+          // Second line: "7:00 – 7:15 · 15 min" (+ stars), or what happens
+          // to it: "waits for their Start tap", "shrinks first". Bedtime has
+          // no length, so it reads "Lights Out" as in the Figma.
           const metaParts: string[] = [];
           if (event.name === 'Bedtime') {
             metaParts.push('Lights Out');
+          } else if (floats) {
+            metaParts.push(formatDuration(event.duration), 'floats');
+            if (isDraggable) metaParts.push('drag to move');
           } else {
             metaParts.push(formatRange(event.time, event.duration));
-            metaParts.push(formatDuration(event.duration));
+            if (mustFinish && t?.needs_start && !event.isCompleted && !event.startNote) metaParts.push('waits for their Start tap');
+            else if (canShrink && !event.isCompleted) metaParts.push('shrinks first');
+            else metaParts.push(formatDuration(event.duration));
           }
-          if (event.task?.is_event) metaParts.push('Event');
           if (event.starsGiven) metaParts.push(`★ ${event.starsGiven} given`);
           else if (event.coins != null && event.coins > 0) metaParts.push(`${event.coins} star${event.coins === 1 ? '' : 's'}`);
           if (isDoneLate) metaParts.push('Done Late');
@@ -555,6 +583,10 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
             <span className={cn(chipClass, "bg-focus-pink/20 text-focus-pink")}>Now</span>
           ) : isOverdueImportant && !event.isCompleted ? (
             <span className={cn(chipClass, "bg-focus-coral/20 text-focus-coral")}>Overdue</span>
+          ) : event.isCompleted ? null : mustFinish ? (
+            <span className={cn(chipClass, "bg-focus-lime/20 text-focus-lime")}>Must finish</span>
+          ) : canShrink ? (
+            <span className={cn(chipClass, "bg-focus-mint/20 text-focus-mint")}>Can shrink</span>
           ) : null;
 
           const actionButton = (() => {
@@ -631,7 +663,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                 )}>
                   {hourPart}
                 </span>
-                <span className="text-[12px] leading-4 text-focus-muted">{ampmPart}</span>
+                <span className="text-[12px] leading-4 text-focus-muted">{floats ? 'floats' : ampmPart}</span>
               </div>
 
               <div
@@ -677,7 +709,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
                   )}>
                     {event.name}
                   </span>
-                  <span className="text-[12px] leading-4 text-focus-muted truncate">
+                  <span className={cn("text-[12px] leading-4 line-clamp-2", canShrink && !event.isCompleted ? "text-focus-mint" : "text-focus-muted")}>
                     {metaParts.join(' · ')}
                   </span>
                 </div>
@@ -716,6 +748,122 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
   );
 };
 
+/** "15:00"–"18:00" → "3–6 pm" for a to-do chip's window. */
+const formatWindow = (from: string, until: string) => {
+  const part = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return { clock: m ? `${h12}:${String(m).padStart(2, '0')}` : `${h12}`, ampm: h >= 12 ? 'pm' : 'am' };
+  };
+  const a = part(from);
+  const b = part(until);
+  return a.ampm === b.ampm ? `${a.clock}–${b.clock} ${b.ampm}` : `${a.clock} ${a.ampm}–${b.clock} ${b.ampm}`;
+};
+
+type TodoItem = {
+  id: string;
+  name: string;
+  coins?: number | null;
+  window_start?: string | null;
+  window_end?: string | null;
+  isCompleted: boolean;
+  starsGiven: number;
+};
+
+/**
+ * TO-DO · 1 of 3 done · + Add, then a chip per to-do: an empty ring to tick
+ * it off (mint when done, its name dimmed), its window when it has one
+ * ("Tidy room · 3–6 pm"), and Give ★ once it's done.
+ */
+const TodoTray = <T extends TodoItem>({ todos, offset, onAdd, onToggle, onEdit, onGiveStars }: {
+  todos: T[];
+  offset: number;
+  onAdd?: () => void;
+  onToggle: (taskId: string) => void;
+  onEdit: (task: T) => void;
+  onGiveStars: (taskId: string, stars: number) => void;
+}) => {
+  if (!todos.length && !onAdd) return null;
+  const done = todos.filter(t => t.isCompleted).length;
+  return (
+    <div className="sticky z-10 -mx-1 px-1 py-2 bg-focus-bg" style={{ bottom: offset }}>
+      <section aria-labelledby="todo-tray-title" className="flex flex-col gap-2.5 rounded-[18px] border border-focus-raised bg-focus-surface/60 px-3.5 py-3">
+        <div className="flex items-center gap-2 min-h-7">
+          <h2 id="todo-tray-title" className="text-[12px] leading-4 font-semibold uppercase tracking-wide text-focus-muted">To-do</h2>
+          <span className="flex-1 min-w-0 truncate text-[12px] leading-4 text-focus-muted">
+            {todos.length ? `${done} of ${todos.length} done` : 'Nothing yet'}
+          </span>
+          {onAdd && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="tap-target shrink-0 px-2.5 py-1 rounded-pill border-[1.5px] border-focus-lime text-[12px] leading-4 font-semibold text-focus-lime transition-colors hover:bg-focus-lime/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+            >
+              + Add
+            </button>
+          )}
+        </div>
+        {todos.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {todos.map(todo => {
+              const stars = todo.coins ?? 0;
+              const canGive = todo.isCompleted && stars > 0 && !todo.starsGiven;
+              return (
+                <li key={todo.id} className="flex min-w-0 max-w-full items-center gap-1.5">
+                  <div className="flex min-w-0 items-center rounded-pill bg-focus-raised">
+                    <button
+                      type="button"
+                      onClick={() => onToggle(todo.id)}
+                      aria-label={todo.isCompleted ? `Undo ${todo.name}` : `Tick off ${todo.name}`}
+                      className="tap-target shrink-0 h-8 pl-2 pr-1.5 flex items-center rounded-l-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                    >
+                      {todo.isCompleted ? (
+                        <span className="size-[18px] rounded-full bg-focus-mint inline-flex items-center justify-center">
+                          <Check className="w-3 h-3 text-focus-bg" strokeWidth={3} />
+                        </span>
+                      ) : (
+                        <span className="size-[18px] rounded-full border-[1.5px] border-focus-lavender/70" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(todo)}
+                      aria-label={`${todo.name}. Tap to change it.`}
+                      className="min-w-0 h-8 pr-3 flex items-center gap-1 rounded-r-pill text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                    >
+                      <span className={cn("truncate text-[13px] leading-4", todo.isCompleted ? "text-focus-muted" : "text-focus-text")}>
+                        {todo.name}
+                      </span>
+                      {todo.window_start && todo.window_end && (
+                        <span className="shrink-0 text-[12px] leading-4 text-focus-muted">
+                          · {formatWindow(todo.window_start.slice(0, 5), todo.window_end.slice(0, 5))}
+                        </span>
+                      )}
+                      {todo.starsGiven > 0 && (
+                        <span className="shrink-0 text-[12px] leading-4 text-focus-muted">· ★{todo.starsGiven} given</span>
+                      )}
+                    </button>
+                  </div>
+                  {canGive && (
+                    <button
+                      type="button"
+                      onClick={() => onGiveStars(todo.id, stars)}
+                      aria-label={`Give ${stars} star${stars === 1 ? '' : 's'} for ${todo.name}`}
+                      className="tap-target shrink-0 h-8 px-3 inline-flex items-center rounded-pill bg-focus-lime text-[12px] leading-4 font-semibold text-focus-bg hover:bg-focus-lime/90 transition-colors"
+                    >
+                      Give ★{stars}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+};
+
 const formatTimeShort = (timeStr: string) => {
   const [hours, minutes] = timeStr.split(':');
   const hour = parseInt(hours);
@@ -735,6 +883,8 @@ const TimelineScheduleView = ({
   onTaskTimeUpdate,
   onReorderTasks,
   onDateChange,
+  onAddTodo,
+  todoTrayOffset = 0,
   hideHeader = false,
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(getPSTDate());
@@ -1081,7 +1231,7 @@ const TimelineScheduleView = ({
     };
   };
 
-  // Floating/chore tasks — displayed separately in a sidebar panel
+  // To-dos (chores): shown in the To-do tray, not on the timeline
   const choreTasks = dayTasks.filter(task =>
     task.type === 'floating' && !systemTaskNames.includes(task.name)
   ).map(task => ({
@@ -1329,64 +1479,6 @@ const TimelineScheduleView = ({
 
   const allEvents = createEmptyTimeBlocks(sortedEvents);
 
-  // Chore windows are drawn in a sidebar beside the timeline, so they have to
-  // line up with the rows they overlap. The rows are *not* proportional to
-  // time — a 7-hour School block is the same height as a 15-minute one — so
-  // mapping a chore's clock window onto the column height put "5:30–7:00pm"
-  // somewhere near the 7pm row. Measure the rows instead and map real times
-  // onto real pixels.
-  const timelineColRef = useRef<HTMLDivElement>(null);
-  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [rowGeom, setRowGeom] = useState<Record<string, { top: number; height: number }>>({});
-
-  useLayoutEffect(() => {
-    const container = timelineColRef.current;
-    if (!container) return;
-    const measure = () => {
-      const base = container.getBoundingClientRect().top;
-      const next: Record<string, { top: number; height: number }> = {};
-      for (const [id, el] of Object.entries(rowRefs.current)) {
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        next[id] = { top: rect.top - base, height: rect.height };
-      }
-      setRowGeom(prev => {
-        const prevKeys = Object.keys(prev);
-        const unchanged =
-          prevKeys.length === Object.keys(next).length &&
-          prevKeys.every(k =>
-            next[k] &&
-            Math.abs(next[k].top - prev[k].top) < 0.5 &&
-            Math.abs(next[k].height - prev[k].height) < 0.5);
-        return unchanged ? prev : next;
-      });
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [allEvents, activeId]);
-
-  /**
-   * Clock minute → pixels down the timeline column, walking the measured rows.
-   * A time inside a row interpolates across that row; a time that falls
-   * between two rows snaps to the top of the next one.
-   */
-  const timeToPixels = (minute: number): number | null => {
-    let lastBottom: number | null = null;
-    for (const event of allEvents) {
-      const geom = rowGeom[event.id];
-      if (!geom) continue;
-      const [h, m] = event.time.split(':').map(Number);
-      const start = h * 60 + m;
-      const end = start + event.duration;
-      if (minute <= start) return geom.top;
-      if (minute < end) return geom.top + ((minute - start) / (end - start)) * geom.height;
-      lastBottom = geom.top + geom.height;
-    }
-    return lastBottom;
-  };
-
   // Where the current-time marker sits (today only). Inside a row that's
   // running now (8:58 during an 8:00–3:00 School) it's drawn across that
   // card, part way down; otherwise right after the row that most recently
@@ -1620,7 +1712,7 @@ const TimelineScheduleView = ({
   };
 
   return (
-    <div className="flex flex-col gap-sp-4 max-w-full overflow-hidden">
+    <div className="flex flex-col gap-sp-4 max-w-full overflow-x-clip">
       {!hideHeader && (
         <>
           {/* Date navigation row — chevrons + week range + Today */}
@@ -1762,24 +1854,11 @@ const TimelineScheduleView = ({
         );
       })()}
 
-      {/* Timeline + Chores Sidebar */}
+      {/* Timeline */}
       {(() => {
-        // For chore positioning, use event indices since each row has ~equal visual height
-        // Find which event index each chore's window_start and window_end correspond to
-        const getEventEndMinutes = (event: TimelineEvent) => {
-          const [h, m] = event.time.split(':').map(Number);
-          return h * 60 + m + event.duration;
-        };
-        const getEventStartMinutes = (event: TimelineEvent) => {
-          const [h, m] = event.time.split(':').map(Number);
-          return h * 60 + m;
-        };
-        const totalEvents = allEvents.length || 1;
-
         return (
           <div className="flex gap-2 relative w-full min-w-0 overflow-hidden">
-            {/* Main timeline column */}
-            <div ref={timelineColRef} className={cn("flex-1 min-w-0", choreTasks.length > 0 && "pr-1")}>
+            <div className="flex-1 min-w-0">
               <DndContext
                 sensors={sensors}
                 collisionDetection={timelineCollisionDetection}
@@ -1840,10 +1919,7 @@ const TimelineScheduleView = ({
                             </span>
                           </div>
                         )}
-                        <div
-                          ref={el => { rowRefs.current[event.id] = el; }}
-                          className="relative touch-manipulation"
-                        >
+                        <div className="relative touch-manipulation">
                           {shouldShowSpacingAbove && (
                             <motion.div className="absolute left-[60px] right-0 top-0 -translate-y-full z-30 pointer-events-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
                               <div className="h-1 bg-gradient-to-r from-transparent via-focus-lavender to-transparent rounded-full animate-pulse" />
@@ -1924,158 +2000,21 @@ const TimelineScheduleView = ({
               </DndContext>
             </div>
 
-            {/* Chores floating sidebar */}
-            {choreTasks.length > 0 && (() => {
-              // Chores are placed by their time window. Ones whose windows
-              // overlap (new chores all default to 3–6pm) used to sit exactly
-              // on top of each other, so only one could be seen or tapped.
-              // Each overlapping group now splits its span between its chores.
-              const tStart = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
-              const tLast = allEvents.length > 0 ? allEvents[allEvents.length - 1] : null;
-              const tEnd = tLast ? getEventStartMinutes(tLast) + tLast.duration : 24 * 60;
-              const toMin = (t?: string | null, fallback = 0) => {
-                if (!t) return fallback;
-                const [h, m] = t.split(':').map(Number);
-                return h * 60 + m;
-              };
-              const spans = choreTasks.map(task => {
-                const top = timeToPixels(Math.max(toMin(task.window_start, tStart), tStart));
-                const bottom = timeToPixels(Math.min(toMin(task.window_end, tEnd), tEnd));
-                return { id: task.id, top, bottom: top != null && bottom != null ? Math.max(bottom, top + 60) : bottom };
-              });
-              const placed = new Map<string, React.CSSProperties>();
-              if (spans.every(sp => sp.top != null && sp.bottom != null)) {
-                const sorted = [...spans].sort((a, b) => a.top! - b.top!);
-                let group: typeof sorted = [];
-                let groupBottom = -Infinity;
-                const flush = () => {
-                  if (!group.length) return;
-                  const top = Math.min(...group.map(g => g.top!));
-                  const slice = Math.max(64, (groupBottom - top) / group.length);
-                  group.forEach((g, i) => placed.set(g.id, { top: `${top + i * slice}px`, height: `${slice - 4}px` }));
-                  group = [];
-                  groupBottom = -Infinity;
-                };
-                for (const sp of sorted) {
-                  if (sp.top! >= groupBottom) flush();
-                  group.push(sp);
-                  groupBottom = Math.max(groupBottom, sp.bottom!);
-                }
-                flush();
-              }
-              return (
-              <div className="relative w-[80px] sm:w-[96px] flex-shrink-0">
-                {choreTasks.map(task => {
-                  const timelineStartMin = allEvents.length > 0 ? getEventStartMinutes(allEvents[0]) : 0;
-                  const lastEvent = allEvents.length > 0 ? allEvents[allEvents.length - 1] : null;
-                  const timelineEndMin = lastEvent ? getEventStartMinutes(lastEvent) + lastEvent.duration : 24 * 60;
-                  const timelineSpan = Math.max(1, timelineEndMin - timelineStartMin);
-
-                  const choreStartMin = task.window_start
-                    ? (() => { const [h, m] = task.window_start.split(':').map(Number); return h * 60 + m; })()
-                    : timelineStartMin;
-                  const choreEndMin = task.window_end
-                    ? (() => { const [h, m] = task.window_end.split(':').map(Number); return h * 60 + m; })()
-                    : timelineEndMin;
-
-                  // Clamp to timeline bounds
-                  const clampedStart = Math.max(choreStartMin, timelineStartMin);
-                  const clampedEnd = Math.min(choreEndMin, timelineEndMin);
-
-                  // Align to the measured rows; fall back to a proportional
-                  // guess only for the very first paint, before the rows have
-                  // been measured.
-                  const topPx = timeToPixels(clampedStart);
-                  const bottomPx = timeToPixels(clampedEnd);
-                  const measured = topPx != null && bottomPx != null;
-                  const position: React.CSSProperties = placed.get(task.id) ?? (measured
-                    ? { top: `${topPx}px`, height: `${Math.max(60, bottomPx - topPx)}px` }
-                    : {
-                        top: `${((clampedStart - timelineStartMin) / timelineSpan) * 100}%`,
-                        height: `${Math.max(10, ((clampedEnd - clampedStart) / timelineSpan) * 100)}%`,
-                        minHeight: '60px',
-                      });
-
-                  return (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "absolute left-0 right-0 rounded-[12px] border border-dashed cursor-pointer transition-colors overflow-hidden",
-                        task.isCompleted
-                          ? "border-focus-mint/40 bg-focus-mint/10"
-                          : "border-focus-lavender/45 bg-focus-surface hover:bg-focus-raised/70"
-                      )}
-                      style={position}
-                      onClick={() => onEditTask?.(task)}
-                    >
-                      <div className="flex flex-col items-center justify-center h-full px-1.5 py-2.5 text-center gap-1.5">
-                        {task.is_important && (
-                          <Star className="w-3.5 h-3.5 text-focus-amber fill-focus-amber shrink-0" />
-                        )}
-                        {task.is_fun_time && (
-                          <Gamepad2 className="w-3.5 h-3.5 text-focus-lavender shrink-0" />
-                        )}
-                        {task.isCompleted ? (
-                          <button
-                            type="button"
-                            className="tap-target shrink-0 size-6 rounded-full inline-flex items-center justify-center bg-focus-mint/25 text-focus-mint hover:opacity-80 transition-opacity"
-                            aria-label="Undo chore completion"
-                            onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
-                          >
-                            <Check className="w-3.5 h-3.5" strokeWidth={3} />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="tap-target shrink-0 hover:opacity-70 transition-opacity"
-                            aria-label="Mark chore as done"
-                            onClick={(e) => { e.stopPropagation(); handleToggleCompletion(task.id); }}
-                          >
-                            <div className="size-6 rounded-full border-[1.5px] border-focus-lavender/60" />
-                          </button>
-                        )}
-                        <span className={cn(
-                          "text-[12px] leading-4 font-semibold break-words",
-                          task.isCompleted
-                            ? "line-through text-focus-muted"
-                            : "text-focus-text"
-                        )}>
-                          {task.name}
-                        </span>
-                        {task.coins > 0 && (
-                          task.isCompleted && !task.starsGiven ? (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleGiveStars(task.id, task.coins); }}
-                              className="tap-target shrink-0 px-2 py-1 rounded-pill bg-focus-raised text-[12px] leading-4 font-semibold text-focus-text hover:bg-focus-raised/80 transition-colors"
-                              aria-label={`Give ${task.coins} star${task.coins === 1 ? '' : 's'}`}
-                            >
-                              Give ★{task.coins}
-                            </button>
-                          ) : (
-                            <span className="text-[12px] leading-4 text-focus-amber font-semibold">
-                              {task.starsGiven ? `★${task.starsGiven} given` : `${task.coins}★`}
-                            </span>
-                          )
-                        )}
-                        {task.window_start && task.window_end && (
-                          <span className="text-[12px] leading-4 text-focus-muted mt-auto">
-                            {formatTimeShort(task.window_start)}–{formatTimeShort(task.window_end)}
-                          </span>
-                        )}
-                        {!task.window_start && (
-                          <span className="text-[12px] leading-4 text-focus-muted/70 mt-auto">Anytime</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              );
-            })()}
           </div>
         );
       })()}
+
+      {/* To-do tray: pinned above the host's bottom bar so to-dos stay in
+          view while the day scrolls. Tick one off in place; tap its name to
+          change it. */}
+      <TodoTray
+        todos={choreTasks}
+        offset={todoTrayOffset}
+        onAdd={onAddTodo}
+        onToggle={handleToggleCompletion}
+        onEdit={(task) => onEditTask?.(task)}
+        onGiveStars={handleGiveStars}
+      />
       <ParentNoteDialog
         open={!!starAsk}
         onOpenChange={o => { if (!o) setStarAsk(null); }}
