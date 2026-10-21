@@ -252,15 +252,17 @@ lv_obj_t *status_pill_create(lv_obj_t *parent, const char *icon, const char *tex
  * (Title 30, Poppins Bold, wrapping at 256) tucked 4 px up under it, then 6 px down a Pill or a quiet
  * line (Body 22, muted, wrapping at 272). */
 #define HEADER_Y 23
+#define HEADER_TIGHT_Y 16      /* a tight header (no clock): the title's glyphs start about y 24 */
 void header_create(lv_obj_t *parent, header_t *h)
 {
     h->root = ui_box(parent);
+    h->tight = false;
     lv_obj_set_size(h->root, 340, LV_SIZE_CONTENT);
     lv_obj_set_pos(h->root, 63, HEADER_Y);
     lv_obj_set_flex_flow(h->root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(h->root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(h->root, 0, 0);
-    h->clock = ui_label(h->root, F_HEADER_CLOCK, C_TEXT_MUTED, "");
+    h->clock = ui_label(h->root, F_HEADER_CLOCK, C_CLOCK, "");
     h->title = ui_label(h->root, F_TITLE, C_TEXT, "");
     lv_obj_set_style_max_width(h->title, 256, 0);
     lv_obj_set_style_text_align(h->title, LV_TEXT_ALIGN_CENTER, 0);
@@ -288,8 +290,10 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
     int32_t title_gap = c ? 20 - lv_font_get_line_height(F_HEADER_CLOCK) : 0;
     if (lv_obj_get_style_margin_top(h->title, 0) != title_gap) lv_obj_set_style_margin_top(h->title, title_gap, 0);
     /* the pill alone (Figma Free time · Spin: clock and title hidden) sits 30 down, at y 53 */
-    int32_t pill_gap = !c && !t ? 30 : c && !t ? 0 : 6;
+    int32_t pill_gap = !c && !t ? 30 : c && !t ? 0 : h->tight ? 2 : 6;
     if (lv_obj_get_style_margin_top(h->pill.root, 0) != pill_gap) lv_obj_set_style_margin_top(h->pill.root, pill_gap, 0);
+    int32_t y = h->tight ? HEADER_TIGHT_Y : HEADER_Y;
+    if (lv_obj_get_y(h->root) != y) lv_obj_set_y(h->root, y);
     ui_show(h->pill.root, below == HEADER_PILL && text && *text);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
     if (below == HEADER_PILL && text && *text) pill_set(&h->pill, tone, icon, text);

@@ -50,7 +50,8 @@ void pill_set(pill_t *p, pill_tone_t tone, const char *icon, const char *text);
 
 /* ---- Header: the clock, the title, then a Pill or a quiet line; 340 wide, centred at y 18 ---- */
 typedef enum { HEADER_NONE, HEADER_PILL, HEADER_TEXT } header_below_t;
-typedef struct { lv_obj_t *root, *clock, *title, *text; pill_t pill; } header_t;
+/* tight: the title right at the top and the pill close under it, clear of free time's wheel */
+typedef struct { lv_obj_t *root, *clock, *title, *text; pill_t pill; bool tight; } header_t;
 void header_create(lv_obj_t *parent, header_t *h);
 /* clock or title NULL/"" = hidden. */
 void header_set(header_t *h, const char *clock, const char *title, header_below_t below,

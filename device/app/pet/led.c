@@ -159,6 +159,64 @@ static uint32_t solid_key(const led_args_t *a)
 static uint16_t *cur;  /* this render's cells */
 static int cur_cap;
 
+/* Free time's halo: a soft glow round Biscuit in the room's own cells, its colours going round him
+ * (mint, sky, lavender, pink, gold) and slowly turning, at full strength close to him and fading out
+ * by HALO_OUT cells. Each lit cell is one of HALO_HUES colours at one of HALO_LEVELS strengths,
+ * dithered between strengths in a 2 x 2 pattern like old pixel art, so the cache can tell when a
+ * cell has changed. */
+#define HALO_IN 20        /* full strength out to here (cells; he covers most of it) */
+#define HALO_OUT 46       /* nothing past here */
+#define HALO_HUES 31
+#define HALO_LEVELS 4
+#define HALO_MAX 0.55f    /* the strongest a cell goes towards its colour */
+static const uint32_t HALO_KEYS[] = { 0x8FF0D0, 0x9AD8FF, 0xC3B8FF, 0xFFB3E0, 0xFFE08A };
+static uint8_t halo_ang[(2 * HALO_OUT + 1) * (2 * HALO_OUT + 1)];    /* each cell's direction, 0..255 */
+static uint8_t halo_strength[(2 * HALO_OUT + 1) * (2 * HALO_OUT + 1)];   /* and its strength at full, 0..255 */
+static bool halo_ready;
+
+static void halo_tables(void)
+{
+    const int w = 2 * HALO_OUT + 1;
+    for (int y = -HALO_OUT; y <= HALO_OUT; y++) {
+        for (int x = -HALO_OUT; x <= HALO_OUT; x++) {
+            int k = (y + HALO_OUT) * w + (x + HALO_OUT);
+            float d = sqrtf((float)(x * x + y * y));
+            float t = d <= HALO_IN ? 0.0f : (d - HALO_IN) / (HALO_OUT - HALO_IN);
+            float s = t >= 1.0f ? 0.0f : (1.0f - t) * (1.0f - t);
+            halo_strength[k] = (uint8_t)lroundf(s * 255.0f);
+            float a = atan2f((float)y, (float)x) / (2.0f * 3.14159265f);
+            halo_ang[k] = (uint8_t)((int)lroundf((a < 0 ? a + 1.0f : a) * 256.0f) & 0xFF);
+        }
+    }
+    halo_ready = true;
+}
+
+/* The halo's code for cell (i, j) (cells from the canvas centre), 0 for none. */
+static uint16_t halo_code(const led_args_t *a, int i, int j)
+{
+    int x = i - a->halo_x, y = j - a->halo_y;
+    if (x < -HALO_OUT || x > HALO_OUT || y < -HALO_OUT || y > HALO_OUT) return 0;
+    int k = (y + HALO_OUT) * (2 * HALO_OUT + 1) + (x + HALO_OUT);
+    if (!halo_strength[k]) return 0;
+    static const uint8_t DITHER[4] = { 0, 128, 192, 64 };
+    int level = (halo_strength[k] * a->halo * HALO_LEVELS / 255 + DITHER[(j & 1) * 2 + (i & 1)]) >> 8;
+    if (level <= 0) return 0;
+    if (level > HALO_LEVELS) level = HALO_LEVELS;
+    int hue = ((uint8_t)(halo_ang[k] + a->halo_turn)) * HALO_HUES >> 8;
+    return (uint16_t)(1 + hue * HALO_LEVELS + (level - 1));
+}
+
+/* The colour a halo code lays over a room cell. */
+static rgbf_t halo_over(rgbf_t room, uint16_t code)
+{
+    int hue = (code - 1) / HALO_LEVELS, level = (code - 1) % HALO_LEVELS + 1;
+    const int nk = (int)(sizeof HALO_KEYS / sizeof HALO_KEYS[0]);
+    float f = hue * (float)nk / HALO_HUES;
+    int k0 = (int)f;
+    rgbf_t c = mix(rgb_of(HALO_KEYS[k0 % nk]), rgb_of(HALO_KEYS[(k0 + 1) % nk]), f - k0);
+    return mix(room, c, HALO_MAX * level / HALO_LEVELS);
+}
+
 /* MyToki 2 (Figma "Scene"): the room as plain pixel art, every cell a full square in the app's own
  * colour, Biscuit on the same grid. With `extend` the room's edge cells carry on to the rim, so a
  * room fills the whole round screen; the circle's edge is soft. With a cache, only the cells that
@@ -171,6 +229,7 @@ static led_rect_t solid_render(const led_args_t *a)
     const rgbf_t bg = rgb_of(a->bg);
     const float edge = R, lim = (R + P) * (R + P);
     led_rect_t dirty = { a->d, a->d, 0, 0 };
+    if (a->halo && !halo_ready) halo_tables();
     if (cells > cur_cap) {
         lv_free(cur);
         cur = lv_malloc((size_t)cells * sizeof *cur);
@@ -202,6 +261,7 @@ static led_rect_t solid_render(const led_args_t *a)
             if (a->room_off) { r = 0; w = 0; }
             uint8_t room = r ? r : w;
             *out = b ? b : f ? f : room && a->room_fade ? (uint16_t)(room | LED_FADED) : room;
+            if (a->halo && !b && !f && room) *out |= (uint16_t)(halo_code(a, i, j) << LED_HALO_SHIFT);
         }
     }
     if (a->sparkles >= 0) {
@@ -241,6 +301,7 @@ static led_rect_t solid_render(const led_args_t *a)
             if (full ? !idx : c->cells[li] == idx) continue;
             rgbf_t col = idx == SPARK_IDX ? lime : idx ? dimmed(rgb_of(pal[idx & 0xFF]), a->dim) : bg;
             if (idx & LED_FADED) col = mix(bg, col, room_k);
+            if (idx >> LED_HALO_SHIFT) col = halo_over(col, idx >> LED_HALO_SHIFT);
             square(a, i, j, P, edge, col, bg, full ? NULL : &dirty);
         }
     }

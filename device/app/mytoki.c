@@ -1289,7 +1289,7 @@ static void build_view(home_view_t *v)
         snprintf(v->status, sizeof v->status, "%s left", hr_min(len, sizeof len, left));
         snprintf(v->status_icon, sizeof v->status_icon, "kite");
         timed(v, left, rem, total, PILL_DONE);
-        bool can_play = rem - GET_READY_S > 0;
+        bool can_play = rem - GET_READY_S > 0, quiet = false;   /* quiet: the wheel or Biscuit's view, no note */
         const day_task_t *nx = n->nupcoming ? &p->tasks[n->upcoming[0]] : NULL;
         next_from(v, -1);
         if (!can_play) {
@@ -1301,22 +1301,24 @@ static void build_view(home_view_t *v)
             v->force_clip = PET_CLIP_CURIOUS;
             (void)nx;
         } else if (total > WHEEL_MIN_S && !app.free_pet_view) {
-            /* Figma Free time · Spin (1080:5388): only the time pill over the wheel, Games under it */
-            v->hide_title = true;
+            /* Figma Free time · Spin (1080:5388): the title and the time pill over the wheel (no
+             * clock), Games under it */
+            quiet = true;
             v->clock_line[0] = 0;
             v->mid = MID_WHEEL;
             v->bottom = BOTTOM_GAMES;
             v->dots = false;
         } else {
-            /* Figma Free time · Play with Biscuit: the clock and the pill, his room, tap him to play */
-            v->hide_title = true;
+            /* Figma Free time · Play with Biscuit: the clock, the title and the pill, his room, tap
+             * him to play */
+            quiet = true;
             v->activity = app.free_act;
             /* a grown-up's free time just given: he says that first ("Free time! 15 minutes") */
             bool gift = !strncmp(app.say_key, "free:", 5) && (int32_t)(now_ms() - app.say_until) < 0;
             snprintf(v->say, sizeof v->say, "%s", gift ? app.say : "Tap to play!");
             v->tap_ring = can_play;   /* the lime ring pulses round him: a tap opens the games */
         }
-        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !v->hide_title && can_play) {
+        if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !quiet && can_play) {
             snprintf(buf, sizeof buf, "Press to start %s", nx->title);
             button_note(v, "timer", buf);
         }

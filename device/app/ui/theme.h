@@ -29,6 +29,7 @@
 #define C_FAINT     0x20294A  /* line/faint: the empty graphic circle */
 #define C_TEXT      0xF9F5E1  /* text/primary */
 #define C_TEXT_MUTED 0x9A9DAB /* text/muted */
+#define C_CLOCK     0xFFFFFF  /* the time, on every screen (the header's clock, the night clock): pure white */
 #define C_NEXT_LABEL 0x6C6F95 /* text/next-label: "Next" and its time */
 #define C_NEXT_TASK 0xAAB4FF  /* text/next-task: the next task and its icon */
 #define C_CALM      0xBDB5F5  /* text/calm: words in a calm pill */

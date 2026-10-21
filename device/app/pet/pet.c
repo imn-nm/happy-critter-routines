@@ -429,6 +429,16 @@ static void render(pet_t *p)
         .palette = NULL, .extend = p->look.wide, .solid = p->look.solid, .room_fade = p->look.room_fade,
         .cache = &p->cache,
     };
+    if (p->look.halo) {
+        /* round him (his middle sits 2 cells left of and 3 above the canvas centre), turning once in
+         * 9 s and breathing every 3 s */
+        uint32_t ms = lv_tick_get();
+        float breathe = 0.78f + 0.22f * sinf((float)(ms % 3000) * (2.0f * 3.14159265f / 3000.0f));
+        a.halo = (uint8_t)lroundf(255.0f * breathe);
+        a.halo_turn = (uint8_t)((ms % 9000) * 256 / 9000);
+        a.halo_x = -2;
+        a.halo_y = -3;
+    }
     led_rect_t px = led_render(&a);
     if (UI_DEPTH) {
         /* The whole room, as before: with layered rows (UI_DEPTH) LVGL can leave a pixel row of a
@@ -488,7 +498,7 @@ static void tick(lv_timer_t *t)
     for (pet_t *p = pets; p; p = p->next) {
         if (p->paused) continue;
         step(p);
-        if (p->dirty) render(p);
+        if (p->dirty || p->look.halo) render(p);   /* the halo moves every frame */
     }
 }
 

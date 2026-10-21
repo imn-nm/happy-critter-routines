@@ -32,7 +32,6 @@ typedef struct {
     char title[48];
     uint32_t title_color;
     lv_opa_t title_opa;
-    bool hide_title;            /* free time's wheel: the clock and the pill only */
     home_below_t below;
     char status[48];            /* the line, or the pill's words */
     char status_icon[20];
@@ -64,7 +63,7 @@ typedef struct {
     bool say_low;               /* (old) */
     int8_t chores_left;         /* at an event: a note "N to finish" that opens the list */
     bool wake;                  /* the alarm: he sits up and stretches, the room at dawn */
-    bool tap_ring;              /* Biscuit can be tapped to play: the lime ring that pulses round him */
+    bool tap_ring;              /* Biscuit can be tapped to play: his room glows round him (the halo), stars twinkle */
     char say[48];               /* his bubble, "" for none */
     char say_top[48];           /* (old) the same bubble */
     /* note */

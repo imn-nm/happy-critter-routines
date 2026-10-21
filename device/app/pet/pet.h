@@ -49,6 +49,7 @@ typedef struct {
     bool solid;         /* MyToki 2: plain pixel art, full squares (no LED dots) */
     uint8_t room_fade;  /* MyToki 2: the room behind him faded towards bg (0 = as it is, 179 = at 30%);
                          * he stays solid */
+    bool halo;          /* free time: a soft rainbow glow in the room round him, slowly turning */
 } pet_look_t;
 
 /* MyToki 2 (Figma "Scene"): Biscuit is the same size in every room, 3.609 px per cell, the room
