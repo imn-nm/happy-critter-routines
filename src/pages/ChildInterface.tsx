@@ -1344,7 +1344,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         className="min-h-12 px-3 rounded-[16px] bg-focus-raised text-focus-text text-14 font-semibold flex items-center justify-center gap-1.5"
                       >
                         {getTaskIcon("Free time", "w-5 h-5 text-focus-mint shrink-0", "free")}
-                        <span className={words}>Free time</span>
+                        <span className={words}>Free Time</span>
                       </button>
                     </div>
                   )}

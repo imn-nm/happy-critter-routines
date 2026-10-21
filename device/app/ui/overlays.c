@@ -433,7 +433,7 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         else snprintf(detail, sizeof detail, "Anytime");
     } else {
         icon = "kite";
-        snprintf(task, sizeof task, "Free time");
+        snprintf(task, sizeof task, "Free Time");
         char dur[16];
         fmt_duration(dur, sizeof dur, r->end - r->start);
         snprintf(detail, sizeof detail, "%s all yours", dur);
@@ -517,7 +517,7 @@ static void sched_tile(lv_obj_t *slot, const srow_t *r, int idx)
     char name[48], t[24];
     if (r->task >= 0) { char w[24]; snprintf(w, sizeof w, "%s", p->tasks[r->task].title); char *sp = strchr(w, ' '); if (sp) *sp = 0; snprintf(name, sizeof name, "%s", w); }
     else if (r->chore >= 0) snprintf(name, sizeof name, "%s", p->chores[r->chore].title);
-    else snprintf(name, sizeof name, "Free time");
+    else snprintf(name, sizeof name, "Free Time");
     if (r->start >= 0) ui_fmt_time(t, sizeof t, r->start); else snprintf(t, sizeof t, "Any time");
     bool now = r->state == ROW_NOW, done = r->state == ROW_DONE || r->state == ROW_CHORE_DONE;
     if (now && r->end > r->start) { char e[8]; ui_fmt_time(e, sizeof e, r->end); snprintf(t + strlen(t), sizeof t - strlen(t), "\xE2\x80\x93%s", e); }

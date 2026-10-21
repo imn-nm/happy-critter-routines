@@ -135,11 +135,11 @@ const Playtime = ({ childId, petType, petColor, secondsLeft, nextName, nextIcon,
         {leaving ? null : picture ? (
           <span className="flex items-center gap-2 text-18 tabular-nums text-fog-200">
             <Timer className="h-6 w-6" aria-hidden />
-            <span className="sr-only">Free time</span>
+            <span className="sr-only">Free Time</span>
             {fmt(secondsLeft)}
           </span>
         ) : (
-          <span className="text-14 tabular-nums text-fog-200">Free time · {fmt(secondsLeft)}</span>
+          <span className="text-14 tabular-nums text-fog-200">Free Time · {fmt(secondsLeft)}</span>
         )}
         <span className={picture ? "w-12" : "w-11"} />
       </div>

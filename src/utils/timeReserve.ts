@@ -70,7 +70,7 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
   for (const task of timed.slice(1)) {
     const start = startOf(task);
     if (start > occupiedUntil) {
-      gaps.push({ id: `gap-${occupiedUntil}`, name: 'Free time', icon: 'Leaf',
+      gaps.push({ id: `gap-${occupiedUntil}`, name: 'Free Time', icon: 'Leaf',
         scheduled_time: `${Math.floor(occupiedUntil / 3600)}:${Math.floor(occupiedUntil / 60) % 60}`,
         duration: (start - occupiedUntil) / 60 });
     }
@@ -121,7 +121,7 @@ export function calculateTimeReserve(tasks: ReserveTask[], completions: ReserveC
     })),
     losses: Object.fromEntries(reserves.map(r => [r.task.id, r.lost])),
     reserve: freeRemaining > 0 ? {
-      id: 'free-time', name: 'Free time', icon: 'Leaf',
+      id: 'free-time', name: 'Free Time', icon: 'Leaf',
       // Only free time still ahead is at stake. A morning gap that simply went
       // by was used, not eaten, so it must not move the worm during school.
       totalSeconds: free.reduce((sum, r) => sum + r.total, 0),

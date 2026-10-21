@@ -1284,7 +1284,7 @@ static void build_view(home_view_t *v)
         int32_t rem = n->free_remaining, total = n->free_total;
         int left = (int)((rem + 59) / 60);
         snprintf(v->icon, sizeof v->icon, "kite");
-        snprintf(v->title, sizeof v->title, "Free time");
+        snprintf(v->title, sizeof v->title, "Free Time");
         v->below = BELOW_TIME;
         snprintf(v->status, sizeof v->status, "%s left", hr_min(len, sizeof len, left));
         snprintf(v->status_icon, sizeof v->status_icon, "kite");
@@ -1519,7 +1519,7 @@ static void free_time_gift(void)
         if (now_m < app.plan->free[i].start || now_m >= app.plan->free[i].end || !strcmp(id, app.gift_seen)) continue;
         snprintf(app.gift_seen, sizeof app.gift_seen, "%s", id);
         char line[48], key[48], len[24];
-        snprintf(line, sizeof line, "Free time! %s", hr_min(len, sizeof len, app.plan->free[i].end - app.plan->free[i].start));
+        snprintf(line, sizeof line, "Free Time! %s", hr_min(len, sizeof len, app.plan->free[i].end - app.plan->free[i].start));
         snprintf(key, sizeof key, "free:%.40s", id);
         screen_wake();
         if (schedule_is_open()) overlays_close_all();
