@@ -32,11 +32,13 @@ int motion_taps(void);
 void motion_add_taps(int n);
 /* How long it has been quiet, in ms. */
 uint32_t motion_still_ms(void);
-/* How long it has lain flat (screen up or down) and still, in ms: put down on a table. A hand holds
- * it tipped towards the child, so holding it, however steadily, doesn't count. */
+/* How long it has been completely still, at any angle, in ms: put down on a table or propped up.
+ * A hand trembles more than MOTION_REST_G, so holding it, however steadily, doesn't count. */
 uint32_t motion_rest_ms(void);
-/* Lying flat now, screen up or down (within MOTION_FLAT_G of level). */
-bool motion_flat(void);
+/* Remember which way up it lies now; motion_turned() is then how far it has turned since, in g
+ * (the change in gravity's direction: MOTION_TURN_G is about 8 degrees). */
+void motion_mark(void);
+float motion_turned(void);
 /* The last sample's movement, in g (gravity taken out): a pickup is well over MOTION_PICKUP_G. */
 float motion_energy(void);
 /* Screen facing down. */
@@ -57,7 +59,7 @@ void motion_reset(void);
 #define MOTION_TAP_GAP_MS 200        /* two knocks closer than this count once */
 #define MOTION_STILL_G 0.08f         /* quiet threshold */
 #define MOTION_REST_G 0.015f         /* put down: under a hand's tremble, over the sensor's own noise */
-#define MOTION_FLAT_G 0.14f          /* flat: gravity this far off straight through the screen, about 8 degrees */
+#define MOTION_TURN_G 0.14f          /* turned this far from where it was put down (about 8 degrees): picked up */
 #define MOTION_PICKUP_G 0.06f        /* picked up (or the table knocked) */
 #define MOTION_FACE_DOWN_G -0.5f
 #define MOTION_DT_MIN_MS 4

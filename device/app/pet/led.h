@@ -38,15 +38,10 @@ typedef struct {
     uint8_t room_fade;      /* solid only: the room drawn this much towards bg (0 = as it is, 179 = at 30%);
                              * Biscuit and his effects stay as they are */
     led_cache_t *cache;     /* solid only: repaint just what changed since the last render into buf (NULL: all of it) */
-    uint8_t halo;           /* solid only: free time's glow in the room round him, 0 = none, 255 = full */
-    uint8_t halo_turn;      /* where its colours have turned to, 0..255 a full turn */
-    int8_t halo_x, halo_y;  /* its centre, in cells from the canvas centre */
 } led_args_t;
 
 /* A room cell drawn faded (room_fade), so the cache tells it from Biscuit's cell of the same colour. */
 #define LED_FADED 0x100
-/* A room cell lit by the halo: (code << LED_HALO_SHIFT), the code saying its colour and strength. */
-#define LED_HALO_SHIFT 9
 
 led_rect_t led_render(const led_args_t *a);
 

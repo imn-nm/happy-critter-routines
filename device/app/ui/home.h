@@ -63,7 +63,7 @@ typedef struct {
     bool say_low;               /* (old) */
     int8_t chores_left;         /* at an event: a note "N to finish" that opens the list */
     bool wake;                  /* the alarm: he sits up and stretches, the room at dawn */
-    bool tap_ring;              /* Biscuit can be tapped to play: his room glows round him (the halo), stars twinkle */
+    bool tap_ring;              /* Biscuit can be tapped to play: stars twinkle about him */
     char say[48];               /* his bubble, "" for none */
     char say_top[48];           /* (old) the same bubble */
     /* note */

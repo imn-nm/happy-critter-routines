@@ -59,7 +59,6 @@ static struct {
     home_graphic_t graphic;
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
     uint8_t room_fade;
-    bool halo;
 } h;
 
 static bool pet_held;   /* a long tap on the pet: its release isn't also a tap */
@@ -348,9 +347,8 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_anim_set_repeat_count(&ca, LV_ANIM_REPEAT_INFINITE);
     lv_anim_start(&ca);
 
-    /* Biscuit can be tapped (free time): his room glows round him in slowly turning colours (the
-     * pet's halo), and little stars twinkle about it, each in its own time (no badge: the magic says
-     * it). The stars: clear of the header, the side buttons and the hill */
+    /* Biscuit can be tapped (free time): little stars twinkle about him, each in its own time (no
+     * badge: the stars say it), clear of the header, the side buttons and the hill */
     static const struct { int16_t deg, size; uint16_t ms, delay; } STARS[] = {
         { 210, 16, 900, 0 }, { 236, 12, 700, 350 }, { 304, 14, 800, 600 },
         { 330, 18, 1000, 150 }, { 150, 12, 750, 800 }, { 30, 16, 850, 450 },
@@ -451,15 +449,13 @@ void home_render(const home_view_t *v)
     bool pet_on = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
     pet_set_paused(h.pet, !pet_on);
     if (pet_on) {
-        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade || h.halo != v->tap_ring) {
+        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade) {
             pet_look_t look = pet_default_look(lv_obj_get_width(h.pet));
             look.dim = v->pet_dim;
             look.room_fade = v->room_fade;
-            look.halo = v->tap_ring;
             pet_set_look(h.pet, &look);
             h.pet_dim = v->pet_dim;
             h.room_fade = v->room_fade;
-            h.halo = v->tap_ring;
         }
         pet_set_mood(h.pet, v->mood);
         pet_set_activity(h.pet, v->activity);

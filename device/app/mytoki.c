@@ -1869,9 +1869,9 @@ void mytoki_day_failed(int reason)
 }
 
 /* ================================================================ the screen off when put down */
-/* Lying flat and still on a table, untouched, for 10 s, the screen goes off (held in a hand, however
- * steadily, it stays on); picked up or tipped, the button or a touch brings it back, and that touch
- * or press does nothing else. It stays on on the
+/* Completely still for 10 s at any angle (on a table, propped up), untouched, the screen goes off
+ * (held in a hand, however steadily, it stays on: a hand trembles); picked up, tipped or turned, the
+ * button or a touch brings it back, and that touch or press does nothing else. It stays on on the
  * dock (the night clock), while the alarm rings, in Playtime, and without a motion sensor. */
 static bool may_sleep(void)
 {
@@ -1896,6 +1896,7 @@ static void screen_wake(void)
 static void screen_sleep(void)
 {
     app.screen_off = true;
+    motion_mark();   /* which way up it was put down: turned from there, it wakes */
     ui_show(app.wake_catcher, true);
     lv_obj_move_foreground(app.wake_catcher);
     hal_screen(false);
@@ -1905,7 +1906,7 @@ static void screen_watch(void)
 {
     uint32_t now = now_ms();
     if (app.screen_off) {
-        if (motion_energy() > MOTION_PICKUP_G || !motion_flat() || !may_sleep()) screen_wake();
+        if (motion_energy() > MOTION_PICKUP_G || motion_turned() > MOTION_TURN_G || !may_sleep()) screen_wake();
         else if (lv_obj_get_index(app.wake_catcher) != (int32_t)lv_obj_get_child_count(lv_layer_top()) - 1)
             lv_obj_move_foreground(app.wake_catcher);   /* still over anything that opened meanwhile */
         return;

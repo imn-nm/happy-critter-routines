@@ -4,6 +4,7 @@
 
 static struct {
     float gx, gy, gz;        /* gravity (low-passed) */
+    float mx, my, mz;        /* gravity's direction at motion_mark() */
     float shake;             /* peak-held high-pass energy, 0..1 */
     float e;                 /* the last sample's high-pass energy, g */
     uint32_t last_ms;        /* when the last sample arrived; 0 = never */
@@ -94,7 +95,7 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms)
 
     if (e < MOTION_STILL_G) m.still_ms += dt;
     else m.still_ms = 0;
-    if (e < MOTION_REST_G && motion_flat()) m.rest_ms += dt;
+    if (e < MOTION_REST_G) m.rest_ms += dt;
     else m.rest_ms = 0;
 
     if (m.gz < MOTION_FACE_DOWN_G) m.face_down_ms += dt;
@@ -136,10 +137,19 @@ void motion_add_taps(int n) { m.taps += n; }
 uint32_t motion_still_ms(void) { return m.still_ms; }
 uint32_t motion_rest_ms(void) { return m.rest_ms; }
 
-bool motion_flat(void)
+void motion_mark(void)
 {
     float n = sqrtf(m.gx * m.gx + m.gy * m.gy + m.gz * m.gz);
-    return m.have_gravity && n > 0.8f && n < 1.2f && sqrtf(m.gx * m.gx + m.gy * m.gy) < MOTION_FLAT_G * n;
+    if (n < 0.5f) n = 1;
+    m.mx = m.gx / n; m.my = m.gy / n; m.mz = m.gz / n;
+}
+
+float motion_turned(void)
+{
+    float n = sqrtf(m.gx * m.gx + m.gy * m.gy + m.gz * m.gz);
+    if (n < 0.5f) return 0;
+    float dx = m.gx / n - m.mx, dy = m.gy / n - m.my, dz = m.gz / n - m.mz;
+    return sqrtf(dx * dx + dy * dy + dz * dz);
 }
 float motion_energy(void) { return m.e; }
 bool motion_face_down(void) { return m.face_down_ms >= 300; }
