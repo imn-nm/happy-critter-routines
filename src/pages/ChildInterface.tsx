@@ -1235,11 +1235,16 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
           const pausedTask = !isFrozen && upcomingTasks[0] && pausedBy(liveWindows.get(upcomingTasks[0].id), nowMinutes) === displayTask.id ? upcomingTasks[0] : null;
           const petMood = petCelebrating ? 'celebrate' : petMoodForTask(displayTask.name);
           const checkedIds = checkedSubtasks[displayTask.id] ?? [];
-          const ready = phase === 'prep' && !!displayTask.subtasks?.length
+          const stepsAll = !!displayTask.subtasks?.length
             && displayTask.subtasks.every(sub => checkedIds.includes(sub.id));
+          const ready = phase === 'prep' && stepsAll;
+          // Every step ticked on a task: "All done!" and Mark as Done glows; one more slide
+          // finishes it. The steps never finish it on their own (they may only get it ready).
+          const stepsDone = !phase && stepsAll && !isFrozen && !waiting;
           const petPrompt = phase === 'prep'
             ? (ready ? say("You're ready!", "🎉") : say("Let's get ready!", "🎒"))
             : waiting ? say(`${displayTask.name} is waiting`, "⏳")
+            : stepsDone ? say("All done!", "🎉")
             : say(promptForTask(displayTask.name), taskEmoji(displayTask.name));
 
           return (
@@ -1280,6 +1285,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 waiting={waiting}
                 onStart={() => startWaiting(displayTask)}
                 showDone={!displayTask.is_fun_time && !displayTask.is_event && !waiting}
+                doneReady={stepsDone}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
                 // The worm only appears while the child is running late on a
@@ -1300,13 +1306,14 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                   checkedIds={checkedIds}
                   doneLabel={phase === 'prep' ? "You're Ready!" : undefined}
                   onToggle={(subId) => {
-                    const finishing = phase === 'prep' && !checkedIds.includes(subId)
+                    const finishing = !checkedIds.includes(subId)
                       && displayTask.subtasks!.every(sub => sub.id === subId || checkedIds.includes(sub.id));
                     toggleSubtask(displayTask.id, subId);
-                    // Ready to go: Biscuit cheers, and the event stays on.
+                    // The last step: Biscuit cheers. Ready to go, the event stays on; on a task,
+                    // "All done!" waits for Mark as Done.
                     if (finishing) {
-                      sounds.done();
-                      if (picture) speak("You're ready!");
+                      if (phase === 'prep') sounds.done();
+                      if (picture) speak(phase === 'prep' ? "You're ready!" : "All done!");
                       setPetCelebrating(true);
                       window.setTimeout(() => setPetCelebrating(false), 3000);
                     }

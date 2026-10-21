@@ -15,6 +15,8 @@ interface Props {
   done?: boolean;
   /** Offer "Mark as Done" — any task can be finished early to free up its time. */
   showDone?: boolean;
+  /** Every step is ticked: "Mark as Done" glows, one slide finishes it (the steps never finish it on their own). */
+  doneReady?: boolean;
   onDone: () => Promise<void>;
   /** Waiting for the child's Start tap: the ring is full and still, a lime Start instead of the slide. */
   waiting?: boolean;
@@ -140,12 +142,18 @@ export default function ChildTaskFocus(props: Props) {
         </button>
       )}
       {props.showDone && (
-        <SlideToConfirm
-          label="Mark as Done"
-          iconOnly={picture}
-          disabled={props.done}
-          onConfirm={finish}
-        />
+        <div className="relative w-full">
+          {props.doneReady && !props.done && (
+            <span aria-hidden className="pointer-events-none absolute -inset-1.5 rounded-[24px] bg-focus-lime/40 blur-md motion-safe:animate-pulse" />
+          )}
+          <SlideToConfirm
+            label="Mark as Done"
+            iconOnly={picture}
+            disabled={props.done}
+            onConfirm={finish}
+            className="relative"
+          />
+        </div>
       )}
     </section>
   );

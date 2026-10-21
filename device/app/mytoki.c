@@ -320,9 +320,10 @@ static void save_progress(void)
 }
 
 /* A step checked or unchecked: a tap on it does either, the button only checks. The last one
- * checked doesn't finish the task (the steps get Shower ready; then comes the shower): the list stays
- * a moment, then the task goes on for its time until the button says it's done. At an event, all
- * checked is "You're ready!". */
+ * checked doesn't finish the task (the steps get Shower ready; then comes the shower): Biscuit cheers,
+ * the list stays a moment, then "All done!" with the button lit, and one more press finishes it (the
+ * time left becomes free time, or the next task starts early). At an event, all checked is "You're
+ * ready!". */
 static void set_step(int f, int i, bool on)
 {
     if (f < 0 || i < 0 || i >= app.plan->tasks[f].nsteps) return;
@@ -341,7 +342,7 @@ static void set_step(int f, int i, bool on)
         app.steps_peek_until = now_ms() + STEPS_ALL_MS;
     }
     hal_play(HAL_SOUND_TICK);
-    if (on) pet_react(home_pet(), PET_CLIP_ENCOURAGE);
+    if (on) pet_react(home_pet(), steps_all(f) ? PET_CLIP_CELEBRATE : PET_CLIP_ENCOURAGE);
 }
 
 /* What the child did on this device today, laid over a fresh plan. A task done or a chore checked or
@@ -837,7 +838,7 @@ static void on_home(home_event_t ev, int arg)
     case HOME_TAP_NEXT: schedule_open(app.plan, &app.now, app.now_s / 60, app.plan->child.picture, on_sched_chore); break;
     case HOME_TAP_CARD:
         if (app.state == ST_EVENT && app.now.nstill) others_open(app.plan, &app.now, app.now_s, on_other_done);
-        else if (app.state == ST_TASK && app.focus >= 0 && steps_all(app.focus)) {   /* "Steps done": the list again */
+        else if (app.state == ST_TASK && app.focus >= 0 && steps_all(app.focus)) {   /* "All done!" tapped: the list again, to uncheck one */
             app.steps_peek = app.focus;
             app.steps_peek_until = now_ms() + STEPS_PEEK_MS;
             tick(NULL);
@@ -1160,12 +1161,12 @@ static void build_view(home_view_t *v)
             v->steps_ticked = app.ticks[app.focus];
             for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
         } else if (t->nsteps && !n->overdue) {
-            /* all checked: the task goes on for its time; the note brings the list back to uncheck one */
-            v->card = CARDPOS_LOW;
-            snprintf(v->card_icon, sizeof v->card_icon, "listchecks");
-            snprintf(v->card_text, sizeof v->card_text, "Steps done");
-            v->card_end = CARD_END_DONE;
+            /* all checked: "All done!" with the button at its end; one more press finishes the task
+             * (user, 2026-10-21). It never finishes on its own: the steps may only get it ready. A tap
+             * on the note brings the list back to uncheck one. */
+            button_note(v, "check", "All done!");
         }
+        if (t->nsteps && steps_all(app.focus)) v->cue = true;   /* the button at 1 o'clock lights up */
         next_from(v, -1);
         /* Figma: his greeting at wake-up and dinner only, as the task starts */
         bool greets = t->system == SYS_WAKE || t->system == SYS_DINNER || strstr(k, "wake") || strstr(k, "morning") || strstr(k, "dinner") || t->say[0];
