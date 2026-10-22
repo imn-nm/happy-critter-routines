@@ -12,13 +12,21 @@ type Listener = () => void;
 
 const listeners = new Set<Listener>();
 const BACKSTOP_MS = 5 * 60_000;
+// At most one resync a minute. When the database slows down, realtime channels drop and rejoin over
+// and over; a full refetch on every rejoin, from every open page, is more load that drops them
+// again (2026-10-22: the database stopped answering). The next one waits out the minute instead.
+const MIN_GAP_MS = 60_000;
 let pending: number | undefined;
+let lastRun = 0;
 
-/** Ask every listener to refetch. Bursts (several channels reconnecting at once) collapse into one. */
+/** Ask every listener to refetch. Bursts (several channels reconnecting at once) collapse into one,
+ * and resyncs are at least a minute apart. */
 export const requestResync = () => {
   if (pending !== undefined) return;
+  const wait = Math.max(400, lastRun + MIN_GAP_MS - Date.now());
   pending = window.setTimeout(() => {
     pending = undefined;
+    lastRun = Date.now();
     listeners.forEach((cb) => {
       try {
         cb();
@@ -26,7 +34,7 @@ export const requestResync = () => {
         console.error("resync listener failed", e);
       }
     });
-  }, 400);
+  }, wait);
 };
 
 export const onResync = (cb: Listener) => {
