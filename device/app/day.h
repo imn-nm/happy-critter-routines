@@ -31,7 +31,7 @@ typedef struct {
     char icon[20];
     char say[48];              /* optional: what Biscuit says (else from the task) */
     int16_t start, end;        /* minutes of the day; events include their get-ready time */
-    int16_t event_start;       /* events: when the event itself starts; -1 otherwise */
+    int16_t event_start;       /* events: when the event itself starts; School too when it has get-ready time; -1 otherwise */
     bool event;
     bool important;            /* must finish */
     bool fun;                  /* fun time: no done button, gives way when running late */

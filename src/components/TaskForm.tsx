@@ -209,6 +209,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const canSkipDay = !!task?.id
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id)
     && !['Wake Up', 'Bedtime'].includes(task.name ?? '');
+  // School is somewhere they go: it can have get-ready time and steps like an event (user,
+  // 2026-10-22), saved on its row; its times stay in the profile.
+  const schoolRow = isSystemEvent && (task?.name ?? '').trim().toLowerCase() === 'school';
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
 
@@ -389,8 +392,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   // "+ Get ready" makes it something they go to, with steps before it.
   const addGetReady = () => {
-    setWhatTouched(true);
     setChecklistOpen(true);
+    if (schoolRow) return setFormData({ ...formData, getReady: true });
+    setWhatTouched(true);
     setFormData({
       ...formData,
       mode: 'event',
@@ -399,6 +403,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     });
   };
   const removeGetReady = () => {
+    if (schoolRow) return setFormData({ ...formData, getReady: false });
     setWhatTouched(true);
     setFormData({ ...formData, mode: 'task', getReady: false });
   };
@@ -502,7 +507,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       needs_start: !isChore && !isEvent && !isFun && totalMinutes > 0 ? formData.needsStart : false,
       is_fun_time: isFun,
       is_event: isEvent,
-      prep_minutes: isEvent && formData.getReady ? formData.prepMinutes : 0,
+      prep_minutes: (isEvent || schoolRow) && formData.getReady ? formData.prepMinutes : 0,
       window_start: derivedType === 'floating' && !formData.choreAnytime
         ? formData.windowStart
         // Non-chore task without a set time — preserve a placement hint so
@@ -516,7 +521,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
       // An event's steps are its get-ready steps: none without get-ready time.
-      subtasks: !isChore && (!isEvent || formData.getReady) && formData.subtasks.length > 0 ? formData.subtasks : undefined,
+      subtasks: !isChore && (!(isEvent || schoolRow) || formData.getReady) && formData.subtasks.length > 0 ? formData.subtasks : undefined,
       // Must-finish tasks are what runs late; they never give up time. Nor
       // does an event: the game starts when it starts.
       late_policy: isChore || isEvent || formData.isImportant ? 'keep' : formData.latePolicy,
@@ -887,7 +892,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             {fmtTime(endTime)}
           </SummaryPart>
           {!isSystemEvent && onDays}
-          {isEvent ? (
+          {isEvent || (schoolRow && formData.getReady) ? (
             <>, with{' '}
               <SummaryPart label="Time to get ready. Change" picker={prepPicker}>
                 {formData.getReady ? `${fmtLen(formData.prepMinutes)} to get ready` : 'no time to get ready'}
@@ -1094,7 +1099,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // Kept while its picker is open, or the first star would close it.
   const showStarsChip = hasStars && (coinCount === 0 || starsChipOpen);
   const showStepsChip = !isSystemEvent && !isChore && !isEvent && !showSteps;
-  const showGetReadyChip = !isSystemEvent && !isChore && !isEvent && atTime;
+  const showGetReadyChip = (!isSystemEvent && !isChore && !isEvent && atTime) || (schoolRow && !formData.getReady);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full min-w-0">
@@ -1191,7 +1196,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       </div>
 
       {/* === GET-READY STEPS === something they go to: steps before it starts */}
-      {isEvent && (
+      {(isEvent || (schoolRow && formData.getReady)) && (
         <section className="flex flex-col gap-2 rounded-[18px] border border-focus-raised p-3" aria-labelledby="getReadyHeading">
           <div className="flex items-center gap-2">
             <Backpack className="w-4 h-4 shrink-0 text-focus-lime" aria-hidden />

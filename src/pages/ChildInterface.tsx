@@ -1284,7 +1284,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                 done={isFrozen}
                 waiting={waiting}
                 onStart={() => startWaiting(displayTask)}
-                showDone={!displayTask.is_fun_time && !displayTask.is_event && !waiting}
+                showDone={!displayTask.is_fun_time && !displayTask.is_event && !waiting && !phase}
                 doneReady={stepsDone}
                 onDone={handleNextTap}
                 onTimeUp={handleTimerComplete}
@@ -1776,7 +1776,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
                         isChore={task.type === 'floating'}
                         name={task.name}
                         icon={task.icon}
-                        durationMin={task.is_event ? displayDuration(task) : task.planned_duration ?? task.duration}
+                        durationMin={getReadyLength(task) > 0 || task.is_event ? displayDuration(task) : task.planned_duration ?? task.duration}
                         getReadyAt={getReadyLength(task) > 0 ? task.scheduled_time?.slice(0, 5) : undefined}
                         important={task.is_important}
                         fun={task.is_fun_time}

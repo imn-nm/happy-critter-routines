@@ -172,6 +172,7 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
     row.late = (t.late_policy ?? (t.is_fun_time ? 'skip' : 'keep')) as DayPlanTask['late'];
     if (t.min_duration) row.min = t.min_duration;
     if (t.is_event) { row.event = true; if (t.event_start) row.event_start = t.event_start.slice(0, 5); }
+    else if (t.event_start) row.event_start = t.event_start.slice(0, 5);   /* School's get-ready time: its block starts here */
     const sys = systemTaskKey(t.name);
     if (sys) row.system = sys;
     if (isBedtimeRoutine(t.name)) row.bedtime_routine = true;

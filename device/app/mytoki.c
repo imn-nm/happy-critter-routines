@@ -36,6 +36,7 @@
 #define DONE_OFFER_MS 5000         /* done early: "Press for Homework" while the ring at the button shrinks */
 #define SAY_MS 7000
 #define STEPS_ALL_MS 2500         /* the last step checked: the list stays a moment before the room comes back */
+#define AUTO_NEXT_MS STEPS_ALL_MS /* a whole-task checklist done: then the next thing starts (an untick in that time stops it) */
 #define STEPS_PEEK_MS 8000        /* "Steps done" tapped: the list again, to uncheck one */
 #define SLEEP_MS 10000            /* put down this long (and not touched), the screen goes off */
 #define SYNC_GRACE_S 120          /* what the child did here wins over a fresh plan this long (the server may not have it yet); then the plan, where a grown-up may have changed it, wins */
@@ -70,6 +71,8 @@ static struct {
     int focus;
     uint16_t ticks[DAY_MAX_TASKS];   /* the steps checked, in any order: bit i = step i */
     int steps_peek;                  /* the task whose checked list shows again, or -1 */
+    int auto_next;                   /* a whole-task checklist just finished: the task that moves on by itself, or -1 */
+    uint32_t auto_next_at;
     int32_t chore_at[DAY_MAX_CHORES]; /* when the child last checked or unchecked each chore here (s of the day), or -1 */
     char gift_seen[40];               /* the last grown-up's free time greeted */
     char test_seen[24];               /* the last "Ring MyToki now" seen (kept: "alarm_test") */
@@ -128,6 +131,10 @@ static void screen_init(void);
 /* ---- a task's steps: checked in any order, and unchecked again ---- */
 static uint16_t steps_mask(int f) { return (uint16_t)((1u << app.plan->tasks[f].nsteps) - 1); }
 static bool steps_all(int f) { return app.plan->tasks[f].nsteps && (app.ticks[f] & steps_mask(f)) == steps_mask(f); }
+/* The checklist is the whole task (Get dressed, Wake Up's Pee and Brush teeth, the bedtime routine):
+ * ticking the last step finishes it and the next thing starts (user, 2026-10-22). Not for Must
+ * finish (the day waits for Done), events and School (their steps get them ready to go) or fun time. */
+static bool steps_whole_task(const day_task_t *t) { return !t->important && !t->event && !t->fun && t->system != SYS_SCHOOL; }
 static int steps_first_left(int f)
 {
     for (int i = 0; i < app.plan->tasks[f].nsteps; i++)
@@ -354,7 +361,9 @@ static void set_step(int f, int i, bool on)
     if (on && steps_all(f)) {
         app.steps_peek = f;
         app.steps_peek_until = now_ms() + STEPS_ALL_MS;
+        if (steps_whole_task(&app.plan->tasks[f])) { app.auto_next = f; app.auto_next_at = now_ms() + AUTO_NEXT_MS; }
     }
+    if (!on && app.auto_next == f) app.auto_next = -1;   /* unticked in time: it stays */
     hal_play(HAL_SOUND_TICK);
     if (on) pet_react(home_pet(), steps_all(f) ? PET_CLIP_CELEBRATE : PET_CLIP_ENCOURAGE);
 }
@@ -367,6 +376,7 @@ static void apply_progress(day_plan_t *p, int32_t now_s)
     memset(app.ticks, 0, sizeof app.ticks);
     for (int i = 0; i < DAY_MAX_CHORES; i++) app.chore_at[i] = -1;
     app.steps_peek = -1;
+    app.auto_next = -1;
     app.alarm_ack = app.welcome_ack = false;
     app.snoozes = 0;
     app.snooze_until = 0;
@@ -899,6 +909,7 @@ static void on_retry(int unused)
  * for getting up), so it's done and the next thing starts now, the ones behind it moving up, as Done
  * pressed early would; with steps (Pee, Brush teeth) it stays for them. User, 2026-10-22: "Wake Up"
  * with 15 minutes on it read as 15 minutes to get out of bed. */
+static void start_next_now(void);
 static void imup_moves_on(void)
 {
     int w = app.now.current;
@@ -906,6 +917,13 @@ static void imup_moves_on(void)
     const day_task_t *t = &app.plan->tasks[w];
     if (t->system != SYS_WAKE || t->nsteps || t->done_at >= 0) return;
     finish_task(w);
+    start_next_now();
+}
+
+/* The next task starts now if it can move (the ones behind it move up), as Done pressed early does;
+ * an event, School, a meal or a set time can't, so the time until it is free time. */
+static void start_next_now(void)
+{
     logic_now(app.plan, app.now_s, &app.now);
     if (!app.now.nupcoming) return;
     int nx = app.now.upcoming[0];
@@ -954,7 +972,12 @@ static state_t derive(void)
         const day_task_t *c = &app.plan->tasks[n->current];
         app.focus = n->current;
         if (c->system == SYS_BEDTIME) return ST_BEDTIME;
-        if (c->system == SYS_SCHOOL) return app.now_s < n->start[n->current] * 60 + SCHOOL_OFF_S ? ST_SCHOOL_OFF : ST_SCHOOL;
+        if (c->system == SYS_SCHOOL) {
+            /* its get-ready time first (a parent can give School get-ready steps, like an outing) */
+            if (c->event_start >= 0 && app.now_s / 60 < c->event_start) return steps_all(n->current) ? ST_EVENT_READY : ST_EVENT_PREP;
+            int at = c->event_start >= 0 ? c->event_start : n->start[n->current];
+            return app.now_s < at * 60 + SCHOOL_OFF_S ? ST_SCHOOL_OFF : ST_SCHOOL;
+        }
         if (c->event) {
             if (app.now_s / 60 < c->event_start) {
                 bool all = steps_all(n->current);
@@ -1035,7 +1058,7 @@ static void next_from(home_view_t *v, int first)
     v->bottom = BOTTOM_NEXT;
     snprintf(v->next_icon, sizeof v->next_icon, "%s", t->icon);
     snprintf(v->next_title, sizeof v->next_title, "%s", t->title);
-    int start = t->event ? t->event_start : n->start[idx];
+    int start = t->event_start >= 0 ? t->event_start : n->start[idx];   /* an event's, or School's after its get-ready time */
     ui_fmt_time(v->next_time, sizeof v->next_time, start);
     int more = 0;
     for (int i = 0; i < app.plan->ntasks; i++) if (app.plan->tasks[i].done_at < 0 && n->start[i] > start) more++;
@@ -1218,9 +1241,9 @@ static void build_view(home_view_t *v)
             v->steps_ticked = app.ticks[app.focus];
             for (int i = 0; i < t->nsteps && i < HOME_STEPS_MAX; i++) snprintf(v->step_text[i], sizeof v->step_text[i], "%s", t->steps[i].text);
         } else if (t->nsteps && !n->overdue) {
-            /* all checked: "All done!" with the button at its end; one more press finishes the task
-             * (user, 2026-10-21). It never finishes on its own: the steps may only get it ready. A tap
-             * on the note brings the list back to uncheck one. */
+            /* all checked on a Must finish task: "All done!" with the button at its end; one more press
+             * finishes it (user, 2026-10-21; the day waits for Done). Other tasks move on by themselves
+             * (auto_next). A tap on the note brings the list back to uncheck one. */
             button_note(v, "check", "All done!");
         }
         if (t->nsteps && steps_all(app.focus)) v->cue = true;   /* the button at 1 o'clock lights up */
@@ -1686,6 +1709,17 @@ static void tick(lv_timer_t *timer)
     if (!app.fetching && now_ms() - app.last_fetch > app.refresh_ms) request_plan();
 
     logic_now(app.plan, app.now_s, &app.now);
+    /* a whole-task checklist finished a moment ago, and nothing unticked: it's done, the next thing starts */
+    if (app.auto_next >= 0 && (int32_t)(now_ms() - app.auto_next_at) >= 0) {
+        int f = app.auto_next;
+        app.auto_next = -1;
+        if (steps_all(f) && app.plan->tasks[f].done_at < 0 && app.now.current == f && app.done_task < 0) {
+            finish_task(f);
+            app.steps_peek = -1;
+            hal_play(HAL_SOUND_DONE);
+            start_next_now();
+        }
+    }
     app.state = derive();
     if (app.state != app.last_state) {
         on_state_change(app.last_state, app.state);
@@ -1715,7 +1749,7 @@ static void tick(lv_timer_t *timer)
             if (!play_is_open()) {
                 const day_task_t *nx = &app.plan->tasks[app.now.upcoming[0]];
                 char at[8];
-                ui_fmt_time(at, sizeof at, nx->event ? nx->event_start : app.now.start[app.now.upcoming[0]]);
+                ui_fmt_time(at, sizeof at, nx->event_start >= 0 ? nx->event_start : app.now.start[app.now.upcoming[0]]);
                 reminder_open(nx->icon, nx->title, at, app.now.free_remaining, app.plan->child.picture);
             }
         }
@@ -1814,6 +1848,7 @@ void mytoki_start(void)
     app.plan = lv_malloc_zeroed(sizeof(day_plan_t));
     app.done_task = -1;
     app.ready_task = -1;
+    app.auto_next = -1;
     app.last_current = -2;
     app.refresh_ms = REFRESH_MS;
     app.retry_ms = OFFLINE_RETRY_MS;
@@ -2112,6 +2147,7 @@ void mytoki_button(void)
             break;
         }
         app.steps_peek = -1;
+        app.auto_next = -1;   /* pressed in the moment before it would have moved on by itself */
         /* finished: Biscuit cheers for 3 seconds, then it's marked done. Done early with a next task
          * that can move: 5 seconds, with the ring at the button, to start it now instead */
         app.done_task = f;
@@ -2265,7 +2301,7 @@ void mytoki_open_playtime(void)
     if (left <= 0) return;
     const day_task_t *nx = app.now.nupcoming ? &app.plan->tasks[app.now.upcoming[0]] : NULL;
     char at[8] = "";
-    if (nx) ui_fmt_time(at, sizeof at, nx->event ? nx->event_start : app.now.start[app.now.upcoming[0]]);
+    if (nx) ui_fmt_time(at, sizeof at, nx->event_start >= 0 ? nx->event_start : app.now.start[app.now.upcoming[0]]);
     play_open(left, nx ? nx->title : "", nx ? nx->icon : "", at, app.plan->child.pet, on_outfit, on_character);
     if (app.state == ST_FREE) play_set_time_total(app.now.free_total - GET_READY_S);
 }

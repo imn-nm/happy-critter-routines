@@ -101,7 +101,8 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
         k->start = (int16_t)start;
         k->end = (int16_t)end;
         k->event = flag(t, "event");
-        k->event_start = (int16_t)(k->event ? hhmm(t, "event_start") : -1);
+        /* an event's own start; School's too when it has get-ready time (its block starts earlier) */
+        k->event_start = (int16_t)hhmm(t, "event_start");
         if (k->event && k->event_start < 0) k->event_start = k->start;
         k->important = flag(t, "important");
         k->fun = flag(t, "fun");

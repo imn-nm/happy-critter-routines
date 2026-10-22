@@ -1,7 +1,9 @@
 /**
  * Events: something the child goes to (a game, class, lesson). An event keeps
  * its set time, has no done button and ends by itself. It can have get-ready
- * time before it (prep_minutes), when its checklist shows.
+ * time before it (prep_minutes), when its checklist shows. School can have get-ready
+ * time too (user, 2026-10-22: backpack, lunchbox, shoes), without being an event: it keeps
+ * its own screens, isn't synced to calendars and isn't in Upcoming.
  *
  * On a day's schedule the event's block starts when getting ready starts, so
  * everything that looks for free time or overlaps counts that time as taken.
@@ -9,6 +11,7 @@
  */
 
 export interface EventLike {
+  name?: string | null;
   is_event?: boolean | null;
   prep_minutes?: number | null;
   scheduled_time?: string | null;
@@ -29,9 +32,12 @@ const toMin = (hhmm: string) => {
 const toHHMM = (min: number) =>
   `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-/** Minutes of get-ready time before an event (0 for everything else). */
+/** The built-in School row (its get-ready time works like an event's). */
+export const isSchoolRow = (task: EventLike) => (task.name ?? '').trim().toLowerCase() === 'school';
+
+/** Minutes of get-ready time before an event or School (0 for everything else). */
 export const prepMinutes = (task: EventLike) =>
-  task.is_event ? Math.max(0, task.prep_minutes ?? 0) : 0;
+  task.is_event || isSchoolRow(task) ? Math.max(0, task.prep_minutes ?? 0) : 0;
 
 /**
  * The event as one block of the day: it starts when getting ready does
@@ -39,7 +45,8 @@ export const prepMinutes = (task: EventLike) =>
  * the real start. Anything else comes back unchanged.
  */
 export function withGetReadyTime<T extends EventLike>(task: T, dayStartMin = 0): T {
-  if (!task.is_event || !task.scheduled_time || task.event_start) return task;
+  if (!task.scheduled_time || task.event_start) return task;
+  if (!task.is_event && !(isSchoolRow(task) && prepMinutes(task) > 0)) return task;
   const start = toMin(task.scheduled_time);
   const blockStart = Math.min(start, Math.max(dayStartMin, start - prepMinutes(task)));
   return {
@@ -62,10 +69,15 @@ export const getReadyLength = (task: EventLike) =>
 export const displayDuration = (task: EventLike) =>
   Math.max(0, (task.duration ?? 0) - getReadyLength(task));
 
-/** Getting ready, or at the event itself; null for anything that isn't an event. */
+/**
+ * Getting ready, or at the event itself; null for anything that isn't an event. School with
+ * get-ready time is 'prep' before it starts and itself (null) from then on.
+ */
 export function eventPhase(task: EventLike, nowMin: number): EventPhase | null {
-  if (!task.is_event) return null;
+  const school = !task.is_event && isSchoolRow(task) && !!task.event_start;
+  if (!task.is_event && !school) return null;
   const start = displayStart(task);
   if (!start) return null;
-  return nowMin < toMin(start) ? 'prep' : 'event';
+  if (nowMin < toMin(start)) return 'prep';
+  return school ? null : 'event';
 }

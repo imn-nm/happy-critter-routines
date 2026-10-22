@@ -3593,7 +3593,7 @@ function buildDayPlan({ child, schedule: planned, chores, completions, rewards, 
     if (t.is_event) {
       row2.event = true;
       if (t.event_start) row2.event_start = t.event_start.slice(0, 5);
-    }
+    } else if (t.event_start) row2.event_start = t.event_start.slice(0, 5);
     const sys = systemTaskKey(t.name);
     if (sys) row2.system = sys;
     if (isBedtimeRoutine(t.name)) row2.bedtime_routine = true;
@@ -3670,9 +3670,11 @@ var toMin3 = (hhmm3) => {
   return h * 60 + m;
 };
 var toHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-var prepMinutes = (task) => task.is_event ? Math.max(0, task.prep_minutes ?? 0) : 0;
+var isSchoolRow = (task) => (task.name ?? "").trim().toLowerCase() === "school";
+var prepMinutes = (task) => task.is_event || isSchoolRow(task) ? Math.max(0, task.prep_minutes ?? 0) : 0;
 function withGetReadyTime(task, dayStartMin = 0) {
-  if (!task.is_event || !task.scheduled_time || task.event_start) return task;
+  if (!task.scheduled_time || task.event_start) return task;
+  if (!task.is_event && !(isSchoolRow(task) && prepMinutes(task) > 0)) return task;
   const start = toMin3(task.scheduled_time);
   const blockStart = Math.min(start, Math.max(dayStartMin, start - prepMinutes(task)));
   return {
@@ -3989,4 +3991,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "78ea5595e3";
+export const PLAN_REV = "ea18eb7ecf";

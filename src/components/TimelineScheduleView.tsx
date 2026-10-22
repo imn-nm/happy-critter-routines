@@ -1104,6 +1104,9 @@ const TimelineScheduleView = ({
       type: 'system' as const,
       color: 'bg-gray-500',
       recurring_days: task.recurring_days,
+      // School's get-ready time and steps (its sheet sets them; the block before it shows them)
+      prep_minutes: task.prep_minutes,
+      subtasks: task.subtasks,
     };
   });
 
@@ -1170,7 +1173,9 @@ const TimelineScheduleView = ({
           duration: event.duration,
           recurring_days: event.recurring_days || [],
           is_recurring: true,
-          coins: 0
+          coins: 0,
+          prep_minutes: event.prep_minutes,
+          subtasks: event.subtasks,
         },
         isCompleted,
         isLate: false,
@@ -1398,9 +1403,9 @@ const TimelineScheduleView = ({
     };
   });
 
-  // An event's get-ready time, as a small block just before it. It moves
-  // with the event and counts as taken time (free time, overlaps, drops).
-  const prepEvents: TimelineEvent[] = draggableEvents.flatMap(e => {
+  // An event's (or School's) get-ready time, as a small block just before it. It moves
+  // with it and counts as taken time (free time, overlaps, drops).
+  const prepEvents: TimelineEvent[] = [...systemEventsOnly, ...draggableEvents].flatMap(e => {
     const prep = e.task ? prepMinutes(e.task) : 0;
     if (!prep) return [];
     const start = toMinutesOfDay(e.time);
@@ -1939,7 +1944,7 @@ const TimelineScheduleView = ({
                             {nowOverAt != null && (
                               <div
                                 ref={nowMarkerRef}
-                                className="absolute inset-x-0 z-20 -translate-y-1/2"
+                                className="absolute inset-x-0 z-20 -translate-y-1/2 pointer-events-none"
                                 style={{ top: `${nowOverAt * 100}%` }}
                               >
                                 <NowLine overCard label={nowLabel} />

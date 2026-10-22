@@ -464,6 +464,23 @@ const ChildDashboard = () => {
             return;
           }
         }
+        if (systemKey === 'school') {
+          // School's get-ready time and steps live on its row, for every day: saved now. Only a
+          // change of times goes on to "this date or all days".
+          const prepNow = taskData.prep_minutes ?? 0, prepWas = editingTask.prep_minutes ?? 0;
+          const stepsNow = JSON.stringify(taskData.subtasks ?? []), stepsWas = JSON.stringify(editingTask.subtasks ?? []);
+          if (prepNow !== prepWas || stepsNow !== stepsWas) {
+            await updateTask(editingTask.id, { prep_minutes: prepNow, subtasks: taskData.subtasks ?? [] });
+          }
+          const timesSame = (taskData.scheduled_time ?? '').slice(0, 5) === (editingTask.scheduled_time ?? '').slice(0, 5)
+            && (taskData.duration ?? null) === (editingTask.duration ?? null);
+          if (timesSame) {
+            setShowTaskForm(false);
+            setEditingTask(null);
+            await refetch();
+            return;
+          }
+        }
         if (systemKey) {
           // System task — defer to the same prompt so the parent can pick
           // "this date only" (writes children.system_date_overrides) vs
