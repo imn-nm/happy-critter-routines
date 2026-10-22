@@ -2124,8 +2124,9 @@ void mytoki_button(void)
     if (controls_is_open()) { controls_close(); return; }   /* the pull-down goes back up, nothing else */
     if (!app.have_plan) return;
     /* away from Home (another page, something over the day, Playtime): the button brings the child
-     * home to the pet, and does nothing else. Biscuit says keeps it: "Button" is part of the game. */
-    if (play_in_game() && game_current() == GAME_SAYS) { play_button(); return; }
+     * home to the pet, and does nothing else. In a game it is the way out, back to the games (Biscuit
+     * says keeps it mid-round: "Button" is part of the game). */
+    if (play_in_game()) { play_button(); return; }
     if (app.page != 1 || overlays_any_open() || play_is_open()) {
         if (play_is_open()) play_close();
         overlays_close_all();

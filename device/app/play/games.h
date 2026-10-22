@@ -35,6 +35,8 @@ void game_move(float x, float y);
 void game_release(void);
 /* The hardware button at 1 o'clock (Biscuit says: "Button"). */
 void game_button(void);
+/* Is the button part of the game right now (a Biscuit says round)? Otherwise it leaves the game. */
+bool game_wants_button(void);
 void game_ui(game_ui_t *ui);
 /* Does a drag on the stage belong to the game (so it must not close the screen)? */
 bool game_drags(void);

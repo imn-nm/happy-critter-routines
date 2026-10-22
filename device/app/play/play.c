@@ -1,6 +1,7 @@
 #include "../ui/fx.h"
 #include "play.h"
 #include "games.h"
+#include "classic.h"
 #include "../hal.h"
 #include "../pet/pet.h"
 #include "../ui/theme.h"
@@ -14,10 +15,12 @@
 #define SEE_YOU_MS 8000
 
 /* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is the four tapping
- * games in two rows of two; page 1 the three motion games, two above and one below. "%s" in a title
- * or label is the pet's name. Dress up is not a game: it lives in My pet (a long tap on the pet,
- * any time), with choosing the buddy, so it has no circle (page -1). */
-#define MENU_PAGES 2
+ * games in two rows of two; page 1 the three motion games, two above and one below; page 2 the five
+ * classic games (CLASSIC below), three above and two below. "%s" in a title or label is the pet's
+ * name. Dress up is not a game: it lives in My pet (a long tap on the pet, any time), with choosing
+ * the buddy, so it has no circle (page -1). */
+#define MENU_PAGES 3
+#define CLASSIC_PAGE 2
 static const struct { const char *title, *label, *icon; int32_t x, y; int page; } MENU[GAME_COUNT] = {
     [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 0, 0, -1 },
     [GAME_BATH] = { "Bath time", "Bath time", "droplets", 120, 126, 0 },
@@ -28,7 +31,17 @@ static const struct { const char *title, *label, *icon; int32_t x, y; int page; 
     [GAME_SAYS] = { "%s says", "%s says", "megaphone", 248, 126, 1 },
     [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 184, 250, 1 },
 };
-static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = { { "Play with %s", "kite" }, { "Move with %s", "move" } };
+static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = {
+    { "Play with %s", "kite" }, { "Move with %s", "move" }, { "Classic games", "game" },
+};
+/* Figma "13 · Classic games" */
+static const struct { const char *title, *icon; int32_t x, y; } CLASSIC[CL_COUNT] = {
+    [CL_TRAIL] = { "Snack Trail", "cookie", 44, 126 },   /* three 140 apart: the names don't touch */
+    [CL_MAZE] = { "Maze Munch", "circle-dot", 184, 126 },
+    [CL_BRICKS] = { "Brick Bounce", "brick", 324, 126 },
+    [CL_PAIRS] = { "Pet Pairs", "sparkles", 120, 250 },
+    [CL_DROP] = { "Snack Drop", "apple", 248, 250 },
+};
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
@@ -44,17 +57,16 @@ static struct {
     lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
+    lv_obj_t *classic_circle[CL_COUNT];
     lv_obj_t *back_wheel;       /* the menu's way out: back to the wheel */
-    lv_obj_t *back_game;        /* a game's way out: back to the menu ("Games", then "Leave?") */
-    pill_t back_pill;
-    lv_timer_t *leave_timer;    /* "Leave?" turns back into "Games" if not tapped again */
     lv_obj_t *buddy_pet;        /* My pet: the pet trying each choice on */
+    bool classic;               /* the game being played is a classic one (classic.c draws it) */
     bool buddy;                 /* My pet is showing */
     bool standalone;            /* opened by a long tap on the pet, not from Playtime */
     int editor_page;            /* My pet: 0 My buddy, 1 Dress up */
     play_character_cb_t on_character;
     header_t head;
-    char left_text[16];
+    char left_text[32];
     uint16_t *buf;
     led_cache_t cache;          /* what's in buf: a step repaints only what moved */
     lv_timer_t *timer_obj;
@@ -142,9 +154,15 @@ static void set_header(const char *icon, const char *title)
                    pl.editor_page ? "Swipe back to My buddy" : "Swipe to dress up");
         return;
     }
-    /* the menu: the clock and the pill only (a 32 px "Play with Biscuit" would wrap onto the games) */
-    /* a game: the play time left only; the Games button stands where the clock and its name were */
-    header_set(&pl.head, pl.in_game ? NULL : ui_clock(), NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+    /* a classic game (Figma "13 · Classic games"): the clock, its name, the play time left; Maze
+     * Munch fills the screen, so no name */
+    if (pl.in_game && pl.classic) {
+        header_set(&pl.head, ui_clock(), classic_wide() ? NULL : head_title, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+        return;
+    }
+    /* the menu and the other games: the clock and the pill only (a 32 px "Play with Biscuit" would
+     * wrap onto the games) */
+    header_set(&pl.head, ui_clock(), NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */
@@ -434,26 +452,58 @@ static void game_controls(void)
     }
 }
 
-/* ---------------------------------------------------------------- menu and games */
-static void on_game(lv_event_t *e)
+/* A classic game: its status pill (the count, or what to do) where the game says, or none. */
+static void classic_controls(void)
 {
-    game_id_t g = (game_id_t)(intptr_t)lv_event_get_user_data(e);
+    char icon[20], text[48], sig[160];
+    bool on = classic_status(icon, sizeof icon, text, sizeof text);
+    snprintf(sig, sizeof sig, "cl%d|%d|%s|%s", on, (int)classic_status_y(), icon, text);
+    if (!strcmp(sig, pl.sig)) return;
+    strcpy(pl.sig, sig);
+    lv_obj_clean(pl.bottom);
+    pl.score = NULL;
+    set_header(NULL, NULL);   /* Maze Munch's name goes once it fills the screen */
+    if (!on) return;
+    pl.score = status_pill_create(pl.bottom, icon, text, C_BONE);
+    lv_obj_update_layout(pl.score);
+    lv_obj_align(pl.score, LV_ALIGN_TOP_MID, 0, classic_status_y() - lv_obj_get_y(pl.bottom));
+    fx_pop(pl.score, 0);
+}
+
+/* ---------------------------------------------------------------- menu and games */
+static void game_shown(const char *title)
+{
     buddy_close();
     pl.in_game = true;
     pl.sig[0] = 0;
     pl.slot = 0;
-    game_start(g, pl.pet);
     ui_show(pl.menu, false);
     if (pl.menu_pet) { ui_show(pl.menu_pet, false); pet_set_paused(pl.menu_pet, true); }
-    ui_show(pl.canvas, true);
-    ui_show(pl.shade_top, true);
-    ui_show(pl.shade_low, true);
+    ui_show(pl.canvas, !pl.classic);
+    ui_show(pl.shade_top, !pl.classic);
+    ui_show(pl.shade_low, !pl.classic);
     ui_show(pl.bottom, true);
-    if (pl.back_game) ui_show(pl.back_game, true);
+    set_header(NULL, title);
+    hal_play(HAL_SOUND_TICK);
+}
+
+static void on_game(lv_event_t *e)
+{
+    game_id_t g = (game_id_t)(intptr_t)lv_event_get_user_data(e);
+    pl.classic = false;
+    game_start(g, pl.pet);
     char t[40];
     named(t, sizeof t, MENU[g].title);
-    set_header(MENU[g].icon, t);
-    hal_play(HAL_SOUND_TICK);
+    game_shown(t);
+}
+
+static void on_classic(lv_event_t *e)
+{
+    classic_id_t g = (classic_id_t)(intptr_t)lv_event_get_user_data(e);
+    pl.classic = true;
+    classic_start(g);
+    game_shown(CLASSIC[g].title);
+    classic_controls();
 }
 
 /* One page of the ring: its circles spring in, a chevron points at the other page. */
@@ -461,6 +511,7 @@ static void menu_page(int page)
 {
     pl.page = page;
     for (int g = 0; g < GAME_COUNT; g++) if (pl.circle[g]) ui_show(pl.circle[g], MENU[g].page == page);
+    for (int g = 0; g < CL_COUNT; g++) if (pl.classic_circle[g]) ui_show(pl.classic_circle[g], page == CLASSIC_PAGE);
     ui_show(pl.chev_r, page < MENU_PAGES - 1);
     ui_show(pl.chev_l, page > 0);
     fx_spring_children(pl.menu, 50);
@@ -481,7 +532,9 @@ static void on_chevron(lv_event_t *e)
 static void open_menu(void)
 {
     buddy_close();
+    classic_stop();
     pl.in_game = false;
+    pl.classic = false;
     pl.sig[0] = 0;
     lv_obj_clean(pl.bottom);
     pl.score = NULL;
@@ -492,45 +545,10 @@ static void open_menu(void)
     ui_show(pl.canvas, false);
     ui_show(pl.shade_top, false);
     ui_show(pl.shade_low, false);
-    if (pl.back_game) ui_show(pl.back_game, false);
     menu_page(pl.page);   /* back to the page the game came from */
 }
 
 static void close_sliding(int dir);
-
-/* A game's way out, at the top: "Games" asks "Leave?", and a second tap within 3 s leaves, so a
- * stray tap during play doesn't. */
-static void back_label(bool ask)
-{
-    if (!pl.back_game) return;
-    pill_set(&pl.back_pill, ask ? PILL_ACTION : PILL_CALM, ask ? NULL : "chevron-left", ask ? "Leave?" : "Games");
-    lv_obj_update_layout(pl.back_game);
-    lv_obj_align(pl.back_game, LV_ALIGN_TOP_MID, 0, 10);
-}
-
-static void leave_reset(lv_timer_t *t)
-{
-    (void)t;
-    pl.leave_timer = NULL;
-    back_label(false);
-}
-
-static void on_back_game(lv_event_t *e)
-{
-    (void)e;
-    if (!pl.in_game || pl.see_you) return;
-    hal_play(HAL_SOUND_TICK);
-    if (!pl.leave_timer) {
-        back_label(true);
-        pl.leave_timer = lv_timer_create(leave_reset, 3000, NULL);
-        lv_timer_set_repeat_count(pl.leave_timer, 1);
-        return;
-    }
-    lv_timer_delete(pl.leave_timer);
-    pl.leave_timer = NULL;
-    back_label(false);
-    open_menu();
-}
 
 static void on_back_wheel(lv_event_t *e)
 {
@@ -544,14 +562,14 @@ static void on_back_wheel(lv_event_t *e)
 bool play_in_menu(void) { return pl.root && !pl.in_game && !pl.see_you && !pl.buddy && !pl.standalone; }
 bool play_in_game(void) { return pl.root && pl.in_game && !pl.see_you; }
 
-/* Swipe left or right: the menu turns its pages (left for the motion games, right to come back),
- * and from the first page a swipe right leaves. A game ignores swipes (a sideways drag is play):
- * its Games button is the way out. Tilting never swipes. */
+/* Swipe left or right: the menu turns its pages (left for the next games, right to come back), and
+ * from the first page a swipe right leaves. A game ignores swipes (a drag is play): only the button
+ * at 1 o'clock leaves it. Tilting never swipes. */
 static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, bool commit)
 {
     (void)owner; (void)user;
     if (dir == SWIPE_DOWN) return false;
-    if (pl.in_game && !pl.see_you) return false;   /* a game is left only by its Games button: a swipe in play was too easy */
+    if (pl.in_game && !pl.see_you) return false;   /* a game is left only by the button */
     if (!commit) return true;
     /* My pet: left for Dress up, right back to My buddy; right from My buddy leaves it */
     if (pl.buddy && !pl.see_you) {
@@ -573,7 +591,11 @@ void play_button(void)
 {
     if (!pl.root) return;
     if (pl.see_you || pl.standalone) { play_close(); return; }   /* My pet: the button is done */
-    if (pl.in_game) game_button();
+    if (!pl.in_game) return;
+    /* Biscuit says, mid-round: "Button" is a move. Otherwise the button leaves the game for the menu. */
+    if (!pl.classic && game_wants_button()) { game_button(); return; }
+    open_menu();
+    hal_play(HAL_SOUND_TICK);
 }
 
 /* ---------------------------------------------------------------- see you later */
@@ -596,8 +618,10 @@ static void see_you_later(void)
     pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
-    pl.chev_l = pl.chev_r = pl.back_wheel = pl.back_game = NULL;
+    pl.chev_l = pl.chev_r = pl.back_wheel = NULL;
     memset(pl.circle, 0, sizeof pl.circle);
+    memset(pl.classic_circle, 0, sizeof pl.classic_circle);
+    pl.classic = false;
     lv_free(pl.buf);
     pl.buf = NULL;
     forget_cache();
@@ -637,6 +661,7 @@ static void step(lv_timer_t *t)
     pl.t += STEP_MS;
     if (pl.buddy) { editor_controls(); return; }
     if (!pl.in_game) return; /* the menu's Biscuit draws himself */
+    if (pl.classic) { classic_controls(); return; }   /* it plays on its own timer */
     game_update(STEP_MS);
     game_controls();
     draw_stage();
@@ -649,7 +674,8 @@ void play_set_time_left(int32_t s)
     if (!pl.root || pl.see_you || pl.standalone) return;   /* My pet has no play time */
     pl.left = s;
     if (s <= 0) { see_you_later(); return; }
-    snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d left", (int)(s / 60), (int)(s % 60));
+    if (s >= 3600) snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d:%02d free time left", (int)(s / 3600), (int)(s / 60 % 60), (int)(s % 60));
+    else snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d free time left", (int)(s / 60), (int)(s % 60));
     set_header(NULL, NULL);
     /* the rim: what's left of the play time in mint, the whole of it amber under 10 minutes */
     if (s > pl.total) pl.total = s;
@@ -666,7 +692,7 @@ static void free_buf(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
 static void forget(void)
 {
     if (pl.timer_obj) lv_timer_delete(pl.timer_obj);
-    if (pl.leave_timer) lv_timer_delete(pl.leave_timer);
+    classic_stop();
     if (pl.root && pl.buf) lv_obj_add_event_cb(pl.root, free_buf, LV_EVENT_DELETE, pl.buf);
     else lv_free(pl.buf);
     forget_cache();
@@ -709,6 +735,7 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     lv_obj_set_pos(pl.canvas, 0, 0);
     lv_obj_add_flag(pl.canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(pl.canvas, on_stage, LV_EVENT_ALL, NULL);
+    classic_create(pl.root);   /* the classic games draw here, under the header and the timer */
     pl.shade_top = shade(pl.root, 0, 128, false);
     pl.shade_low = shade(pl.root, 314, 152, true);
 
@@ -718,14 +745,18 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     pl.menu = ui_box(pl.root);
     lv_obj_set_size(pl.menu, SCREEN_W, SCREEN_H);
     bool picture = ui_picture();
-    for (int g = 0; g < GAME_COUNT; g++) {
-        if (MENU[g].page < 0) continue;   /* Dress up: in My pet */
+    for (int g = 0; g < GAME_COUNT + CL_COUNT; g++) {
+        bool classic = g >= GAME_COUNT;
+        int k = classic ? g - GAME_COUNT : g;
+        int page = classic ? CLASSIC_PAGE : MENU[k].page;
+        if (page < 0) continue;   /* Dress up: in My pet */
         lv_obj_t *t = ui_box(pl.menu);
-        pl.circle[g] = t;
+        if (classic) pl.classic_circle[k] = t;
+        else pl.circle[k] = t;
         lv_obj_set_size(t, 140, 122);   /* the 98 tile, wider so a long name fits on one line */
-        lv_obj_set_pos(t, MENU[g].x - 21, MENU[g].y);
+        lv_obj_set_pos(t, (classic ? CLASSIC[k].x : MENU[k].x) - 21, classic ? CLASSIC[k].y : MENU[k].y);
         lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(t, on_game, LV_EVENT_CLICKED, (void *)(intptr_t)g);
+        lv_obj_add_event_cb(t, classic ? on_classic : on_game, LV_EVENT_CLICKED, (void *)(intptr_t)k);
         lv_obj_t *b = ui_box(t);
         lv_obj_set_size(b, 88, 88);
         lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 0);
@@ -733,11 +764,11 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_obj_set_style_border_width(b, 2, 0);
         lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
         lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
-        lv_obj_t *ic = ui_icon(b, MENU[g].icon, 36, C_LIME);
+        lv_obj_t *ic = ui_icon(b, classic ? CLASSIC[k].icon : MENU[k].icon, 36, C_LIME);
         lv_obj_center(ic);
-        if (picture && MENU[g].page > 0) continue;   /* picture view: the motion games are icon-first */
+        if (picture && page > 0) continue;   /* picture view: the motion and classic games are icon-first */
         char label[32];
-        named(label, sizeof label, MENU[g].label);
+        named(label, sizeof label, classic ? CLASSIC[k].title : MENU[k].label);
         lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, label);
         lv_obj_set_size(l, 140, lv_font_get_line_height(F_LABEL));
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -771,16 +802,6 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
 
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);
-
-    /* in a game: "‹ Games" at the top, over the play time left (a small arrow wasn't seen as the way
-     * out, and a swipe left too easily) */
-    pill_create(pl.root, &pl.back_pill);
-    pl.back_game = pl.back_pill.root;
-    lv_obj_add_flag(pl.back_game, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(pl.back_game, 12);
-    lv_obj_add_event_cb(pl.back_game, on_back_game, LV_EVENT_CLICKED, NULL);
-    back_label(false);
-    ui_show(pl.back_game, false);
 
     pl.bottom = ui_box(pl.root);
     lv_obj_set_size(pl.bottom, SCREEN_W, 132);

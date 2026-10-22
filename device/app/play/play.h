@@ -1,8 +1,9 @@
 /*
- * Playtime: seven games, opened from free time, on two pages (the four tapping games, then the
- * three motion games). My pet (play_open_pet) is not a game: a long tap on the pet opens it any
- * time, to pick the character and its colour and to dress it up. Swipe left for the second page
- * and right for the first; a game swipes back to the menu; swiping right from the first page leaves.
+ * Playtime: twelve games, opened from free time, on three pages (the four tapping games, the three
+ * motion games, then the five classic games in classic.c). My pet (play_open_pet) is not a game: a
+ * long tap on the pet opens it any time, to pick the character and its colour and to dress it up.
+ * Swipe left for the next page and right for the one before; swiping right from the first page
+ * leaves. A game ignores swipes: only the button at 1 o'clock takes it back to the menu.
  * Five minutes before the next thing it stops and Biscuit says "See you later!".
  */
 #pragma once
@@ -27,5 +28,6 @@ bool play_in_menu(void);
 /* A game is being played (not the menu, My pet or the goodbye). */
 bool play_in_game(void);
 void play_close(void);
-/* The hardware button while Playtime is open (Biscuit says: "Button"; the goodbye: close). */
+/* The hardware button while a game is on (back to the menu; Biscuit says mid-round: "Button") or
+ * the goodbye / My pet is showing (close). */
 void play_button(void);

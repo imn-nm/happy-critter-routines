@@ -1399,6 +1399,8 @@ void game_button(void)
     if (cur == GAME_SAYS) bs_button();
 }
 
+bool game_wants_button(void) { return cur == GAME_SAYS && bs.state != BS_READY && bs.state != BS_END; }
+
 void game_move(float x, float y)
 {
     if (cur == GAME_CARROT) cc_press(x, y);
