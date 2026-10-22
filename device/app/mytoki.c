@@ -894,6 +894,28 @@ static void on_retry(int unused)
     hal_request_day();
 }
 
+/* "I'm up" answers the Wake Up row. With no steps of its own there's nothing left of it (its time was
+ * for getting up), so it's done and the next thing starts now, the ones behind it moving up, as Done
+ * pressed early would; with steps (Pee, Brush teeth) it stays for them. User, 2026-10-22: "Wake Up"
+ * with 15 minutes on it read as 15 minutes to get out of bed. */
+static void imup_moves_on(void)
+{
+    int w = app.now.current;
+    if (w < 0) return;
+    const day_task_t *t = &app.plan->tasks[w];
+    if (t->system != SYS_WAKE || t->nsteps || t->done_at >= 0) return;
+    finish_task(w);
+    logic_now(app.plan, app.now_s, &app.now);
+    if (!app.now.nupcoming) return;
+    int nx = app.now.upcoming[0];
+    if (!logic_can_pull(app.plan, nx, app.now_s)) return;
+    char id[40];
+    snprintf(id, sizeof id, "%s", app.plan->tasks[nx].id);
+    logic_pull_forward(app.plan, nx, app.now_s);
+    send("next_now", "task_id", id, 0);
+    logic_now(app.plan, app.now_s, &app.now);
+}
+
 /* ================================================================ which screen, and its view */
 static state_t derive(void)
 {
@@ -925,6 +947,7 @@ static state_t derive(void)
         app.alarm_ack = true;
         save_progress();
         app.focus = -1;
+        imup_moves_on();
     }
     if (n->current >= 0) {
         const day_task_t *c = &app.plan->tasks[n->current];
@@ -1135,7 +1158,8 @@ static void build_view(home_view_t *v)
     switch (app.state) {
     case ST_TASK: {
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
-        snprintf(v->title, sizeof v->title, "%s", t->title);
+        /* the Wake Up row says good morning: "Wake Up" with its minutes read as time to get out of bed */
+        snprintf(v->title, sizeof v->title, "%s", t->system == SYS_WAKE ? "Good morning!" : t->title);
         pet_activity_t act = activity_for(t);
         char k[48];
         lower(k, sizeof k, t->title);
@@ -1201,7 +1225,9 @@ static void build_view(home_view_t *v)
         if (t->nsteps && steps_all(app.focus)) v->cue = true;   /* the button at 1 o'clock lights up */
         next_from(v, -1);
         /* Figma: his greeting at wake-up and dinner only, as the task starts */
-        bool greets = t->system == SYS_WAKE || t->system == SYS_DINNER || strstr(k, "wake") || strstr(k, "morning") || strstr(k, "dinner") || t->say[0];
+        /* (after the alarm, "You're up! Let's go!" was the greeting) */
+        bool greets = (t->system == SYS_WAKE ? !app.alarm_ack : strstr(k, "wake") || strstr(k, "morning"))
+                   || t->system == SYS_DINNER || strstr(k, "dinner") || t->say[0];
         if (!n->overdue && v->card == CARDPOS_NONE && v->graphic == GRAPHIC_FULL && greets) {
             snprintf(buf, sizeof buf, "task:%s", t->id);
             char tmp[64];
@@ -1509,7 +1535,10 @@ static void speak_state(state_t to)
     case ST_BEDTIME: hal_speak("Time for bed. Goodnight!"); break;
     case ST_EVENT_PREP: snprintf(line, sizeof line, "Time to get ready for %s!", t->title); hal_speak(line); break;
     case ST_EVENT: snprintf(line, sizeof line, "Time for %s. Have fun!", t->title); hal_speak(line); break;
-    case ST_TASK: snprintf(line, sizeof line, "Time for %s!", t->title); hal_speak(line); break;
+    case ST_TASK:
+        if (t->system == SYS_WAKE) hal_speak("Good morning!");
+        else { snprintf(line, sizeof line, "Time for %s!", t->title); hal_speak(line); }
+        break;
     case ST_WAIT_START: snprintf(line, sizeof line, "%s is waiting. Press the button to start.", t->title); hal_speak(line); break;
     case ST_DONE: hal_speak("Yay!"); break;
     default: break;
