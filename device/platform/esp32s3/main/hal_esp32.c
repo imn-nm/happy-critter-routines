@@ -188,6 +188,9 @@ static bool axp_read(uint8_t reg, uint8_t *v) { return i2c_master_transmit_recei
 
 static void power_poll(void)
 {
+    static int64_t next_us;
+    if (esp_timer_get_time() < next_us) return;
+    next_us = esp_timer_get_time() + 20 * 1000000LL;
     if (!axp_tried) {
         axp_tried = true;
         i2c_master_bus_handle_t bus = NULL;
@@ -224,6 +227,7 @@ bool hal_charging(void) { return bat_plugged; }
  * redrawn (the panel still holds the old one), at the brightness last asked for. */
 static uint8_t bright_want = 100;
 static bool screen_dark, screen_waking;
+static int64_t look_next_us;   /* the quick look's next time (below): picked up, it looks at once */
 void hal_set_brightness(uint8_t percent)
 {
     bright_want = percent < 5 ? 5 : percent;
@@ -253,6 +257,7 @@ void hal_screen(bool on)
     }
     if (!screen_dark) return;
     screen_waking = true;
+    look_next_us = 0;
     lv_display_enable_invalidation(d, true);
     lv_obj_invalidate(lv_display_get_screen_active(d));
     lv_obj_invalidate(lv_display_get_layer_top(d));
@@ -467,7 +472,23 @@ static void plan_cache_offer(void)
     }
 }
 
-static void fetch_day(void)
+/* How often the quick look (below) asks, balanced against the battery: the radio is what drains it.
+ * On the charger every 5 s; in a hand (the screen on) every 10 s; put down (the screen dark) every
+ * 30 s, as often as the day was asked for before the quick look; on a low battery once a minute. */
+static uint32_t look_every_ms(void)
+{
+    if (bat_plugged) return 5000;
+    if (bat_percent <= 15) return 60000;
+    return screen_dark ? 30000 : 10000;
+}
+
+/* The app asks for the day every 30 s. While the quick look has just found nothing new, the kept day
+ * answers without the radio; a real ask still goes at least every 5 minutes (a new build of the
+ * plan code changes the day without changing its number). */
+#define DAY_ASK_MAX_US (5 * 60 * 1000000LL)
+static int64_t look_same_us, day_asked_us;
+
+static void fetch_day(bool changed)
 {
     if (!CONFIG_MYTOKI_DAY_URL[0]) {
         /* no server yet: the built-in demo day */
@@ -475,6 +496,12 @@ static void fetch_day(void)
         return;
     }
     if (!CONFIG_MYTOKI_DEVICE_TOKEN[0]) { with_lock_fail(3); return; } /* not paired: the device shows its code */
+    int64_t now = esp_timer_get_time();
+    if (!changed && day_body && day_etag[0] && look_same_us && now - look_same_us < (look_every_ms() + 2000) * 1000LL &&
+        now - day_asked_us < DAY_ASK_MAX_US) {
+        with_lock_day(day_body, day_len);
+        return;
+    }
     plan_cache_offer();
     /* asked just after start-up: give Wi-Fi a moment to join before saying "Let's reconnect" */
     for (int i = 0; i < 100 && !wifi_up && CONFIG_MYTOKI_WIFI_SSID[0]; i++) vTaskDelay(pdMS_TO_TICKS(100));
@@ -482,6 +509,7 @@ static void fetch_day(void)
     outbox_flush();   /* what the child did goes first, so the day that comes back has it */
     body_t b = { 0 };
     got_etag[0] = 0;
+    day_asked_us = esp_timer_get_time();
     int st = http(CONFIG_MYTOKI_DAY_URL, NULL, day_body && day_etag[0] ? day_etag : NULL, &b, false);
     if (st == 304 && day_body) with_lock_day(day_body, day_len);   /* nothing changed */
     else if (st == 200 && b.buf) {
@@ -504,17 +532,16 @@ static void fetch_day(void)
 }
 
 /* ================================================================ the quick look */
-/* Every 5 s while there's a day: has it changed? One small call to the database
+/* While there's a day: has it changed? One small call to the database
  * (rest/v1/rpc/mytoki_plan_version, on the day plan's host) with this handheld's token returns its
  * child's change number; the whole day is fetched only when that has moved past the kept day's
  * ETag ("<build>-<date>-<child>-<number>"), or the date has. A grown-up's test ring or new time so
- * shows within seconds, for one index lookup a look and no function call. After a failure it waits
- * twice as long each time, up to 5 minutes. */
+ * shows within seconds, for one index lookup a look and no function call. Paced by look_every_ms;
+ * after a failure it waits twice as long each time, from 5 s up to 5 minutes. */
 #define LOOK_MS 5000
 #define LOOK_MAX_MS (5 * 60 * 1000)
 static char look_url[160];
 static uint32_t look_wait_ms = LOOK_MS;
-static int64_t look_next_us;
 
 static void look_init(void)
 {
@@ -548,8 +575,8 @@ static void quick_look(void)
     long long now_number = ok ? strtoll(b.buf, NULL, 10) : 0;
     free(b.buf);
     look_wait_ms = ok ? LOOK_MS : look_wait_ms * 2 > LOOK_MAX_MS ? LOOK_MAX_MS : look_wait_ms * 2;
-    look_next_us = esp_timer_get_time() + (int64_t)look_wait_ms * 1000;
-    if (!ok) return;
+    look_next_us = esp_timer_get_time() + (int64_t)(ok ? look_every_ms() : look_wait_ms) * 1000;
+    if (!ok) { look_same_us = 0; return; }
     snprintf(today, sizeof today, "%s", date);
     if (clock_good) {
         time_t t = time(NULL);
@@ -557,7 +584,8 @@ static void quick_look(void)
         localtime_r(&t, &tm);
         strftime(today, sizeof today, "%Y-%m-%d", &tm);
     }
-    if (now_number != have || strcmp(today, date)) fetch_day();
+    if (now_number != have || strcmp(today, date)) { look_same_us = 0; fetch_day(true); }
+    else look_same_us = esp_timer_get_time();
 }
 
 static void net_task(void *arg)
@@ -567,7 +595,7 @@ static void net_task(void *arg)
     for (;;) {
         power_poll();
         if (xQueueReceive(net_q, &m, pdMS_TO_TICKS(LOOK_MS)) == pdTRUE) {
-            if (m.kind == 0) fetch_day();
+            if (m.kind == 0) fetch_day(false);
             else if (m.json) {
                 if (outbox_n == OUTBOX_MAX) { free(outbox[0]); memmove(outbox, outbox + 1, sizeof(char *) * (OUTBOX_MAX - 1)); outbox_n--; }
                 outbox[outbox_n++] = m.json;
@@ -614,6 +642,7 @@ static void wifi_start(void)
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     esp_wifi_start();
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);   /* the radio sleeps between the access point's beacons */
     esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     sntp.sync_cb = on_sntp;
     esp_netif_sntp_init(&sntp);
