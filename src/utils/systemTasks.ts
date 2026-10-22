@@ -10,6 +10,8 @@ export interface SystemTaskTemplate {
   defaultDuration: number;
   defaultDays: string[];
   description?: string;
+  /** The checklist a new row starts with (the child ticks them off; the row still lasts its time). */
+  defaultSteps?: string[];
 }
 
 export interface DaySpecificSchedule {
@@ -24,7 +26,8 @@ export const systemTaskTemplates: SystemTaskTemplate[] = [
     defaultTime: '07:00:00',
     defaultDuration: 15,
     defaultDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-    description: 'Get up and start the day'
+    description: 'Get up and start the day',
+    defaultSteps: ['Pee', 'Brush teeth'],
   },
   {
     name: 'Breakfast',
@@ -171,6 +174,7 @@ export const missingSystemTaskRows = (childId: string, existingTasks: { name: st
       is_recurring: true,
       recurring_days: template.defaultDays,
       description: template.description,
+      ...(template.defaultSteps ? { subtasks: template.defaultSteps.map(text => ({ id: crypto.randomUUID(), text })) } : {}),
       sort_order: existingTasks.length + index,
       is_active: true,
     }));

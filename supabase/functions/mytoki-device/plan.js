@@ -2976,7 +2976,8 @@ var systemTaskTemplates = [
     defaultTime: "07:00:00",
     defaultDuration: 15,
     defaultDays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-    description: "Get up and start the day"
+    description: "Get up and start the day",
+    defaultSteps: ["Pee", "Brush teeth"]
   },
   {
     name: "Breakfast",
@@ -3034,6 +3035,7 @@ var missingSystemTaskRows = (childId, existingTasks) => {
     is_recurring: true,
     recurring_days: template.defaultDays,
     description: template.description,
+    ...template.defaultSteps ? { subtasks: template.defaultSteps.map((text) => ({ id: crypto.randomUUID(), text })) } : {},
     sort_order: existingTasks.length + index,
     is_active: true
   }));
@@ -3987,4 +3989,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "dcf7dcb4bc";
+export const PLAN_REV = "78ea5595e3";
