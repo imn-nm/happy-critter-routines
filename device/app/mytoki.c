@@ -17,6 +17,7 @@
 #include "ui/overlays.h"
 #include "ui/wheel.h"
 #include "ui/swipe.h"
+#include "ui/controls.h"
 #include "play/play.h"
 #include "play/games.h"
 #include "motion.h"
@@ -110,6 +111,7 @@ static struct {
     uint32_t hello_until;       /* ms: "Hi, Amira!" after pairing */
     int battery_shown;          /* the last low-battery step shown (10, 5), or 0 */
     uint8_t brightness;
+    uint8_t user_bright, volume;   /* the child's choices in the pull-down: how much of the usual brightness, how loud */
     int32_t last_now_s;         /* to notice the clock jumping back (the simulator's jumps) */
     /* the screen off when put down */
     bool screen_off, sleep_test;
@@ -905,7 +907,7 @@ static state_t derive(void)
     if (n->day_over) return ST_DAY_OVER;
     /* the morning alarm: from wake-up until the button says I'm up (only the button ends it: user,
      * 2026-10-21) */
-    if (n->has_timed && !n->before_wake && !app.alarm_ack) {
+    if (app.plan->child.alarm && n->has_timed && !n->before_wake && !app.alarm_ack) {
         app.focus = n->current;
         if (app.imup_until && (int32_t)(now_ms() - app.imup_until) < 0) return ST_IM_UP;
         if (!app.imup_until) return app.now_s < app.snooze_until ? ST_SNOOZE : ST_ALARM;
@@ -956,18 +958,30 @@ static void fmt_clock(char *buf, size_t n, int minutes)
 }
 
 /* The night clock (Figma Wind down · Night clock): the handheld on its dock after Goodnight. */
+/* The night pill: the alarm that rings next, "Alarm set for 7:00" (the alarm icon), or with no alarm
+ * "Wake up at 8:30" (the sun). Before midnight that's tomorrow's; after, today's. Picture view: the
+ * icon and the time only. */
+static void alarm_pill(home_view_t *v)
+{
+    const day_plan_t *p = app.plan;
+    bool tonight = app.state == ST_BEDTIME || app.state == ST_DAY_OVER;
+    int wake = tonight && p->child.next_wake >= 0 ? p->child.next_wake : app.now.wake;
+    bool alarm = tonight ? p->child.next_alarm : p->child.alarm;
+    char w[8];
+    ui_fmt_time(w, sizeof w, wake);
+    v->below = BELOW_TIME;
+    v->pill_tone = PILL_NIGHT;
+    snprintf(v->status_icon, sizeof v->status_icon, "%s", alarm ? "alarm" : "sun");
+    if (p->child.picture) snprintf(v->status, sizeof v->status, "%s", w);
+    else snprintf(v->status, sizeof v->status, alarm ? "Alarm set for %s" : "Wake up at %s", w);
+}
+
 static void night_clock(home_view_t *v)
 {
-    const logic_now_t *n = &app.now;
     const int now_m = app.now_s / 60;
     v->clock = true;
     ui_fmt_time(v->clock_text, sizeof v->clock_text, now_m);
-    char w[8];
-    ui_fmt_time(w, sizeof w, n->wake);
-    v->below = BELOW_TIME;
-    snprintf(v->status, sizeof v->status, "Wake up at %s", w);
-    snprintf(v->status_icon, sizeof v->status_icon, "alarm");
-    v->pill_tone = PILL_NIGHT;
+    alarm_pill(v);
     v->timer_show = false;
     v->mood = PET_MOOD_SLEEP;
     v->pet_dim = 128;
@@ -1034,8 +1048,7 @@ static void picture_view(home_view_t *v)
         break;   /* the same screen for both ages (Circle rule 7) */
     case ST_BEDTIME:
     case ST_DAY_OVER:
-        snprintf(v->title, sizeof v->title, "%s", p->child.name);
-        v->status[0] = 0;
+        snprintf(v->title, sizeof v->title, "%s", p->child.name);   /* the alarm pill stays: its icon and time */
         if (v->bottom == BOTTOM_NOTE) v->bottom = BOTTOM_NONE;
         break;
     default:
@@ -1421,7 +1434,7 @@ static void build_view(home_view_t *v)
         if (hal_docked()) { night_clock(v); break; }   /* on its dock: the night clock, from Goodnight on */
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Goodnight, %s!", p->child.name);
-        snprintf(v->status, sizeof v->status, over ? "Sleep tight" : "Time to rest");
+        alarm_pill(v);   /* the alarm for the morning (user, 2026-10-22) */
         v->mood = PET_MOOD_SLEEP;
         v->pet_dim = over ? 90 : 0;
         if (!over) snprintf(v->say, sizeof v->say, "See you tomorrow!");
@@ -1431,12 +1444,7 @@ static void build_view(home_view_t *v)
     case ST_SLEEPY: {
         if (hal_docked()) { night_clock(v); break; }
         int to_wake = n->wake - now_m;
-        char w[8];
-        ui_fmt_time(w, sizeof w, n->wake);
-        v->below = BELOW_TIME;
-        v->pill_tone = PILL_NIGHT;
-        snprintf(v->status, sizeof v->status, "Wake up at %s", w);
-        snprintf(v->status_icon, sizeof v->status_icon, "alarm");
+        alarm_pill(v);
         if (to_wake > 60) {
             /* picked up in the night (Figma Wind down · Woke in the night) */
             snprintf(v->icon, sizeof v->icon, "cloudmoon");
@@ -1565,6 +1573,8 @@ static void brightness(void)
     case ST_BED_SOON: b = 65; break;
     default: break;
     }
+    b = (uint8_t)(b * app.user_bright / 100);   /* the pull-down's slider: night still dims from there */
+    if (b < 5) b = 5;
     /* fade to it, a step a tick (about two seconds from dim to full), so waking up brightens */
     if (b == app.brightness) return;
     int step = 8, d = (int)b - (int)app.brightness;
@@ -1600,7 +1610,8 @@ static void tick(lv_timer_t *timer)
     app.last_now_s = app.now_s;
     /* the battery: a nudge at 10% and again at 5%, gone as soon as it's on the dock */
     int bat = hal_battery();
-    if (hal_docked() || bat > 10) {
+    controls_battery(bat, hal_charging());   /* the pull-down, if it's open */
+    if (hal_docked() || hal_charging() || bat > 10) {
         if (battery_is_open()) battery_close();
         if (bat > 10) app.battery_shown = 0;
     } else {
@@ -1680,6 +1691,50 @@ static void tick(lv_timer_t *timer)
 static void render_now(void) { if (app.have_plan) tick(NULL); }
 
 /* ================================================================ entry points */
+/* ================================================================ the pull-down */
+/* The child's brightness and sound, kept across restarts ("bright", "volume"). */
+static void controls_get(controls_values_t *v)
+{
+    v->battery = hal_battery();
+    v->charging = hal_charging();
+    v->brightness = app.user_bright;
+    v->volume = app.volume;
+}
+
+static void controls_changed(const controls_values_t *v, bool done)
+{
+    if (v->brightness != app.user_bright) {
+        app.user_bright = (uint8_t)v->brightness;
+        app.brightness = 0;   /* straight there, no fade: the finger is on it */
+        brightness();
+    }
+    static int heard = -1;   /* the sound level last played back */
+    if (v->volume != app.volume) {
+        app.volume = (uint8_t)v->volume;
+        hal_set_volume(app.volume);
+    }
+    if (!done) return;
+    char t[8];
+    snprintf(t, sizeof t, "%d", app.user_bright);
+    hal_store_set("bright", t);
+    snprintf(t, sizeof t, "%d", app.volume);
+    hal_store_set("volume", t);
+    if (heard != app.volume) { heard = app.volume; hal_play(HAL_SOUND_TICK); }   /* how loud it is now */
+}
+
+static void controls_start(void)
+{
+    char t[8];
+    int b = 100, v = 55;
+    if (hal_store_get("bright", t, sizeof t)) b = atoi(t);
+    if (hal_store_get("volume", t, sizeof t)) v = atoi(t);
+    app.user_bright = (uint8_t)(b < CONTROLS_BRIGHT_MIN ? CONTROLS_BRIGHT_MIN : b > 100 ? 100 : b);
+    app.volume = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+    hal_set_volume(app.volume);
+    controls_init(controls_get, controls_changed);
+    swipe_set_pull(controls_pull);
+}
+
 void mytoki_start(void)
 {
     memset(&app, 0, sizeof app);
@@ -1697,6 +1752,7 @@ void mytoki_start(void)
     schedule_set_on_now(on_sched_now);
     swipe_set_base(on_base_swipe);
     swipe_set_drag(on_base_drag);
+    controls_start();
     ui_set_render(render_now);
     pet_set_on_land(on_land_sparks, NULL);
     lv_obj_t *scr = lv_screen_active();
@@ -1896,6 +1952,7 @@ static void screen_wake(void)
 static void screen_sleep(void)
 {
     app.screen_off = true;
+    controls_close();
     motion_mark();   /* which way up it was put down: turned from there, it wakes */
     ui_show(app.wake_catcher, true);
     lv_obj_move_foreground(app.wake_catcher);
@@ -1948,6 +2005,7 @@ void mytoki_button(void)
 {
     app.touch_ms = now_ms();
     if (app.screen_off) { screen_wake(); return; }   /* a press on a dark screen only lights it */
+    if (controls_is_open()) { controls_close(); return; }   /* the pull-down goes back up, nothing else */
     if (!app.have_plan) return;
     /* away from Home (another page, something over the day, Playtime): the button brings the child
      * home to the pet, and does nothing else. Biscuit says keeps it: "Button" is part of the game. */

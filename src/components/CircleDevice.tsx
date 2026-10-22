@@ -6,7 +6,7 @@
  * touch, and the phone's or tablet's accelerometer for the motion games.
  */
 import { useEffect, useRef, useState } from "react";
-import { sounds, unlockSounds } from "@/lib/sounds";
+import { setSoundLevel, sounds, unlockSounds } from "@/lib/sounds";
 import { speak } from "@/lib/speech";
 
 export interface CircleEvent {
@@ -144,6 +144,8 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
         try { localStorage.setItem(storeKey(str(kp, kl)), str(vp, vl)); } catch { /* ignore */ }
       },
       play(n: number) { try { SOUNDS[n]?.(); } catch { /* audio locked */ } },
+      // the Circle's sound slider (55, its default, plays the cues as written)
+      volume(pct: number) { setSoundLevel(pct / 55); },
       speak(p: number, n: number) { speak(str(p, n), { force: true }); },
       // The device fades a step every 250 ms; the transition smooths each step.
       brightness(pct: number) { canvas.style.transition = "filter 0.25s linear"; canvas.style.filter = `brightness(${Math.max(0.15, Math.min(1, pct / 100))})`; },
@@ -229,6 +231,7 @@ export default function CircleDevice({ childId, planJson, failed, onEvent, size 
       beat?.terminate();
       window.removeEventListener("devicemotion", onMotion);
       exRef.current = null;
+      setSoundLevel(1);   // the rest of the app plays its cues as written again
     };
   }, [childId]);
 

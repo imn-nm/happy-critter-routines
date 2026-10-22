@@ -79,7 +79,7 @@ function runShot(shot) {
     send(p, n) { const j = str(p, n); sent.push(j); receive(j); },
     store_get(kp, kl, buf, len) { const v = kv.get(str(kp, kl)); if (v == null) return 0; const b = enc.encode(v); const n = Math.min(b.length, len - 1); mem().set(b.subarray(0, n), buf); mem()[buf + n] = 0; return n + 1; },
     store_set(kp, kl, vp, vl) { kv.set(str(kp, kl), str(vp, vl)); },
-    play() {}, speak() {}, brightness() {},
+    play() {}, volume() {}, speak() {}, brightness() {},
     random() { seed = (seed * 1103515245 + 12345) >>> 0; return seed; },
     online: () => (shot.offline ? 0 : 1),
     docked: () => (shot.docked ? 1 : 0),

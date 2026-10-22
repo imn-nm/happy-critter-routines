@@ -60,6 +60,25 @@ static swipe_drag_cb_t drag;
 static bool dragging;      /* the press began on the day itself */
 void swipe_set_drag(swipe_drag_cb_t cb) { drag = cb; }
 
+static swipe_pull_cb_t pull;
+static bool pulling;       /* the press began at the top edge: it may pull the controls down */
+static bool pulled;        /* and it has: the finger went down more than across */
+static lv_timer_t *pull_timer;
+void swipe_set_pull(swipe_pull_cb_t cb) { pull = cb; }
+
+/* While a press from the top edge is down: where the finger is now (LVGL tells the input device's
+ * own callbacks about presses and releases, not each move, so the finger is looked at here). */
+static void pull_follow(lv_timer_t *t)
+{
+    lv_indev_t *indev = lv_timer_get_user_data(t);
+    if (!pulling || lv_indev_get_state(indev) != LV_INDEV_STATE_PRESSED) { lv_timer_pause(t); return; }
+    lv_point_t p;
+    lv_indev_get_point(indev, &p);
+    int32_t dx = p.x - start.x, dy = p.y - start.y;
+    if (!pulled && dy > 10 && dy > abs(dx)) pulled = true;
+    if (pulled) pull(dy > 0 ? dy : 0, false);
+}
+
 /* After the input device has finished with the release. */
 static void dispatch(void *unused)
 {
@@ -78,7 +97,14 @@ static void on_indev(lv_event_t *e)
         start_ms = lv_tick_get();
         swallow = false;
         scrolled = false;
-        dragging = drag && !topmost();
+        pulling = pull && start.y <= SWIPE_PULL_EDGE;
+        pulled = false;
+        if (pulling) {
+            if (!pull_timer) pull_timer = lv_timer_create(pull_follow, 16, indev);
+            lv_timer_set_user_data(pull_timer, indev);
+            lv_timer_resume(pull_timer);
+        }
+        dragging = drag && !topmost() && !pulling;
     } else if (code == LV_EVENT_PRESSING) {
         if (lv_indev_get_scroll_obj(indev)) scrolled = true;
         if (!dragging) return;
@@ -86,12 +112,22 @@ static void on_indev(lv_event_t *e)
         lv_indev_get_point(indev, &p);
         drag(p.x - start.x, p.y - start.y, false);
     } else if (code == LV_EVENT_PRESS_LOST) {
+        if (pulled) pull(0, true);
+        pulling = pulled = false;
         if (dragging) { dragging = false; drag(0, 0, true); }
     } else if (code == LV_EVENT_RELEASED) {
         lv_point_t p;
         lv_indev_get_point(indev, &p);
         int32_t dx = p.x - start.x, dy = p.y - start.y;
         uint32_t ms = lv_tick_elaps(start_ms);
+        if (pulling && !pulled && dy > 10 && dy > abs(dx)) { pulled = true; pull(dy, false); }   /* too quick for pull_follow */
+        if (pulled) {   /* the controls came down with the finger: that's all this drag was */
+            pulling = pulled = false;
+            swallow = true;
+            pull(dy > 0 ? dy : 0, true);
+            return;
+        }
+        pulling = false;
         if (dragging) { dragging = false; drag(dx, dy, true); }
         swallow = abs(dx) > TAP_SLOP || abs(dy) > TAP_SLOP;
         int dir;

@@ -42,6 +42,8 @@ typedef enum {
     HAL_SOUND_ALARM,     /* the morning alarm: a soft three-note ring, repeated until the button */
 } hal_sound_t;
 void hal_play(hal_sound_t sound);
+/* How loud the sounds play, 0-100 (0: silent); the child sets it in the pull-down. */
+void hal_set_volume(uint8_t percent);
 
 /* Picture view reads things out. A platform without a voice may do nothing. */
 void hal_speak(const char *text);
@@ -60,8 +62,10 @@ bool hal_docked(void);
 bool hal_screen_sleeps(void);
 void hal_screen(bool on);
 
-/* Battery charge, 0-100. */
+/* Battery charge, 0-100 (100 when the platform can't tell). */
 int hal_battery(void);
+/* A charger is plugged in (on the dock, or a cable). */
+bool hal_charging(void);
 
 /* Whether the network is up right now (for the "Saved here" note). */
 bool hal_online(void);

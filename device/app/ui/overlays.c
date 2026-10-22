@@ -592,7 +592,8 @@ static void sched_touch(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_point_t pt;
     lv_indev_get_point(lv_indev_active(), &pt);
-    if (code == LV_EVENT_PRESSED) { sc.press_y = pt.y; sc.sheet_drag = pt.y < SCHED_TOP; return; }
+    /* the top edge itself pulls the controls down (swipe_set_pull); under it, the sheet */
+    if (code == LV_EVENT_PRESSED) { sc.press_y = pt.y; sc.sheet_drag = pt.y < SCHED_TOP && pt.y > SWIPE_PULL_EDGE; return; }
     if (code == LV_EVENT_PRESSING) {
         if (sc.sheet_drag && sched) { int32_t dy = pt.y - sc.press_y; lv_obj_set_y(sched, dy > 0 ? dy : 0); backdrop_follow(dy > 0 ? dy : 0); }
         return;

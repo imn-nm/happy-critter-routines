@@ -30,6 +30,7 @@ IMPORT(random) uint32_t js_random(void);
 IMPORT(online) int32_t js_online(void);
 IMPORT(docked) int32_t js_docked(void);
 IMPORT(battery) int32_t js_battery(void);
+IMPORT(volume) void js_volume(int32_t percent);
 
 /* ---- HAL ---- */
 void hal_time_now(hal_time_t *t)
@@ -50,12 +51,14 @@ void hal_store_set(const char *key, const char *value)
     js_store_set(key, (int32_t)strlen(key), value, (int32_t)strlen(value));
 }
 void hal_play(hal_sound_t s) { js_play((int32_t)s); }
+void hal_set_volume(uint8_t p) { js_volume(p); }
 void hal_speak(const char *text) { js_speak(text, (int32_t)strlen(text)); }
 void hal_set_brightness(uint8_t p) { js_brightness(p); }
 uint32_t hal_random_u32(void) { return js_random(); }
 bool hal_online(void) { return js_online() != 0; }
 bool hal_docked(void) { return js_docked() != 0; }
 int hal_battery(void) { return (int)js_battery(); }
+bool hal_charging(void) { return js_docked() != 0; }   /* the panel's Docked box: on its charger */
 
 /* ---- display: LVGL renders into a partial buffer, flush copies it into the frame buffer ---- */
 static uint16_t fb[W * H];

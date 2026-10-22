@@ -34,3 +34,11 @@ typedef void (*swipe_drag_cb_t)(int32_t dx, int32_t dy, bool end);
 void swipe_set_drag(swipe_drag_cb_t cb);
 /* Where the finger went down (the press now, or the last one). */
 lv_point_t swipe_start(void);
+
+/* The pull-down (the controls), over every screen: a drag that starts within SWIPE_PULL_EDGE of the
+ * top and goes down. cb(dy, end) as the finger moves down (dy its travel), then once more with
+ * end = true as it lifts (or is lost: dy 0). Such a drag is nothing else: no swipe, no tap, and the
+ * day doesn't lean with it. */
+#define SWIPE_PULL_EDGE 64   /* the clock and the top of the title: a quick flick is first seen a little below where it began */
+typedef void (*swipe_pull_cb_t)(int32_t dy, bool end);
+void swipe_set_pull(swipe_pull_cb_t cb);

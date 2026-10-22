@@ -111,7 +111,10 @@
 
   // ---------------------------------------------------------------- sound and speech
   let audio = null;
+  let soundLevel = 1;   // the device's sound slider: 55 (its default) plays as written
   function tone(freq, start, dur, gain = 0.12, type = 'sine') {
+    if (soundLevel <= 0) return;
+    gain *= soundLevel;
     audio ||= new AudioContext();
     const t = audio.currentTime + start;
     const o = audio.createOscillator(), g = audio.createGain();
@@ -173,6 +176,7 @@
     },
     store_set(kptr, klen, vptr, vlen) { store.set('device:' + str(kptr, klen), str(vptr, vlen)); },
     play(n) { try { SOUNDS[n] && SOUNDS[n](); } catch { /* audio blocked until the first click */ } },
+    volume(p) { soundLevel = p / 55; },
     speak(ptr, len) {
       if (!('speechSynthesis' in window)) return;
       const u = new SpeechSynthesisUtterance(str(ptr, len));

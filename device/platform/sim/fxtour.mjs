@@ -37,7 +37,7 @@ function session(at, planName = 'school-day.json', sec = 0) {
     request_day() { pendingDay = true; }, send() {},
     store_get(kp, kl, buf, len) { const v = kv.get(str(kp, kl)); if (v == null) return 0; const b = enc.encode(v); const n = Math.min(b.length, len - 1); mem().set(b.subarray(0, n), buf); mem()[buf + n] = 0; return n + 1; },
     store_set(kp, kl, vp, vl) { kv.set(str(kp, kl), str(vp, vl)); },
-    play() {}, speak() {}, brightness() {}, random() { seed = (seed * 1103515245 + 12345) >>> 0; return seed; },
+    play() {}, volume() {}, speak() {}, brightness() {}, random() { seed = (seed * 1103515245 + 12345) >>> 0; return seed; },
     online: () => 1, docked: () => 0, battery: () => 100,
   };
   const wasi = new Proxy({ fd_write(fd, iovs, n, nw) { const dv = new DataView(ex.memory.buffer); let t = 0; for (let i = 0; i < n; i++) t += dv.getUint32(iovs + i * 8 + 4, true); dv.setUint32(nw, t, true); return 0; } }, { get: (t, k) => t[k] || (() => 0) });

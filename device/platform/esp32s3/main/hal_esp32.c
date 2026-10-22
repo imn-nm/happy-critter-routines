@@ -36,6 +36,7 @@
 #include "esp_timer.h"
 #include "nvs.h"
 #include "driver/gpio.h"
+#include "driver/i2c_master.h"
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "lvgl.h"
@@ -167,8 +168,57 @@ uint32_t hal_random_u32(void) { return esp_random(); }
 bool hal_online(void) { return wifi_up; }
 /* TODO: the dock's charger-detect pin and the fuel gauge once the enclosure exists. */
 bool hal_docked(void) { return false; }
-int hal_battery(void) { return 100; }
 void hal_speak(const char *text) { ESP_LOGI(TAG, "say: %s", text); /* no voice on the board yet */ }
+
+/* ================================================================ the battery */
+/* The board's power chip (an AXP2101 on the shared I2C bus): its fuel gauge's percentage, and
+ * whether a charger is plugged in. The net task reads it every 20 s. Without the chip, or without a
+ * battery, MyToki reads full and unplugged, as before. */
+#define AXP_ADDR 0x34
+#define AXP_STATUS1 0x00      /* bit 5: a charger (VBUS) is in, bit 3: a battery is there */
+#define AXP_CHIP_ID 0x03      /* reads 0x4A */
+#define AXP_GAUGE_CTRL 0x18   /* bit 3: the fuel gauge on */
+#define AXP_BAT_PERCENT 0xA4
+static i2c_master_dev_handle_t axp;
+static bool axp_tried;
+static volatile int bat_percent = 100;
+static volatile bool bat_plugged;
+
+static bool axp_read(uint8_t reg, uint8_t *v) { return i2c_master_transmit_receive(axp, &reg, 1, v, 1, 50) == ESP_OK; }
+
+static void power_poll(void)
+{
+    if (!axp_tried) {
+        axp_tried = true;
+        i2c_master_bus_handle_t bus = NULL;
+        if (bsp_i2c_init() != ESP_OK || (bus = bsp_i2c_get_handle()) == NULL) return;
+        i2c_device_config_t cfg = { .dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = AXP_ADDR, .scl_speed_hz = 400000 };
+        if (i2c_master_bus_add_device(bus, &cfg, &axp) != ESP_OK) { axp = NULL; return; }
+        uint8_t id = 0, g = 0;
+        if (!axp_read(AXP_CHIP_ID, &id) || id != 0x4A) {
+            ESP_LOGW(TAG, "no AXP2101 (id 0x%02x): the battery reads full", id);
+            i2c_master_bus_rm_device(axp);
+            axp = NULL;
+            return;
+        }
+        if (axp_read(AXP_GAUGE_CTRL, &g) && !(g & 0x08)) {
+            uint8_t w[2] = { AXP_GAUGE_CTRL, (uint8_t)(g | 0x08) };
+            i2c_master_transmit(axp, w, 2, 50);
+        }
+    }
+    if (!axp) return;
+    uint8_t s1 = 0, pct = 0;
+    if (!axp_read(AXP_STATUS1, &s1)) return;
+    bool battery = s1 & 0x08;
+    bat_plugged = battery && (s1 & 0x20);
+    if (!battery) bat_percent = 100;
+    else if (axp_read(AXP_BAT_PERCENT, &pct) && pct <= 100) bat_percent = pct;
+    static bool told;
+    if (!told) { told = true; ESP_LOGI(TAG, "power: AXP2101, %s, %d%%%s", battery ? "a battery" : "no battery", bat_percent, bat_plugged ? ", charging" : ""); }
+}
+
+int hal_battery(void) { return bat_percent; }
+bool hal_charging(void) { return bat_plugged; }
 
 /* The screen off when put down: dark and not drawing. Back on, it lights once the first frame is
  * redrawn (the panel still holds the old one), at the brightness last asked for. */
@@ -455,6 +505,7 @@ static void net_task(void *arg)
     (void)arg;
     net_msg_t m;
     for (;;) {
+        power_poll();
         if (xQueueReceive(net_q, &m, pdMS_TO_TICKS(20000)) == pdTRUE) {
             if (m.kind == 0) fetch_day();
             else if (m.json) {
@@ -528,7 +579,6 @@ static void button_task(void *arg)
 
 /* ================================================================ motion */
 #ifdef CONFIG_MYTOKI_IMU
-#include "driver/i2c_master.h"
 
 /* QMI8658 (QST), the dev board's 6-axis IMU; only the accelerometer is read. Register codes
  * from the datasheet; check them against the BSP's own qmi8658 component once ESP-IDF is here. */
@@ -599,9 +649,12 @@ static const note_t SOUNDS[][3] = {
     [HAL_SOUND_ALARM] = { { 659, 0, 260, .3f }, { 784, 240, 260, .3f }, { 988, 480, 520, .3f } },   /* E5 G5 B5, softer than the chimes */
 };
 
+static volatile uint8_t volume_want = 55;   /* the pull-down's sound slider; the sound task applies it */
+void hal_set_volume(uint8_t percent) { volume_want = percent > 100 ? 100 : percent; }
+
 void hal_play(hal_sound_t s)
 {
-    if (sound_q) xQueueSend(sound_q, &s, 0);
+    if (sound_q && volume_want) xQueueSend(sound_q, &s, 0);
 }
 
 static void sound_task(void *arg)
@@ -610,7 +663,8 @@ static void sound_task(void *arg)
     const int rate = 22050;
     esp_codec_dev_handle_t spk = bsp_audio_codec_speaker_init();
     if (!spk) { ESP_LOGW(TAG, "no speaker"); vTaskDelete(NULL); return; }
-    esp_codec_dev_set_out_vol(spk, 55);
+    uint8_t volume_now = 55;
+    esp_codec_dev_set_out_vol(spk, volume_now);
     esp_codec_dev_sample_info_t fs = { .sample_rate = rate, .channel = 2, .bits_per_sample = 16 };
     esp_codec_dev_open(spk, &fs);
     const int max_ms = 1300;
@@ -618,6 +672,8 @@ static void sound_task(void *arg)
     hal_sound_t s;
     for (;;) {
         if (xQueueReceive(sound_q, &s, portMAX_DELAY) != pdTRUE || !pcm || s >= sizeof SOUNDS / sizeof SOUNDS[0]) continue;
+        if (volume_now != volume_want) { volume_now = volume_want; esp_codec_dev_set_out_vol(spk, volume_now); }
+        if (!volume_now) continue;
         int end_ms = 0;
         for (int k = 0; k < 3; k++) if (SOUNDS[s][k].f > 0 && SOUNDS[s][k].at + SOUNDS[s][k].dur > end_ms) end_ms = SOUNDS[s][k].at + SOUNDS[s][k].dur;
         if (end_ms > max_ms) end_ms = max_ms;

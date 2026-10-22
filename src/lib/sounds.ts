@@ -28,6 +28,10 @@ export const setSoundsEnabled = (on: boolean) => {
 
 let ctx: AudioContext | null = null;
 
+// How loud, as a share of the cues as written (1). The MyToki Circle sets it from its sound slider.
+let level = 1;
+export const setSoundLevel = (k: number) => { level = Math.max(0, k); };
+
 const getCtx = (): AudioContext | null => {
   if (typeof window === "undefined") return null;
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -57,7 +61,7 @@ interface Note {
 const lastPlayed = new Map<string, number>();
 
 const play = (notes: Note[], type: OscillatorType = "sine") => {
-  if (!soundsEnabled()) return;
+  if (!soundsEnabled() || level <= 0) return;
   const c = getCtx();
   if (!c || c.state !== "running") return;
   const cue = `${type}:${notes.map(n => n.f).join(",")}`;
@@ -69,7 +73,7 @@ const play = (notes: Note[], type: OscillatorType = "sine") => {
     const g = c.createGain();
     osc.type = type;
     osc.frequency.value = n.f;
-    const peak = n.gain ?? 0.12;
+    const peak = (n.gain ?? 0.12) * level;
     g.gain.setValueAtTime(0.0001, now + n.at);
     g.gain.exponentialRampToValueAtTime(peak, now + n.at + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, now + n.at + n.len);
