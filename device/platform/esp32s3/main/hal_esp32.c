@@ -318,6 +318,7 @@ static esp_err_t http_once(const char *url, const char *post, const char *if_non
             .timeout_ms = 10000,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .keep_alive_enable = true,
+            .buffer_size_tx = 1536,   /* the quick look sends the public key twice (apikey, Authorization): 512 is too small */
         };
         conn = esp_http_client_init(&cfg);
         if (!conn) return ESP_FAIL;
