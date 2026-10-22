@@ -240,6 +240,7 @@ static void *land_user;
 
 static pet_t *pets;
 static lv_timer_t *ticker;
+static bool frozen;   /* pet_freeze_all: the ticker stays paused */
 
 static bool has_loop(pet_clip_id_t c) { return pet_clips[c].loop_start >= 0; }
 
@@ -542,7 +543,10 @@ lv_obj_t *pet_create(lv_obj_t *parent, int32_t diameter)
     arm_habits(p);
     p->next = pets;
     pets = p;
-    if (!ticker) ticker = lv_timer_create(tick, FRAME_MS, NULL);
+    if (!ticker) {
+        ticker = lv_timer_create(tick, FRAME_MS, NULL);
+        if (frozen) lv_timer_pause(ticker);
+    }
     render(p);
     return p->obj;
 }
@@ -623,6 +627,14 @@ void pet_set_tappable(lv_obj_t *obj, bool on)
 {
     pet_t *p = get(obj);
     if (p) p->tappable = on;
+}
+
+void pet_freeze_all(bool f)
+{
+    frozen = f;
+    if (!ticker) return;
+    if (f) lv_timer_pause(ticker);
+    else lv_timer_resume(ticker);
 }
 
 void pet_set_paused(lv_obj_t *obj, bool paused)

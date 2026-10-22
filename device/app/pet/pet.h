@@ -79,6 +79,9 @@ void pet_set_on_land(void (*cb)(lv_obj_t *pet, void *user), void *user);
 void pet_paws(lv_obj_t *pet, int32_t *left_x, int32_t *right_x, int32_t *y);
 /* Hold the current frame (e.g. while a page is off screen). */
 void pet_set_paused(lv_obj_t *pet, bool paused);
+/* Every pet stands still, its timer stopped (the screen is off: nothing to draw, and the chip can
+ * sleep); false carries on where they were. */
+void pet_freeze_all(bool frozen);
 const char *pet_current_clip_name(lv_obj_t *pet);
 /* Paused: not on screen (a list, the wheel or a menu covers him). */
 bool pet_is_paused(lv_obj_t *pet);

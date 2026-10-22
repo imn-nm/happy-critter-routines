@@ -11,6 +11,7 @@
 #include "bsp/display.h"
 #include "bsp/touch.h"
 #include "esp_lv_adapter.h"
+#include "esp_timer.h"
 #include "lvgl.h"
 #include "mytoki.h"
 #include "hal_esp32.h"
@@ -36,11 +37,19 @@ static void round_area(lv_event_t *e)
 /* bsp_display_start() with our own draw buffers (the BSP's are 50 rows in PSRAM, see DRAW_ROWS)
  * and a bigger LVGL task: the whole app runs in it (the tick, the button, motion, Biscuit's
  * drawing), not just LVGL's own work. */
+static uint32_t tick_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
+
 static lv_display_t *display_start(void)
 {
     esp_lv_adapter_config_t adapter = ESP_LV_ADAPTER_DEFAULT_CONFIG();
     adapter.task_stack_size = 16 * 1024;
+    /* for the battery: LVGL reads the time when it wants it (lv_tick_set_cb below) instead of a timer
+     * waking the chip every millisecond, and its task waits until its next timer is due (up to half
+     * a second, not 15 ms), so the chip can sleep in between */
+    adapter.tick_period_ms = 1000;
+    adapter.task_max_delay_ms = 500;
     if (esp_lv_adapter_init(&adapter) != ESP_OK) return NULL;
+    lv_tick_set_cb(tick_ms);
 
     const bsp_display_config_t panel_cfg = { .max_transfer_sz = BSP_LCD_H_RES * BSP_LCD_V_RES * BSP_LCD_BITS_PER_PIXEL / 8 };
     esp_lcd_panel_handle_t panel = NULL;

@@ -33,6 +33,7 @@
 #include "esp_crt_bundle.h"
 #include "nvs_flash.h"
 #include "esp_partition.h"
+#include "esp_pm.h"
 #include "esp_timer.h"
 #include "nvs.h"
 #include "driver/gpio.h"
@@ -227,6 +228,18 @@ bool hal_charging(void) { return bat_plugged; }
  * redrawn (the panel still holds the old one), at the brightness last asked for. */
 static uint8_t bright_want = 100;
 static bool screen_dark, screen_waking;
+static lv_timer_t *input_tmr;   /* the button and motion into the app (below): every 5 ms, 50 ms while dark */
+
+/* While the screen is off the chip should sleep: the button, motion, touch and the app's input are
+ * looked at less often (a touch or a pickup still wakes it within a tenth of a second). */
+static void input_pace(bool dark)
+{
+    if (input_tmr) lv_timer_set_period(input_tmr, dark ? 50 : 5);
+    for (lv_indev_t *i = lv_indev_get_next(NULL); i; i = lv_indev_get_next(i)) {
+        lv_timer_t *t = lv_indev_get_read_timer(i);
+        if (t) lv_timer_set_period(t, dark ? 100 : LV_DEF_REFR_PERIOD);   /* the touch is read this often */
+    }
+}
 static int64_t look_next_us;   /* the quick look's next time (below): picked up, it looks at once */
 void hal_set_brightness(uint8_t percent)
 {
@@ -253,11 +266,13 @@ void hal_screen(bool on)
         screen_waking = false;
         bsp_display_brightness_set(0);
         lv_display_enable_invalidation(d, false);
+        input_pace(true);
         return;
     }
     if (!screen_dark) return;
     screen_waking = true;
     look_next_us = 0;
+    input_pace(false);
     lv_display_enable_invalidation(d, true);
     lv_obj_invalidate(lv_display_get_screen_active(d));
     lv_obj_invalidate(lv_display_get_layer_top(d));
@@ -664,7 +679,7 @@ static void button_task(void *arg)
             input_t in = { 0 };
             xQueueSend(input_q, &in, 0);
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(screen_dark ? 25 : 10));   /* dark: three looks are still a short press */
     }
 }
 
@@ -717,7 +732,7 @@ static void motion_task(void *arg)
     ESP_LOGI(TAG, "motion: QMI8658 at 100 Hz");
     TickType_t wake = xTaskGetTickCount();
     for (;;) {
-        vTaskDelayUntil(&wake, pdMS_TO_TICKS(10));
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(screen_dark ? 40 : 10));   /* dark: 25 Hz still sees a pickup */
         uint8_t raw[6];
         if (!imu_read(QMI_AX_L, raw, 6)) continue;
         float a[3];
@@ -802,6 +817,14 @@ static void input_timer(lv_timer_t *t)
 /* ================================================================ start-up */
 void hal_esp32_init(void)
 {
+#if CONFIG_PM_ENABLE
+    /* the chip slows to 80 MHz and light-sleeps whenever every task is waiting; Wi-Fi keeps its
+     * connection, waking for the access point's beacons. Not while a computer is on the USB port
+     * (CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION), so logs and flashing still work. */
+    esp_pm_config_t pm = { .max_freq_mhz = 240, .min_freq_mhz = 80, .light_sleep_enable = true };
+    esp_err_t pm_err = esp_pm_configure(&pm);
+    if (pm_err != ESP_OK) ESP_LOGW(TAG, "power saving off: %s", esp_err_to_name(pm_err));
+#endif
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
@@ -834,7 +857,7 @@ void hal_esp32_start(void)
 {
     input_q = xQueueCreate(32, sizeof(input_t));
     if (bsp_display_lock(-1) == ESP_OK) {
-        lv_timer_create(input_timer, 5, NULL);
+        input_tmr = lv_timer_create(input_timer, 5, NULL);
         bsp_display_unlock();
     }
     xTaskCreate(button_task, "mytoki-button", 4096, NULL, 5, NULL);

@@ -1987,6 +1987,8 @@ static void screen_wake(void)
     /* a finger on it lifts first (on_catcher); picked up, it's gone at once */
     lv_indev_t *in = lv_indev_active();
     if (!in || lv_indev_get_active_obj() != app.wake_catcher) ui_show(app.wake_catcher, false);
+    pet_freeze_all(false);
+    lv_timer_resume(lv_anim_get_timer());
     hal_screen(true);
     app.brightness = 0;   /* straight to the right brightness, no fade up */
     brightness();
@@ -1999,6 +2001,10 @@ static void screen_sleep(void)
     motion_mark();   /* which way up it was put down: turned from there, it wakes */
     ui_show(app.wake_catcher, true);
     lv_obj_move_foreground(app.wake_catcher);
+    /* nothing to draw: Biscuit and the animations stand still (they carry on when it wakes), so the
+     * chip can sleep between the clock's ticks */
+    pet_freeze_all(true);
+    lv_timer_pause(lv_anim_get_timer());
     hal_screen(false);
 }
 
