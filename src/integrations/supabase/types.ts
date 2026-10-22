@@ -17,6 +17,8 @@ export type Database = {
       children: {
         Row: {
           age: number | null
+          alarm_weekdays: boolean
+          alarm_weekends: boolean
           bedtime: string | null
           bedtime_days: string[] | null
           bedtime_duration: number | null
@@ -61,6 +63,8 @@ export type Database = {
         }
         Insert: {
           age?: number | null
+          alarm_weekdays?: boolean
+          alarm_weekends?: boolean
           bedtime?: string | null
           bedtime_days?: string[] | null
           bedtime_duration?: number | null
@@ -105,6 +109,8 @@ export type Database = {
         }
         Update: {
           age?: number | null
+          alarm_weekdays?: boolean
+          alarm_weekends?: boolean
           bedtime?: string | null
           bedtime_days?: string[] | null
           bedtime_duration?: number | null

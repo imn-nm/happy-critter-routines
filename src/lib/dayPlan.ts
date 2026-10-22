@@ -12,7 +12,8 @@ import { isApprovedStatus } from '@/lib/rewardStatus';
 import { petNick, resolvePetColour } from '@/components/pets/petCatalog';
 import { displayModeFor } from '@/utils/displayMode';
 import { isBedtimeRoutine } from '@/utils/dayTies';
-import { systemTaskKey } from '@/utils/systemTasks';
+import { systemTaskKey, type HolidayLike } from '@/utils/systemTasks';
+import { alarmOn, nextDateOf, wakeOn } from '@/utils/alarm';
 import { taskIconKey } from '@/utils/taskIcon';
 import { wheelOptionsFor } from '@/lib/spinningWheel';
 import { getPSTDateString, toPSTDateString } from '@/utils/pstDate';
@@ -55,6 +56,11 @@ export interface DayPlan {
     picture: boolean;
     stars: number;
     wake: string;
+    /** The alarm rings at wake-up today (a parent can turn it off for weekdays or weekends). */
+    alarm: boolean;
+    /** Tomorrow's wake-up ("HH:MM") and whether its alarm rings: the night screens before midnight. */
+    next_wake: string;
+    next_alarm: boolean;
     outfit: Record<string, string | null>;
     /** The newest unseen star note from a grown-up, its id (sent back as "note_seen") and its stars. */
     star_note?: string;
@@ -106,6 +112,8 @@ export interface DayPlanInput {
   notes?: ParentNote[];
   /** Free time a grown-up gave (free_time_grants): the day makes room for it. */
   freeTime?: FreeTimeGrant[];
+  /** No-school holidays: a day off follows the weekend alarm. */
+  holidays?: HolidayLike[];
 }
 
 /** A note as the Circle keeps it: 120 bytes at most (its buffer is 128), cut at a word with "…". */
@@ -123,7 +131,7 @@ const clipNote = (text: string) => {
   return `${(cut > out.length * 0.6 ? out.slice(0, cut) : out).replace(/[\s.,;:!?]+$/, '')}…`;
 };
 
-export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [] }: DayPlanInput): DayPlan {
+export function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [], holidays = [] }: DayPlanInput): DayPlan {
   const today = getPSTDateString();
   // "Next now" pulls are applied here so the device gets concrete times; the
   // waits, Start taps and pauses it works out on its own clock (logic.c).
@@ -199,6 +207,9 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
       picture: displayModeFor(child) === 'picture',
       stars: child.currentCoins ?? 0,
       wake,
+      alarm: !restDay && alarmOn(child, today, holidays),
+      next_wake: wakeOn(child, nextDateOf(today), holidays),
+      next_alarm: alarmOn(child, nextDateOf(today), holidays),
       outfit: (child.pet_outfit ?? {}) as Record<string, string | null>,
       ...(starNote ? { star_note: clipNote(starNote.body), star_note_id: starNote.id, star_note_stars: starNote.stars ?? 1 } : {}),
     },

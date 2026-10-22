@@ -64,5 +64,6 @@ export function devicePlan(rows: DevicePlanRows): DayPlan {
     starts: rows.sessions.filter(s => toPSTDateString(s.started_at) === today),
     notes: rows.notes,
     freeTime: rows.freeTime ?? [],
+    holidays: rows.holidays,
   });
 }

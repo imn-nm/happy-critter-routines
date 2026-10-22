@@ -72,6 +72,10 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
     p->child.picture = flag(child, "picture");
     p->child.stars = (int16_t)num(child, "stars", 0);
     p->child.wake = (int16_t)hhmm(child, "wake");
+    /* the alarm is on unless the plan says it isn't (older plans don't say) */
+    p->child.alarm = !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(child, "alarm"));
+    p->child.next_wake = (int16_t)hhmm(child, "next_wake");
+    p->child.next_alarm = !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(child, "next_alarm"));
     copy(p->child.star_note, sizeof p->child.star_note, child, "star_note");
     copy(p->child.star_note_id, sizeof p->child.star_note_id, child, "star_note_id");
     p->child.star_note_stars = (int16_t)num(child, "star_note_stars", 1);

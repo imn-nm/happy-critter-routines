@@ -3201,6 +3201,20 @@ function tieDay(items, everyday) {
   return { hidden, times, anchors };
 }
 
+// src/utils/restDays.ts
+var isRestDate = (child, date) => !!child && (!!child.rest_dates?.includes(date) || child.rest_day_date === date);
+
+// src/utils/alarm.ts
+var DAY_NAMES2 = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+var dayNameOf = (date) => DAY_NAMES2[(/* @__PURE__ */ new Date(`${date}T00:00:00`)).getDay()];
+var nextDateOf = (date) => format(addDays(/* @__PURE__ */ new Date(`${date}T00:00:00`), 1), "yyyy-MM-dd");
+var alarmDayKind = (child, date, holidays) => usesWeekendTime(child, "wake", dayNameOf(date), date, holidays) ? "weekends" : "weekdays";
+var alarmOn = (child, date, holidays) => {
+  if (isRestDate(child, date)) return false;
+  return alarmDayKind(child, date, holidays) === "weekends" ? child.alarm_weekends !== false : child.alarm_weekdays !== false;
+};
+var wakeOn = (child, date, holidays) => (getSystemTaskScheduleForDay(child, "Wake Up", dayNameOf(date), date, holidays)?.time ?? child.wake_time ?? "07:00").slice(0, 5);
+
 // stub:./uiconPaths
 var UICON_VIEWBOX = "";
 var UICON_PATHS = {};
@@ -3526,7 +3540,7 @@ var clipNote = (text) => {
   const cut = out.lastIndexOf(" ");
   return `${(cut > out.length * 0.6 ? out.slice(0, cut) : out).replace(/[\s.,;:!?]+$/, "")}\u2026`;
 };
-function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [] }) {
+function buildDayPlan({ child, schedule: planned, chores, completions, rewards, purchases, restDay, starts = [], notes = [], freeTime = [], holidays = [] }) {
   const today = getPSTDateString();
   const marks = startsByTask(starts);
   const windows = freeWindows(freeTime, today);
@@ -3599,6 +3613,9 @@ function buildDayPlan({ child, schedule: planned, chores, completions, rewards, 
       picture: displayModeFor(child) === "picture",
       stars: child.currentCoins ?? 0,
       wake,
+      alarm: !restDay && alarmOn(child, today, holidays),
+      next_wake: wakeOn(child, nextDateOf(today), holidays),
+      next_alarm: alarmOn(child, nextDateOf(today), holidays),
       outfit: child.pet_outfit ?? {},
       ...starNote ? { star_note: clipNote(starNote.body), star_note_id: starNote.id, star_note_stars: starNote.stars ?? 1 } : {}
     },
@@ -3921,9 +3938,6 @@ function todaysChores(tasksWithCompletion) {
   });
 }
 
-// src/utils/restDays.ts
-var isRestDate = (child, date) => !!child && (!!child.rest_dates?.includes(date) || child.rest_day_date === date);
-
 // src/lib/devicePlan.ts
 function devicePlan(rows) {
   const child = childFromRow(rows.child);
@@ -3944,7 +3958,8 @@ function devicePlan(rows) {
     restDay: isRestDate(child, today),
     starts: rows.sessions.filter((s) => toPSTDateString(s.started_at) === today),
     notes: rows.notes,
-    freeTime: rows.freeTime ?? []
+    freeTime: rows.freeTime ?? [],
+    holidays: rows.holidays
   });
 }
 export {
@@ -3957,4 +3972,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "16dddc0391";
+export const PLAN_REV = "58f2a3b27b";

@@ -15,7 +15,7 @@ The device takes the plan's times as they are. It works out the rest on its own 
 - now and next;
 - overdue focus;
 - the last five minutes;
-- the morning alarm, snooze and "I'm up" (from `child.wake` or the Wake Up row), "Off to school" and the quiet school hours (the `school` row), "Welcome home" after it, "Bedtime soon" ten minutes before the bedtime routine;
+- the morning alarm, snooze and "I'm up" (from `child.wake` or the Wake Up row; none when `child.alarm` is false), "Off to school" and the quiet school hours (the `school` row), "Welcome home" after it, "Bedtime soon" ten minutes before the bedtime routine;
 - bedtime, the night clock when the handheld is on its dock, and day over.
 
 Examples: `platform/sim/web/demo/*.json`.
@@ -33,6 +33,9 @@ Examples: `platform/sim/web/demo/*.json`.
     "picture": false,                // picture view (display_mode, or under 7)
     "stars": 41,                     // current_coins; asked-for rewards are taken off on the device
     "wake": "07:00",                 // today's wake-up (the Wake Up row wins if there is one)
+    "alarm": true,                   // the alarm rings at wake-up today (a parent can turn it off for weekdays or weekends)
+    "next_wake": "08:30",            // tomorrow's wake-up and alarm: the night screens before midnight show
+    "next_alarm": true,              //   "Alarm set for 8:30", or "Wake up at 8:30" with no alarm
     "outfit": { "head": "wizard", "face": null, "neck": "cape" },  // pet_outfit
     "star_note": "For tidying up without asking"   // why the last stars were given: shown with "You got a star!"
   },

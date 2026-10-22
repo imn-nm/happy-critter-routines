@@ -89,6 +89,9 @@ typedef struct {
         bool picture;          /* picture view (under 7) */
         int16_t stars;
         int16_t wake;          /* today's wake-up, minutes */
+        bool alarm;            /* the alarm rings at wake-up today (a parent can turn it off) */
+        int16_t next_wake;     /* tomorrow's wake-up, minutes (-1: not sent; use wake) */
+        bool next_alarm;       /* tomorrow's alarm rings: the night screens before midnight */
         char outfit[3][12];    /* head, face, neck accessory ids */
         char star_note[128];   /* why the last stars were given ("For tidying up without asking") */
         char star_note_id[40]; /* that note's id ("note_seen" once shown), or "" */

@@ -65,6 +65,7 @@ const ChildCircleView = ({ childId, size, keyboard = true }: Props) => {
       starts: sessions,
       notes,
       freeTime,
+      holidays,
     });
     return JSON.stringify(plan);
     // getTasksWithCompletionStatus makes a fresh array each render; the pieces it is made of are the inputs

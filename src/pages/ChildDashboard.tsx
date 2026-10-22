@@ -45,6 +45,7 @@ import { toast as sonner } from "sonner";
 import { findNextFreeSlot, roundUpToGrid, DEFAULT_SLOT_MINUTES } from "@/utils/schedule";
 import StarBadge from "@/components/StarBadge";
 import FreeTimeGift from "@/components/FreeTimeGift";
+import AlarmCard from "@/components/AlarmCard";
 
 /** The sticky Add Routine / Add to Schedule bar; the To-do tray pins on top of it. */
 const BOTTOM_BAR_HEIGHT = 85;
@@ -888,6 +889,9 @@ const ChildDashboard = () => {
 
         {/* Free time a grown-up gives right now: the child's day makes room for it */}
         {isViewingToday && !isRestDay && <FreeTimeGift childId={child.id} childName={child.name} />}
+
+        {/* MyToki's alarm on the day shown, and its switches */}
+        <AlarmCard child={child} date={selectedDayString} onUpdateChild={updateChild} onChanged={() => refetch()} />
 
         {isDayTab ? (
           <>

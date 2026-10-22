@@ -44,6 +44,9 @@ export interface Child {
   lunch_duration?: number;
   dinner_duration?: number;
   bedtime_duration?: number;
+  /** MyToki's alarm at wake-up on weekdays (school days) and weekends (days off); on unless false. */
+  alarm_weekdays?: boolean;
+  alarm_weekends?: boolean;
   // Rest days (rest_day_date is the old single-date field, still read)
   rest_dates?: string[];
   rest_day_date?: string | null;
