@@ -186,12 +186,13 @@ enum { PART_ICON, PART_TITLE, PART_DETAIL, PART_END, PART_NOW };
 #define SROW_ONE_LINE 1      /* card user data: Free time and Chores keep only the name off the line */
 #define SROW_HAS_END 2       /* a Checkbox or "Now" at the end */
 #define SROW_BORDER 4        /* a 2 px outline (Now, and Free time's dashes) */
+#define SROW_TWO_LINES 8     /* the name takes two lines */
 
 static void sched_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 2.0f);
     intptr_t f = (intptr_t)lv_obj_get_user_data(card);
-    bool one = f & SROW_ONE_LINE, end = f & SROW_HAS_END;
+    bool one = f & SROW_ONE_LINE, end = f & SROW_HAS_END, two = f & SROW_TWO_LINES;
     int32_t b = (f & SROW_BORDER) ? 2 : 0;
     int32_t w = (int32_t)lroundf(400 - 40 * k), hc = (int32_t)lroundf(87 - (one ? 15 : 8) * k);
     int32_t ty = (int32_t)lroundf((d > 0 ? -1 : 1) * SCHED_PULL * fmaxf(0.0f, ad - 1.0f));
@@ -211,11 +212,12 @@ static void sched_style(lv_obj_t *card, float d)
                 lv_image_set_scale(c, (uint32_t)lroundf(256 * (36 - 10 * k) / 36));   /* drawn 36 -> 26 */
                 break;
             case PART_TITLE:
-                lv_obj_set_pos(c, tx, (int32_t)lroundf(one ? 16 + 5 * k : 16 - 4 * k));   /* alone, it moves to the middle */
+                if (two) lv_obj_set_pos(c, tx, one ? (hc - lv_obj_get_height(c)) / 2 : (int32_t)lroundf(6 - 2 * k));
+                else lv_obj_set_pos(c, tx, (int32_t)lroundf(one ? 16 + 5 * k : 16 - 4 * k));   /* alone, it moves to the middle */
                 lv_obj_set_width(c, (end ? end_x - 14 : cw - in) - tx);
                 break;
             case PART_DETAIL:
-                lv_obj_set_pos(c, tx, (int32_t)lroundf(46 - 4 * k));
+                lv_obj_set_pos(c, tx, (int32_t)lroundf((two ? 54 : 46) - 4 * k));
                 lv_obj_set_width(c, (end ? end_x - 14 : cw - in) - tx);
                 if (one) lv_obj_set_style_opa(c, (lv_opa_t)(255 * (1.0f - k)), 0);
                 /* Now: the detail is lime on the line, cream once it moves off */
@@ -445,8 +447,8 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
     lv_obj_set_user_data(ic, (void *)(intptr_t)PART_ICON);
     bool one_line = r->state == ROW_FREE || r->state == ROW_CHORE || r->state == ROW_CHORE_DONE;   /* on the Edge */
     lv_obj_t *tt = ui_label(card, F_ITEM, fg, task);
-    lv_label_set_long_mode(tt, LV_LABEL_LONG_DOT);
-    lv_obj_set_height(tt, lv_font_get_line_height(F_ITEM));
+    /* measured at its narrowest (off the line, with a box at the end) */
+    bool two = ui_label_fit(tt, F_ITEM, F_LABEL, 360 - 16 - 48 - 14 - (16 + 50), 2) == 2;
     lv_obj_set_user_data(tt, (void *)(intptr_t)PART_TITLE);
     lv_obj_t *dt = ui_label(card, F_DETAIL, sub, detail);
     lv_label_set_long_mode(dt, LV_LABEL_LONG_DOT);
@@ -467,7 +469,8 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
         end = true;
     }
     bool border = r->state == ROW_NOW || r->state == ROW_FREE;
-    lv_obj_set_user_data(card, (void *)(intptr_t)((one_line ? SROW_ONE_LINE : 0) | (end ? SROW_HAS_END : 0) | (border ? SROW_BORDER : 0)));
+    lv_obj_set_user_data(card, (void *)(intptr_t)((one_line ? SROW_ONE_LINE : 0) | (end ? SROW_HAS_END : 0) | (border ? SROW_BORDER : 0)
+                                                  | (two ? SROW_TWO_LINES : 0)));
     row_tappable(card, r);
 }
 
@@ -792,8 +795,8 @@ void others_refresh(const day_plan_t *p, const logic_now_t *n, int32_t now_s)
         lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_grow(col, 1);
         lv_obj_t *name = ui_label(col, F_ITEM, C_ON_COLOR, t->title);
-        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-        lv_obj_set_size(name, 250, lv_font_get_line_height(F_ITEM));
+        lv_obj_set_width(name, 250);
+        ui_label_fit(name, F_ITEM, F_LABEL, 250, 2);
         char by[24], when[16];
         if (t->bedtime_routine || t->system == SYS_BEDTIME) snprintf(by, sizeof by, "Before bedtime");
         else {   /* "Before 3:30 pm" while there is time; "Was due 3:30 pm" once it has gone */

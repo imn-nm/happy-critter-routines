@@ -201,6 +201,9 @@ static void show_result(wheel_t *w)
     char name[24];
     snprintf(name, sizeof name, "%s!", opt);
     ui_set_text(w->card_name, name);
+    ui_label_fit(w->card_name, F_DISPLAY, F_ITEM, 240, 1);
+    lv_obj_set_style_text_line_space(w->card_name, 0, 0);
+    lv_obj_set_height(w->card_name, lv_font_get_line_height(F_DISPLAY));   /* one line: the invitation is under it */
     ui_set_text(w->card_line, invitation_for(opt));
 }
 

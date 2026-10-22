@@ -112,6 +112,12 @@ lv_obj_t *ui_row(lv_obj_t *parent, int32_t gap);
 lv_obj_t *ui_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color, const char *text);
 /* Change text only when it differs (saves a redraw). */
 void ui_set_text(lv_obj_t *label, const char *text);
+/* Words that may not fit `width` on one line: at `font` if they do, else at `small` on one line if
+ * that fits, else at `small` over as many lines as they need up to `max_lines`, a little closer
+ * together ("..." only if even those run out). Sets the font and height (not the width); returns
+ * the lines it takes. */
+int ui_label_fit(lv_obj_t *label, const lv_font_t *font, const lv_font_t *small, int32_t width, int max_lines);
+#define UI_FIT_SPACE (-4)   /* the two lines' spacing, px */
 void ui_set_color(lv_obj_t *obj, uint32_t color);
 /* A line icon (tools/icons.mjs) tinted with `color`. */
 lv_obj_t *ui_icon(lv_obj_t *parent, const char *name, int size, uint32_t color);

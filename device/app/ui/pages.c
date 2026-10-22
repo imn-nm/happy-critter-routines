@@ -132,13 +132,15 @@ static lv_obj_t *shelf_item(lv_obj_t *parent, const day_reward_t *rd, int idx, i
     lv_obj_add_event_cb(it, on_item, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
     lv_obj_set_style_transform_pivot_x(it, lv_pct(50), 0);
     lv_obj_set_style_transform_pivot_y(it, lv_pct(100), 0);   /* grows up off the shelf */
-    lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), 48, C_TEXT);
-    lv_obj_set_pos(ic, 51, 16);
     lv_obj_t *name = ui_label(it, F_LABEL, C_TEXT, rd->title);
-    lv_obj_set_size(name, 150, lv_font_get_line_height(F_LABEL));
+    lv_obj_set_width(name, 140);   /* 5 px clear each side of the next one's */
     lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-    lv_obj_set_pos(name, 0, 68);
+    int lines = ui_label_fit(name, F_LABEL, F_LABEL, 140, 3);
+    /* a long name takes two or three lines: the icon gets smaller and moves up to make room */
+    static const int16_t ICON[4] = { 0, 48, 40, 28 }, ICON_Y[4] = { 0, 16, 2, 0 }, NAME_Y[4] = { 0, 68, 46, 29 };
+    lv_obj_t *ic = ui_icon(it, reward_icon(rd->icon), ICON[lines], C_TEXT);
+    lv_obj_set_pos(ic, 75 - ICON[lines] / 2, ICON_Y[lines]);
+    lv_obj_set_pos(name, 5, NAME_Y[lines]);
     char cost[8];
     snprintf(cost, sizeof cost, "%d", rd->cost);
     lv_obj_t *tag;
@@ -377,8 +379,8 @@ static void chore_card(const day_chore_t *c, int idx, bool picture)
     lv_obj_set_flex_grow(body, 1);
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_t *name = ui_label(body, F_ITEM, fg, c->title);
-    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(name, lv_pct(100), lv_font_get_line_height(F_ITEM));
+    lv_obj_set_width(name, lv_pct(100));
+    ui_label_fit(name, F_ITEM, F_LABEL, 360 - 2 * 16 - 36 - 48 - 2 * 14, 2);   /* the row less its padding, icon, ring and gaps */
     if (!picture) {
         char when[40];
         if (done) snprintf(when, sizeof when, "Done!");

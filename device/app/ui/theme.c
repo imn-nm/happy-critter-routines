@@ -30,6 +30,34 @@ lv_obj_t *ui_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color, cons
     return l;
 }
 
+int ui_label_fit(lv_obj_t *label, const lv_font_t *font, const lv_font_t *small, int32_t width, int max_lines)
+{
+    const char *t = lv_label_get_text(label);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_line_space(label, 0, 0);
+    for (int k = 0; k < 2; k++) {
+        const lv_font_t *f = k ? small : font;
+        lv_point_t sz;
+        lv_text_get_size(&sz, t, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x <= width) {
+            lv_obj_set_style_text_font(label, f, 0);
+            lv_obj_set_height(label, lv_font_get_line_height(f));
+            return 1;
+        }
+    }
+    /* lines: n of them stand n * (line + space) - space high */
+    int32_t lh = lv_font_get_line_height(small), step = lh + UI_FIT_SPACE;
+    lv_point_t sz;
+    lv_text_get_size(&sz, t, small, 0, UI_FIT_SPACE, width, LV_TEXT_FLAG_NONE);
+    int n = (int)((sz.y + UI_FIT_SPACE + step / 2) / step);
+    if (n < 2) n = 2;
+    if (n > max_lines) n = max_lines;
+    lv_obj_set_style_text_font(label, small, 0);
+    lv_obj_set_style_text_line_space(label, UI_FIT_SPACE, 0);
+    lv_obj_set_height(label, n * step - UI_FIT_SPACE);
+    return n;
+}
+
 void ui_set_text(lv_obj_t *label, const char *text)
 {
     if (!label) return;
