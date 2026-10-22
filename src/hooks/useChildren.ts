@@ -47,6 +47,8 @@ export interface Child {
   /** MyToki's alarm at wake-up on weekdays (school days) and weekends (days off); on unless false. */
   alarm_weekdays?: boolean;
   alarm_weekends?: boolean;
+  /** When a grown-up last pressed "Ring MyToki now" in the Alarm sheet (MyToki rings if it's fresh). */
+  alarm_test_at?: string | null;
   // Rest days (rest_day_date is the old single-date field, still read)
   rest_dates?: string[];
   rest_day_date?: string | null;

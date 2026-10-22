@@ -4,7 +4,7 @@
  * time moves wake-up too, the way the Daily Routine editor does (breakfast keeps its distance).
  */
 import { useState } from "react";
-import { AlarmClock, AlarmClockOff } from "lucide-react";
+import { AlarmClock, AlarmClockOff, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -92,6 +92,21 @@ const AlarmCard = ({ child, date, onUpdateChild, onChanged }: Props) => {
     }
   };
 
+  // "Ring MyToki now": MyToki rings the morning alarm within about half a minute (its next look at
+  // the day), at any hour, without moving wake-up; the button on it stops it.
+  const [testing, setTesting] = useState(false);
+  const ringNow = async () => {
+    setTesting(true);
+    try {
+      await onUpdateChild(child.id, { alarm_test_at: new Date().toISOString() });
+      toast.success("MyToki will ring in a moment. The button on it stops it.");
+    } catch {
+      toast.error("Couldn't reach MyToki. Please try again.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const Icon = rings ? AlarmClock : AlarmClockOff;
   const rows = [
     { key: "weekdays" as const, label: "Weekdays", days: "School days", time: "weekdayTime" as const },
@@ -130,6 +145,7 @@ const AlarmCard = ({ child, date, onUpdateChild, onChanged }: Props) => {
                   <div className={cn("w-[112px] shrink-0 flex", !on && "opacity-40")}>
                     <TimeTile
                       label="Rings at"
+                      stepMinutes={1}
                       value={form[row.time]}
                       onChange={(v) => v && setForm(f => ({ ...f, [row.time]: v }))}
                     />
@@ -147,9 +163,18 @@ const AlarmCard = ({ child, date, onUpdateChild, onChanged }: Props) => {
           {problem && <p role="alert" className="text-12 leading-[17px] text-focus-coral">{problem}</p>}
           <button
             type="button"
+            onClick={ringNow}
+            disabled={testing}
+            className="mt-sp-2 min-h-12 rounded-[14px] bg-focus-surface text-focus-text text-[15px] font-semibold flex items-center justify-center gap-2 hover:bg-focus-raised disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            <BellRing className="w-4 h-4" aria-hidden />
+            Ring MyToki now
+          </button>
+          <button
+            type="button"
             onClick={save}
             disabled={busy || !!problem}
-            className="mt-sp-2 min-h-12 rounded-[14px] bg-focus-lime text-focus-bg text-[15px] font-semibold disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+            className="min-h-12 rounded-[14px] bg-focus-lime text-focus-bg text-[15px] font-semibold disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
           >
             Save
           </button>

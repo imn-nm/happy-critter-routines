@@ -71,6 +71,8 @@ static struct {
     int steps_peek;                  /* the task whose checked list shows again, or -1 */
     int32_t chore_at[DAY_MAX_CHORES]; /* when the child last checked or unchecked each chore here (s of the day), or -1 */
     char gift_seen[40];               /* the last grown-up's free time greeted */
+    char test_seen[24];               /* the last "Ring MyToki now" seen (kept: "alarm_test") */
+    bool test_ring;                   /* ringing for it: the morning alarm as it is, until the button */
     uint32_t steps_peek_until;
     int done_task;
     uint32_t done_until;
@@ -641,8 +643,8 @@ static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user
 {
     (void)owner; (void)start; (void)user;
     if (dir == SWIPE_DOWN) {
-        /* the alarm: five more minutes, twice at most; nothing on screen says so */
-        if (app.state != ST_ALARM || app.snoozes >= MAX_SNOOZES) return false;
+        /* the alarm: five more minutes, twice at most; nothing on screen says so (not a test ring) */
+        if (app.state != ST_ALARM || app.snoozes >= MAX_SNOOZES || app.test_ring) return false;
         if (commit) {
             app.snoozes++;
             app.snooze_until = app.now_s + SNOOZE_S;
@@ -902,6 +904,14 @@ static state_t derive(void)
         finish_task_at(app.done_task, app.done_press_s);
         app.done_task = -1;
         logic_now(app.plan, app.now_s, &app.now);
+    }
+    /* a grown-up's "Ring MyToki now": the morning alarm as it looks, at any hour, until the button
+     * (then "You're up!" for a moment); the real morning's alarm isn't touched */
+    if (app.test_ring) {
+        if (app.imup_until && (int32_t)(now_ms() - app.imup_until) < 0) return ST_IM_UP;
+        if (!app.imup_until) return ST_ALARM;
+        app.imup_until = 0;
+        app.test_ring = false;
     }
     if (app.plan->rest_day) return ST_REST;
     if (n->day_over) return ST_DAY_OVER;
@@ -1543,6 +1553,28 @@ static void free_time_gift(void)
     }
 }
 
+/* A grown-up's "Ring MyToki now" (the plan's child.alarm_test): the first time a day brings a new
+ * one, and only if it was asked in the last two minutes (a late one, or one from before a restart,
+ * never rings), MyToki comes home and rings the morning alarm until the button. */
+static void alarm_test_check(const day_plan_t *p, int32_t now_s)
+{
+    const char *t = p->child.alarm_test;
+    if (!t[0] || !strcmp(t, app.test_seen)) return;
+    snprintf(app.test_seen, sizeof app.test_seen, "%s", t);
+    hal_store_set("alarm_test", t);
+    int y, mo, d, h, mi, sec;
+    if (sscanf(t, "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi, &sec) != 6) return;
+    int32_t ago = now_s - (h * 3600 + mi * 60 + sec);
+    if (y != app.t.year || mo != app.t.month || d != app.t.day || ago < -60 || ago > 120) return;
+    app.test_ring = true;
+    app.imup_until = 0;
+    screen_wake();
+    controls_close();
+    overlays_close_all();
+    if (play_is_open()) play_close();
+    go_page(1, true);
+}
+
 static void on_state_change(state_t from, state_t to)
 {
     screen_wake();   /* something new to see (it goes off again if still put down) */
@@ -1755,6 +1787,7 @@ void mytoki_start(void)
     app.retry_ms = OFFLINE_RETRY_MS;
     app.page = 1;
     app.free_window = -100000;
+    hal_store_get("alarm_test", app.test_seen, sizeof app.test_seen);   /* rung (or too late) before a restart */
 
     swipe_init();
     screen_init();
@@ -1889,6 +1922,7 @@ static void take_day(const char *json, size_t len, bool cached)
     } else if (system_showing() != SYS_SCREEN_NONE) system_show(SYS_SCREEN_NONE, NULL, NULL);
     if (first) { app.last_state = ST_NONE; app.fresh = true; }
     ui_set_picture(p->child.picture);
+    if (!cached) alarm_test_check(p, now_s);
     check_news(p);
     tick(NULL);
 }

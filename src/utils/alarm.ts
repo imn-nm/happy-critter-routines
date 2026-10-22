@@ -23,6 +23,16 @@ export const alarmOn = (child: Partial<Child>, date: string, holidays?: HolidayL
   return alarmDayKind(child, date, holidays) === 'weekends' ? child.alarm_weekends !== false : child.alarm_weekdays !== false;
 };
 
+/** "Ring MyToki now": when it was asked, as Pacific "YYYY-MM-DD HH:MM:SS" for the day plan ("" for never). */
+export const alarmTestStamp = (at?: string | null) => {
+  if (!at) return '';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(at)).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+};
+
 /** "HH:MM": the wake-up time on `date` (one-day changes, weekends and weekday times included). */
 export const wakeOn = (child: Child, date: string, holidays?: HolidayLike[] | null) =>
   (getSystemTaskScheduleForDay(child, 'Wake Up', dayNameOf(date), date, holidays)?.time ?? child.wake_time ?? '07:00').slice(0, 5);

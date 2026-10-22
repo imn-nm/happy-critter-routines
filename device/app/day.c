@@ -78,6 +78,7 @@ bool day_parse(const char *json, size_t len, day_plan_t *out)
     p->child.next_alarm = !cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(child, "next_alarm"));
     copy(p->child.star_note, sizeof p->child.star_note, child, "star_note");
     copy(p->child.star_note_id, sizeof p->child.star_note_id, child, "star_note_id");
+    copy(p->child.alarm_test, sizeof p->child.alarm_test, child, "alarm_test");
     p->child.star_note_stars = (int16_t)num(child, "star_note_stars", 1);
     const cJSON *outfit = cJSON_GetObjectItemCaseSensitive(child, "outfit");
     if (cJSON_IsObject(outfit)) {

@@ -13,7 +13,7 @@ import { petNick, resolvePetColour } from '@/components/pets/petCatalog';
 import { displayModeFor } from '@/utils/displayMode';
 import { isBedtimeRoutine } from '@/utils/dayTies';
 import { systemTaskKey, type HolidayLike } from '@/utils/systemTasks';
-import { alarmOn, nextDateOf, wakeOn } from '@/utils/alarm';
+import { alarmOn, alarmTestStamp, nextDateOf, wakeOn } from '@/utils/alarm';
 import { taskIconKey } from '@/utils/taskIcon';
 import { wheelOptionsFor } from '@/lib/spinningWheel';
 import { getPSTDateString, toPSTDateString } from '@/utils/pstDate';
@@ -61,6 +61,9 @@ export interface DayPlan {
     /** Tomorrow's wake-up ("HH:MM") and whether its alarm rings: the night screens before midnight. */
     next_wake: string;
     next_alarm: boolean;
+    /** A grown-up's "Ring MyToki now": when (Pacific "YYYY-MM-DD HH:MM:SS"), "" for never. MyToki rings
+     * the morning alarm if it's new to it and from the last two minutes. */
+    alarm_test: string;
     outfit: Record<string, string | null>;
     /** The newest unseen star note from a grown-up, its id (sent back as "note_seen") and its stars. */
     star_note?: string;
@@ -210,6 +213,7 @@ export function buildDayPlan({ child, schedule: planned, chores, completions, re
       alarm: !restDay && alarmOn(child, today, holidays),
       next_wake: wakeOn(child, nextDateOf(today), holidays),
       next_alarm: alarmOn(child, nextDateOf(today), holidays),
+      alarm_test: alarmTestStamp(child.alarm_test_at),
       outfit: (child.pet_outfit ?? {}) as Record<string, string | null>,
       ...(starNote ? { star_note: clipNote(starNote.body), star_note_id: starNote.id, star_note_stars: starNote.stars ?? 1 } : {}),
     },

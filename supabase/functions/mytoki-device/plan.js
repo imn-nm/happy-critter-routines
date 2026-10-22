@@ -3213,6 +3213,20 @@ var alarmOn = (child, date, holidays) => {
   if (isRestDate(child, date)) return false;
   return alarmDayKind(child, date, holidays) === "weekends" ? child.alarm_weekends !== false : child.alarm_weekdays !== false;
 };
+var alarmTestStamp = (at) => {
+  if (!at) return "";
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+};
 var wakeOn = (child, date, holidays) => (getSystemTaskScheduleForDay(child, "Wake Up", dayNameOf(date), date, holidays)?.time ?? child.wake_time ?? "07:00").slice(0, 5);
 
 // stub:./uiconPaths
@@ -3616,6 +3630,7 @@ function buildDayPlan({ child, schedule: planned, chores, completions, rewards, 
       alarm: !restDay && alarmOn(child, today, holidays),
       next_wake: wakeOn(child, nextDateOf(today), holidays),
       next_alarm: alarmOn(child, nextDateOf(today), holidays),
+      alarm_test: alarmTestStamp(child.alarm_test_at),
       outfit: child.pet_outfit ?? {},
       ...starNote ? { star_note: clipNote(starNote.body), star_note_id: starNote.id, star_note_stars: starNote.stars ?? 1 } : {}
     },
@@ -3972,4 +3987,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "58f2a3b27b";
+export const PLAN_REV = "dcf7dcb4bc";

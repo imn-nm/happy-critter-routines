@@ -36,6 +36,8 @@ Examples: `platform/sim/web/demo/*.json`.
     "alarm": true,                   // the alarm rings at wake-up today (a parent can turn it off for weekdays or weekends)
     "next_wake": "08:30",            // tomorrow's wake-up and alarm: the night screens before midnight show
     "next_alarm": true,              //   "Alarm set for 8:30", or "Wake up at 8:30" with no alarm
+    "alarm_test": "2026-10-21 23:10:04",  // a grown-up's "Ring MyToki now" (Pacific), "" for never: MyToki rings
+                                     //   the morning alarm if it's new and from the last two minutes
     "outfit": { "head": "wizard", "face": null, "neck": "cape" },  // pet_outfit
     "star_note": "For tidying up without asking"   // why the last stars were given: shown with "You got a star!"
   },
