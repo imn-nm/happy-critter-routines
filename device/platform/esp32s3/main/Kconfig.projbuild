@@ -28,6 +28,13 @@ menu "MyToki"
         help
             Sent as "Authorization: Bearer <token>" with every request.
 
+    config MYTOKI_ANON_KEY
+        string "The project's public (anon) key"
+        default "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhidGdra2xoZGhnd3h0emJjdmdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTk3NTUsImV4cCI6MjA4OTg3NTc1NX0.sAW1J8XMk7OA8jLElzwaZUxJhVYVg2Xp3A-W1RTN11w"
+        help
+            For the quick change check every few seconds (rest/v1/rpc/mytoki_plan_version, on the
+            same host as the day plan URL). Public: the web app carries the same key.
+
     config MYTOKI_DEMO_TIME
         string "Start time with no network (HH:MM)"
         default ""

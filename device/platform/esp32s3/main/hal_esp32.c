@@ -302,7 +302,9 @@ static esp_err_t on_http(esp_http_client_event_t *e)
  * failed on a fresh connection waits for the next try, so a struggling server isn't asked twice). */
 static esp_http_client_handle_t conn;
 
-static esp_err_t http_once(const char *url, const char *post, const char *if_none_match, body_t *body)
+/* rest: the database's REST API (the quick look), which takes the project's public key; anything
+ * else is the mytoki-device function, which takes this handheld's own token. */
+static esp_err_t http_once(const char *url, const char *post, const char *if_none_match, body_t *body, bool rest)
 {
     if (!conn) {
         esp_http_client_config_t cfg = {
@@ -314,12 +316,13 @@ static esp_err_t http_once(const char *url, const char *post, const char *if_non
         };
         conn = esp_http_client_init(&cfg);
         if (!conn) return ESP_FAIL;
-        if (CONFIG_MYTOKI_DEVICE_TOKEN[0]) {
-            char auth[160];
-            snprintf(auth, sizeof auth, "Bearer %s", CONFIG_MYTOKI_DEVICE_TOKEN);
-            esp_http_client_set_header(conn, "Authorization", auth);
-        }
     }
+    char auth[400];
+    snprintf(auth, sizeof auth, "Bearer %s", rest ? CONFIG_MYTOKI_ANON_KEY : CONFIG_MYTOKI_DEVICE_TOKEN);
+    if (rest || CONFIG_MYTOKI_DEVICE_TOKEN[0]) esp_http_client_set_header(conn, "Authorization", auth);
+    else esp_http_client_delete_header(conn, "Authorization");
+    if (rest) esp_http_client_set_header(conn, "apikey", CONFIG_MYTOKI_ANON_KEY);
+    else esp_http_client_delete_header(conn, "apikey");
     esp_http_client_set_url(conn, url);
     esp_http_client_set_user_data(conn, body);
     esp_http_client_set_method(conn, post ? HTTP_METHOD_POST : HTTP_METHOD_GET);
@@ -333,13 +336,13 @@ static esp_err_t http_once(const char *url, const char *post, const char *if_non
     return err;
 }
 
-static int http(const char *url, const char *post, const char *if_none_match, body_t *body)
+static int http(const char *url, const char *post, const char *if_none_match, body_t *body, bool rest)
 {
     bool reused = conn != NULL;
-    esp_err_t err = http_once(url, post, if_none_match, body);
+    esp_err_t err = http_once(url, post, if_none_match, body, rest);
     if (err != ESP_OK && reused) {
         if (body) body->len = 0;
-        err = http_once(url, post, if_none_match, body);
+        err = http_once(url, post, if_none_match, body, rest);
     }
     return err == ESP_OK ? esp_http_client_get_status_code(conn) : -1;
 }
@@ -380,7 +383,7 @@ static void outbox_flush(void)
     if (!CONFIG_MYTOKI_EVENTS_URL[0] || !wifi_up || !outbox_n || esp_timer_get_time() < outbox_next_us) return;
     bool changed = false;
     while (outbox_n) {
-        int st = http(CONFIG_MYTOKI_EVENTS_URL, outbox[0], NULL, NULL);
+        int st = http(CONFIG_MYTOKI_EVENTS_URL, outbox[0], NULL, NULL, false);
         if (st < 200 || st >= 300) {
             outbox_wait_ms = !outbox_wait_ms ? OUTBOX_WAIT_MS : outbox_wait_ms * 2 > OUTBOX_WAIT_MAX_MS ? OUTBOX_WAIT_MAX_MS : outbox_wait_ms * 2;
             outbox_next_us = esp_timer_get_time() + (int64_t)outbox_wait_ms * 1000;
@@ -479,7 +482,7 @@ static void fetch_day(void)
     outbox_flush();   /* what the child did goes first, so the day that comes back has it */
     body_t b = { 0 };
     got_etag[0] = 0;
-    int st = http(CONFIG_MYTOKI_DAY_URL, NULL, day_body && day_etag[0] ? day_etag : NULL, &b);
+    int st = http(CONFIG_MYTOKI_DAY_URL, NULL, day_body && day_etag[0] ? day_etag : NULL, &b, false);
     if (st == 304 && day_body) with_lock_day(day_body, day_len);   /* nothing changed */
     else if (st == 200 && b.buf) {
         char *keep = heap_caps_malloc(b.len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -500,13 +503,70 @@ static void fetch_day(void)
     free(b.buf);
 }
 
+/* ================================================================ the quick look */
+/* Every 5 s while there's a day: has it changed? One small call to the database
+ * (rest/v1/rpc/mytoki_plan_version, on the day plan's host) with this handheld's token returns its
+ * child's change number; the whole day is fetched only when that has moved past the kept day's
+ * ETag ("<build>-<date>-<child>-<number>"), or the date has. A grown-up's test ring or new time so
+ * shows within seconds, for one index lookup a look and no function call. After a failure it waits
+ * twice as long each time, up to 5 minutes. */
+#define LOOK_MS 5000
+#define LOOK_MAX_MS (5 * 60 * 1000)
+static char look_url[160];
+static uint32_t look_wait_ms = LOOK_MS;
+static int64_t look_next_us;
+
+static void look_init(void)
+{
+    const char *f = strstr(CONFIG_MYTOKI_DAY_URL, "/functions/v1/");
+    if (!f || !CONFIG_MYTOKI_ANON_KEY[0] || !CONFIG_MYTOKI_DEVICE_TOKEN[0]) return;
+    snprintf(look_url, sizeof look_url, "%.*s/rest/v1/rpc/mytoki_plan_version", (int)(f - CONFIG_MYTOKI_DAY_URL), CONFIG_MYTOKI_DAY_URL);
+}
+
+/* The kept day's ETag: its date and change number. */
+static bool etag_parts(char date[11], long long *number)
+{
+    const char *q = strchr(day_etag, '"');
+    const char *dash = q ? strchr(q + 1, '-') : NULL;
+    const char *last = q ? strrchr(q + 1, '-') : NULL;
+    if (!dash || !last || last == dash) return false;
+    snprintf(date, 11, "%.10s", dash + 1);
+    *number = strtoll(last + 1, NULL, 10);
+    return true;
+}
+
+static void quick_look(void)
+{
+    if (!look_url[0] || !wifi_up || !day_body || !day_etag[0] || esp_timer_get_time() < look_next_us) return;
+    char date[11], today[11], post[160];
+    long long have = 0;
+    if (!etag_parts(date, &have)) return;
+    snprintf(post, sizeof post, "{\"p_token\":\"%s\"}", CONFIG_MYTOKI_DEVICE_TOKEN);
+    body_t b = { 0 };
+    int st = http(look_url, post, NULL, &b, true);
+    bool ok = st == 200 && b.buf && b.buf[0] >= '0' && b.buf[0] <= '9';   /* "null": this token is unknown */
+    long long now_number = ok ? strtoll(b.buf, NULL, 10) : 0;
+    free(b.buf);
+    look_wait_ms = ok ? LOOK_MS : look_wait_ms * 2 > LOOK_MAX_MS ? LOOK_MAX_MS : look_wait_ms * 2;
+    look_next_us = esp_timer_get_time() + (int64_t)look_wait_ms * 1000;
+    if (!ok) return;
+    snprintf(today, sizeof today, "%s", date);
+    if (clock_good) {
+        time_t t = time(NULL);
+        struct tm tm;
+        localtime_r(&t, &tm);
+        strftime(today, sizeof today, "%Y-%m-%d", &tm);
+    }
+    if (now_number != have || strcmp(today, date)) fetch_day();
+}
+
 static void net_task(void *arg)
 {
     (void)arg;
     net_msg_t m;
     for (;;) {
         power_poll();
-        if (xQueueReceive(net_q, &m, pdMS_TO_TICKS(20000)) == pdTRUE) {
+        if (xQueueReceive(net_q, &m, pdMS_TO_TICKS(LOOK_MS)) == pdTRUE) {
             if (m.kind == 0) fetch_day();
             else if (m.json) {
                 if (outbox_n == OUTBOX_MAX) { free(outbox[0]); memmove(outbox, outbox + 1, sizeof(char *) * (OUTBOX_MAX - 1)); outbox_n--; }
@@ -516,6 +576,7 @@ static void net_task(void *arg)
             }
         }
         outbox_flush();
+        quick_look();
     }
 }
 
@@ -735,6 +796,7 @@ void hal_esp32_init(void)
 #endif
     outbox_load();
     plan_cache_load();
+    look_init();
 }
 
 
