@@ -1565,7 +1565,9 @@ static void brightness(void)
 {
     if (app.screen_off) return;
     uint8_t b = 80;   /* full brightness was too bright (user, 2026-10-20) */
-    switch (app.state) {
+    /* the pull-down shows the child's level as it is, never dimmed for the night, so they can see
+     * what they're setting (user, 2026-10-21); closed, the night dims again from there */
+    if (!controls_is_open()) switch (app.state) {
     case ST_SLEEPY: case ST_DAY_OVER: b = hal_docked() ? 20 : 35; break;
     case ST_BEDTIME: b = 50; break;
     /* still asleep while the alarm rings or snoozes: the screen stays dim until he's up */
@@ -1722,6 +1724,13 @@ static void controls_changed(const controls_values_t *v, bool done)
     if (heard != app.volume) { heard = app.volume; hal_play(HAL_SOUND_TICK); }   /* how loud it is now */
 }
 
+/* Opened, the screen goes straight to the child's level (no night dimming); closed, it fades back. */
+static void controls_shown(bool open)
+{
+    if (open) app.brightness = 0;
+    brightness();
+}
+
 static void controls_start(void)
 {
     char t[8];
@@ -1731,7 +1740,7 @@ static void controls_start(void)
     app.user_bright = (uint8_t)(b < CONTROLS_BRIGHT_MIN ? CONTROLS_BRIGHT_MIN : b > 100 ? 100 : b);
     app.volume = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
     hal_set_volume(app.volume);
-    controls_init(controls_get, controls_changed);
+    controls_init(controls_get, controls_changed, controls_shown);
     swipe_set_pull(controls_pull);
 }
 

@@ -20,7 +20,9 @@ typedef struct {
  * true, keep them). */
 typedef void (*controls_get_t)(controls_values_t *v);
 typedef void (*controls_set_t)(const controls_values_t *v, bool done);
-void controls_init(controls_get_t get, controls_set_t set);
+/* shown: it has started coming down (true), or going back up (false). */
+typedef void (*controls_shown_t)(bool open);
+void controls_init(controls_get_t get, controls_set_t set, controls_shown_t shown);
 
 /* From swipe_set_pull: the finger's travel down, then end = true as it lifts. */
 void controls_pull(int32_t dy, bool end);

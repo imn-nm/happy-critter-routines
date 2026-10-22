@@ -19,15 +19,17 @@ typedef struct { lv_obj_t *track, *icon; int value, min; bool icon_dark; } slide
 
 static controls_get_t get_cb;
 static controls_set_t set_cb;
+static controls_shown_t shown_cb;
 static lv_obj_t *ctl;
 static pill_t bat;
 static slider_t bright, sound;
 static controls_values_t vals;
 
-void controls_init(controls_get_t get, controls_set_t set)
+void controls_init(controls_get_t get, controls_set_t set, controls_shown_t shown)
 {
     get_cb = get;
     set_cb = set;
+    shown_cb = shown;
 }
 
 bool controls_is_open(void) { return ctl != NULL; }
@@ -169,7 +171,9 @@ static void slide_to(int32_t to, bool close)
 
 void controls_close(void)
 {
-    if (ctl) slide_to(-SCREEN_H, true);
+    if (!ctl) return;
+    slide_to(-SCREEN_H, true);
+    if (shown_cb) shown_cb(false);
 }
 
 static bool ctl_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, bool commit)
@@ -212,6 +216,7 @@ static void build(void)
     lv_obj_set_style_bg_color(handle, COL(C_CHIP), 0);
     lv_obj_set_style_bg_opa(handle, LV_OPA_COVER, 0);
     lv_obj_align(handle, LV_ALIGN_TOP_MID, 0, LABEL_Y + 84);
+    if (shown_cb) shown_cb(true);
 }
 
 void controls_pull(int32_t dy, bool end)
