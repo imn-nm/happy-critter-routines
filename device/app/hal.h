@@ -39,7 +39,9 @@ typedef enum {
     HAL_SOUND_SOON,      /* 5 minutes to go */
     HAL_SOUND_CHIME,     /* the MyToki chime: G5 then C6 (a new star, approved) */
     HAL_SOUND_BEDTIME,
-    HAL_SOUND_ALARM,     /* the morning alarm: a soft three-note ring, repeated until the button */
+    HAL_SOUND_ALARM,     /* the morning alarm: a music-box phrase (C5 E5 G5 E5), looped while it rings */
+    HAL_SOUND_ALARM_SOFT,   /* the same phrase, quiet: the alarm's first 20 seconds */
+    HAL_SOUND_ALARM_MID,    /* and a little louder: the next 20 */
 } hal_sound_t;
 void hal_play(hal_sound_t sound);
 /* How loud the sounds play, 0-100 (0: silent); the child sets it in the pull-down. */

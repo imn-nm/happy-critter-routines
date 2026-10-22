@@ -102,6 +102,14 @@ export const sounds = {
   ]),
   /** Five minutes until the next thing. A gentle "heads up", two notes. */
   soon: () => play([{ f: A4, at: 0, len: 0.22, gain: 0.08 }, { f: E5, at: 0.2, len: 0.36, gain: 0.08 }]),
+  /**
+   * MyToki's morning alarm (the web Circle): C5 E5 G5 E5 like a music box. The device loops it every
+   * 2 s while it rings, quiet at first (step 0), then a little louder (1), then full (2).
+   */
+  alarm: (step: 0 | 1 | 2 = 2) => {
+    const gain = [0.035, 0.055, 0.08][step];
+    play([C5, E5, G5, E5].map((f, i) => ({ f, at: i * 0.22, len: 0.6, gain })));
+  },
   /** Bedtime. Two descending notes, quiet. */
   bedtime: () => play([{ f: E5, at: 0, len: 0.5, gain: 0.07 }, { f: C5, at: 0.5, len: 0.8, gain: 0.06 }]),
 };

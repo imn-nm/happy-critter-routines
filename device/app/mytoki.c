@@ -43,8 +43,9 @@
 #define GET_READY_S (5 * 60)
 #define WHEEL_MIN_S (10 * 60)
 #define IDLE_HOME_MS 45000
-#define ALARM_RING_S 30            /* the alarm's tone again every half minute while it rings... */
-#define ALARM_CHIRPS_S (15 * 60)   /* ...for a quarter of an hour (it stays on screen until the button) */
+#define ALARM_LOOP_MS 2000         /* the alarm's phrase again every 2 s while it rings (user, 2026-10-22: a loop, not a chirp every half minute)... */
+#define ALARM_SOFT_MS 20000        /* ...quiet for the first 20 s, a little louder for the next 20, then full... */
+#define ALARM_LOOP_FOR_MS (15 * 60 * 1000)   /* ...for a quarter of an hour (it stays on screen until the button) */
 #define SNOOZE_S (5 * 60)
 #define MAX_SNOOZES 2
 #define SCHOOL_OFF_S (3 * 60)      /* "Off to school!" for the first three minutes of School */
@@ -106,8 +107,8 @@ static struct {
     uint8_t snoozes;
     int32_t snooze_until;       /* seconds of the day */
     uint32_t imup_until;        /* ms: the 3 s "You're up!" */
-    int32_t alarm_chirp_s;      /* when the alarm last sounded */
-    int32_t alarm_ring_s;       /* when it began ringing (again, after a snooze) */
+    uint32_t alarm_next_ms;     /* when the alarm's phrase plays next */
+    uint32_t alarm_ring_ms;     /* when it began ringing (again, after a snooze) */
     int school_task;            /* today's School row, or -1 */
     /* the device */
     uint32_t hello_until;       /* ms: "Hi, Amira!" after pairing */
@@ -1611,7 +1612,7 @@ static void on_state_change(state_t from, state_t to)
     app.say[0] = 0; /* a new screen: Biscuit says something new, or nothing */
     (void)from;
     if (to == ST_BEDTIME) hal_play(HAL_SOUND_BEDTIME);
-    if (to == ST_ALARM) { hal_play(HAL_SOUND_ALARM); app.alarm_chirp_s = app.alarm_ring_s = app.now_s; }
+    if (to == ST_ALARM) app.alarm_next_ms = app.alarm_ring_ms = now_ms();   /* the loop starts soft (tick) */
     if (to == ST_WELCOME || to == ST_SCHOOL_OFF) hal_play(HAL_SOUND_START);
     if (to == ST_BED_SOON) { hal_play(HAL_SOUND_SOON); pet_react(home_pet(), PET_CLIP_SLEEPY); }   /* a yawn */
     if (to == ST_FREE || to == ST_ALL_DONE) app.free_act = pet_pick_free_time_activity();
@@ -1723,10 +1724,12 @@ static void tick(lv_timer_t *timer)
     if (play_is_open()) play_set_time_left(app.state == ST_FREE ? app.now.free_remaining - GET_READY_S : 0);
     if (reminder_is_open()) reminder_update(app.now.free_remaining);
 
-    /* the alarm's soft tone again every half minute while it rings, for the first quarter of an hour */
-    if (app.state == ST_ALARM && app.now_s - app.alarm_chirp_s >= ALARM_RING_S && app.now_s - app.alarm_ring_s < ALARM_CHIRPS_S) {
-        app.alarm_chirp_s = app.now_s;
-        hal_play(HAL_SOUND_ALARM);
+    /* the alarm's phrase on a loop while it rings, soft at first, for the first quarter of an hour */
+    if (app.state == ST_ALARM && (int32_t)(now_ms() - app.alarm_next_ms) >= 0 && now_ms() - app.alarm_ring_ms < ALARM_LOOP_FOR_MS) {
+        uint32_t in = now_ms() - app.alarm_ring_ms;
+        hal_play(in < ALARM_SOFT_MS ? HAL_SOUND_ALARM_SOFT : in < 2 * ALARM_SOFT_MS ? HAL_SOUND_ALARM_MID : HAL_SOUND_ALARM);
+        app.alarm_next_ms += ALARM_LOOP_MS;
+        if ((int32_t)(now_ms() - app.alarm_next_ms) >= 0) app.alarm_next_ms = now_ms() + ALARM_LOOP_MS;   /* after a stall: no catching up */
     }
     brightness();
     bool locked = app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_ALARM || app.state == ST_SNOOZE

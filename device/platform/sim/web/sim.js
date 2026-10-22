@@ -125,6 +125,8 @@
     o.connect(g).connect(audio.destination);
     o.start(t); o.stop(t + dur + 0.05);
   }
+  // The morning alarm: C5 E5 G5 E5 like a music box, every 2 s while it rings (the app loops it).
+  function alarmPhrase(gain) { [523, 659, 784, 659].forEach((f, i) => tone(f, i * 0.22, 0.6, gain)); }
   const SOUNDS = [
     () => { tone(660, 0, 0.18); tone(880, 0.12, 0.25); },                 // start
     () => { tone(784, 0, 0.14); tone(988, 0.1, 0.14); tone(1319, 0.2, 0.35); }, // done
@@ -132,7 +134,9 @@
     () => { tone(880, 0, 0.3); tone(660, 0.28, 0.4); },                    // soon
     () => { tone(784, 0, 0.35); tone(1047, 0.22, 0.6); },                 // MyToki chime: G5 then C6
     () => { tone(523, 0, 0.5, 0.08); tone(392, 0.4, 0.8, 0.08); },        // bedtime
-    () => { tone(659, 0, 0.26, 0.07); tone(784, 0.24, 0.26, 0.07); tone(988, 0.48, 0.52, 0.07); }, // alarm: soft E5 G5 B5
+    () => alarmPhrase(0.07),                                              // alarm: the music-box phrase, looped
+    () => alarmPhrase(0.03),                                              // alarm, its first 20 s
+    () => alarmPhrase(0.05),                                              // alarm, the next 20 s
   ];
 
   // ---------------------------------------------------------------- wasm

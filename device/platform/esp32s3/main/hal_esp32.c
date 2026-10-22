@@ -745,14 +745,18 @@ static void motion_task(void *arg)
 
 /* ================================================================ chimes */
 typedef struct { float f; int at, dur; float gain; } note_t;
-static const note_t SOUNDS[][3] = {
+static const note_t SOUNDS[][4] = {
     [HAL_SOUND_START] = { { 659, 0, 180, .5f }, { 880, 120, 250, .5f } },
     [HAL_SOUND_DONE] = { { 784, 0, 140, .5f }, { 988, 100, 140, .5f }, { 1319, 200, 350, .5f } },
     [HAL_SOUND_TICK] = { { 1175, 0, 90, .35f } },
     [HAL_SOUND_SOON] = { { 880, 0, 300, .5f }, { 659, 280, 400, .5f } },
     [HAL_SOUND_CHIME] = { { 784, 0, 350, .5f }, { 1047, 220, 600, .5f } }, /* the MyToki chime: G5 then C6 */
     [HAL_SOUND_BEDTIME] = { { 523, 0, 500, .35f }, { 392, 400, 800, .35f } },
-    [HAL_SOUND_ALARM] = { { 659, 0, 260, .3f }, { 784, 240, 260, .3f }, { 988, 480, 520, .3f } },   /* E5 G5 B5, softer than the chimes */
+    /* the morning alarm: a music-box phrase that loops every 2 s while it rings, soft, then a little
+     * louder, then as loud as it gets (still softer than the chimes) */
+    [HAL_SOUND_ALARM] = { { 523, 0, 600, .3f }, { 659, 220, 600, .3f }, { 784, 440, 600, .3f }, { 659, 660, 600, .3f } },
+    [HAL_SOUND_ALARM_SOFT] = { { 523, 0, 600, .12f }, { 659, 220, 600, .12f }, { 784, 440, 600, .12f }, { 659, 660, 600, .12f } },
+    [HAL_SOUND_ALARM_MID] = { { 523, 0, 600, .2f }, { 659, 220, 600, .2f }, { 784, 440, 600, .2f }, { 659, 660, 600, .2f } },
 };
 
 static volatile uint8_t volume_want = 55;   /* the pull-down's sound slider; the sound task applies it */
@@ -781,12 +785,12 @@ static void sound_task(void *arg)
         if (volume_now != volume_want) { volume_now = volume_want; esp_codec_dev_set_out_vol(spk, volume_now); }
         if (!volume_now) continue;
         int end_ms = 0;
-        for (int k = 0; k < 3; k++) if (SOUNDS[s][k].f > 0 && SOUNDS[s][k].at + SOUNDS[s][k].dur > end_ms) end_ms = SOUNDS[s][k].at + SOUNDS[s][k].dur;
+        for (int k = 0; k < 4; k++) if (SOUNDS[s][k].f > 0 && SOUNDS[s][k].at + SOUNDS[s][k].dur > end_ms) end_ms = SOUNDS[s][k].at + SOUNDS[s][k].dur;
         if (end_ms > max_ms) end_ms = max_ms;
         int n = rate * end_ms / 1000;
         for (int i = 0; i < n; i++) {
             float v = 0, t = (float)i / rate;
-            for (int k = 0; k < 3; k++) {
+            for (int k = 0; k < 4; k++) {
                 const note_t *nt = &SOUNDS[s][k];
                 if (nt->f <= 0) continue;
                 float lt = t - nt->at / 1000.0f, d = nt->dur / 1000.0f;
