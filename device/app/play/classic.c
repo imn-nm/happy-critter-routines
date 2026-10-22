@@ -231,14 +231,16 @@ static void cookie(float cx, float cy, float r)
 #define TR_Y0 139
 #define TR_STEP 26
 #define TR_MAX (TR_COLS * TR_ROWS)
-#define TR_START_MS 230
-#define TR_FAST_MS 105
+#define TR_START_MS 330      /* a step every 330 ms at first */
+#define TR_FAST_MS 175       /* never quicker than this */
+#define TR_FASTER_MS 5       /* each cookie takes this off */
 
 static const int8_t DX4[4] = { 1, 0, -1, 0 }, DY4[4] = { 0, 1, 0, -1 };   /* right, down, left, up */
 
 static struct {
     int8_t x[TR_MAX], y[TR_MAX];
     int len, grow, dir, q[2], nq;
+    bool held;               /* it stopped one step short of a crash, for a late turn */
     int8_t tx[2], ty[2];
     float acc;
     int every;
@@ -296,11 +298,14 @@ static void tr_move(void)
     int hx = tr.x[0] + DX4[tr.dir], hy = tr.y[0] + DY4[tr.dir];
     bool grows = tr.grow > 0;
     if (!tr_ok(hx, hy) || tr_body_at(hx, hy, grows ? tr.len : tr.len - 1)) {
+        /* one step's grace: a turn swiped a moment late still saves it */
+        if (!tr.held) { tr.held = true; return; }
         game_over();
         hal_play(HAL_SOUND_SOON);
         inv_all();
         return;
     }
+    tr.held = false;
     int tail_x = tr.x[tr.len - 1], tail_y = tr.y[tr.len - 1];
     if (grows) { tr.len++; tr.grow--; }
     for (int k = tr.len - 1; k > 0; k--) { tr.x[k] = tr.x[k - 1]; tr.y[k] = tr.y[k - 1]; }
@@ -312,7 +317,7 @@ static void tr_move(void)
     for (int n = 0; n < 2; n++) {
         if (tr.tx[n] != hx || tr.ty[n] != hy) continue;
         tr.grow++;
-        tr.every = tr.every - 7 < TR_FAST_MS ? TR_FAST_MS : tr.every - 7;
+        tr.every = tr.every - TR_FASTER_MS < TR_FAST_MS ? TR_FAST_MS : tr.every - TR_FASTER_MS;
         hal_play(HAL_SOUND_TICK);
         tr_treat(n);
     }
@@ -477,11 +482,15 @@ static void pp_draw(void)
 enum { SN_APPLE, SN_COOKIE, SN_BERRY, SN_KINDS };
 static const char *const SN_PLURAL[SN_KINDS] = { "apples", "cookies", "berries" };
 
+#define DR_SPEED 135.0f       /* px a second at first */
+#define DR_EVERY 900.0f       /* a new snack about this often at first */
+
 typedef struct { bool on; uint8_t kind; float x, y, vy; } drop_t;
 static struct {
     drop_t d[DR_MAX];
     int target, lives;
     float spawn_in, every, speed;
+    float pace;               /* how well it's going: up with every catch (more for a quick one), down a lot for a slip */
     float ring_x, ring_y, ring_t;
     bool ring_good;
     float hurt_t;
@@ -514,8 +523,9 @@ static void dr_reset(void)
     memset(&dr, 0, sizeof dr);
     dr.target = SN_APPLE;
     dr.lives = 3;
-    dr.every = 1150;
-    dr.speed = 80;
+    dr.pace = 0;
+    dr.every = DR_EVERY;
+    dr.speed = DR_SPEED;
     dr.spawn_in = 300;
     dr.ring_t = dr.hurt_t = -1000;
     cl.score = 0;
@@ -528,7 +538,9 @@ static void dr_spawn(void)
         if (dr.d[i].on) continue;
         drop_t *d = &dr.d[i];
         d->on = true;
-        d->kind = (uint8_t)(frand01() < 0.45f ? dr.target : (dr.target + 1 + rand_int(SN_KINDS - 1)) % SN_KINDS);
+        /* the better it goes, the more of them are the wrong snack */
+        float right = fmaxf(0.32f, 0.45f - dr.pace * 0.005f);
+        d->kind = (uint8_t)(frand01() < right ? dr.target : (dr.target + 1 + rand_int(SN_KINDS - 1)) % SN_KINDS);
         /* across the top, clear of the last one */
         float x = 96;
         for (int tries = 0; tries < 8; tries++) {
@@ -545,8 +557,17 @@ static void dr_spawn(void)
     }
 }
 
+/* faster and quicker to come as the pace goes up, easing off after a slip */
+static void dr_set_pace(float pace)
+{
+    dr.pace = fmaxf(0, pace);
+    dr.speed = fminf(340, DR_SPEED + dr.pace * 8);
+    dr.every = fmaxf(360, DR_EVERY - dr.pace * 25);
+}
+
 static void dr_hurt(void)
 {
+    dr_set_pace(dr.pace - 4);
     dr.hurt_t = cl.t;
     inv_box(154, 403, 40);
     if (--dr.lives <= 0) {
@@ -603,8 +624,7 @@ static void dr_tap(float x, float y)
     dr_inv(d);
     if (!dr.ring_good) { dr_hurt(); return; }
     cl.score++;
-    dr.speed = fminf(235, 80 + cl.score * 5.5f);
-    dr.every = fmaxf(430, 1150 - cl.score * 24);
+    dr_set_pace(dr.pace + (dr.ring_y < 230 ? 1.6f : 1));   /* caught high up: a quick one */
     hal_play(HAL_SOUND_TICK);
     if (cl.score % 10 == 0) {   /* a new snack to catch */
         dr.target = (dr.target + 1) % SN_KINDS;
@@ -874,7 +894,14 @@ static void bb_tap(void)
 #define MZ_CY 238.0f
 #define MZ_PUFFS 3
 #define MZ_SNACKS 24
-#define MZ_SCARED_MS 6500.0f
+#define MZ_SCARED_MS 8000.0f
+#define MZ_ME_SPEED 82.0f       /* px a second */
+#define MZ_PUFF_SPEED 50.0f
+#define MZ_SCARED_SPEED 38.0f
+#define MZ_CATCH 16.0f          /* how near a puff must come */
+/* the puffs rest (wander) for 7 s, then hunt for 13, over and over, starting with a rest */
+#define MZ_REST_MS 7000.0f
+#define MZ_ROUND_MS 20000.0f
 
 static const float MZ_WALL[4] = { 49, 91, 133, 175 };
 static const float MZ_COR[3] = { 70, 112, 154 };
@@ -901,6 +928,7 @@ static struct {
     bool big[2];
     int left, lives, level;
     float scared_until, pause_until, mouth;
+    float round0;                 /* when the puffs' rest-and-hunt rounds began */
     bool started;                 /* play has begun (puffs leave home counting from then) */
 } mz;
 
@@ -959,7 +987,7 @@ static void mz_take(mz_mover_t *m, int k)
  * muncher (walls, spokes and openings as they are), worked out again every frame. */
 #define MZ_BINS 72
 static uint8_t mz_dist[3][MZ_BINS];
-static const float MZ_WANDER[MZ_PUFFS] = { 0.08f, 0.25f, 0.45f };   /* mint hunts, pink mostly wanders */
+static const float MZ_WANDER[MZ_PUFFS] = { 0.25f, 0.45f, 0.65f };   /* mint hunts, pink mostly wanders */
 
 static int mz_bin(float a) { return ((int)floorf(norm360(a) / 5.0f)) % MZ_BINS; }
 
@@ -1016,9 +1044,9 @@ static bool mz_choose(mz_mover_t *m, int puff, float wx, float wy)
         for (int k = 0; k < 4; k++) if (open[k] && k != rev) opts[n++] = k;
         if (!n && rev >= 0 && open[rev]) opts[n++] = rev;
         if (!n) { m->dir = 0; return false; }
-        bool scared = cl.t < mz.scared_until;
+        bool scared = cl.t < mz.scared_until, rest = fmodf(cl.t - mz.round0, MZ_ROUND_MS) < MZ_REST_MS;
         int pick = opts[0];
-        if (frand01() < (scared ? 0.3f : MZ_WANDER[puff])) pick = opts[rand_int(n)];
+        if (frand01() < (scared ? 0.3f : rest ? 0.85f : MZ_WANDER[puff])) pick = opts[rand_int(n)];
         else
             for (int i = 1; i < n; i++) {
                 int a = mz_far(m, opts[i]), b = mz_far(m, pick);
@@ -1130,7 +1158,7 @@ static void mz_places(void)
     for (int i = 0; i < MZ_PUFFS; i++) {
         mz.puff[i] = (mz_mover_t){ .r = 15.0f * (i - 1), .a = 0, .ring = -1, .fx = 0, .fy = -1 };
         mz.out[i] = false;
-        mz.release[i] = cl.t + 1200 + i * 3200 - (mz.level - 1) * 300;
+        mz.release[i] = cl.t + 2500 + i * 4500 - (mz.level - 1) * 300;
     }
     mz.scared_until = 0;
 }
@@ -1202,11 +1230,12 @@ static void mz_update(float dt)
     /* puffs still at home wait from when play really starts */
     if (cl.t - dt < mz.pause_until || !mz.started) {
         mz.started = true;
-        for (int i = 0; i < MZ_PUFFS; i++) if (!mz.out[i]) mz.release[i] = fmaxf(mz.release[i], cl.t + 1200 + i * 3200 - (mz.level - 1) * 300);
+        mz.round0 = cl.t;
+        for (int i = 0; i < MZ_PUFFS; i++) if (!mz.out[i]) mz.release[i] = fmaxf(mz.release[i], cl.t + 2500 + i * 4500 - (mz.level - 1) * 300);
     }
-    float lv = 1 + 0.08f * (mz.level - 1), sec = dt / 1000.0f;
+    float lv = 1 + 0.06f * (mz.level - 1), sec = dt / 1000.0f;
     mz_inv(&mz.me);
-    mz_advance(&mz.me, 74 * lv * sec, -1);
+    mz_advance(&mz.me, MZ_ME_SPEED * lv * sec, -1);
     mz_inv(&mz.me);
     mz_eat();
     if (cl.state != ST_PLAY) return;
@@ -1219,10 +1248,10 @@ static void mz_update(float dt)
             if (cl.t >= mz.release[i]) { mz.out[i] = true; p->mode = 1; p->dir = 1; p->from = -1; p->to = 0; p->r = 0; p->a = 270; }
             else { mz_inv(p); continue; }
         }
-        mz_advance(p, (scared ? 44 : 60) * lv * sec, i);
+        mz_advance(p, (scared ? MZ_SCARED_SPEED : MZ_PUFF_SPEED) * lv * sec, i);
         mz_inv(p);
         float dx = mz_x(p) - mz_x(&mz.me), dy = mz_y(p) - mz_y(&mz.me);
-        if (dx * dx + dy * dy > 20 * 20) continue;
+        if (dx * dx + dy * dy > MZ_CATCH * MZ_CATCH) continue;
         if (scared) {   /* caught a puff: home it goes */
             cl.score += 200;
             *p = (mz_mover_t){ .r = 15.0f * (i - 1), .a = 0, .ring = -1, .fx = 0, .fy = -1 };
