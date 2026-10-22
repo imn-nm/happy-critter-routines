@@ -47,6 +47,7 @@
 #define ALARM_LOOP_MS 2000         /* the alarm's phrase again every 2 s while it rings (user, 2026-10-22: a loop, not a chirp every half minute)... */
 #define ALARM_SOFT_MS 20000        /* ...quiet for the first 20 s, a little louder for the next 20, then full... */
 #define ALARM_LOOP_FOR_MS (15 * 60 * 1000)   /* ...for a quarter of an hour (it stays on screen until the button) */
+#define PING_FOR_MS 30000          /* "Ring MyToki now" rings for half a minute at most */
 #define SNOOZE_S (5 * 60)
 #define MAX_SNOOZES 2
 #define SCHOOL_OFF_S (3 * 60)      /* "Off to school!" for the first three minutes of School */
@@ -76,7 +77,8 @@ static struct {
     int32_t chore_at[DAY_MAX_CHORES]; /* when the child last checked or unchecked each chore here (s of the day), or -1 */
     char gift_seen[40];               /* the last grown-up's free time greeted */
     char test_seen[24];               /* the last "Ring MyToki now" seen (kept: "alarm_test") */
-    bool test_ring;                   /* ringing for it: the morning alarm as it is, until the button */
+    bool pinging;                     /* ringing for it: the alarm's sound over whatever is showing */
+    uint32_t ping_ms, ping_next_ms;   /* when it began, when the phrase plays next */
     uint32_t steps_peek_until;
     int done_task;
     uint32_t done_until;
@@ -655,7 +657,7 @@ static bool on_base_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user
     (void)owner; (void)start; (void)user;
     if (dir == SWIPE_DOWN) {
         /* the alarm: five more minutes, twice at most; nothing on screen says so (not a test ring) */
-        if (app.state != ST_ALARM || app.snoozes >= MAX_SNOOZES || app.test_ring) return false;
+        if (app.state != ST_ALARM || app.snoozes >= MAX_SNOOZES) return false;
         if (commit) {
             app.snoozes++;
             app.snooze_until = app.now_s + SNOOZE_S;
@@ -945,14 +947,6 @@ static state_t derive(void)
         finish_task_at(app.done_task, app.done_press_s);
         app.done_task = -1;
         logic_now(app.plan, app.now_s, &app.now);
-    }
-    /* a grown-up's "Ring MyToki now": the morning alarm as it looks, at any hour, until the button
-     * (then "You're up!" for a moment); the real morning's alarm isn't touched */
-    if (app.test_ring) {
-        if (app.imup_until && (int32_t)(now_ms() - app.imup_until) < 0) return ST_IM_UP;
-        if (!app.imup_until) return ST_ALARM;
-        app.imup_until = 0;
-        app.test_ring = false;
     }
     if (app.plan->rest_day) return ST_REST;
     if (n->day_over) return ST_DAY_OVER;
@@ -1608,7 +1602,9 @@ static void free_time_gift(void)
 
 /* A grown-up's "Ring MyToki now" (the plan's child.alarm_test): the first time a day brings a new
  * one, and only if it was asked in the last two minutes (a late one, or one from before a restart,
- * never rings), MyToki comes home and rings the morning alarm until the button. */
+ * never rings), MyToki lights up and plays the alarm's phrase over whatever it is showing, with
+ * Biscuit saying "Ring ring!" at home, for half a minute or until the button or a touch. It is a
+ * ping, not the alarm: no sleeping, no "You're up!" (user, 2026-10-22). */
 static void alarm_test_check(const day_plan_t *p, int32_t now_s)
 {
     const char *t = p->child.alarm_test;
@@ -1619,13 +1615,18 @@ static void alarm_test_check(const day_plan_t *p, int32_t now_s)
     if (sscanf(t, "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi, &sec) != 6) return;
     int32_t ago = now_s - (h * 3600 + mi * 60 + sec);
     if (y != app.t.year || mo != app.t.month || d != app.t.day || ago < -60 || ago > 120) return;
-    app.test_ring = true;
-    app.imup_until = 0;
+    app.pinging = true;
+    app.ping_ms = app.ping_next_ms = now_ms();
     screen_wake();
     controls_close();
-    overlays_close_all();
-    if (play_is_open()) play_close();
-    go_page(1, true);
+    if (app.page == 1 && !play_is_open() && !overlays_any_open()) pet_react(home_pet(), PET_CLIP_WAVE);
+}
+
+static void ping_stop(void)
+{
+    app.pinging = false;
+    app.say[0] = 0;
+    app.say_key[0] = 0;
 }
 
 static void on_state_change(state_t from, state_t to)
@@ -1764,6 +1765,15 @@ static void tick(lv_timer_t *timer)
         hal_play(in < ALARM_SOFT_MS ? HAL_SOUND_ALARM_SOFT : in < 2 * ALARM_SOFT_MS ? HAL_SOUND_ALARM_MID : HAL_SOUND_ALARM);
         app.alarm_next_ms += ALARM_LOOP_MS;
         if ((int32_t)(now_ms() - app.alarm_next_ms) >= 0) app.alarm_next_ms = now_ms() + ALARM_LOOP_MS;   /* after a stall: no catching up */
+    }
+    /* "Ring MyToki now": the phrase every 2 s, at full, for half a minute */
+    if (app.pinging) {
+        if (now_ms() - app.ping_ms >= PING_FOR_MS) ping_stop();
+        else if ((int32_t)(now_ms() - app.ping_next_ms) >= 0) {
+            hal_play(HAL_SOUND_ALARM);
+            say(NULL, "Ring ring!", ALARM_LOOP_MS + 500);
+            app.ping_next_ms = now_ms() + ALARM_LOOP_MS;
+        }
     }
     brightness();
     bool locked = app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_ALARM || app.state == ST_SNOOZE
@@ -2098,6 +2108,7 @@ static void on_touch(lv_event_t *e)
 {
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED || c == LV_EVENT_PRESSING || c == LV_EVENT_RELEASED) app.touch_ms = now_ms();
+    if (c == LV_EVENT_PRESSED && app.pinging) ping_stop();   /* a touch quiets a ping too */
 }
 
 static void screen_init(void)
@@ -2120,6 +2131,8 @@ void mytoki_motion(float ax, float ay, float az)
 void mytoki_button(void)
 {
     app.touch_ms = now_ms();
+    /* the button quiets "Ring MyToki now" (dark screen or not), and does nothing else */
+    if (app.pinging) { ping_stop(); screen_wake(); tick(NULL); return; }
     if (app.screen_off) { screen_wake(); return; }   /* a press on a dark screen only lights it */
     if (controls_is_open()) { controls_close(); return; }   /* the pull-down goes back up, nothing else */
     if (!app.have_plan) return;

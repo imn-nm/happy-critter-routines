@@ -92,14 +92,15 @@ const AlarmCard = ({ child, date, onUpdateChild, onChanged }: Props) => {
     }
   };
 
-  // "Ring MyToki now": MyToki rings the morning alarm within about half a minute (its next look at
-  // the day), at any hour, without moving wake-up; the button on it stops it.
+  // "Ring MyToki now": a ping. Within about half a minute (its next look at the day) MyToki plays the
+  // alarm's sound over whatever it is showing, for up to 30 s; a touch or its button stops it. It is
+  // not the alarm: no sleeping, no "You're up!", and wake-up doesn't move.
   const [testing, setTesting] = useState(false);
   const ringNow = async () => {
     setTesting(true);
     try {
       await onUpdateChild(child.id, { alarm_test_at: new Date().toISOString() });
-      toast.success("MyToki will ring in a moment. The button on it stops it.");
+      toast.success("MyToki will ring in a moment, for up to 30 seconds. A tap or its button stops it.");
     } catch {
       toast.error("Couldn't reach MyToki. Please try again.");
     } finally {
