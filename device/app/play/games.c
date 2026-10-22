@@ -52,193 +52,141 @@ static void bubble_over(stage_t *s, const char *t, int cx, int y)
     stage_bubble(s, t, x, y);
 }
 
-/* ================================================================ Peekaboo */
-#define BUSH_W 22
-#define BUSH_H 15
-#define BUSH_TOP (FLOOR - 15)
-#define PEEK_Y (BUSH_TOP - 4)
-static const int SPOTS[3] = { 4, 37, 70 };
-static char bush[BUSH_H][BUSH_W + 1];
-static const char *const HEART[] = { ".PP.PP.", "PPPPPPP", "PFPPPPP", ".PPPPP.", "..PPP..", "...P..." };
-static const char *const FLY_OPEN[] = { "YY.YY", "YYkYY", ".y.y." };
-static const char *const FLY_SHUT[] = { "..Y..", ".YkY.", "..y.." };
-
-enum { PK_HIDDEN, PK_FOUND, PK_SHUFFLE };
-static struct {
-    int state, spot, found;
-    float t, rustle[3], say_t, say_at;
-    struct { float x, y, t; } flies[6];
-    int nflies;
-} pk;
-
-static void make_bush(void)
-{
-    static const float BLOBS[3][3] = { { 6, 8, 6 }, { 11, 6, 6.5f }, { 16, 8, 6 } };
-    for (int y = 0; y < BUSH_H; y++) {
-        for (int x = 0; x < BUSH_W; x++) {
-            bool in = false;
-            for (int b = 0; b < 3; b++) {
-                float dx = x + 0.5f - BLOBS[b][0], dy = y + 0.5f - BLOBS[b][1];
-                if (dx * dx + dy * dy <= BLOBS[b][2] * BLOBS[b][2]) in = true;
-            }
-            if (!in && !(y >= 8 && x >= 1 && x <= 20)) bush[y][x] = '.';
-            else bush[y][x] = y > 11 || (x * 3 + y * 5) % 7 == 0 ? 'g' : 'G';
-        }
-        bush[y][BUSH_W] = 0;
-    }
-    bush[5][5] = 'X'; bush[7][15] = 'X'; bush[10][9] = 'X';
-}
-
-static void pk_shuffled(void *ctx) { (void)ctx; pk.state = PK_SHUFFLE; pk.t = 0; }
-
-static void pk_start(void)
-{
-    memset(&pk, 0, sizeof pk);
-    make_bush();
-    pk.spot = (int)(frand() * 3) % 3;
-}
-
-static void pk_update(float dt)
-{
-    pk.t += dt;
-    for (int i = 0; i < 3; i++) pk.rustle[i] = fmaxf(0, pk.rustle[i] - dt);
-    if (pk.say_at > 0 && now >= pk.say_at) { pk.say_t = 1900; pk.say_at = 0; }
-    pk.say_t = fmaxf(0, pk.say_t - dt);
-    int k = 0;
-    for (int i = 0; i < pk.nflies; i++) { pk.flies[i].t += dt; if (pk.flies[i].t < 1600) pk.flies[k++] = pk.flies[i]; }
-    pk.nflies = k;
-    if (pk.state == PK_SHUFFLE && pk.t > 1000) {
-        /* tucked in somewhere new while the leaves were rustling */
-        int others[2], n = 0;
-        for (int i = 0; i < 3; i++) if (i != pk.spot) others[n++] = i;
-        pk.spot = others[(int)(frand() * 2) % 2];
-        pk.state = PK_HIDDEN;
-        pk.t = 0;
-    }
-}
-
-static bool pk_peeking(void) { return pk.state == PK_HIDDEN && pk.t > 2500 && fmodf(pk.t - 2500, 3200) < 700; }
-
-static void pk_tap(float x, float y)
-{
-    if (pk.state != PK_HIDDEN || y < BUSH_TOP - 14) return;
-    int i = -1;
-    for (int k = 0; k < 3; k++) if (x >= SPOTS[k] - 2 && x <= SPOTS[k] + BUSH_W + 2) i = k;
-    if (i < 0) return;
-    if (i != pk.spot) {
-        /* not here: the bush rustles and a butterfly flutters out */
-        pk.rustle[i] = 450;
-        if (pk.nflies < N(pk.flies)) pk.flies[pk.nflies++] = (__typeof__(pk.flies[0])){ (float)SPOTS[i] + 9, BUSH_TOP + 2, 0 };
-        return;
-    }
-    pk.state = PK_FOUND;
-    pk.found++;
-    hal_play(HAL_SOUND_DONE);
-    int x0 = SPOTS[pk.spot];
-    actor.n = 0;
-    act_add(&actor, 1, PET_POSE_F_HAPPY_YAY_BLUSH, 1, 1, x0, PEEK_Y - 6);
-    act_add(&actor, 1, PET_POSE_F_HAPPY_YAY_BLUSH, 1, 1, x0, PEEK_Y - 14);
-    act_add(&actor, 1, PET_POSE_F_T_YAY, 1, 1, x0, SY - 5);
-    act_burst(&actor, x0 + 11, SY + 6, 7);
-    act_add(&actor, 2, PET_POSE_F_T_YAY, 1, 1, x0, SY - 6);
-    act_add(&actor, 1, PET_POSE_F_T_YAY, 1, 1, x0, SY - 3);
-    for (int k = 0; k < 16; k++) act_add(&actor, 1, k % 8 < 5 ? PET_POSE_F_HAPPY_SMILE_BLUSH : PET_POSE_F_SMILE_BLUSH, 1, 1, x0, SY);
-    act_add(&actor, 1, PET_POSE_F_HAPPY_SMILE, 1, 1, x0, SY + 8);
-    act_add(&actor, 1, PET_POSE_F_HAPPY, 1, 1, x0, PEEK_Y);
-    actor_play(&actor, pk_shuffled, NULL);
-    pk.say_at = now + 170;
-}
-
-static void pk_draw(stage_t *s)
-{
-    stage_clear(s, PET_GAME_GARDEN);
-    const pose_t *a = actor_pose(&actor, &parts);
-    pose_t p;
-    if (a) p = *a;
-    else if (pk_peeking()) {
-        int wiggle = ((int)(pk.t / 140)) % 2;
-        p = (pose_t){ blinking(now, 3600, 0) ? PET_POSE_F_BLINK : PET_POSE_F_REST, 1, 1, SPOTS[pk.spot] + wiggle, PEEK_Y };
-    } else p.pose = PET_POSE_COUNT;
-    if (p.pose != PET_POSE_COUNT) stage_pose(s, &p, FLOOR); /* behind the bushes */
-    const char *rows[BUSH_H];
-    for (int y = 0; y < BUSH_H; y++) rows[y] = bush[y];
-    for (int i = 0; i < 3; i++) {
-        bool shaking = pk.rustle[i] > 0 || pk.state == PK_SHUFFLE;
-        int dx = shaking ? (((int)(now / 70) + i) % 2 ? 1 : -1) : 0;
-        stage_stamp(s, rows, BUSH_H, SPOTS[i] + dx, BUSH_TOP, 0);
-        /* the bush hides him: clear his cells under the leaves */
-        for (int y = 0; y < BUSH_H; y++)
-            for (int x = 0; x < BUSH_W; x++)
-                if (bush[y][x] != '.') {
-                    int gx = SPOTS[i] + dx + x + ST_OX, gy = BUSH_TOP + y + ST_OY;
-                    if (gx >= 0 && gx < ST_W && gy >= 0 && gy < ST_H) s->body[gy * ST_W + gx] = 0;
-                }
-    }
-    for (int i = 0; i < pk.nflies; i++) {
-        float k = pk.flies[i].t / 1600;
-        int fx = (int)lroundf(pk.flies[i].x + 30 * k + 3 * sinf(pk.flies[i].t / 120)), fy = (int)lroundf(pk.flies[i].y - 40 * k);
-        stage_stamp(s, ((int)(pk.flies[i].t / 90)) % 2 == 0 ? FLY_OPEN : FLY_SHUT, 3, fx, fy, 0);
-    }
-    parts_draw(&parts, s);
-    if (pk.say_t > 0) {
-        int x0 = SPOTS[pk.spot] + 23;
-        if (x0 > LW - 26) x0 = LW - 26;
-        int w = stage_text_width("BOO!");
-        stage_bubble(s, "BOO!", x0 < LW - w - 8 ? x0 : LW - w - 8, 2);
-    }
-    stage_stamp(s, HEART, N(HEART), 3, 2, 0);
-    char n[8];
-    snprintf(n, sizeof n, "%d", pk.found);
-    stage_text(s, n, 12, 3, 'H');
-}
-
 /* ================================================================ Bubble pop */
+/* Biscuit blows bubbles from his wand for 40 seconds; tap them before they float away. Plain ones
+ * count 1. Gold ones (now and then, quick and wobbly) count 3. Big ones take two taps: the first
+ * splits them in two. Spiky red ones take 3 off. Pop them quickly one after another for a streak:
+ * from 5 in a row each counts double, and one floating away ends it. Gusts of wind push them
+ * sideways, and they come quicker and rise faster as the round goes on. The best is kept. */
 #define RX 64
 #define WAND_X (RX - 5)
 #define WAND_Y (SY + 20)
-#define CHEER_EVERY 10
+#define BP_ROUND_MS 40000.0f
+#define BP_STREAK_MS 1100.0f   /* a pop this soon after the last keeps the streak going */
+#define BP_DOUBLE 5            /* from this many in a row, each counts double */
 static const char COLOURS[4] = { 'f', 'R', 'Z', 'B' };
 static const char *const BUBBLE_ICON[] = { ".ffff.", "fF...f", "fF...f", "f....f", "f....f", ".ffff." };
 
+enum { BB_PLAIN, BB_GOLD, BB_BIG, BB_SPIKY };
+enum { BP_READY, BP_PLAYING, BP_END };
 static struct {
-    struct { float x, y, vx, vy, r, size, age, sway; char c; bool gold; } b[9];
-    int nb, popped;
-    float spawn_t, blow_t, happy_t;
+    struct { float x, y, vx, vy, r, size, age, sway, wob; char c; uint8_t kind; } b[16];
+    int nb, state, score, best, streak, end_fx0;
+    float time, spawn_t, blow_t, happy_t, ouch_t, gust_t, gust_in, gust_dir, last_pop;
+    bool record;
+    char label[16];
 } bp;
 
-static void bp_start(void) { memset(&bp, 0, sizeof bp); bp.spawn_t = 300; }
+static void bp_start(void)
+{
+    memset(&bp, 0, sizeof bp);
+    bp.best = best_get("bubble-best");
+    bp.time = BP_ROUND_MS;
+    bp.spawn_t = 300;
+}
+
+static void bp_play(void)
+{
+    int best = bp.best;
+    bp_start();
+    bp.best = best;
+    bp.state = BP_PLAYING;
+    bp.gust_in = 9000 + frand() * 4000;
+    actor.n = 0;
+    parts.n = 0;
+    hal_play(HAL_SOUND_START);
+}
+
+static void bp_finish(void)
+{
+    bp.state = BP_END;
+    bp.nb = 0;
+    snprintf(bp.label, sizeof bp.label, "WOW! %d", bp.score);
+    bp.end_fx0 = front_x_for(RX, false);
+    actor.n = 0;
+    act_turn_to_you(&actor, RX, false);
+    act_cheer(&actor, bp.end_fx0);
+    actor_play(&actor, NULL, NULL);
+    hal_play(HAL_SOUND_DONE);
+    if (bp.score > bp.best) {
+        bp.best = bp.score;
+        bp.record = true;
+        best_set("bubble-best", bp.best);
+    }
+}
+
+typedef __typeof__(bp.b[0]) bubble_t;
+
+static bubble_t *bp_add(float x, float y, float vx, float vy, float size, uint8_t kind)
+{
+    if (bp.nb >= N(bp.b)) return NULL;
+    bubble_t *b = &bp.b[bp.nb++];
+    memset(b, 0, sizeof *b);
+    b->x = x; b->y = y; b->vx = vx; b->vy = vy;
+    b->size = size;
+    b->sway = frand() * 6;
+    b->wob = kind == BB_GOLD ? 0.35f : 0.05f;
+    b->c = COLOURS[(int)(frand() * 4) % 4];
+    b->kind = kind;
+    return b;
+}
+
+static void bp_spawn(float k)
+{
+    float r = frand(), fast = 1 + 0.8f * k;
+    uint8_t kind = BB_PLAIN;
+    float played = BP_ROUND_MS - bp.time;
+    if (r < 0.09f) kind = BB_GOLD;
+    else if (played > 5000 && r < 0.23f) kind = BB_BIG;
+    else if (played > 8000 && r < 0.31f + 0.08f * k) kind = BB_SPIKY;
+    float size = kind == BB_BIG ? 7 + frand() : kind == BB_GOLD ? 3 + frand() : 3 + frand() * 3;
+    float sp = kind == BB_GOLD ? 1.6f : kind == BB_BIG ? 0.7f : 1;
+    if (frand() < 0.25f) {   /* now and then one rises from the grass instead */
+        bp_add(8 + frand() * (LW - 30), FLOOR + 2, (frand() - 0.5f) * 8, (-9 - frand() * 6) * fast * sp, size, kind);
+        return;
+    }
+    bp.blow_t = 320;
+    bp_add(WAND_X, WAND_Y, (-4 - frand() * 16) * fast * sp, (-5 - frand() * 7) * fast * sp, size, kind);
+}
 
 static void bp_update(float dt)
 {
     bp.blow_t = fmaxf(0, bp.blow_t - dt);
     bp.happy_t = fmaxf(0, bp.happy_t - dt);
+    bp.ouch_t = fmaxf(0, bp.ouch_t - dt);
+    if (bp.state != BP_PLAYING) return;
+    bp.time -= dt;
+    if (bp.time <= 0) { bp.time = 0; bp_finish(); return; }
+    float k = 1 - bp.time / BP_ROUND_MS;   /* 0 at the start, 1 at the end */
     bp.spawn_t -= dt;
-    if (bp.spawn_t <= 0 && !actor_busy(&actor) && bp.nb < N(bp.b)) {
-        bp.spawn_t = 650 + frand() * 450;
-        bp.blow_t = 320;
-        __typeof__(bp.b[0]) *b = &bp.b[bp.nb++];
-        memset(b, 0, sizeof *b);
-        b->x = WAND_X; b->y = WAND_Y;
-        b->vx = -4 - frand() * 16; b->vy = -5 - frand() * 7;
-        b->size = 3 + frand() * 4; b->sway = frand() * 6;
-        b->c = COLOURS[(int)(frand() * 4) % 4];
-        b->gold = frand() < 0.1f;
+    if (bp.spawn_t <= 0 && !actor_busy(&actor)) {
+        bp.spawn_t = (800 - 500 * k) + frand() * (400 - 200 * k);
+        bp_spawn(k);
     }
-    int k = 0;
+    /* a gust: two seconds of wind one way */
+    bp.gust_in -= dt;
+    if (bp.gust_in <= 0) { bp.gust_t = 2000; bp.gust_dir = frand() < 0.5f ? -1 : 1; bp.gust_in = 9000 + frand() * 4000; }
+    bp.gust_t = fmaxf(0, bp.gust_t - dt);
+    int n = 0;
     for (int i = 0; i < bp.nb; i++) {
-        __typeof__(bp.b[0]) *b = &bp.b[i];
+        bubble_t *b = &bp.b[i];
         b->age += dt;
         b->r = fminf(b->size, b->age / 600 * b->size);
-        b->x += b->vx * dt / 1000 + sinf(b->age / 380 + b->sway) * 0.05f;
+        if (bp.gust_t > 0) b->vx += bp.gust_dir * 26 * dt / 1000;
+        b->x += b->vx * dt / 1000 + sinf(b->age / (b->kind == BB_GOLD ? 160 : 380) + b->sway) * b->wob;
         b->y += b->vy * dt / 1000;
-        /* ones that float away just drift off; nothing is ever missed */
-        if (b->y > -8 && b->x > -8 && b->age < 12000) bp.b[k++] = *b;
+        if (b->y > -8 && b->x > -8 && b->x < LW + 8 && b->age < 12000) { bp.b[n++] = *b; continue; }
+        if (b->kind != BB_SPIKY) bp.streak = 0;   /* one got away: the streak is over */
     }
-    bp.nb = k;
+    bp.nb = n;
 }
 
 static void bp_tap(float x, float y)
 {
+    if (bp.state != BP_PLAYING) {
+        if (bp.state == BP_READY || !actor_busy(&actor)) bp_play();
+        return;
+    }
     int best = -1;
     float best_d = 1e9f;
     for (int i = 0; i < bp.nb; i++) {
@@ -246,22 +194,66 @@ static void bp_tap(float x, float y)
         if (d <= bp.b[i].r + 4 && d < best_d) { best = i; best_d = d; }
     }
     if (best < 0) { parts_add(&parts, PT_SPLASH, x, y, 0, 0, 0, 200, 0, NULL); return; }
-    __typeof__(bp.b[0]) b = bp.b[best];
+    bubble_t b = bp.b[best];
     bp.b[best] = bp.b[--bp.nb];
-    bp.popped++;
-    bp.happy_t = 500;
-    hal_play(HAL_SOUND_TICK);
     for (int i = 0; i < 6; i++) {
         float a = i / 6.0f * 6.2831853f;
-        parts_add(&parts, PT_CRUMB, b.x, b.y, cosf(a) * 22, sinf(a) * 22, 0, 320, b.gold ? 'Y' : b.c, NULL);
+        parts_add(&parts, PT_CRUMB, b.x, b.y, cosf(a) * 22, sinf(a) * 22, 0, 320, b.kind == BB_GOLD ? 'Y' : b.kind == BB_SPIKY ? 'X' : b.c, NULL);
     }
-    if (b.gold) parts_burst(&parts, b.x, b.y, 5);
-    if (bp.popped % CHEER_EVERY == 0) {
-        actor.n = 0;
-        act_turn_to_you(&actor, RX, false);
-        act_cheer(&actor, front_x_for(RX, false));
-        actor_play(&actor, NULL, NULL);
-        hal_play(HAL_SOUND_DONE);
+    if (b.kind == BB_SPIKY) {   /* ouch: 3 off, and the streak is over */
+        bp.score = bp.score > 3 ? bp.score - 3 : 0;
+        bp.streak = 0;
+        bp.ouch_t = 700;
+        parts_add(&parts, PT_TEXT, b.x - 3, b.y - 6, 0, -14, 0, 800, 'X', "-3");
+        hal_play(HAL_SOUND_MISS);
+        return;
+    }
+    bp.streak = now - bp.last_pop < BP_STREAK_MS ? bp.streak + 1 : 1;
+    bp.last_pop = now;
+    int pts = (b.kind == BB_GOLD ? 3 : 1) * (bp.streak >= BP_DOUBLE ? 2 : 1);
+    bp.score += pts;
+    bp.happy_t = 500;
+    char t[6];
+    snprintf(t, sizeof t, "+%d", pts);
+    parts_add(&parts, PT_TEXT, b.x - 3, b.y - 6, 0, -14, 0, 800, b.kind == BB_GOLD || pts > 1 ? 'Y' : 'H', t);
+    if (b.kind == BB_GOLD) { parts_burst(&parts, b.x, b.y, 5); hal_play(HAL_SOUND_EAT); }
+    else hal_play(HAL_SOUND_POP);
+    if (b.kind == BB_BIG) {   /* a big one splits in two */
+        bp_add(b.x - 1, b.y, -18, b.vy * 0.8f - 4, 3.2f, BB_PLAIN);
+        bp_add(b.x + 1, b.y, 18, b.vy * 0.8f - 4, 3.2f, BB_PLAIN);
+        for (int i = bp.nb - 2; i < bp.nb; i++) if (i >= 0) bp.b[i].age = 600;   /* full size at once */
+    }
+    if (bp.streak == BP_DOUBLE) hal_play(HAL_SOUND_POWER);
+}
+
+static void bp_bubble(stage_t *s, const bubble_t *b)
+{
+    int cx = (int)lroundf(b->x), cy = (int)lroundf(b->y);
+    char c = b->kind == BB_GOLD ? 'Y' : b->kind == BB_SPIKY ? 'X' : b->c;
+    if (b->r < 1) { stage_set(s, cx, cy, stage_key(c)); return; }
+    int steps = (int)fmaxf(8, lroundf(b->r * 8));
+    for (int k = 0; k < steps; k++) {
+        float an = k / (float)steps * 6.2831853f;
+        stage_set(s, (int)lroundf(cx + cosf(an) * b->r), (int)lroundf(cy + sinf(an) * b->r), stage_key(c));
+    }
+    if (b->kind == BB_SPIKY && b->r >= 2) {   /* spikes all round */
+        for (int k = 0; k < 8; k++) {
+            float an = k / 8.0f * 6.2831853f + 0.39f;
+            stage_set(s, (int)lroundf(cx + cosf(an) * (b->r + 1.4f)), (int)lroundf(cy + sinf(an) * (b->r + 1.4f)), stage_key('x'));
+        }
+        return;
+    }
+    if (b->kind == BB_BIG && b->r >= 5) {   /* a second ring: it's a big one */
+        int st2 = (int)lroundf((b->r - 2) * 8);
+        for (int k = 0; k < st2; k += 2) {
+            float an = k / (float)st2 * 6.2831853f;
+            stage_set(s, (int)lroundf(cx + cosf(an) * (b->r - 2)), (int)lroundf(cy + sinf(an) * (b->r - 2)), stage_key(c));
+        }
+    }
+    if (b->r >= 2) {
+        int h = (int)lroundf(b->r / 2);
+        stage_set(s, cx - h, cy - h, stage_key('F'));
+        if (b->r >= 4) stage_set(s, cx - h + 1, cy - h, stage_key('F'));
     }
 }
 
@@ -271,33 +263,42 @@ static void bp_draw(stage_t *s)
     const pose_t *a = actor_pose(&actor, &parts);
     pose_t p;
     if (a) p = *a;
+    else if (bp.state == BP_END) p = (pose_t){ blinking(now, 2800, 0) ? PET_POSE_F_T_BLINK_YAY : PET_POSE_F_T_YAY, 1, 1, bp.end_fx0, SY };
     else {
-        bool happy = bp.happy_t > 0, blow = bp.blow_t > 0;
-        p = (pose_t){ blow ? PET_POSE_S_WAND_BLOW : happy ? PET_POSE_S_WAND_HAPPY
+        bool happy = bp.happy_t > 0, blow = bp.blow_t > 0, ouch = bp.ouch_t > 0;
+        p = (pose_t){ ouch ? PET_POSE_S_WAND_BLINK : blow ? PET_POSE_S_WAND_BLOW : happy ? PET_POSE_S_WAND_HAPPY
                       : blinking(now, 3600, 0) ? PET_POSE_S_WAND_BLINK : PET_POSE_S_WAND_UP, 1, 1, RX, SY };
     }
     stage_pose(s, &p, -1);
-    for (int i = 0; i < bp.nb; i++) {
-        const __typeof__(bp.b[0]) *b = &bp.b[i];
-        int cx = (int)lroundf(b->x), cy = (int)lroundf(b->y);
-        char c = b->gold ? 'Y' : b->c;
-        if (b->r < 1) { stage_set(s, cx, cy, stage_key(c)); continue; }
-        int steps = (int)fmaxf(8, lroundf(b->r * 8));
-        for (int k = 0; k < steps; k++) {
-            float an = k / (float)steps * 6.2831853f;
-            stage_set(s, (int)lroundf(cx + cosf(an) * b->r), (int)lroundf(cy + sinf(an) * b->r), stage_key(c));
+    for (int i = 0; i < bp.nb; i++) bp_bubble(s, &bp.b[i]);
+    /* the wind: short streaks blowing across */
+    if (bp.gust_t > 0)
+        for (int i = 0; i < 6; i++) {
+            float ph = fmodf(now / 6.0f * bp.gust_dir + i * 37, LW + 20);
+            int x = (int)(bp.gust_dir > 0 ? ph - 10 : LW + 10 - ph), y = 10 + i * 8;
+            for (int k = 0; k < 4; k++) stage_set(s, x + k, y, stage_key('Z'));
         }
-        if (b->r >= 2) {
-            int h = (int)lroundf(b->r / 2);
-            stage_set(s, cx - h, cy - h, stage_key('F'));
-            if (b->r >= 4) stage_set(s, cx - h + 1, cy - h, stage_key('F'));
-        }
-    }
     parts_draw(&parts, s);
     stage_stamp(s, BUBBLE_ICON, N(BUBBLE_ICON), 3, 2, 0);
-    char n[8];
-    snprintf(n, sizeof n, "%d", bp.popped);
+    char n[12];
+    snprintf(n, sizeof n, "%d", bp.score);
     stage_text(s, n, 11, 3, 'H');
+    if (bp.streak >= BP_DOUBLE && bp.state == BP_PLAYING) stage_text(s, "X2", 13 + stage_text_width(n), 3, 'Y');
+    if (bp.state != BP_END) {
+        int secs = (int)ceilf(bp.time / 1000);
+        char clock[8];
+        snprintf(clock, sizeof clock, "0:%02d", secs);
+        bool flash = secs <= 5 && bp.state == BP_PLAYING && ((int)(now / 250)) % 2;
+        stage_text(s, clock, LW - stage_text_width(clock) - 3, 3, flash ? 'Y' : 'H');
+    }
+    if (bp.state == BP_READY) stage_bubble(s, "TAP TO PLAY!", 30, 10);
+    if (bp.ouch_t > 0) bubble_over(s, "OUCH!", RX + 10, 10);
+    if (bp.state == BP_END && !actor_busy(&actor)) {
+        int w = stage_text_width(bp.label) + 6;
+        int bx = bp.end_fx0 + 24;
+        if (bx > LW - w - 8) bx = LW - w - 8;
+        stage_bubble(s, bp.label, bx, 2);
+    }
 }
 
 /* ================================================================ Carrot catch */
@@ -427,7 +428,7 @@ static void cc_update(float dt)
                 for (int j = 0; j < 3; j++)
                     parts_add(&parts, PT_CRUMB, cc.x + (cc.dir < 0 ? 6 : 22), SY + 24, (frand() - 0.5f) * 18, -8, 90, 500, c->gold ? 'Y' : 'O', NULL);
                 if (c->gold) parts_burst(&parts, tx, hy0, 4);
-                hal_play(HAL_SOUND_TICK);
+                hal_play(c->gold ? HAL_SOUND_POWER : HAL_SOUND_EAT);
             } else if (c->y + 7 >= FLOOR) {
                 /* a missed carrot just bounces away */
                 c->st = 1;
@@ -504,8 +505,16 @@ static void cc_draw(stage_t *s)
 }
 
 /* ================================================================ Bath time */
+/* Scrub (rub the sponge over him till he's soapy and the mud is gone), rinse (hold the shower over
+ * him), dry (rub the towel over him). The tool for the step sits on him and, left alone a moment,
+ * shows the rubbing itself; Biscuit says what to do; under the steps a bar shows how far this one has
+ * got (play.c). */
 #define BX 37
 #define BY 13
+#define BT_SOAPY 0.6f        /* scrubbed: this much of him soapy (and no mud left) */
+#define BT_RINSED 0.06f      /* rinsed: no more soap than this */
+#define BT_DRIED 0.08f       /* dry: no wetter than this */
+#define BT_HINT_MS 1200.0f   /* left alone this long, the tool shows how */
 static const int8_t MUD[][2] = {
     { 5, 6 }, { 6, 6 }, { 6, 7 }, { 17, 3 }, { 18, 3 }, { 18, 4 }, { 8, 13 }, { 9, 13 }, { 9, 14 }, { 18, 22 }, { 19, 22 }, { 19, 23 },
     { 2, 22 }, { 3, 22 }, { 7, 28 }, { 8, 28 }, { 8, 29 }, { 13, 27 }, { 14, 27 },
@@ -522,6 +531,7 @@ enum { F_VIS = 1, F_MUD = 2, F_SOAP = 4, F_WET = 8 };
 static struct {
     int phase, nvis, nsoap, nwet, nmud, soap_start;
     float busy, drop_t, done_t, px, py;
+    float idle, say_t, squeak_at;   /* since the last touch; the instruction showing; the last squeak */
     bool has_p, down;
     struct { float x, y; } drops[64];
     int nd;
@@ -547,14 +557,32 @@ static void bt_start(void)
         if ((bt_flag[k] & F_VIS) && pet_is_body(bt_grid[k])) { bt_flag[k] |= F_MUD; bt.nmud++; }
     }
     bt.soap_start = 1;
+    bt.say_t = 2600;
+}
+
+static int bt_rinsed(void) { int n = (int)(bt.nvis * BT_RINSED); return n > 4 ? n : 4; }
+
+/* a step done: a little fanfare and the next one's words */
+static void bt_next_step(void)
+{
+    bt.down = false;
+    bt.say_t = 2600;
+    bt.idle = 0;
+    hal_play(HAL_SOUND_WIN);
 }
 
 static float bt_progress(void)
 {
     switch (bt.phase) {
-    case BT_SCRUB: return fminf(1, bt.nsoap / (float)bt.nvis / 0.7f) * (bt.nmud ? 0.95f : 1);
-    case BT_RINSE: return 1 - bt.nsoap / (float)(bt.soap_start > 0 ? bt.soap_start : 1);
-    case BT_DRY: return 1 - bt.nwet / (float)bt.nvis;
+    case BT_SCRUB: return fminf(1, bt.nsoap / (float)bt.nvis / BT_SOAPY) * (bt.nmud ? 0.95f : 1);
+    case BT_RINSE: {
+        float span = (float)(bt.soap_start - bt_rinsed());
+        return span > 0 ? fminf(1, fmaxf(0, (bt.soap_start - bt.nsoap) / span)) : 1;
+    }
+    case BT_DRY: {
+        float span = bt.nvis * (1 - BT_DRIED);
+        return span > 0 ? fminf(1, fmaxf(0, (bt.nvis - bt.nwet) / span)) : 1;
+    }
     default: return 1;
     }
 }
@@ -611,17 +639,20 @@ static void bt_move(float x, float y)
         if (hit) {
             bt.busy = 350;
             if (frand() < 0.25f) parts_add(&parts, PT_BUBBLE, x + frand() * 6 - 3, y, frand() * 6 - 3, -14, 0, 1300, 0, NULL);
+            if (now - bt.squeak_at > 280) { hal_play(HAL_SOUND_POP); bt.squeak_at = now; }   /* squeaky clean */
         }
-        if (bt.nsoap >= bt.nvis * 0.7f && bt.nmud == 0) {
+        if (bt.nsoap >= bt.nvis * BT_SOAPY && bt.nmud == 0) {
             bt.phase = BT_RINSE;
             bt.soap_start = bt.nsoap;
-            bt.down = false;
-            hal_play(HAL_SOUND_TICK);
+            bt_next_step();
         }
     } else if (bt.phase == BT_DRY) {
         around(x, y, 3, 2, &hit);
-        if (hit) bt.busy = 350;
-        if (bt.nwet <= bt.nvis * 0.03f) bt_finish();
+        if (hit) {
+            bt.busy = 350;
+            if (now - bt.squeak_at > 320) { hal_play(HAL_SOUND_FLIP); bt.squeak_at = now; }
+        }
+        if (bt.nwet <= bt.nvis * BT_DRIED) bt_finish();
     }
 }
 
@@ -637,12 +668,15 @@ static void bt_press(float x, float y)
         return;
     }
     bt.down = true;
+    bt.idle = 0;
     bt_move(x, y);
 }
 
 static void bt_update(float dt)
 {
     bt.busy = fmaxf(0, bt.busy - dt);
+    bt.say_t = fmaxf(0, bt.say_t - dt);
+    if (!bt.down) bt.idle += dt;
     if (bt.phase == BT_DONE) bt.done_t += dt;
     if (bt.phase == BT_RINSE && bt.down && bt.has_p) {
         bt.drop_t -= dt;
@@ -663,7 +697,7 @@ static void bt_update(float dt)
         bt.drops[k++] = bt.drops[i];
     }
     bt.nd = k;
-    if (bt.phase == BT_RINSE && bt.nsoap <= (bt.nvis * 0.03f > 4 ? bt.nvis * 0.03f : 4)) {
+    if (bt.phase == BT_RINSE && bt.nsoap <= bt_rinsed()) {
         bt.phase = BT_DRY;
         for (int j = 0; j < PGW * PGH; j++) {
             bt_flag[j] &= (uint8_t)~F_SOAP;
@@ -671,9 +705,19 @@ static void bt_update(float dt)
         }
         bt.nsoap = 0;
         bt.nwet = bt.nvis;
-        bt.down = false;
-        hal_play(HAL_SOUND_TICK);
+        bt_next_step();
     }
+}
+
+/* the tool in the child's hand: drawn into Biscuit's own layer, so it shows over him */
+static void stamp_on_top(stage_t *s, const char *const *rows, int n, int x, int y)
+{
+    for (int j = 0; j < n; j++)
+        for (int i = 0; rows[j][i]; i++) {
+            if (rows[j][i] == '.' || rows[j][i] == ' ') continue;
+            int gx = x + i + ST_OX, gy = y + j + ST_OY;
+            if (gx >= 0 && gy >= 0 && gx < ST_W && gy < ST_H) s->body[gy * ST_W + gx] = stage_key(rows[j][i]);
+        }
 }
 
 static void bt_tub(stage_t *s, bool foamy)
@@ -722,7 +766,10 @@ static void bt_draw(stage_t *s)
             if (!(bt_flag[k] & F_VIS)) continue;
             if (!pet_is_body(bt_grid[k])) continue;
             int x = k % PGW, y = k / PGW;
-            if (bt_flag[k] & F_MUD) bt_grid[k] = stage_key((x + y) % 2 ? 'u' : 'U');
+            if (bt_flag[k] & F_MUD) {
+                bool blink = bt.nsoap >= bt.nvis * BT_SOAPY && ((int)(now / 220)) % 2;
+                bt_grid[k] = stage_key(blink ? 'Y' : (x + y) % 2 ? 'u' : 'U');
+            }
             else if (bt_flag[k] & F_SOAP) {
                 bool edge = false;
                 static const int8_t D4[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
@@ -754,13 +801,21 @@ static void bt_draw(stage_t *s)
     }
     parts_draw(&parts, s);
     if (bt.phase == BT_DONE && bt.done_t < 2600) stage_bubble(s, "SO FLUFFY!", LW - stage_text_width("SO FLUFFY!") - 8, 4);
-    if (bt.has_p && bt.phase != BT_DONE) {
+    if (bt.phase != BT_DONE) {
+        /* the tool: under the finger while it's used; otherwise resting on him, and left alone a
+         * moment it rubs back and forth by itself to show how */
         const char *const *tool = bt.phase == BT_SCRUB ? SPONGE : bt.phase == BT_RINSE ? SHOWER : TOWEL;
         int rows = bt.phase == BT_SCRUB ? N(SPONGE) : bt.phase == BT_RINSE ? N(SHOWER) : N(TOWEL);
-        int tx = (int)lroundf(bt.px), ty = (int)lroundf(bt.py);
-        stage_stamp(s, tool, rows, tx - 3, ty - 2, 0);
-        if (bt.phase == BT_RINSE && bt.down)
+        bool hint = bt.idle > BT_HINT_MS;
+        float hx = BX + 10, hy = bt.phase == BT_RINSE ? BY + 1 : BY + 20;
+        if (hint) hx += (bt.phase == BT_RINSE ? 8 : 7) * sinf(now / 260), hy += bt.phase == BT_RINSE ? 0 : 3 * cosf(now / 180);
+        bool finger = bt.down || (bt.has_p && !hint);
+        int tx = (int)lroundf(finger ? bt.px : hx), ty = (int)lroundf(finger ? bt.py : hy);
+        stamp_on_top(s, tool, rows, tx - 3, ty - 2);
+        if (bt.phase == BT_RINSE && (bt.down || hint))
             for (int i = -2; i <= 2; i += 2) stage_set(s, tx + i, ty + 3 + ((int)(now / 60) + i + 4) % 2, stage_key('f'));
+        if (bt.say_t > 0 || hint)
+            bubble_over(s, bt.phase == BT_SCRUB ? "SCRUB ME!" : bt.phase == BT_RINSE ? "RINSE ME!" : "DRY ME!", BX + 42, 3);
     }
 }
 
@@ -831,499 +886,6 @@ void menu_draw(stage_t *s, float t)
     stage_pose(s, &p, -1);
 }
 
-/* ================================================================ Roll home */
-/* Tilt to roll a carrot through a hedge maze to Biscuit, who waits at the gap in the right wall.
- * Three mazes, 13 x 11 cells of 5 px under the header: '#' hedge, '.' path, 'S' start, 'H' home. */
-#define MZ_W 13
-#define MZ_H 11
-#define MZ_CELL 5
-#define MZ_X 1
-#define MZ_Y 3
-#define ROLL_ACCEL 90.0f   /* px/s² at full tilt */
-#define ROLL_DAMP 1.8f     /* per second */
-#define ROLL_VMAX 40.0f    /* px/s */
-#define ROLL_R 1.4f        /* half the carrot */
-#define RL_BX 72           /* Biscuit, 3/4 view, watching the maze */
-static const char *const MAZES[3][MZ_H] = {
-    { "#############",
-      "#S....#.....#",
-      "#.###.#.###.#",
-      "#...#...#...#",
-      "###.#####.#.#",
-      "#...#.....#.#",
-      "#.###.###.#.#",
-      "#.....#...#.#",
-      "#######.###.#",
-      "#...........H",
-      "#############" },
-    { "#############",
-      "#.....#....S#",
-      "#.###.#.###.#",
-      "#.#...#.#...#",
-      "#.#.###.#.###",
-      "#.#.....#...#",
-      "#.#####.###.#",
-      "#...#.......#",
-      "###.#.#####.#",
-      "#.....#.....H",
-      "#############" },
-    { "#############",
-      "#S..#.......#",
-      "###.#.#####.#",
-      "#...#.#...#.#",
-      "#.###.#.#.#.#",
-      "#.....#.#...#",
-      "#.#####.###.#",
-      "#.#.....#...#",
-      "#.#.#####.###",
-      "#...#.......H",
-      "#############" },
-};
-
-enum { RL_READY, RL_ROLL, RL_DONE };
-static struct {
-    int state, maze, best[3];
-    float x, y, vx, vy, clock, done_t, hit_t;
-    bool record;
-    char label[16];
-} rl;
-
-static char mz_at(int col, int row)
-{
-    if (col < 0 || row < 0 || col >= MZ_W || row >= MZ_H) return '#';
-    return MAZES[rl.maze][row][col];
-}
-
-static bool mz_wall(float px, float py)
-{
-    return mz_at((int)floorf((px - MZ_X) / MZ_CELL), (int)floorf((py - MZ_Y) / MZ_CELL)) == '#';
-}
-
-static bool mz_blocked(float x, float y)
-{
-    return mz_wall(x - ROLL_R, y - ROLL_R) || mz_wall(x + ROLL_R, y - ROLL_R) || mz_wall(x - ROLL_R, y + ROLL_R) || mz_wall(x + ROLL_R, y + ROLL_R);
-}
-
-static void rl_key(int maze, char *buf, size_t n) { snprintf(buf, n, "maze-best-%d", maze); }
-
-static void rl_load(int maze)
-{
-    rl.maze = maze;
-    rl.state = RL_READY;
-    rl.clock = 0;
-    rl.vx = rl.vy = 0;
-    rl.record = false;
-    for (int row = 0; row < MZ_H; row++)
-        for (int col = 0; col < MZ_W; col++)
-            if (MAZES[maze][row][col] == 'S') { rl.x = MZ_X + col * MZ_CELL + 2.5f; rl.y = MZ_Y + row * MZ_CELL + 2.5f; }
-}
-
-static void rl_start(void)
-{
-    memset(&rl, 0, sizeof rl);
-    for (int i = 0; i < 3; i++) { char k[20]; rl_key(i, k, sizeof k); rl.best[i] = best_get(k); }
-    rl_load(0);
-}
-
-static void rl_finish(void)
-{
-    rl.state = RL_DONE;
-    rl.done_t = 0;
-    int ms = (int)rl.clock;
-    if (!rl.best[rl.maze] || ms < rl.best[rl.maze]) {
-        rl.best[rl.maze] = ms;
-        rl.record = true;
-        char k[20];
-        rl_key(rl.maze, k, sizeof k);
-        best_set(k, ms);
-    }
-    snprintf(rl.label, sizeof rl.label, rl.record ? "NEW BEST!" : "YUM!");
-    /* two munches, then he hops round to cheer */
-    actor.n = 0;
-    act_add(&actor, 3, PET_POSE_S_MUNCH_O, 1, 1, RL_BX, SY);
-    act_add(&actor, 3, PET_POSE_S_MUNCH_CHEEK, 1, 1, RL_BX, SY);
-    act_add(&actor, 3, PET_POSE_S_MUNCH_O, 1, 1, RL_BX, SY);
-    act_turn_to_you(&actor, RL_BX, false);
-    act_cheer(&actor, front_x_for(RL_BX, false));
-    actor_play(&actor, NULL, NULL);
-    hal_play(HAL_SOUND_DONE);
-}
-
-static void rl_update(float dt)
-{
-    rl.hit_t = fmaxf(0, rl.hit_t - dt);
-    if (rl.state == RL_DONE) {
-        rl.done_t += dt;
-        if (rl.done_t > 2600 && !actor_busy(&actor)) rl_load((rl.maze + 1) % 3);
-        return;
-    }
-    float tx = 0, ty = 0;
-    motion_tilt(&tx, &ty);
-    if (rl.state == RL_READY) {
-        if (fabsf(tx) < 0.2f && fabsf(ty) < 0.2f) return;
-        rl.state = RL_ROLL;
-        hal_play(HAL_SOUND_TICK);
-    }
-    rl.clock += dt;
-    float s = dt / 1000;
-    rl.vx += tx * ROLL_ACCEL * s;
-    rl.vy += ty * ROLL_ACCEL * s;
-    float damp = fmaxf(0, 1 - ROLL_DAMP * s);
-    rl.vx *= damp;
-    rl.vy *= damp;
-    float sp = hypotf(rl.vx, rl.vy);
-    if (sp > ROLL_VMAX) { rl.vx *= ROLL_VMAX / sp; rl.vy *= ROLL_VMAX / sp; }
-    /* small steps, one axis at a time, so it slides along the hedges instead of sticking */
-    float dx = rl.vx * s, dy = rl.vy * s;
-    int steps = (int)ceilf(fmaxf(fabsf(dx), fabsf(dy)) / 0.5f);
-    if (steps < 1) steps = 1;
-    for (int i = 0; i < steps; i++) {
-        float nx = rl.x + dx / steps;
-        if (mz_blocked(nx, rl.y)) {
-            if (fabsf(rl.vx) > 20 && rl.hit_t <= 0) { hal_play(HAL_SOUND_TICK); rl.hit_t = 250; parts_add(&parts, PT_CRUMB, nx, rl.y - 1, -rl.vx * 0.3f, -10, 60, 300, 'g', NULL); }
-            rl.vx *= -0.2f;
-            dx = 0;
-        } else rl.x = nx;
-        float ny = rl.y + dy / steps;
-        if (mz_blocked(rl.x, ny)) {
-            if (fabsf(rl.vy) > 20 && rl.hit_t <= 0) { hal_play(HAL_SOUND_TICK); rl.hit_t = 250; parts_add(&parts, PT_CRUMB, rl.x + 1, ny, 10, -rl.vy * 0.3f, 60, 300, 'g', NULL); }
-            rl.vy *= -0.2f;
-            dy = 0;
-        } else rl.y = ny;
-    }
-    if (mz_at((int)floorf((rl.x - MZ_X) / MZ_CELL), (int)floorf((rl.y - MZ_Y) / MZ_CELL)) == 'H') rl_finish();
-}
-
-static void rl_press(float x, float y)
-{
-    (void)x; (void)y;
-    if (rl.state == RL_READY) { rl.state = RL_ROLL; hal_play(HAL_SOUND_TICK); }
-    else if (rl.state == RL_DONE && !actor_busy(&actor)) rl_load((rl.maze + 1) % 3);
-}
-
-static void rl_draw(stage_t *s)
-{
-    stage_clear(s, PET_GAME_GARDEN);
-    uint8_t G = stage_key('G'), g = stage_key('g');
-    for (int row = 0; row < MZ_H; row++)
-        for (int col = 0; col < MZ_W; col++) {
-            if (MAZES[rl.maze][row][col] != '#') continue;
-            for (int yy = 0; yy < MZ_CELL; yy++)
-                for (int xx = 0; xx < MZ_CELL; xx++) {
-                    int px = MZ_X + col * MZ_CELL + xx, py = MZ_Y + row * MZ_CELL + yy;
-                    stage_set(s, px, py, (px * 3 + py * 5) % 7 == 0 ? g : G);
-                }
-        }
-    const pose_t *a = actor_pose(&actor, &parts);
-    pose_t p;
-    if (a) p = *a;
-    else {
-        bool blink = blinking(now, 3600, 0);
-        bool perk = rl.state == RL_ROLL && ((int)(now / 500)) % 4 == 0;
-        p = (pose_t){ blink ? PET_POSE_S_BLINK : perk ? PET_POSE_S_PERK : PET_POSE_S_REST, 1, 1, RL_BX, SY };
-    }
-    stage_pose(s, &p, -1);
-    if (rl.state != RL_DONE) {
-        int cx = (int)lroundf(rl.x), cy = (int)lroundf(rl.y);
-        uint8_t O = stage_key('O'), o = stage_key('o');
-        stage_set(s, cx, cy - 1, O);
-        stage_set(s, cx - 1, cy, O);
-        stage_set(s, cx, cy, O);
-        stage_set(s, cx + 1, cy, o);
-        stage_set(s, cx, cy + 1, o);
-        stage_set(s, cx + (rl.vx < -2 ? 1 : rl.vx > 2 ? -1 : 0), cy - 2, G);   /* the leaf trails behind */
-    }
-    parts_draw(&parts, s);
-    int t = (int)rl.clock;
-    char clock[12];
-    snprintf(clock, sizeof clock, "%d:%02d.%d", t / 60000, (t / 1000) % 60, (t / 100) % 10);
-    stage_text(s, clock, LW - stage_text_width(clock) - 3, 3, rl.state == RL_DONE && rl.record ? 'Y' : 'H');
-    if (rl.state == RL_READY) bubble_over(s, "TILT TO ROLL", 33, 24);
-    if (rl.state == RL_DONE && !actor_busy(&actor)) bubble_over(s, rl.label, 60, 10);
-}
-
-/* ================================================================ Biscuit says */
-/* Bop-It with Biscuit: he calls a move, the child makes it before the window runs out. A slip
- * just ends the run with a cheer for how far it got. */
-enum { BS_LEFT, BS_RIGHT, BS_UP, BS_DOWN, BS_SHAKE, BS_TAP, BS_BUTTON, BS_STILL, BS_MOVES };
-static const struct { const char *word, *icon, *big; } CALLS[BS_MOVES] = {
-    [BS_LEFT] = { "Left", "arrow-left", "LEFT" },
-    [BS_RIGHT] = { "Right", "arrow-right", "RIGHT" },
-    [BS_UP] = { "Up", "arrow-up", "UP" },
-    [BS_DOWN] = { "Down", "arrow-down", "DOWN" },
-    [BS_SHAKE] = { "Shake", "vibrate", "SHAKE" },
-    [BS_TAP] = { "Tap", "pointer", "TAP" },
-    [BS_BUTTON] = { "Button", "circle-dot", "BUTTON" },
-    [BS_STILL] = { "Hold still", "hand", "HOLD STILL" },
-};
-enum { BS_READY, BS_CALL, BS_WAIT, BS_GOOD, BS_END };
-#define BS_CALL_MS 450
-#define BS_GOOD_MS 300
-#define BS_TILT_MOVE 0.4f
-#define BS_TILT_OTHER 0.3f
-static struct {
-    int state, call, last_call, run, best;
-    float t, window, tx0, ty0, shake_ms;
-    bool record, pressed, button;
-    char label[16];
-} bs;
-
-static void bs_next_call(void)
-{
-    int c;
-    do c = (int)(frand() * BS_MOVES) % BS_MOVES; while (c == bs.last_call);
-    bs.last_call = bs.call = c;
-    bs.state = BS_CALL;
-    bs.t = 0;
-    bs.pressed = bs.button = false;
-    hal_play(HAL_SOUND_TICK);
-}
-
-static void bs_start(void)
-{
-    memset(&bs, 0, sizeof bs);
-    bs.last_call = -1;
-    bs.best = best_get("says-best");
-}
-
-static void bs_begin(void)
-{
-    bs.run = 0;
-    bs.record = false;
-    actor.n = 0;
-    bs_next_call();
-}
-
-static void bs_end(void)
-{
-    bs.state = BS_END;
-    bs.t = 0;
-    if (bs.run > bs.best) { bs.best = bs.run; bs.record = true; best_set("says-best", bs.best); }
-    snprintf(bs.label, sizeof bs.label, "%s %d", bs.record ? "NEW BEST!" : "NICE RUN!", bs.run);
-    actor.n = 0;
-    act_cheer(&actor, DX);
-    actor_play(&actor, NULL, NULL);
-    hal_play(HAL_SOUND_DONE);
-}
-
-static void bs_good(void)
-{
-    bs.run++;
-    bs.state = BS_GOOD;
-    bs.t = 0;
-    parts_burst(&parts, DX + 11, SY + 6, 5);
-    hal_play(HAL_SOUND_TICK);
-}
-
-static void bs_update(float dt)
-{
-    bs.t += dt;
-    if (bs.state == BS_CALL) {
-        if (bs.t < BS_CALL_MS) return;
-        bs.state = BS_WAIT;
-        bs.t = 0;
-        bs.window = fmaxf(1000, 2500 - 75 * bs.run);
-        motion_tilt(&bs.tx0, &bs.ty0);   /* however it is held now counts as level */
-        motion_reset();
-        bs.shake_ms = 0;
-        bs.pressed = bs.button = false;
-        return;
-    }
-    if (bs.state == BS_GOOD) { if (bs.t >= BS_GOOD_MS) bs_next_call(); return; }
-    if (bs.state != BS_WAIT) return;
-    int move = -1;
-    float tx, ty;
-    motion_tilt(&tx, &ty);
-    float sh = motion_shake();
-    if (sh > 0.6f) bs.shake_ms += dt; else bs.shake_ms = 0;
-    if (bs.shake_ms >= 150) move = BS_SHAKE;
-    else if (sh < 0.3f) {   /* no tilt reading while it is being shaken */
-        float dx = tx - bs.tx0, dy = ty - bs.ty0;
-        if (dx < -BS_TILT_MOVE && fabsf(dy) < BS_TILT_OTHER) move = BS_LEFT;
-        else if (dx > BS_TILT_MOVE && fabsf(dy) < BS_TILT_OTHER) move = BS_RIGHT;
-        else if (dy > BS_TILT_MOVE && fabsf(dx) < BS_TILT_OTHER) move = BS_UP;
-        else if (dy < -BS_TILT_MOVE && fabsf(dx) < BS_TILT_OTHER) move = BS_DOWN;
-    }
-    if (motion_taps() > 0 || bs.pressed) move = BS_TAP;
-    if (bs.button) move = BS_BUTTON;
-    if (move < 0 && bs.t >= bs.window) {
-        if (bs.call == BS_STILL && motion_still_ms() >= bs.window * 0.6f) { bs_good(); return; }
-        bs_end();   /* too slow, or it moved */
-        return;
-    }
-    if (move < 0) return;
-    if (move == bs.call) bs_good();
-    else bs_end();
-}
-
-static void bs_press(float x, float y)
-{
-    (void)x; (void)y;
-    if (bs.state == BS_READY) { bs_begin(); return; }
-    if (bs.state == BS_END) { if (!actor_busy(&actor)) bs_begin(); return; }
-    if (bs.state == BS_WAIT) bs.pressed = true;
-}
-
-static void bs_button(void)
-{
-    if (bs.state == BS_WAIT) bs.button = true;
-}
-
-static void bs_draw(stage_t *s)
-{
-    stage_clear(s, PET_GAME_DEN);
-    const pose_t *a = actor_pose(&actor, &parts);
-    pose_t p;
-    bool blink = blinking(now, 3600, 0);
-    if (a) p = *a;
-    else if (bs.state == BS_READY) p = (pose_t){ blink ? PET_POSE_F_BLINK_SMILE : PET_POSE_F_SMILE, 1, 1, DX, SY };
-    else if (bs.state == BS_GOOD) p = (pose_t){ PET_POSE_F_HAPPY_YAY, 1, 1, DX, SY - 2 };
-    else if (bs.state == BS_END) p = (pose_t){ blink ? PET_POSE_F_BLINK_SMILE : PET_POSE_F_HAPPY_SMILE_BLUSH, 1, 1, DX, SY };
-    else switch (bs.call) {   /* he mimes the move */
-    case BS_LEFT: p = (pose_t){ PET_POSE_S_REST, 1, 1, DX - 3, SY }; break;
-    case BS_RIGHT: p = (pose_t){ PET_POSE_S_REST_M, 1, 1, DX + 3, SY }; break;
-    case BS_UP: p = (pose_t){ PET_POSE_F_HAPPY, 1, 1.08f, DX, SY }; break;
-    case BS_DOWN: p = (pose_t){ PET_POSE_F_REST, 1, 0.92f, DX, SY }; break;
-    case BS_SHAKE: p = (pose_t){ PET_POSE_F_REST, 1, 1, DX + (((int)(now / 70)) % 2 ? 1 : -1), SY }; break;
-    case BS_TAP: p = (pose_t){ ((int)(now / 250)) % 2 ? PET_POSE_F_WAVE : PET_POSE_F_WAVE_LOW, 1, 1, DX, SY }; break;
-    case BS_BUTTON: p = (pose_t){ PET_POSE_F_O, 1, 1, DX, SY }; break;
-    default: p = (pose_t){ blink ? PET_POSE_F_BLINK : PET_POSE_F_REST, 1, 1, DX, SY }; break;
-    }
-    stage_pose(s, &p, -1);
-    parts_draw(&parts, s);
-    char n[8];
-    snprintf(n, sizeof n, "%d", bs.run);
-    stage_text(s, n, 3, 3, 'H');
-    if (bs.state == BS_CALL || bs.state == BS_WAIT) {
-        bubble_over(s, CALLS[bs.call].big, DX + 11, 2);
-        /* the window left, shrinking */
-        float k = bs.state == BS_WAIT ? 1 - bs.t / bs.window : 1;
-        if (k < 0) k = 0;
-        stage_rect(s, DX - 7, 15, 36, 2, stage_key('h'));
-        stage_rect(s, DX - 7, 15, (int)lroundf(36 * k), 2, stage_key(k < 0.3f ? 'O' : 'Y'));
-    }
-    if (bs.state == BS_READY) bubble_over(s, "TAP TO PLAY!", DX + 11, 4);
-    if (bs.state == BS_END && !actor_busy(&actor)) bubble_over(s, bs.label, DX + 11, 4);
-}
-
-/* ================================================================ Carrot stack */
-/* Hold the handheld level and still and a carrot lands on Biscuit's tray every second and a
- * half. Tilt leans the stack; lean too far and the top ones slide off. Nothing ends: the
- * tallest stack is the score. */
-#define CS_BX 6                 /* Biscuit, 3/4 view facing right */
-#define CS_TRAY_X 31
-#define CS_TRAY_Y 42
-#define CS_TRAY_W 30
-#define CS_STACK_X 46           /* the stack's centre */
-#define CS_MAX 12
-#define CS_LAND_MS 1500.0f
-#define CS_LEAN_PX 1.2f         /* px per level per unit of tilt */
-#define CS_SLIDE_PX 4.5f        /* a level pushed past this slides off */
-static const char *const CARROT_FLAT[] = { ".OOOOG.", "OOOOOGG", ".OOOoG." };
-
-static struct {
-    int height, best, baskets;
-    float lean, quiet, land_t, whoa_t, happy_t, stalled, full_t;
-    bool landing, record;
-} cs;
-
-static void cs_start(void)
-{
-    memset(&cs, 0, sizeof cs);
-    cs.best = best_get("stack-best");
-}
-
-static int cs_level_x(int level) { return CS_STACK_X - 3 + (int)lroundf(cs.lean * (level + 1) * CS_LEAN_PX); }
-static int cs_level_y(int level) { return CS_TRAY_Y - 3 * (level + 1); }
-
-static void cs_update(float dt)
-{
-    cs.whoa_t = fmaxf(0, cs.whoa_t - dt);
-    cs.happy_t = fmaxf(0, cs.happy_t - dt);
-    cs.full_t = fmaxf(0, cs.full_t - dt);
-    float tx = 0, ty = 0;
-    motion_tilt(&tx, &ty);
-    cs.lean += (tx - cs.lean) * (1 - expf(-dt / 150));
-    bool steady = motion_lean() < 0.2f && motion_shake() < 0.2f;
-    if (cs.landing) {
-        cs.land_t += dt;
-        if (cs.land_t >= 300) {
-            cs.landing = false;
-            cs.height++;
-            cs.happy_t = 400;
-            hal_play(HAL_SOUND_TICK);
-            if (cs.height > cs.best) { cs.best = cs.height; cs.record = true; best_set("stack-best", cs.best); }
-            if (cs.height >= CS_MAX) {
-                /* a full tray: the carrots fly off as stars and the tray starts again */
-                cs.baskets++;
-                cs.full_t = 2600;
-                for (int i = 0; i < cs.height; i++) parts_add(&parts, PT_CRUMB, cs_level_x(i) + 3, cs_level_y(i) + 1, (frand() - 0.5f) * 40, -30 - frand() * 20, 70, 900, 'O', NULL);
-                parts_burst(&parts, CS_STACK_X, CS_TRAY_Y - 20, 6);
-                cs.height = 0;
-                cheer_at(CS_BX, true);
-            }
-        }
-        return;
-    }
-    if (actor_busy(&actor)) return;
-    /* the top levels slide off when the lean pushes them too far */
-    for (int i = 0; i < cs.height; i++) {
-        float off = cs.lean * (i + 1) * CS_LEAN_PX;
-        if (fabsf(off) <= CS_SLIDE_PX) continue;
-        for (int k = i; k < cs.height; k++)
-            for (int j = 0; j < 4; j++)
-                parts_add(&parts, PT_CRUMB, cs_level_x(k) + j * 2, cs_level_y(k) + 1, (off > 0 ? 1 : -1) * (12 + frand() * 18), -6 - frand() * 10, 90, 700, j == 1 ? 'G' : 'O', NULL);
-        cs.height = i;
-        cs.whoa_t = 700;
-        cs.quiet = 0;
-        hal_play(HAL_SOUND_TICK);
-        break;
-    }
-    if (steady && cs.height < CS_MAX) {
-        cs.quiet += dt;
-        cs.stalled = 0;
-        if (cs.quiet >= CS_LAND_MS) { cs.quiet = 0; cs.landing = true; cs.land_t = 0; }
-    } else {
-        cs.quiet = 0;
-        cs.stalled += dt;
-    }
-}
-
-static void cs_draw(stage_t *s)
-{
-    stage_clear(s, PET_GAME_DEN);
-    const pose_t *a = actor_pose(&actor, &parts);
-    pose_t p;
-    if (a) p = *a;
-    else {
-        bool blink = blinking(now, 3600, 0);
-        pet_pose_id_t pose = cs.whoa_t > 0 || cs.landing ? PET_POSE_S_PERK_M : cs.happy_t > 0 ? PET_POSE_S_HAPPY_M : blink ? PET_POSE_S_BLINK_M : PET_POSE_S_REST_M;
-        p = (pose_t){ pose, 1, 1, CS_BX, SY };
-    }
-    stage_pose(s, &p, -1);
-    /* the tray */
-    uint8_t H = stage_key('H');
-    stage_rect(s, CS_TRAY_X, CS_TRAY_Y, CS_TRAY_W, 2, H);
-    stage_set(s, CS_TRAY_X, CS_TRAY_Y - 1, H);
-    stage_set(s, CS_TRAY_X + CS_TRAY_W - 1, CS_TRAY_Y - 1, H);
-    for (int i = 0; i < cs.height; i++) stage_stamp(s, CARROT_FLAT, N(CARROT_FLAT), cs_level_x(i), cs_level_y(i), 0);
-    if (cs.landing) {
-        float k = cs.land_t / 300;
-        int y = (int)lroundf(-6 + (cs_level_y(cs.height) + 6) * k);
-        stage_stamp(s, CARROT_FLAT, N(CARROT_FLAT), cs_level_x(cs.height), y, 0);
-    }
-    parts_draw(&parts, s);
-    char n[12];
-    snprintf(n, sizeof n, "%d", cs.height);
-    stage_text(s, n, 3, 3, 'H');
-    snprintf(n, sizeof n, "BEST %d", cs.best);
-    stage_text(s, n, LW - stage_text_width(n) - 3, 3, cs.record ? 'Y' : 'H');
-    if (cs.whoa_t > 0) bubble_over(s, "WHOA!", CS_BX + 20, 4);
-    else if (cs.full_t > 0) bubble_over(s, "FULL TRAY!", CS_BX + 20, 4);
-    else if (cs.stalled > 3000 && cs.height < CS_MAX) bubble_over(s, "HOLD STILL", CS_BX + 20, 4);
-    else if (now < 3000 && cs.height == 0) bubble_over(s, "HOLD IT STILL", CS_BX + 20, 4);
-}
-
 /* ================================================================ the host */
 void game_start(game_id_t id, const char *pet_name)
 {
@@ -1335,13 +897,9 @@ void game_start(game_id_t id, const char *pet_name)
     motion_level();   /* however it is held as the game starts is level */
     if (pet_name && *pet_name) snprintf(nick, sizeof nick, "%s", pet_name);
     switch (id) {
-    case GAME_PEEKABOO: pk_start(); break;
     case GAME_BUBBLES: bp_start(); break;
     case GAME_CARROT: cc_start(); break;
     case GAME_BATH: bt_start(); break;
-    case GAME_ROLL: rl_start(); break;
-    case GAME_SAYS: bs_start(); break;
-    case GAME_STACK: cs_start(); break;
     default: break;
     }
 }
@@ -1354,13 +912,9 @@ void game_update(float dt)
     actor_step(&actor, dt);
     parts_step(&parts, dt);
     switch (cur) {
-    case GAME_PEEKABOO: pk_update(dt); break;
     case GAME_BUBBLES: bp_update(dt); break;
     case GAME_CARROT: cc_update(dt); break;
     case GAME_BATH: bt_update(dt); break;
-    case GAME_ROLL: rl_update(dt); break;
-    case GAME_SAYS: bs_update(dt); break;
-    case GAME_STACK: cs_update(dt); break;
     default: break;
     }
 }
@@ -1368,14 +922,10 @@ void game_update(float dt)
 void game_draw(stage_t *s)
 {
     switch (cur) {
-    case GAME_PEEKABOO: pk_draw(s); break;
     case GAME_BUBBLES: bp_draw(s); break;
     case GAME_CARROT: cc_draw(s); break;
     case GAME_BATH: bt_draw(s); break;
     case GAME_DRESSUP: du_draw(s); break;
-    case GAME_ROLL: rl_draw(s); break;
-    case GAME_SAYS: bs_draw(s); break;
-    case GAME_STACK: cs_draw(s); break;
     default: break;
     }
 }
@@ -1383,23 +933,13 @@ void game_draw(stage_t *s)
 void game_press(float x, float y)
 {
     switch (cur) {
-    case GAME_PEEKABOO: pk_tap(x, y); break;
     case GAME_BUBBLES: bp_tap(x, y); break;
     case GAME_CARROT: cc_press(x, y); break;
     case GAME_BATH: bt_press(x, y); break;
     case GAME_DRESSUP: du_press(x, y); break;
-    case GAME_ROLL: rl_press(x, y); break;
-    case GAME_SAYS: bs_press(x, y); break;
     default: break;
     }
 }
-
-void game_button(void)
-{
-    if (cur == GAME_SAYS) bs_button();
-}
-
-bool game_wants_button(void) { return cur == GAME_SAYS && bs.state != BS_READY && bs.state != BS_END; }
 
 void game_move(float x, float y)
 {
@@ -1423,19 +963,12 @@ void game_ui(game_ui_t *ui)
 {
     memset(ui, 0, sizeof *ui);
     switch (cur) {
-    case GAME_PEEKABOO:
-        ui->score = pk.found;
-        ui->found = pk.state == PK_FOUND;
-        if (pk.state == PK_FOUND) snprintf(ui->line1, sizeof ui->line1, "Boo! You found %s!", nick);
-        else if (pk.state == PK_SHUFFLE) snprintf(ui->line1, sizeof ui->line1, "%s is hiding again\xE2\x80\xA6", nick);
-        else snprintf(ui->line1, sizeof ui->line1, "Where\xE2\x80\x99s %s? Tap a bush!", nick);
-        if (pk.found && pk.state == PK_HIDDEN) snprintf(ui->line2, sizeof ui->line2, "Found %d %s so far.", pk.found, pk.found == 1 ? "time" : "times");
-        break;
     case GAME_BUBBLES:
-        ui->score = bp.popped;
-        if (bp.popped) snprintf(ui->line1, sizeof ui->line1, "Popped %d. Keep going!", bp.popped);
-        else snprintf(ui->line1, sizeof ui->line1, "Tap the bubbles!");
-        snprintf(ui->line2, sizeof ui->line2, "Gold ones burst into stars.");
+        ui->state = bp.state;
+        ui->score = bp.score;
+        ui->best = bp.best;
+        ui->record = bp.record;
+        snprintf(ui->line1, sizeof ui->line1, "Pop them fast! Not the spiky ones.");
         break;
     case GAME_CARROT:
         ui->state = cc.state;
@@ -1448,36 +981,11 @@ void game_ui(game_ui_t *ui)
         ui->step = bt.phase;
         ui->progress = bt_progress();
         switch (bt.phase) {
-        case BT_SCRUB: snprintf(ui->line1, sizeof ui->line1, "Scrub-a-dub! Rub the sponge over the muddy spots."); break;
+        case BT_SCRUB: snprintf(ui->line1, sizeof ui->line1, "Scrub-a-dub! Rub the sponge all over, mud too."); break;
         case BT_RINSE: snprintf(ui->line1, sizeof ui->line1, "All soapy! Hold the shower over %s to rinse.", nick); break;
         case BT_DRY: snprintf(ui->line1, sizeof ui->line1, "Brrr, wet! Rub the towel over %s to dry off.", nick); break;
         default: snprintf(ui->line1, sizeof ui->line1, "So fresh and fluffy! Tap %s for a snuggle.", nick); break;
         }
-        break;
-    case GAME_ROLL: {
-        ui->state = rl.state;
-        ui->score = rl.maze + 1;
-        ui->best = rl.best[rl.maze];
-        if (rl.state == RL_DONE) snprintf(ui->line1, sizeof ui->line1, rl.record ? "A new best!" : "Home! Next maze coming up.");
-        else snprintf(ui->line1, sizeof ui->line1, "Tilt to roll the carrot to %s.", nick);
-        break;
-    }
-    case GAME_SAYS:
-        ui->state = bs.state;
-        ui->score = bs.run;
-        ui->best = bs.best;
-        ui->progress = bs.state == BS_WAIT && bs.window > 0 ? 1 - bs.t / bs.window : 1;
-        if (bs.state == BS_CALL || bs.state == BS_WAIT) {
-            snprintf(ui->cue_icon, sizeof ui->cue_icon, "%s", CALLS[bs.call].icon);
-            snprintf(ui->cue, sizeof ui->cue, "%s", CALLS[bs.call].word);
-        }
-        if (bs.state == BS_END) snprintf(ui->line1, sizeof ui->line1, bs.record ? "A new best: %d!" : "A run of %d!", bs.run);
-        else snprintf(ui->line1, sizeof ui->line1, "Do what %s says, quick!", nick);
-        break;
-    case GAME_STACK:
-        ui->score = cs.height;
-        ui->best = cs.best;
-        snprintf(ui->line1, sizeof ui->line1, "Hold it level and still.");
         break;
     default:
         break;

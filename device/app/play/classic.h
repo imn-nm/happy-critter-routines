@@ -1,16 +1,17 @@
 /*
  * The classic games (Figma "13 · Classic games", 1291:4897): Snack Trail, Maze Munch, Brick Bounce,
- * Pet Pairs and Snack Drop. Drawn crisp on the whole display (not Biscuit's LED stage), inside
- * Playtime's frame: its header, play time pill, timer and status pill. Made for a 10-year-old: easy
- * to understand, not easy to win; each keeps its best. Touch where it plays best (Maze Munch also
- * tilts, Brick Bounce takes a tilt too); only the button at 1 o'clock leaves a game.
+ * Pet Pairs and Snack Drop, and Roll home (Maze Munch's maze, tipped like a marble maze). Drawn
+ * crisp on the whole display (not Biscuit's LED stage), inside Playtime's frame: its header, play
+ * time pill, timer and status pill. Made for a 10-year-old: easy to understand, not easy to win;
+ * each keeps its best. Touch where it plays best (Maze Munch also tilts, Brick Bounce takes a tilt
+ * too, Roll home is all tilt); only the button at 1 o'clock leaves a game.
  */
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
 #include "lvgl.h"
 
-typedef enum { CL_TRAIL, CL_MAZE, CL_BRICKS, CL_PAIRS, CL_DROP, CL_COUNT } classic_id_t;
+typedef enum { CL_TRAIL, CL_MAZE, CL_BRICKS, CL_PAIRS, CL_DROP, CL_ROLL, CL_COUNT } classic_id_t;
 
 /* The game's drawing surface: the whole display, hidden until a game starts. */
 lv_obj_t *classic_create(lv_obj_t *parent);

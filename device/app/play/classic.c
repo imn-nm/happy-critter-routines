@@ -30,7 +30,7 @@
 enum { ST_READY, ST_PLAY, ST_OVER };
 #define AGAIN_MS 700          /* after a game ends, a tap starts the next only this much later */
 
-static const char *const BEST_KEY[CL_COUNT] = { "best-trail", "best-maze", "best-bricks", "best-pairs", "best-drop" };
+static const char *const BEST_KEY[CL_COUNT] = { "best-trail", "best-maze", "best-bricks", "best-pairs", "best-drop", "best-roll" };
 
 static struct {
     lv_obj_t *obj;
@@ -66,7 +66,7 @@ static void game_over(void)
     cl.state = ST_OVER;
     cl.over_at = cl.t;
     cl.again = false;
-    bool lower = cl.id == CL_PAIRS;
+    bool lower = cl.id == CL_PAIRS || cl.id == CL_ROLL;   /* fewest flips, fastest time */
     int least = cl.id == CL_TRAIL ? 4 : 0;   /* Snack Trail starts 4 long: no best for eating nothing */
     cl.new_best = cl.score > least && (!cl.best || (lower ? cl.score < cl.best : cl.score > cl.best));
     if (cl.new_best) {
@@ -132,9 +132,29 @@ static void outline(float cx, float cy, float r, uint32_t col, int w, uint32_t f
     box(cx - r, cy - r, cx + r, cy + r, fill, LV_RADIUS_CIRCLE, fill_opa, col, w);
 }
 
+/* a ring and nothing inside it, fading as opa drops */
+static void ring(float cx, float cy, float r, int w, uint32_t col, lv_opa_t opa)
+{
+    if (!seen(cx - r, cy - r, cx + r, cy + r)) return;
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    d.bg_opa = LV_OPA_TRANSP;
+    d.radius = LV_RADIUS_CIRCLE;
+    d.border_color = COL(col);
+    d.border_width = w;
+    d.border_opa = opa;
+    lv_area_t a = { OX + lroundf(cx - r), OY + lroundf(cy - r), OX + lroundf(cx + r) - 1, OY + lroundf(cy + r) - 1 };
+    lv_draw_rect(L, &d, &a);
+}
+
 /* an arc centred on radius r, w wide; angles in degrees, 0 = 3 o'clock, clockwise */
 static void arc(float cx, float cy, float r, int w, float a0, float a1, uint32_t col, bool round)
 {
+    if (a1 - a0 >= 359.9f) {   /* a whole ring: as two halves (0 to 360 would draw nothing) */
+        arc(cx, cy, r, w, 0, 180, col, false);
+        arc(cx, cy, r, w, 180, 360 - 0.01f, col, false);
+        return;
+    }
     float R = r + w / 2.0f;
     if (!seen(cx - R, cy - R, cx + R, cy + R)) return;
     lv_draw_arc_dsc_t a;
@@ -354,7 +374,7 @@ static void tr_move(void)
         tr.grow = 0;
         grows = false;
         tr.bit_t = cl.t;
-        hal_play(HAL_SOUND_SOON);
+        hal_play(HAL_SOUND_MISS);
     }
     int tail_x = tr.x[tr.len - 1], tail_y = tr.y[tr.len - 1];
     if (grows) { tr.len++; tr.grow--; }
@@ -367,7 +387,7 @@ static void tr_move(void)
     if (spicy >= 0) {   /* it ate a chili: too spicy */
         cl.score = tr.peak;
         game_over();
-        hal_play(HAL_SOUND_SOON);
+        hal_play(HAL_SOUND_LOSE);
         inv_all();
         return;
     }
@@ -375,7 +395,7 @@ static void tr_move(void)
         if (tr.tx[n] != hx || tr.ty[n] != hy) continue;
         tr.grow++;
         tr.every = tr.every - TR_FASTER_MS < TR_FAST_MS ? TR_FAST_MS : tr.every - TR_FASTER_MS;
-        hal_play(HAL_SOUND_TICK);
+        hal_play(HAL_SOUND_EAT);
         tr_treat(n);
         if (++tr.eaten % 2 == 0) tr_add_chili();
     }
@@ -510,14 +530,14 @@ static void pp_tap(float x, float y)
     pp.pop[k] = cl.t;
     cl.score++;
     pp_inv(k);
-    if (pp.a < 0) { pp.a = k; hal_play(HAL_SOUND_TICK); return; }
+    if (pp.a < 0) { pp.a = k; hal_play(HAL_SOUND_FLIP); return; }
     pp.b = k;
-    if (pp.face[pp.a] != pp.face[pp.b]) { pp.hide_at = cl.t + PP_SHOW_MS; hal_play(HAL_SOUND_TICK); return; }
+    if (pp.face[pp.a] != pp.face[pp.b]) { pp.hide_at = cl.t + PP_SHOW_MS; hal_play(HAL_SOUND_MISS); return; }
     pp.up[pp.a] = pp.up[pp.b] = 2;
     pp_inv(pp.a);
     pp_inv(pp.b);
     pp.a = pp.b = -1;
-    if (++pp.pairs < PP_N / 2) { hal_play(HAL_SOUND_START); return; }
+    if (++pp.pairs < PP_N / 2) { hal_play(HAL_SOUND_EAT); return; }
     game_over();
     hal_play(HAL_SOUND_DONE);
     fx_confetti(lv_obj_get_parent(cl.obj), CENTER, 240, 22, FX_PARTY, 6, 140);
@@ -567,8 +587,9 @@ static struct {
     int target, lives;
     float spawn_in, every, speed;
     float pace;               /* how well it's going: up with every catch (more for a quick one), down a lot for a slip */
-    float ring_x, ring_y, ring_t;
+    float ring_x, ring_y, ring_t;   /* the last tap: a ring that grows and fades, the snack shrinking in it */
     bool ring_good;
+    uint8_t ring_kind;
     float hurt_t;
 } dr;
 
@@ -649,17 +670,17 @@ static void dr_hurt(void)
     if (--dr.lives <= 0) {
         for (int i = 0; i < DR_MAX; i++) dr.d[i].on = false;
         game_over();
-        hal_play(HAL_SOUND_SOON);
+        hal_play(HAL_SOUND_LOSE);
         inv_all();
         return;
     }
-    hal_play(HAL_SOUND_SOON);
+    hal_play(HAL_SOUND_MISS);
     inv(150, 380, 340, 426);
 }
 
 static void dr_update(float dt)
 {
-    if (cl.t - dr.ring_t < 300) inv_box(dr.ring_x, dr.ring_y, 44);
+    if (cl.t - dr.ring_t < 320) inv_box(dr.ring_x, dr.ring_y, 50);
     if (cl.t - dr.hurt_t < 500) inv_box(154, 403, 40);
     if (cl.state != ST_PLAY) return;
     if ((dr.spawn_in -= dt) <= 0) { dr_spawn(); dr.spawn_in = dr.every * (0.8f + frand01() * 0.4f); }
@@ -696,12 +717,13 @@ static void dr_tap(float x, float y)
     dr.ring_y = d->y;
     dr.ring_t = cl.t;
     dr.ring_good = d->kind == dr.target;
+    dr.ring_kind = d->kind;
     d->on = false;
     dr_inv(d);
     if (!dr.ring_good) { dr_hurt(); return; }
     cl.score++;
     dr_set_pace(dr.pace + (dr.ring_y < 230 ? 1.6f : 1));   /* caught high up: a quick one */
-    hal_play(HAL_SOUND_TICK);
+    hal_play(HAL_SOUND_POP);
     if (cl.score % 10 == 0) {   /* a new snack to catch */
         dr.target = (dr.target + 1) % SN_KINDS;
         hal_play(HAL_SOUND_CHIME);
@@ -721,8 +743,9 @@ static void dr_draw(void)
     }
     float age = cl.t - dr.ring_t;
     if (age >= 0 && age < 300) {
-        uint32_t c = dr.ring_good ? C_ACTION : C_LATE;
-        outline(dr.ring_x, dr.ring_y, 39 + age / 300 * 4, c, 3, c, 40);
+        float k = age / 300;
+        if (age < 200) snack(dr.ring_kind, dr.ring_x, dr.ring_y, 1 - age / 200);
+        ring(dr.ring_x, dr.ring_y, 30 + 14 * k, 3, dr.ring_good ? C_ACTION : C_LATE, (lv_opa_t)(255 * (1 - k)));
     }
     /* the count: the ring with the snack to catch, then a pill with the count, the best and the hearts */
     char t[24];
@@ -821,7 +844,7 @@ static void bb_serve(void)
     bb.vx = cosf(a);
     bb.vy = sinf(a);
     bb.speed = 250 + 30 * (bb.level - 1);
-    hal_play(HAL_SOUND_TICK);
+    hal_play(HAL_SOUND_FLIP);
 }
 
 static void bb_hit_bricks(void)
@@ -836,8 +859,8 @@ static void bb_hit_bricks(void)
             else if (dy * bb.vy < 0 || dy == 0) bb.vy = -bb.vy;
             inv(x0 - 2, y0 - 2, x1 + 2, y1 + 2);
             cl.score += 10 * (BB_ROWS - r) + 10 * (bb.level - 1);
-            if (--bb.hit[r][c]) { hal_play(HAL_SOUND_TICK); return; }
-            hal_play(HAL_SOUND_TICK);
+            if (--bb.hit[r][c]) { hal_play(HAL_SOUND_POP); return; }
+            hal_play(HAL_SOUND_POP);
             if (--bb.left == 0) {   /* the wall's gone: the next, faster */
                 bb.level++;
                 bb.served = false;
@@ -847,7 +870,7 @@ static void bb_hit_bricks(void)
                 bb_place();
                 snprintf(cl.msg, sizeof cl.msg, "Wall %d", bb.level);
                 cl.msg_until = cl.t + 1400;
-                hal_play(HAL_SOUND_DONE);
+                hal_play(HAL_SOUND_WIN);
                 inv_all();
             }
             return;
@@ -858,8 +881,8 @@ static void bb_lose(void)
 {
     bb.served = false;
     inv_all();
-    if (--bb.lives <= 0) { game_over(); hal_play(HAL_SOUND_SOON); return; }
-    hal_play(HAL_SOUND_SOON);
+    if (--bb.lives <= 0) { game_over(); hal_play(HAL_SOUND_LOSE); return; }
+    hal_play(HAL_SOUND_MISS);
     bb_place();
 }
 
@@ -907,7 +930,7 @@ static void bb_update(float dt)
                 bb.x = 233 + nx * r;
                 bb.y = 233 + ny * r;
                 bb.speed = fminf(bb.speed + 4, 420);
-                hal_play(HAL_SOUND_TICK);
+                hal_play(HAL_SOUND_BOUNCE);
             } else if (d - BB_BALL > BB_R + 10) {
                 bb_lose();
                 break;
@@ -1267,6 +1290,7 @@ static void mz_eat(void)
         mz.eaten[k][i] = 1;
         mz.left--;
         cl.score += 10;
+        hal_play(HAL_SOUND_FLIP);
     }
     if (k == 2)
         for (int b = 0; b < 2; b++) {
@@ -1275,7 +1299,7 @@ static void mz_eat(void)
             mz.left--;
             cl.score += 50;
             mz.scared_until = cl.t + MZ_SCARED_MS;
-            hal_play(HAL_SOUND_START);
+            hal_play(HAL_SOUND_POWER);
         }
     if (mz.left <= 0) {   /* the maze cleared: the next, faster */
         mz.level++;
@@ -1285,7 +1309,7 @@ static void mz_eat(void)
         mz_places();
         mz.pause_until = cl.t + 1400;
         mz_say(t, 1400);
-        hal_play(HAL_SOUND_DONE);
+        hal_play(HAL_SOUND_WIN);
         inv_all();
     }
 }
@@ -1333,12 +1357,12 @@ static void mz_update(float dt)
             *p = (mz_mover_t){ .r = 15.0f * (i - 1), .a = 0, .ring = -1, .fx = 0, .fy = -1 };
             mz.out[i] = false;
             mz.release[i] = cl.t + 2500;
-            hal_play(HAL_SOUND_CHIME);
+            hal_play(HAL_SOUND_EAT);
             continue;
         }
         /* a puff caught the muncher */
-        hal_play(HAL_SOUND_SOON);
-        if (--mz.lives <= 0) { game_over(); inv_all(); return; }
+        if (--mz.lives <= 0) { game_over(); hal_play(HAL_SOUND_LOSE); inv_all(); return; }
+        hal_play(HAL_SOUND_MISS);
         char t[16];
         snprintf(t, sizeof t, mz.lives == 1 ? "Last life!" : "%d lives left", mz.lives);
         mz_places();
@@ -1430,6 +1454,282 @@ static void mz_tap(void)
     if (cl.state == ST_OVER && cl.t - cl.over_at > AGAIN_MS) { mz_reset(); cl.state = ST_PLAY; }
 }
 
+/* ================================================================ Roll home */
+/* Maze Munch's round maze, tipped like a marble maze: the muncher rolls the way MyToki leans (it
+ * gathers speed, keeps rolling, bounces off the walls) and has to reach home in the middle through
+ * the openings, four rings in. Puffs pace up and down some paths: touch one and it's back to the
+ * start of that maze (the clock keeps going). Three mazes, each trickier; the time for all three is
+ * the score, and the best is the fastest. */
+#define RL_CX 233.0f
+#define RL_CY 250.0f         /* a little lower than Maze Munch: the top path clear of the play time pill */
+#define RL_WALLS 5
+#define RL_PATHS 4
+static const float RL_WALL[RL_WALLS] = { 40, 72, 104, 136, 168 };
+static const float RL_COR[RL_PATHS] = { 56, 88, 120, 152 };
+#define RL_BALL 9.0f
+#define RL_G 600.0f          /* px/s² at a full tip */
+#define RL_DAMP 0.7f         /* how fast it slows by itself, per second */
+#define RL_VMAX 280.0f
+#define RL_BOUNCE 0.35f      /* how much of its speed a wall gives back */
+#define RL_GAP 16.0f         /* half an opening, px (the muncher is 18 across) */
+#define RL_HOME 24.0f        /* nearer the middle than this: home */
+#define RL_MAZES 3
+#define RL_PUFFS 4
+#define RL_SEGS 480
+
+/* a puff pacing a path: which path, round which angle, how far each way (degrees), how quickly */
+typedef struct { int8_t path; int16_t at, swing; float speed; } rl_puff_t;
+/* openings in walls 0 (home) to 3 and spokes across paths 0 to 3 (degrees, 0 = 3 o'clock,
+ * clockwise; -1 none); where it starts on the outer path; the puffs */
+typedef struct { int16_t gaps[RL_WALLS - 1][3], spokes[RL_PATHS][3], start; rl_puff_t puff[RL_PUFFS]; } rl_maze_t;
+static const rl_maze_t RL_MAZE[RL_MAZES] = {
+    /* in at the bottom, the top, the bottom, the top; a spoke on each inner path says which way round */
+    { { { 270, -1, -1 }, { 90, -1, -1 }, { 270, -1, -1 }, { 90, -1, -1 } },
+      { { 180, -1, -1 }, { 0, -1, -1 }, { 180, -1, -1 }, { -1, -1, -1 } }, 270,
+      { { 2, 0, 25, 1.4f }, { -1, 0, 0, 0 }, { -1, 0, 0, 0 }, { -1, 0, 0, 0 } } },
+    /* two ways in from the outside, one a dead end; the short way round past a puff */
+    { { { 120, -1, -1 }, { 300, -1, -1 }, { 180, -1, -1 }, { 0, 180, -1 } },
+      { { 30, -1, -1 }, { 200, -1, -1 }, { 120, 240, -1 }, { -1, -1, -1 } }, 270,
+      { { 3, 225, 30, 1.6f }, { 1, 30, 25, 1.8f }, { 0, 220, 35, 1.5f }, { -1, 0, 0, 0 } } },
+    /* the long way round every time, with puffs where it matters */
+    { { { 150, -1, -1 }, { 20, -1, -1 }, { 240, -1, -1 }, { 300, -1, -1 } },
+      { { 100, -1, -1 }, { 150, 60, -1 }, { 330, 210, -1 }, { 240, -1, -1 } }, 180,
+      { { 3, 90, 20, 1.7f }, { 3, 0, 25, 1.9f }, { 1, 330, 25, 2.0f }, { 0, 260, 40, 2.2f } } },
+};
+
+typedef struct { float x0, y0, x1, y1, r; } rl_seg_t;   /* r: the wall's radius (0 for a spoke), to skip far ones */
+static rl_seg_t rl_seg[RL_SEGS];
+static int rl_nseg;
+
+static struct {
+    int maze;
+    float x, y, vx, vy, fx, fy;   /* where, how fast, the way it faces */
+    float time;                   /* ms, all the mazes so far */
+    float pause_until, bump_at, mouth;
+    float px[RL_PUFFS], py[RL_PUFFS];   /* where the puffs are now */
+} rl;
+
+/* the solid parts of wall w between its openings, as [a0, a1] spans in degrees (a1 may pass 360) */
+static int rl_spans(const rl_maze_t *m, int w, float span[4][2])
+{
+    float R = RL_WALL[w], half = RL_GAP / R / DEG;
+    int g[3], n = 0;
+    if (w < RL_WALLS - 1) for (int i = 0; i < 3; i++) if (m->gaps[w][i] >= 0) g[n++] = m->gaps[w][i];
+    if (!n) { span[0][0] = 0; span[0][1] = 360; return 1; }
+    for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) if (g[j] < g[i]) { int t = g[i]; g[i] = g[j]; g[j] = t; }
+    for (int i = 0; i < n; i++) {
+        span[i][0] = g[i] + half;
+        span[i][1] = (i + 1 < n ? g[i + 1] : g[0] + 360) - half;
+    }
+    return n;
+}
+
+static void rl_start_spot(void)
+{
+    float a = RL_MAZE[rl.maze].start * DEG;
+    rl.x = RL_CX + RL_COR[RL_PATHS - 1] * cosf(a);
+    rl.y = RL_CY + RL_COR[RL_PATHS - 1] * sinf(a);
+    rl.vx = rl.vy = 0;
+}
+
+static void rl_build(void)
+{
+    const rl_maze_t *m = &RL_MAZE[rl.maze];
+    rl_nseg = 0;
+    for (int w = 0; w < RL_WALLS; w++) {
+        float span[4][2], R = RL_WALL[w];
+        int n = rl_spans(m, w, span);
+        for (int i = 0; i < n; i++) {
+            int steps = (int)ceilf((span[i][1] - span[i][0]) / 4.0f);
+            for (int k = 0; k < steps && rl_nseg < RL_SEGS; k++) {
+                float a0 = (span[i][0] + (span[i][1] - span[i][0]) * k / steps) * DEG;
+                float a1 = (span[i][0] + (span[i][1] - span[i][0]) * (k + 1) / steps) * DEG;
+                rl_seg[rl_nseg++] = (rl_seg_t){ RL_CX + R * cosf(a0), RL_CY + R * sinf(a0), RL_CX + R * cosf(a1), RL_CY + R * sinf(a1), R };
+            }
+        }
+    }
+    for (int k = 0; k < RL_PATHS; k++)
+        for (int i = 0; i < 3; i++) {
+            int sp = m->spokes[k][i];
+            if (sp < 0 || rl_nseg >= RL_SEGS) continue;
+            float c = cosf(sp * DEG), s = sinf(sp * DEG);
+            rl_seg[rl_nseg++] = (rl_seg_t){ RL_CX + RL_WALL[k] * c, RL_CY + RL_WALL[k] * s, RL_CX + RL_WALL[k + 1] * c, RL_CY + RL_WALL[k + 1] * s, 0 };
+        }
+    rl_start_spot();
+    inv_all();
+}
+
+static void rl_reset(void)
+{
+    cl.again = false;
+    memset(&rl, 0, sizeof rl);
+    rl.fx = 1;
+    rl.bump_at = -1000;
+    cl.score = 0;
+    rl_build();
+}
+
+static void rl_inv(void) { inv_box(rl.x, rl.y, RL_BALL + 6); }
+static void rl_inv_clock(void) { inv(RL_CX - 34, RL_CY - 24, RL_CX + 34, RL_CY + 24); }
+
+static void rl_home(void)
+{
+    hal_play(HAL_SOUND_WIN);
+    if (rl.maze + 1 >= RL_MAZES) {
+        cl.score = (int)rl.time;
+        game_over();
+        hal_play(HAL_SOUND_DONE);
+        fx_confetti(lv_obj_get_parent(cl.obj), (int32_t)RL_CX, (int32_t)RL_CY, 18, FX_PARTY, 6, 120);
+        inv_all();
+        return;
+    }
+    rl.maze++;
+    rl_build();
+    snprintf(cl.msg, sizeof cl.msg, "Maze %d", rl.maze + 1);
+    cl.msg_until = rl.pause_until = cl.t + 1300;
+}
+
+/* the puffs pace their paths (they keep pacing during a pause, so it's never safe to wait forever) */
+static void rl_puffs(void)
+{
+    const rl_maze_t *m = &RL_MAZE[rl.maze];
+    for (int i = 0; i < RL_PUFFS; i++) {
+        const rl_puff_t *p = &m->puff[i];
+        if (p->path < 0) continue;
+        inv_box(rl.px[i], rl.py[i], 13);
+        float a = (p->at + p->swing * sinf(cl.t / 1000.0f * p->speed + i)) * DEG;
+        rl.px[i] = RL_CX + RL_COR[p->path] * cosf(a);
+        rl.py[i] = RL_CY + RL_COR[p->path] * sinf(a);
+        inv_box(rl.px[i], rl.py[i], 13);
+    }
+}
+
+static void rl_update(float dt)
+{
+    rl.mouth += dt;
+    if (cl.msg[0] && cl.t >= cl.msg_until) { cl.msg[0] = 0; rl_inv_clock(); }
+    if (cl.state != ST_OVER) rl_puffs();
+    float tx, ty;
+    motion_tilt(&tx, &ty);
+    if (cl.state == ST_READY && tx * tx + ty * ty > 0.06f) cl.state = ST_PLAY;   /* a tip starts it */
+    if (cl.state != ST_PLAY || cl.t < rl.pause_until) { rl_inv(); return; }
+    rl.time += dt;
+    if ((int)(rl.time / 100) != (int)((rl.time - dt) / 100)) rl_inv_clock();
+    rl_inv();
+    const float rr = RL_BALL + 2;
+    for (int step = 0; step < 3; step++) {
+        float h = dt / 3000.0f;
+        rl.vx += RL_G * tx * h;
+        rl.vy += RL_G * ty * h;
+        float damp = expf(-RL_DAMP * h);
+        rl.vx *= damp;
+        rl.vy *= damp;
+        float sp = sqrtf(rl.vx * rl.vx + rl.vy * rl.vy);
+        if (sp > RL_VMAX) { rl.vx *= RL_VMAX / sp; rl.vy *= RL_VMAX / sp; }
+        rl.x += rl.vx * h;
+        rl.y += rl.vy * h;
+        float d = hypotf(rl.x - RL_CX, rl.y - RL_CY), hit = 0;
+        for (int pass = 0; pass < 2; pass++)
+            for (int i = 0; i < rl_nseg; i++) {
+                const rl_seg_t *g = &rl_seg[i];
+                if (g->r > 0 && fabsf(d - g->r) > rr + 6) continue;
+                float ex = g->x1 - g->x0, ey = g->y1 - g->y0, l2 = ex * ex + ey * ey;
+                float t = l2 > 0 ? clampf(((rl.x - g->x0) * ex + (rl.y - g->y0) * ey) / l2, 0, 1) : 0;
+                float qx = g->x0 + ex * t, qy = g->y0 + ey * t, nx = rl.x - qx, ny = rl.y - qy, dd = sqrtf(nx * nx + ny * ny);
+                if (dd >= rr || dd < 0.001f) continue;
+                nx /= dd;
+                ny /= dd;
+                rl.x = qx + nx * rr;
+                rl.y = qy + ny * rr;
+                float vn = rl.vx * nx + rl.vy * ny;
+                if (vn < 0) {
+                    rl.vx -= (1 + RL_BOUNCE) * vn * nx;
+                    rl.vy -= (1 + RL_BOUNCE) * vn * ny;
+                    if (-vn > hit) hit = -vn;
+                }
+                d = hypotf(rl.x - RL_CX, rl.y - RL_CY);
+            }
+        if (hit > 110 && cl.t - rl.bump_at > 150) { hal_play(HAL_SOUND_BOUNCE); rl.bump_at = cl.t; }
+        if (d < RL_HOME) { rl_home(); return; }
+    }
+    float sp = sqrtf(rl.vx * rl.vx + rl.vy * rl.vy);
+    if (sp > 8) { rl.fx = rl.vx / sp; rl.fy = rl.vy / sp; }
+    /* a puff: back to the start of this maze */
+    const rl_maze_t *m = &RL_MAZE[rl.maze];
+    for (int i = 0; i < RL_PUFFS; i++) {
+        if (m->puff[i].path < 0 || hypotf(rl.px[i] - rl.x, rl.py[i] - rl.y) > RL_BALL + 8) continue;
+        rl_inv();
+        rl_start_spot();
+        snprintf(cl.msg, sizeof cl.msg, "Oops!");
+        cl.msg_until = rl.pause_until = cl.t + 900;
+        rl_inv_clock();
+        hal_play(HAL_SOUND_MISS);
+        break;
+    }
+    rl_inv();
+}
+
+static void rl_draw(void)
+{
+    const rl_maze_t *m = &RL_MAZE[rl.maze];
+    for (int w = 0; w < RL_WALLS; w++) {
+        float span[4][2];
+        int n = rl_spans(m, w, span);
+        for (int i = 0; i < n; i++) arc(RL_CX, RL_CY, RL_WALL[w], 4, span[i][0], span[i][1], K_WALL, span[i][1] - span[i][0] < 360);
+    }
+    for (int k = 0; k < RL_PATHS; k++)
+        for (int i = 0; i < 3; i++) {
+            int sp = m->spokes[k][i];
+            if (sp < 0) continue;
+            float c = cosf(sp * DEG), s = sinf(sp * DEG);
+            seg(RL_CX + RL_WALL[k] * c, RL_CY + RL_WALL[k] * s, RL_CX + RL_WALL[k + 1] * c, RL_CY + RL_WALL[k + 1] * s, 4, K_WALL, LV_OPA_COVER);
+        }
+    /* home: the house and the time so far (or a word for a moment) */
+    if (cl.msg[0]) text_at(cl.msg, F_DETAIL, C_TEXT, RL_CX, RL_CY);
+    else {
+        char t[16];
+        int ms = (int)rl.time;
+        snprintf(t, sizeof t, "%d:%02d.%d", ms / 60000, ms / 1000 % 60, ms / 100 % 10);
+        icon_at("home", 16, RL_CX, RL_CY - 10, C_ACTION);
+        text_at(t, F_DETAIL, C_TEXT, RL_CX, RL_CY + 10);
+    }
+    /* the puffs, small enough for the narrow paths */
+    for (int i = 0; i < RL_PUFFS; i++) {
+        if (m->puff[i].path < 0) continue;
+        float x = rl.px[i], y = rl.py[i];
+        uint32_t c = MZ_PUFF_COL[i % MZ_PUFFS];
+        disc(x, y - 2, 8, c);
+        box(x - 8, y - 2, x + 8, y + 5, c, 0, LV_OPA_COVER, 0, 0);
+        for (int k = -1; k <= 1; k++) disc(x + k * 5.3f, y + 5, 2.7f, c);
+        disc(x - 3.2f, y - 2, 2.4f, C_TEXT);
+        disc(x + 3.2f, y - 2, 2.4f, C_TEXT);
+        disc(x - 3.2f, y - 2, 1.2f, C_ON_COLOR);
+        disc(x + 3.2f, y - 2, 1.2f, C_ON_COLOR);
+    }
+    /* the muncher, mouth to the way it rolls */
+    if (cl.state == ST_OVER) return;
+    float face = atan2f(rl.fy, rl.fx) / DEG, sp = sqrtf(rl.vx * rl.vx + rl.vy * rl.vy);
+    float open = sp > 20 ? 6 + 30 * fabsf(sinf(rl.mouth / 90.0f)) : 24;
+    if (!seen(rl.x - RL_BALL - 2, rl.y - RL_BALL - 2, rl.x + RL_BALL + 2, rl.y + RL_BALL + 2)) return;
+    lv_draw_arc_dsc_t a;
+    lv_draw_arc_dsc_init(&a);
+    a.center.x = OX + lroundf(rl.x);
+    a.center.y = OY + lroundf(rl.y);
+    a.radius = (uint16_t)RL_BALL;
+    a.width = (uint16_t)RL_BALL;
+    a.color = COL(C_ACTION);
+    a.opa = LV_OPA_COVER;
+    a.start_angle = norm360(face + open);
+    a.end_angle = norm360(face - open);
+    lv_draw_arc(L, &a);
+}
+
+static void rl_tap(void)
+{
+    if (cl.state == ST_READY) { cl.state = ST_PLAY; return; }
+    if (cl.state == ST_OVER && cl.t - cl.over_at > AGAIN_MS) { rl_reset(); cl.state = ST_PLAY; }
+}
+
 /* ================================================================ the surface */
 static void on_draw(lv_event_t *e)
 {
@@ -1445,6 +1745,7 @@ static void on_draw(lv_event_t *e)
     case CL_BRICKS: bb_draw(); break;
     case CL_PAIRS: pp_draw(); break;
     case CL_DROP: dr_draw(); break;
+    case CL_ROLL: rl_draw(); break;
     default: break;
     }
     if (cl.msg[0] && cl.id == CL_BRICKS) text_at(cl.msg, F_PILL, C_TEXT, 233, 268);
@@ -1494,6 +1795,7 @@ static void on_touch(lv_event_t *e)
         case CL_BRICKS: bb_tap(); break;
         case CL_PAIRS: pp_tap(p.x, p.y); break;
         case CL_DROP: dr_tap(p.x, p.y); break;
+        case CL_ROLL: rl_tap(); break;
         default: break;
         }
     }
@@ -1514,6 +1816,7 @@ static void tick(lv_timer_t *t)
     case CL_BRICKS: bb_update(dt); break;
     case CL_PAIRS: pp_update(dt); break;
     case CL_DROP: dr_update(dt); break;
+    case CL_ROLL: rl_update(dt); break;
     default: break;
     }
     if (cl.msg[0] && cl.id == CL_BRICKS && cl.t >= cl.msg_until) { cl.msg[0] = 0; inv(120, 250, 346, 290); }
@@ -1566,6 +1869,7 @@ void classic_start(classic_id_t id)
     case CL_BRICKS: bb_reset(); break;
     case CL_PAIRS: pp_reset(); break;   /* the cards are dealt: a tap turns one */
     case CL_DROP: dr_reset(); break;
+    case CL_ROLL: rl_reset(); break;
     default: break;
     }
     lv_obj_remove_flag(cl.obj, LV_OBJ_FLAG_HIDDEN);
@@ -1583,7 +1887,7 @@ void classic_stop(void)
 
 bool classic_running(void) { return cl.running; }
 classic_id_t classic_current(void) { return cl.id; }
-bool classic_wide(void) { return cl.running && cl.id == CL_MAZE; }
+bool classic_wide(void) { return cl.running && (cl.id == CL_MAZE || cl.id == CL_ROLL); }
 
 bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
 {
@@ -1623,6 +1927,18 @@ bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
         else if (cl.best) snprintf(text, text_n, "%d \xC2\xB7 best %d", cl.score, cl.best);
         else snprintf(text, text_n, "%d", cl.score);
         return true;
+    case CL_ROLL: {
+        if (cl.state == ST_PLAY) return false;   /* the maze fills the screen */
+        char now[12], best[12];
+        snprintf(now, sizeof now, "%d:%02d.%d", cl.score / 60000, cl.score / 1000 % 60, cl.score / 100 % 10);
+        snprintf(best, sizeof best, "%d:%02d.%d", cl.best / 60000, cl.best / 1000 % 60, cl.best / 100 % 10);
+        snprintf(icon, icon_n, ready ? "move" : "timer");
+        if (ready) snprintf(text, text_n, "Tip to roll home");
+        else if (cl.new_best) snprintf(text, text_n, "New best %s!", now);
+        else if (cl.best) snprintf(text, text_n, "%s \xC2\xB7 best %s", now, best);
+        else snprintf(text, text_n, "%s", now);
+        return true;
+    }
     default:
         return false;   /* Snack Drop draws its own */
     }

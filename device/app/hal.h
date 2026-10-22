@@ -42,6 +42,15 @@ typedef enum {
     HAL_SOUND_ALARM,     /* the morning alarm: a music-box phrase (C5 E5 G5 E5), looped while it rings */
     HAL_SOUND_ALARM_SOFT,   /* the same phrase, quiet: the alarm's first 20 seconds */
     HAL_SOUND_ALARM_MID,    /* and a little louder: the next 20 */
+    /* the games: short and quiet, under the chimes */
+    HAL_SOUND_POP,       /* a bubble, a brick, a good tap */
+    HAL_SOUND_EAT,       /* a snack eaten, a pair found */
+    HAL_SOUND_BOUNCE,    /* off the paddle, into a wall */
+    HAL_SOUND_FLIP,      /* a card turned, a little dot munched */
+    HAL_SOUND_MISS,      /* a slip: soft, two notes down */
+    HAL_SOUND_WIN,       /* a maze or a wall cleared */
+    HAL_SOUND_LOSE,      /* the game is over: gentle, three notes down */
+    HAL_SOUND_POWER,     /* a power-up: four notes up */
 } hal_sound_t;
 void hal_play(hal_sound_t sound);
 /* How loud the sounds play, 0-100 (0: silent); the child sets it in the pull-down. */

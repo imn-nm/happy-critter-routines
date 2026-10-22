@@ -8,39 +8,36 @@
 #include "../ui/widgets.h"
 #include "../ui/swipe.h"
 #include "../mytoki.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 #define STEP_MS 66
 #define SEE_YOU_MS 8000
 
-/* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is the four tapping
- * games in two rows of two; page 1 the three motion games, two above and one below; page 2 the five
- * classic games (CLASSIC below), three above and two below. "%s" in a title or label is the pet's
- * name. Dress up is not a game: it lives in My pet (a long tap on the pet, any time), with choosing
- * the buddy, so it has no circle (page -1). */
-#define MENU_PAGES 3
-#define CLASSIC_PAGE 2
+/* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is Biscuit's games in
+ * two rows of two (Roll home, drawn in classic.c, among them); page 1 the five classic games (CLASSIC
+ * below), three above and two below. "%s" in a title or label is the pet's name. Dress up is not a
+ * game: it lives in My pet (a long tap on the pet, any time), with choosing the buddy, so it has no
+ * circle (page -1). */
+#define MENU_PAGES 2
 static const struct { const char *title, *label, *icon; int32_t x, y; int page; } MENU[GAME_COUNT] = {
     [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 0, 0, -1 },
     [GAME_BATH] = { "Bath time", "Bath time", "droplets", 120, 126, 0 },
     [GAME_CARROT] = { "Carrot catch", "Carrot catch", "carrot", 248, 126, 0 },
     [GAME_BUBBLES] = { "Bubble pop", "Bubble pop", "bubble", 120, 250, 0 },
-    [GAME_PEEKABOO] = { "Peekaboo", "Peekaboo", "eye", 248, 250, 0 },
-    [GAME_ROLL] = { "Roll home", "Roll home", "move", 120, 126, 1 },
-    [GAME_SAYS] = { "%s says", "%s says", "megaphone", 248, 126, 1 },
-    [GAME_STACK] = { "Carrot stack", "Carrot stack", "layers", 184, 250, 1 },
 };
 static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = {
-    { "Play with %s", "kite" }, { "Move with %s", "move" }, { "Classic games", "game" },
+    { "Play with %s", "kite" }, { "Classic games", "game" },
 };
-/* Figma "13 · Classic games" */
-static const struct { const char *title, *icon; int32_t x, y; } CLASSIC[CL_COUNT] = {
-    [CL_TRAIL] = { "Snack Trail", "cookie", 44, 126 },   /* three 140 apart: the names don't touch */
-    [CL_MAZE] = { "Maze Munch", "circle-dot", 184, 126 },
-    [CL_BRICKS] = { "Brick Bounce", "brick", 324, 126 },
-    [CL_PAIRS] = { "Pet Pairs", "sparkles", 120, 250 },
-    [CL_DROP] = { "Snack Drop", "apple", 248, 250 },
+/* Figma "13 · Classic games" (and Roll home, on Biscuit's page) */
+static const struct { const char *title, *icon; int32_t x, y; int page; } CLASSIC[CL_COUNT] = {
+    [CL_TRAIL] = { "Snack Trail", "cookie", 44, 126, 1 },   /* three 140 apart: the names don't touch */
+    [CL_MAZE] = { "Maze Munch", "circle-dot", 184, 126, 1 },
+    [CL_BRICKS] = { "Brick Bounce", "brick", 324, 126, 1 },
+    [CL_PAIRS] = { "Pet Pairs", "sparkles", 120, 250, 1 },
+    [CL_DROP] = { "Snack Drop", "apple", 248, 250, 1 },
+    [CL_ROLL] = { "Roll home", "move", 248, 250, 0 },
 };
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
@@ -54,7 +51,8 @@ static const char *const ACC_ICON[PET_ACC_COUNT] = {
 static stage_t stage;
 
 static struct {
-    lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *cue, *timer;
+    lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *timer;
+    lv_obj_t *bar_fill;         /* Bath time: how far the step has got */
     int32_t total;              /* the play time there was at the start, for the timer */
     lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
     lv_obj_t *classic_circle[CL_COUNT];
@@ -390,17 +388,50 @@ static void editor_open(int page)
     hal_play(HAL_SOUND_TICK);
 }
 
-/* Biscuit says: the move he is calling, as a cream row (Biscuit speaks): the icon and the word. */
-static lv_obj_t *cue_row(lv_obj_t *parent, const char *icon, const char *word)
+/* Bath time's steps: soap Scrub, shower Rinse, wind Dry. The one under way has a lime outline, the
+ * done ones a mint tick. */
+static lv_obj_t *bath_pill(lv_obj_t *parent, const char *icon, const char *text, int state, int32_t x)
 {
-    lv_obj_t *c = ui_row(parent, 10);
-    lv_obj_set_height(c, 44);
-    lv_obj_set_style_pad_hor(c, 18, 0);
+    lv_obj_t *c = ui_row(parent, 4);
+    lv_obj_set_size(c, 98, 44);
+    lv_obj_set_pos(c, x, 26);
     lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    ui_style_card(c, C_BONE, 22, 0, 0);
-    ui_icon(c, icon, 24, C_NAVY);
-    ui_label(c, F_BUTTON, C_NAVY, word);
+    ui_style_card(c, C_RAISED, LV_RADIUS_CIRCLE, C_ACTION, state == 1 ? LV_OPA_COVER : 0);
+    if (state == 1) lv_obj_set_style_border_width(c, 2, 0);
+    uint32_t col = state == 1 ? C_ACTION : state == 2 ? C_DONE : C_TEXT_MUTED;
+    ui_icon(c, state == 2 ? "check" : icon, 20, col);
+    ui_label(c, F_LABEL, col, text);
     return c;
+}
+
+/* Bath time: the three steps, and under them a bar for how far this one has got (it fills as the
+ * child scrubs, rinses, dries; the steps are rebuilt only when one is done) */
+static void bath_controls(const game_ui_t *ui)
+{
+    char sig[16];
+    snprintf(sig, sizeof sig, "bath%d", ui->step);
+    if (strcmp(sig, pl.sig)) {
+        strcpy(pl.sig, sig);
+        lv_obj_clean(pl.bottom);
+        pl.score = NULL;
+        static const char *const STEPS[3] = { "Scrub", "Rinse", "Dry" };
+        static const char *const ICONS[3] = { "soap", "shower", "wind" };
+        for (int i = 0; i < 3; i++) {
+            lv_obj_t *c = bath_pill(pl.bottom, ICONS[i], STEPS[i], i == ui->step ? 1 : i < ui->step ? 2 : 0, 80 + i * 104);
+            if (i == ui->step) fx_pop(c, 0);
+        }
+        lv_obj_t *track = ui_box(pl.bottom);
+        lv_obj_set_size(track, 200, 12);
+        lv_obj_set_pos(track, CENTER - 100, 80);
+        ui_style_card(track, C_CHIP, 6, 0, 0);
+        pl.bar_fill = ui_box(track);
+        lv_obj_set_height(pl.bar_fill, 12);
+        ui_style_card(pl.bar_fill, ui->step >= 3 ? C_DONE : C_ACTION, 6, 0, 0);
+    }
+    if (pl.bar_fill) {
+        int32_t w = (int32_t)lroundf(12 + (ui->step >= 3 ? 1 : ui->progress) * 188);
+        if (lv_obj_get_width(pl.bar_fill) != w) lv_obj_set_width(pl.bar_fill, w);
+    }
 }
 
 static void game_controls(void)
@@ -409,47 +440,30 @@ static void game_controls(void)
     if (g == GAME_DRESSUP) { dressup_controls(); return; }
     game_ui_t ui;
     game_ui(&ui);
+    if (g == GAME_BATH) { bath_controls(&ui); return; }
     char line[48];
     switch (g) {
     case GAME_CARROT: snprintf(line, sizeof line, "%d carrot%s", ui.score, ui.score == 1 ? "" : "s"); break;
-    case GAME_BUBBLES: snprintf(line, sizeof line, "%d popped", ui.score); break;
-    case GAME_PEEKABOO: snprintf(line, sizeof line, ui.found ? "Boo! Found %s" : "Find %s", pl.pet); break;
-    case GAME_ROLL:
-        if (ui.best) snprintf(line, sizeof line, "Maze %d of 3  \xC2\xB7  Best %d:%02d.%d", ui.score, ui.best / 60000, (ui.best / 1000) % 60, (ui.best / 100) % 10);
-        else snprintf(line, sizeof line, "Maze %d of 3", ui.score);
+    case GAME_BUBBLES:
+        if (ui.state == 0) snprintf(line, sizeof line, "Tap to play");
+        else if (ui.record) snprintf(line, sizeof line, "New best %d!", ui.score);
+        else if (ui.best) snprintf(line, sizeof line, "%d \xC2\xB7 best %d", ui.score, ui.best);
+        else snprintf(line, sizeof line, "%d popped", ui.score);
         break;
-    case GAME_SAYS:
-        if (ui.cue[0]) snprintf(line, sizeof line, "%s", ui.cue);
-        else if (ui.best) snprintf(line, sizeof line, "Best run %d", ui.best);
-        else snprintf(line, sizeof line, "Tap to play");
-        break;
-    case GAME_STACK: snprintf(line, sizeof line, "%d high  \xC2\xB7  Best %d", ui.score, ui.best); break;
     default: line[0] = 0; break;
     }
-    if (pl.cue) ui_show(pl.cue, g == GAME_SAYS && !strcmp(ui.cue_icon, "circle-dot"));
     char sig[160];
-    snprintf(sig, sizeof sig, "%d|%d|%s|%s", g, ui.step, ui.cue_icon, line);
+    snprintf(sig, sizeof sig, "%d|%s", g, line);
     if (!strcmp(sig, pl.sig)) return;
     strcpy(pl.sig, sig);
     lv_obj_clean(pl.bottom);
     pl.score = NULL;
-    if (g == GAME_BATH) {
-        /* Figma "Playtime · Bath time": 1 Scrub · 2 Rinse · 3 Dry at y 372 */
-        static const char *const STEPS[3] = { "1 Scrub", "2 Rinse", "3 Dry" };
-        for (int i = 0; i < 3; i++) { lv_obj_t *c = step_pill(pl.bottom, STEPS[i], i == ui.step, false, 99 + i * 92); lv_obj_set_y(c, 38); if (i == ui.step) fx_pop(c, 0); }
-    } else if (g == GAME_SAYS && ui.cue[0]) {
-        lv_obj_t *c = cue_row(pl.bottom, ui.cue_icon, ui.cue);
-        lv_obj_update_layout(c);
-        lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 40);
-        fx_pop(c, 0);
-    } else {
-        /* the score as a Status pill at y 381 */
-        pl.score = status_pill_create(pl.bottom, MENU[g].icon, line, C_BONE);
-        lv_obj_update_layout(pl.score);
-        lv_obj_align(pl.score, LV_ALIGN_TOP_MID, 0, 47);
-        fx_pop(pl.score, 0);
-        if (g == GAME_PEEKABOO && ui.found) fx_confetti(pl.root, CENTER, CENTER, 18, FX_PARTY, 6, 120);
-    }
+    pl.bar_fill = NULL;
+    /* the score as a Status pill at y 381 */
+    pl.score = status_pill_create(pl.bottom, MENU[g].icon, line, C_BONE);
+    lv_obj_update_layout(pl.score);
+    lv_obj_align(pl.score, LV_ALIGN_TOP_MID, 0, 47);
+    fx_pop(pl.score, 0);
 }
 
 /* A classic game: its status pill (the count, or what to do) where the game says, or none. */
@@ -462,6 +476,7 @@ static void classic_controls(void)
     strcpy(pl.sig, sig);
     lv_obj_clean(pl.bottom);
     pl.score = NULL;
+    pl.bar_fill = NULL;
     set_header(NULL, NULL);   /* Maze Munch's name goes once it fills the screen */
     if (!on) return;
     pl.score = status_pill_create(pl.bottom, icon, text, C_BONE);
@@ -511,7 +526,7 @@ static void menu_page(int page)
 {
     pl.page = page;
     for (int g = 0; g < GAME_COUNT; g++) if (pl.circle[g]) ui_show(pl.circle[g], MENU[g].page == page);
-    for (int g = 0; g < CL_COUNT; g++) if (pl.classic_circle[g]) ui_show(pl.classic_circle[g], page == CLASSIC_PAGE);
+    for (int g = 0; g < CL_COUNT; g++) if (pl.classic_circle[g]) ui_show(pl.classic_circle[g], CLASSIC[g].page == page);
     ui_show(pl.chev_r, page < MENU_PAGES - 1);
     ui_show(pl.chev_l, page > 0);
     fx_spring_children(pl.menu, 50);
@@ -538,8 +553,8 @@ static void open_menu(void)
     pl.sig[0] = 0;
     lv_obj_clean(pl.bottom);
     pl.score = NULL;
+    pl.bar_fill = NULL;
     ui_show(pl.bottom, false);
-    if (pl.cue) ui_show(pl.cue, false);
     ui_show(pl.menu, true);
     if (pl.menu_pet) { ui_show(pl.menu_pet, true); pet_set_paused(pl.menu_pet, false); pet_react(pl.menu_pet, PET_CLIP_WAVE); }
     ui_show(pl.canvas, false);
@@ -592,9 +607,7 @@ void play_button(void)
     if (!pl.root) return;
     if (pl.see_you || pl.standalone) { play_close(); return; }   /* My pet: the button is done */
     if (!pl.in_game) return;
-    /* Biscuit says, mid-round: "Button" is a move. Otherwise the button leaves the game for the menu. */
-    if (!pl.classic && game_wants_button()) { game_button(); return; }
-    open_menu();
+    open_menu();   /* the way out of a game: back to the menu */
     hal_play(HAL_SOUND_TICK);
 }
 
@@ -614,7 +627,7 @@ static void see_you_later(void)
     pl.see_you = true;
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
-    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.cue = pl.timer = NULL;
+    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.timer = pl.bar_fill = NULL;
     pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
@@ -748,7 +761,7 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     for (int g = 0; g < GAME_COUNT + CL_COUNT; g++) {
         bool classic = g >= GAME_COUNT;
         int k = classic ? g - GAME_COUNT : g;
-        int page = classic ? CLASSIC_PAGE : MENU[k].page;
+        int page = classic ? CLASSIC[k].page : MENU[k].page;
         if (page < 0) continue;   /* Dress up: in My pet */
         lv_obj_t *t = ui_box(pl.menu);
         if (classic) pl.classic_circle[k] = t;
@@ -766,7 +779,7 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
         lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
         lv_obj_t *ic = ui_icon(b, classic ? CLASSIC[k].icon : MENU[k].icon, 36, C_LIME);
         lv_obj_center(ic);
-        if (picture && page > 0) continue;   /* picture view: the motion and classic games are icon-first */
+        if (picture && page > 0) continue;   /* picture view: the classic games are icon-first */
         char label[32];
         named(label, sizeof label, classic ? CLASSIC[k].title : MENU[k].label);
         lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, label);
@@ -796,9 +809,6 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     lv_obj_update_layout(pl.back_wheel);
     lv_obj_set_pos(pl.back_wheel, CENTER - lv_obj_get_width(pl.back_wheel) / 2, 382);
     lv_obj_add_event_cb(pl.back_wheel, on_back_wheel, LV_EVENT_CLICKED, NULL);
-    /* the arc at 1 o'clock while Biscuit says "Button" */
-    pl.cue = cue_create(pl.root);
-    ui_show(pl.cue, false);
 
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);

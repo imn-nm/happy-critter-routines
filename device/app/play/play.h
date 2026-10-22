@@ -1,6 +1,6 @@
 /*
- * Playtime: twelve games, opened from free time, on three pages (the four tapping games, the three
- * motion games, then the five classic games in classic.c). My pet (play_open_pet) is not a game: a
+ * Playtime: nine games, opened from free time, on two pages (Bath time, Carrot catch, Bubble pop and
+ * Roll home, then the five classic games in classic.c). My pet (play_open_pet) is not a game: a
  * long tap on the pet opens it any time, to pick the character and its colour and to dress it up.
  * Swipe left for the next page and right for the one before; swiping right from the first page
  * leaves. A game ignores swipes: only the button at 1 o'clock takes it back to the menu.

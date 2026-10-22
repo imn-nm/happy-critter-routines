@@ -6,7 +6,7 @@
  * touch, and the phone's or tablet's accelerometer for the motion games.
  */
 import { useEffect, useRef, useState } from "react";
-import { setSoundLevel, sounds, unlockSounds } from "@/lib/sounds";
+import { gameSounds, setSoundLevel, sounds, unlockSounds } from "@/lib/sounds";
 import { speak } from "@/lib/speech";
 
 export interface CircleEvent {
@@ -62,7 +62,8 @@ export function cssPxPerInch(): number {
  * display. */
 export const circleRealSizePx = () => Math.round(1.75 * cssPxPerInch() * 600 / W);
 const SOUNDS = [sounds.start, sounds.done, sounds.stillToDo, sounds.soon, sounds.approved, sounds.bedtime,
-  () => sounds.alarm(2), () => sounds.alarm(0), () => sounds.alarm(1) /* the morning alarm: full, soft, a little louder */];
+  () => sounds.alarm(2), () => sounds.alarm(0), () => sounds.alarm(1) /* the morning alarm: full, soft, a little louder */,
+  gameSounds.pop, gameSounds.eat, gameSounds.bounce, gameSounds.flip, gameSounds.miss, gameSounds.win, gameSounds.lose, gameSounds.power];
 
 type Exports = {
   memory: WebAssembly.Memory;

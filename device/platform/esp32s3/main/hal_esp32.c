@@ -757,6 +757,15 @@ static const note_t SOUNDS[][4] = {
     [HAL_SOUND_ALARM] = { { 523, 0, 600, .3f }, { 659, 220, 600, .3f }, { 784, 440, 600, .3f }, { 659, 660, 600, .3f } },
     [HAL_SOUND_ALARM_SOFT] = { { 523, 0, 600, .12f }, { 659, 220, 600, .12f }, { 784, 440, 600, .12f }, { 659, 660, 600, .12f } },
     [HAL_SOUND_ALARM_MID] = { { 523, 0, 600, .2f }, { 659, 220, 600, .2f }, { 784, 440, 600, .2f }, { 659, 660, 600, .2f } },
+    /* the games: short and quiet */
+    [HAL_SOUND_POP] = { { 1568, 0, 60, .16f }, { 2093, 30, 70, .12f } },
+    [HAL_SOUND_EAT] = { { 988, 0, 60, .16f }, { 1319, 50, 90, .14f } },
+    [HAL_SOUND_BOUNCE] = { { 440, 0, 70, .2f } },
+    [HAL_SOUND_FLIP] = { { 1760, 0, 40, .1f } },
+    [HAL_SOUND_MISS] = { { 523, 0, 120, .18f }, { 392, 100, 180, .18f } },
+    [HAL_SOUND_WIN] = { { 659, 0, 120, .22f }, { 784, 100, 120, .22f }, { 1047, 200, 300, .22f } },
+    [HAL_SOUND_LOSE] = { { 659, 0, 160, .2f }, { 523, 140, 160, .2f }, { 392, 280, 320, .2f } },
+    [HAL_SOUND_POWER] = { { 784, 0, 90, .18f }, { 988, 70, 90, .18f }, { 1175, 140, 90, .18f }, { 1568, 210, 200, .18f } },
 };
 
 static volatile uint8_t volume_want = 55;   /* the pull-down's sound slider; the sound task applies it */
@@ -764,7 +773,10 @@ void hal_set_volume(uint8_t percent) { volume_want = percent > 100 ? 100 : perce
 
 void hal_play(hal_sound_t s)
 {
-    if (sound_q && volume_want) xQueueSend(sound_q, &s, 0);
+    if (!sound_q || !volume_want) return;
+    /* a game's little sounds come fast: one waiting already is enough, so they never fall behind */
+    if (s >= HAL_SOUND_POP && uxQueueMessagesWaiting(sound_q) > 0) return;
+    xQueueSend(sound_q, &s, 0);
 }
 
 static void sound_task(void *arg)

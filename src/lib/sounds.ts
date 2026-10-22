@@ -113,3 +113,35 @@ export const sounds = {
   /** Bedtime. Two descending notes, quiet. */
   bedtime: () => play([{ f: E5, at: 0, len: 0.5, gain: 0.07 }, { f: C5, at: 0.5, len: 0.8, gain: 0.06 }]),
 };
+
+/** The same notes with no "played a moment ago" check: a game's little sounds repeat quickly. */
+const playNow = (notes: Note[], type: OscillatorType = "sine") => {
+  if (!soundsEnabled() || level <= 0) return;
+  const c = getCtx();
+  if (!c || c.state !== "running") return;
+  const now = c.currentTime;
+  for (const n of notes) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.value = n.f;
+    g.gain.setValueAtTime(0.0001, now + n.at);
+    g.gain.exponentialRampToValueAtTime((n.gain ?? 0.04) * level, now + n.at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + n.at + n.len);
+    osc.connect(g).connect(c.destination);
+    osc.start(now + n.at);
+    osc.stop(now + n.at + n.len + 0.05);
+  }
+};
+
+/** MyToki's game sounds (the web Circle): short and quiet, under the chimes. */
+export const gameSounds = {
+  pop: () => playNow([{ f: 1568, at: 0, len: 0.06 }, { f: 2093, at: 0.03, len: 0.07, gain: 0.03 }]),
+  eat: () => playNow([{ f: 988, at: 0, len: 0.06 }, { f: 1319, at: 0.05, len: 0.09, gain: 0.035 }]),
+  bounce: () => playNow([{ f: 440, at: 0, len: 0.07, gain: 0.05 }]),
+  flip: () => playNow([{ f: 1760, at: 0, len: 0.04, gain: 0.025 }], "triangle"),
+  miss: () => playNow([{ f: C5, at: 0, len: 0.12, gain: 0.045 }, { f: G4, at: 0.1, len: 0.18, gain: 0.045 }]),
+  win: () => playNow([{ f: E5, at: 0, len: 0.12, gain: 0.055 }, { f: G5, at: 0.1, len: 0.12, gain: 0.055 }, { f: C6, at: 0.2, len: 0.3, gain: 0.055 }]),
+  lose: () => playNow([{ f: E5, at: 0, len: 0.16, gain: 0.05 }, { f: C5, at: 0.14, len: 0.16, gain: 0.05 }, { f: G4, at: 0.28, len: 0.32, gain: 0.05 }]),
+  power: () => playNow([784, 988, 1175, 1568].map((f, i) => ({ f, at: i * 0.07, len: i === 3 ? 0.2 : 0.09, gain: 0.045 }))),
+};

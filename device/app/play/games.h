@@ -1,15 +1,13 @@
 /*
- * The Playtime games. The first five are ported from src/components/pets/playtime (*.tsx game
- * classes); the three motion games (Roll home, Biscuit says, Carrot stack) read the
- * accelerometer through app/motion.h and live only here. Play never pays stars and nothing
- * can be failed.
+ * Biscuit's Playtime games on the LED stage: Dress up (in My pet), Bath time, Carrot catch and
+ * Bubble pop, ported from src/components/pets/playtime (*.tsx game classes) and grown since. Roll
+ * home and the classic games are drawn crisp in classic.c. Play never pays stars.
  */
 #pragma once
 #include "stage.h"
 
 typedef enum {
-    GAME_DRESSUP, GAME_BATH, GAME_CARROT, GAME_BUBBLES, GAME_PEEKABOO,
-    GAME_ROLL, GAME_SAYS, GAME_STACK,
+    GAME_DRESSUP, GAME_BATH, GAME_CARROT, GAME_BUBBLES,
     GAME_COUNT
 } game_id_t;
 
@@ -17,13 +15,11 @@ typedef enum {
 typedef struct {
     char line1[72], line2[72];
     int step;          /* Bath time: 0 scrub, 1 rinse, 2 dry, 3 done */
-    float progress;    /* Bath time: 0..1; Biscuit says: the answer window left */
-    int state;         /* Carrot catch: 0 ready, 1 playing, 2 end; the motion games' state too */
-    int score;         /* carrots caught, bubbles popped, times Biscuit was found, the run, the height */
+    float progress;    /* Bath time: how far the step has got, 0..1 */
+    int state;         /* Carrot catch, Bubble pop: 0 ready, 1 playing, 2 end */
+    int score;         /* carrots caught, bubbles popped */
     int best;          /* the personal best, when the game keeps one */
-    bool found;        /* Peekaboo: he's just been found */
-    char cue_icon[20]; /* Biscuit says: the move he is calling (icon + word), empty otherwise */
-    char cue[16];
+    bool record;       /* the round just ended with a new best */
 } game_ui_t;
 
 void game_start(game_id_t id, const char *pet_name);
@@ -33,10 +29,6 @@ void game_draw(stage_t *s);
 void game_press(float x, float y);
 void game_move(float x, float y);
 void game_release(void);
-/* The hardware button at 1 o'clock (Biscuit says: "Button"). */
-void game_button(void);
-/* Is the button part of the game right now (a Biscuit says round)? Otherwise it leaves the game. */
-bool game_wants_button(void);
 void game_ui(game_ui_t *ui);
 /* Does a drag on the stage belong to the game (so it must not close the screen)? */
 bool game_drags(void);
