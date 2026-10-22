@@ -224,7 +224,8 @@ static void cookie(float cx, float cy, float r)
 /* ================================================================ Snack Trail */
 /* Figma "Snack Trail · Grid": a 15 x 9 grid of dots, 26 apart (its end columns rounded off), the trail
  * in 22 px mint squares with a lime head, two cookies to eat. Swipe to steer; it speeds up with every
- * cookie; the edge or its own tail ends it. */
+ * cookie. The edges let it through to the other side and biting its own tail only cuts the tail off:
+ * only a chili ends it ("Too spicy!"), and there are more of them the longer it gets. */
 #define TR_COLS 15
 #define TR_ROWS 9
 #define TR_X0 51
@@ -234,15 +235,18 @@ static void cookie(float cx, float cy, float r)
 #define TR_START_MS 330      /* a step every 330 ms at first */
 #define TR_FAST_MS 175       /* never quicker than this */
 #define TR_FASTER_MS 5       /* each cookie takes this off */
+#define TR_CHILIES 8         /* 2 at first, one more every 2 cookies, up to this */
 
 static const int8_t DX4[4] = { 1, 0, -1, 0 }, DY4[4] = { 0, 1, 0, -1 };   /* right, down, left, up */
 
 static struct {
     int8_t x[TR_MAX], y[TR_MAX];
-    int len, grow, dir, q[2], nq;
-    bool held;               /* it stopped one step short of a crash, for a late turn */
+    int len, grow, dir, q[2], nq, peak, eaten;
+    bool held;               /* it stopped one step short of a chili, for a late turn */
     int8_t tx[2], ty[2];
-    float acc;
+    int8_t hx_[TR_CHILIES], hy_[TR_CHILIES];
+    int chilies;
+    float acc, bit_t;        /* bit_t: when it last bit its tail (the cut flashes) */
     int every;
 } tr;
 
@@ -252,35 +256,67 @@ static bool tr_ok(int i, int j)
 }
 static float tr_cx(int i) { return TR_X0 + TR_STEP * i; }
 static float tr_cy(int j) { return TR_Y0 + TR_STEP * j; }
-static bool tr_body_at(int i, int j, int upto)
+static int tr_body_at(int i, int j, int upto)
 {
-    for (int k = 0; k < upto; k++) if (tr.x[k] == i && tr.y[k] == j) return true;
+    for (int k = 0; k < upto; k++) if (tr.x[k] == i && tr.y[k] == j) return k;
+    return -1;
+}
+static int tr_chili_at(int i, int j)
+{
+    for (int k = 0; k < tr.chilies; k++) if (tr.hx_[k] == i && tr.hy_[k] == j) return k;
+    return -1;
+}
+static bool tr_cookie_at(int i, int j) { return (tr.tx[0] == i && tr.ty[0] == j) || (tr.tx[1] == i && tr.ty[1] == j); }
+static void tr_inv(int i, int j) { inv_box(tr_cx(i), tr_cy(j), 15); }
+
+/* a free spot: on the grid, not on the trail, a cookie or a chili; `room` steps clear of the head */
+static bool tr_spot(int *pi, int *pj, int room)
+{
+    for (int tries = 0; tries < 500; tries++) {
+        int i = rand_int(TR_COLS), j = rand_int(TR_ROWS);
+        if (!tr_ok(i, j) || tr_body_at(i, j, tr.len) >= 0 || tr_cookie_at(i, j) || tr_chili_at(i, j) >= 0) continue;
+        if (abs(i - tr.x[0]) + abs(j - tr.y[0]) < room) continue;
+        *pi = i;
+        *pj = j;
+        return true;
+    }
     return false;
 }
-static void tr_inv(int i, int j) { inv_box(tr_cx(i), tr_cy(j), 15); }
 
 static void tr_treat(int n)
 {
-    for (int tries = 0; tries < 500; tries++) {
-        int i = rand_int(TR_COLS), j = rand_int(TR_ROWS), o = 1 - n;
-        if (!tr_ok(i, j) || tr_body_at(i, j, tr.len) || (tr.tx[o] == i && tr.ty[o] == j)) continue;
-        tr.tx[n] = (int8_t)i;
-        tr.ty[n] = (int8_t)j;
-        tr_inv(i, j);
-        return;
-    }
+    int i, j;
+    tr.tx[n] = tr.ty[n] = -1;
+    if (!tr_spot(&i, &j, 2)) return;
+    tr.tx[n] = (int8_t)i;
+    tr.ty[n] = (int8_t)j;
+    tr_inv(i, j);
+}
+
+/* a new chili, never right in front of it */
+static void tr_add_chili(void)
+{
+    int i, j;
+    if (tr.chilies >= TR_CHILIES || !tr_spot(&i, &j, 4)) return;
+    tr.hx_[tr.chilies] = (int8_t)i;
+    tr.hy_[tr.chilies] = (int8_t)j;
+    tr.chilies++;
+    tr_inv(i, j);
 }
 
 static void tr_reset(void)
 {
     cl.again = false;
     memset(&tr, 0, sizeof tr);
-    tr.len = 4;
+    tr.len = tr.peak = 4;
     tr.every = TR_START_MS;
+    tr.bit_t = -1000;
     for (int k = 0; k < tr.len; k++) { tr.x[k] = (int8_t)(7 - k); tr.y[k] = 4; }
     tr.tx[0] = tr.tx[1] = tr.ty[0] = tr.ty[1] = -1;
     tr_treat(0);
     tr_treat(1);
+    tr_add_chili();
+    tr_add_chili();
     cl.score = tr.len;
     inv_all();
 }
@@ -292,20 +328,34 @@ static void tr_turn(int d)
     tr.q[tr.nq++] = d;
 }
 
+/* off an edge: in again from the other side of the same row or column */
+static void tr_wrap(int *i, int *j, int dir)
+{
+    if (tr_ok(*i, *j)) return;
+    if (DX4[dir]) for (*i = DX4[dir] > 0 ? 0 : TR_COLS - 1; !tr_ok(*i, *j); *i += DX4[dir]) {}
+    else for (*j = DY4[dir] > 0 ? 0 : TR_ROWS - 1; !tr_ok(*i, *j); *j += DY4[dir]) {}
+}
+
 static void tr_move(void)
 {
     if (tr.nq) { tr.dir = tr.q[0]; tr.q[0] = tr.q[1]; tr.nq--; }
     int hx = tr.x[0] + DX4[tr.dir], hy = tr.y[0] + DY4[tr.dir];
-    bool grows = tr.grow > 0;
-    if (!tr_ok(hx, hy) || tr_body_at(hx, hy, grows ? tr.len : tr.len - 1)) {
-        /* one step's grace: a turn swiped a moment late still saves it */
-        if (!tr.held) { tr.held = true; return; }
-        game_over();
-        hal_play(HAL_SOUND_SOON);
-        inv_all();
-        return;
-    }
+    tr_wrap(&hx, &hy, tr.dir);
+    int spicy = tr_chili_at(hx, hy);
+    /* one step's grace before a chili: a turn swiped a moment late still saves it */
+    if (spicy >= 0 && !tr.held) { tr.held = true; return; }
     tr.held = false;
+    bool grows = tr.grow > 0 && spicy < 0;
+    int bite = spicy >= 0 ? -1 : tr_body_at(hx, hy, grows ? tr.len : tr.len - 1);
+    if (bite >= 1) {
+        /* it bit its own tail: the tail from there comes off */
+        for (int k = bite; k < tr.len; k++) tr_inv(tr.x[k], tr.y[k]);
+        tr.len = bite < 2 ? 2 : bite;
+        tr.grow = 0;
+        grows = false;
+        tr.bit_t = cl.t;
+        hal_play(HAL_SOUND_SOON);
+    }
     int tail_x = tr.x[tr.len - 1], tail_y = tr.y[tr.len - 1];
     if (grows) { tr.len++; tr.grow--; }
     for (int k = tr.len - 1; k > 0; k--) { tr.x[k] = tr.x[k - 1]; tr.y[k] = tr.y[k - 1]; }
@@ -314,19 +364,29 @@ static void tr_move(void)
     tr_inv(tail_x, tail_y);
     tr_inv(tr.x[1], tr.y[1]);
     tr_inv(hx, hy);
+    if (spicy >= 0) {   /* it ate a chili: too spicy */
+        cl.score = tr.peak;
+        game_over();
+        hal_play(HAL_SOUND_SOON);
+        inv_all();
+        return;
+    }
     for (int n = 0; n < 2; n++) {
         if (tr.tx[n] != hx || tr.ty[n] != hy) continue;
         tr.grow++;
         tr.every = tr.every - TR_FASTER_MS < TR_FAST_MS ? TR_FAST_MS : tr.every - TR_FASTER_MS;
         hal_play(HAL_SOUND_TICK);
         tr_treat(n);
+        if (++tr.eaten % 2 == 0) tr_add_chili();
     }
     cl.score = tr.len + tr.grow;
+    if (cl.score > tr.peak) tr.peak = cl.score;
 }
 
 static void tr_update(float dt)
 {
-    if (cl.state == ST_OVER && cl.t - cl.over_at < 1200) inv_all();   /* the crash flashes */
+    if (cl.state == ST_OVER && cl.t - cl.over_at < 1200) inv_all();   /* the bite flashes */
+    if (cl.t - tr.bit_t < 450) for (int k = 0; k < tr.len; k++) tr_inv(tr.x[k], tr.y[k]);
     if (cl.state != ST_PLAY) return;
     tr.acc += dt;
     while (tr.acc >= tr.every && cl.state == ST_PLAY) {
@@ -335,20 +395,36 @@ static void tr_update(float dt)
     }
 }
 
+/* the one thing not to eat: a red chili with a green stalk */
+static void chili(float x, float y)
+{
+    disc(x - 5, y - 3, 5.5f, K_APPLE);
+    disc(x, y + 1, 5.5f, K_APPLE);
+    disc(x + 5, y + 5, 4.5f, K_APPLE);
+    disc(x + 8.5f, y + 8, 2.8f, K_APPLE);
+    seg(x - 8, y - 6, x - 11, y - 11, 3, C_DONE, LV_OPA_COVER);
+    disc(x - 8, y - 6, 3, C_DONE);
+}
+
 static void tr_draw(void)
 {
     static uint8_t occ[TR_MAX];
     memset(occ, 0, sizeof occ);
     for (int k = 0; k < tr.len; k++) occ[tr.y[k] * TR_COLS + tr.x[k]] = 1;
     for (int n = 0; n < 2; n++) if (tr.tx[n] >= 0) occ[tr.ty[n] * TR_COLS + tr.tx[n]] = 2;
+    for (int k = 0; k < tr.chilies; k++) occ[tr.hy_[k] * TR_COLS + tr.hx_[k]] = 3;
     for (int j = 0; j < TR_ROWS; j++)
         for (int i = 0; i < TR_COLS; i++)
             if (tr_ok(i, j) && !occ[j * TR_COLS + i]) disc(tr_cx(i), tr_cy(j), 2, C_HILL_LINE);
     for (int n = 0; n < 2; n++) if (tr.tx[n] >= 0) cookie(tr_cx(tr.tx[n]), tr_cy(tr.ty[n]), 11.5f);
-    bool flash = cl.state == ST_OVER && cl.t - cl.over_at < 1200 && ((int)((cl.t - cl.over_at) / 150) % 2 == 0);
+    bool over = cl.state == ST_OVER;
+    for (int k = 0; k < tr.chilies; k++)
+        if (!over || tr.hx_[k] != tr.x[0] || tr.hy_[k] != tr.y[0]) chili(tr_cx(tr.hx_[k]), tr_cy(tr.hy_[k]));
+    bool flash = over && cl.t - cl.over_at < 1200 && ((int)((cl.t - cl.over_at) / 150) % 2 == 0);
+    bool bit = cl.t - tr.bit_t < 450 && ((int)((cl.t - tr.bit_t) / 150) % 2 == 0);
     for (int k = tr.len - 1; k >= 1; k--) {
         float x = tr_cx(tr.x[k]), y = tr_cy(tr.y[k]);
-        box(x - 11, y - 11, x + 11, y + 11, flash ? C_LATE : C_DONE, 6, LV_OPA_COVER, 0, 0);
+        box(x - 11, y - 11, x + 11, y + 11, flash || bit ? C_LATE : C_DONE, 6, LV_OPA_COVER, 0, 0);
     }
     float hx = tr_cx(tr.x[0]), hy = tr_cy(tr.y[0]);
     box(hx - 12, hy - 12, hx + 12, hy + 12, flash ? C_LATE : C_ACTION, 7, LV_OPA_COVER, 0, 0);
@@ -1517,8 +1593,9 @@ bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
     switch (cl.id) {
     case CL_TRAIL:
         snprintf(icon, icon_n, "utensils");
-        if (ready) snprintf(text, text_n, "Swipe to steer");
+        if (ready) snprintf(text, text_n, (int)(cl.t / 2000) % 2 ? "Don't eat chilies" : "Swipe to steer");
         else if (over && cl.new_best) snprintf(text, text_n, "New best %d!", cl.score);
+        else if (over) snprintf(text, text_n, "Too spicy! Length %d", cl.score);
         else if (cl.best) snprintf(text, text_n, "Length %d \xC2\xB7 best %d", cl.score, cl.best);
         else snprintf(text, text_n, "Length %d", cl.score);
         return true;
