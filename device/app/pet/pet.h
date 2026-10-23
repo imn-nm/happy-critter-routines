@@ -54,8 +54,8 @@ typedef struct {
 /* MyToki 2 (Figma "Scene"): Biscuit is the same size in every room, 3.609 px per cell, the room
  * drawn solid and carried on to the rim. */
 #define PET_PITCH 3.609f
-/* With nothing on the hill (asleep, a celebration) the pet stands 40 px lower, in the room the hill's
- * words would have taken: this many cells off look.dy (the window moves up the grid). */
+/* Every scene stands 40 px lower than the Figma had it (little happens on the floor): this many
+ * cells off look.dy (the window moves up the grid). Playtime adds them back. */
 #define PET_LOW_CELLS 11
 
 /* A round scene `diameter` px wide (MyToki 2: 466 fills the screen, 298 is the small circle under

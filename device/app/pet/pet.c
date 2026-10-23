@@ -297,7 +297,10 @@ static void request(pet_t *p, pet_clip_id_t name)
 /* A loop boundary or the end of a one-shot: the only moments a clip changes. */
 static void at_boundary(pet_t *p)
 {
-    if (p->wake) return;   /* awake and stretching: stay there */
+    if (p->wake) {   /* the alarm: up out of bed, then the big stretch, then he stays there, awake */
+        if (p->playing == PET_CLIP_SLEEPY) play(p, PET_CLIP_WAKE_UP, true);
+        return;
+    }
     pet_clip_id_t base = base_of(p);
     bool leaving = p->playing != base || p->queued >= 0;
     if (p->phase == PH_INTRO) { set_phase(p, leaving ? PH_OUTRO : PH_LOOP); return; }
@@ -475,6 +478,7 @@ static void step(pet_t *p)
     range(p, &from, &to);
     if (to <= from) { at_boundary(p); return; }
     int f = p->frame + 1;
+    if (p->playing == PET_CLIP_SLEEPY && p->phase == PH_INTRO && f + 1 < to) f++;   /* nodding off, at double speed: in bed in under 2 s */
     if (f < to) { p->frame = f; p->dirty = true; return; }
     bool repeats = p->phase == PH_LOOP || (p->phase == PH_FULL && !p->once);
     if (repeats) p->frame = from;
@@ -512,10 +516,11 @@ static void on_event(lv_event_t *e)
 
 pet_look_t pet_default_look(int32_t diameter)
 {
-    /* MyToki 2: the same cell size at any diameter; the window sits two cells right and down of the
-     * ring's old centre so Biscuit stands where the Figma scenes have him */
+    /* MyToki 2: the same cell size at any diameter; the window sits two cells right of the ring's
+     * old centre, and PET_LOW_CELLS up it, so the pet stands 40 px lower than the Figma scenes had
+     * him (there was little on the floor; user, 2026-10-22). Playtime keeps the Figma height. */
     (void)diameter;
-    pet_look_t l = { .pitch = PET_PITCH, .dim = 0, .bg = lv_color_hex(0x000000), .dx = 2, .dy = 2, .wide = true, .solid = true };
+    pet_look_t l = { .pitch = PET_PITCH, .dim = 0, .bg = lv_color_hex(0x000000), .dx = 2, .dy = 2 - PET_LOW_CELLS, .wide = true, .solid = true };
     return l;
 }
 
@@ -607,7 +612,7 @@ void pet_wake_up(lv_obj_t *obj)
     p->queued = -1;
     p->habit_at = p->chase_at = 0;
     p->start_delay = 0;
-    if (p->playing == PET_CLIP_SLEEPY && p->phase == PH_OUTRO) return;   /* already getting up */
+    if ((p->playing == PET_CLIP_SLEEPY && p->phase == PH_OUTRO) || p->playing == PET_CLIP_WAKE_UP) return;   /* already getting up */
     p->playing = PET_CLIP_SLEEPY;
     p->once = true;
     p->phase = PH_OUTRO;

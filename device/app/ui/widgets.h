@@ -221,6 +221,8 @@ int32_t ui_path_spring(const lv_anim_t *a);
 /* ui_show with motion: coming on, it fades in and rises `dy` px and settles; going off, it fades
  * and sinks, then hides. Safe to call every frame with the same answer. */
 void ui_reveal(lv_obj_t *obj, bool show, int32_t dy);
+/* Off at once, no fade (the day's card as the night screen comes: its words shouldn't ghost over it). */
+void ui_hide_now(lv_obj_t *obj);
 /* A card's colour drifts from one colour to another (a chore turning from lavender to done). */
 void card_recolor(lv_obj_t *card, uint32_t from, uint32_t to, uint32_t ms);
 /* The controller registers how to draw the whole screen again; a page calls ui_render_now() when a

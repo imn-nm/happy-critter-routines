@@ -1285,6 +1285,17 @@ static void reveal_anim(lv_obj_t *o, lv_anim_exec_xcb_t exec, int32_t v0, int32_
     lv_anim_start(&a);
 }
 
+void ui_hide_now(lv_obj_t *o)
+{
+    if (!o) return;
+    lv_anim_delete(o, reveal_opa);
+    lv_anim_delete(o, reveal_ty);
+    lv_obj_remove_flag(o, REVEAL_OUT);
+    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_translate_y(o, 0, 0);
+}
+
 void ui_reveal(lv_obj_t *o, bool show, int32_t dy)
 {
     if (!o) return;

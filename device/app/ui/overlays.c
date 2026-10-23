@@ -85,8 +85,8 @@ static lv_obj_t *ov_graphic(lv_obj_t *o, bool full)
 }
 
 /* The celebrations (a reward approved, stars, a streak): the pet alone on black, no room, so the
- * burst and the confetti stand out. With nothing on the hill (`low`) he stands 40 px lower. */
-static lv_obj_t *ov_party_graphic(lv_obj_t *o, bool low)
+ * burst and the confetti stand out. */
+static lv_obj_t *ov_party_graphic(lv_obj_t *o)
 {
     lv_obj_set_style_bg_color(o, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
@@ -98,7 +98,6 @@ static lv_obj_t *ov_party_graphic(lv_obj_t *o, bool low)
     /* no room to line up with: the window's room offset left him ~9 px left of centre when he
      * faces the child (celebrate), so stand him in the middle of the screen instead */
     look.dx = -1;
-    if (low) look.dy -= PET_LOW_CELLS;
     pet_set_look(pet, &look);
     return pet;
 }
@@ -904,7 +903,7 @@ void approved_open(const day_reward_t *r, const char *child_name, const char *pe
     (void)child_name; (void)pet_name;
     lv_obj_t *o = open_overlay(&approved, true);
     snprintf(ap.title, sizeof ap.title, "%s!", r->title);
-    lv_obj_t *pet = ov_party_graphic(o, true);   /* the child's own character */
+    lv_obj_t *pet = ov_party_graphic(o);   /* the child's own character */
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     pet_set_paused(pet, true);
     fx_iris(pet, 220, 0);
@@ -1029,7 +1028,7 @@ void stars_open(int delta, int total, const char *note)
     sx.note_due = false;
     sx.from = total - delta;
     sx.to = total;
-    lv_obj_t *pet = ov_party_graphic(o, true);
+    lv_obj_t *pet = ov_party_graphic(o);
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     pet_set_paused(pet, true);
     fx_iris(pet, 160, SX_BURST);
@@ -1079,7 +1078,7 @@ void streak_open(const day_streak_t *s, bool big, const char *shop_line, overlay
 {
     shop_cb = on_shop_cb;
     lv_obj_t *o = open_overlay(&streak, true);
-    lv_obj_t *pet = ov_party_graphic(o, !(big && shop_line && shop_line[0]));   /* lower unless the hill has the shop button */
+    lv_obj_t *pet = ov_party_graphic(o);
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     char t[48], sub[32];
     if (big) snprintf(t, sizeof t, picture ? "Yay!" : "%d nights in a row!", s->goal);

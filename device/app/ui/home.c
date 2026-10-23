@@ -58,7 +58,6 @@ static struct {
     char title_sig[48];
     home_graphic_t graphic;
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
-    bool pet_low;             /* ...and whether he stood lower (an empty hill) */
     uint8_t room_fade;
 } h;
 
@@ -450,16 +449,13 @@ void home_render(const home_view_t *v)
     bool pet_on = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
     pet_set_paused(h.pet, !pet_on);
     if (pet_on) {
-        bool low = v->bottom == BOTTOM_NONE;   /* nothing on the hill: he stands lower, in its room */
-        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade || h.pet_low != low) {
+        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade) {
             pet_look_t look = pet_default_look(lv_obj_get_width(h.pet));
             look.dim = v->pet_dim;
             look.room_fade = v->room_fade;
-            if (low) look.dy -= PET_LOW_CELLS;
             pet_set_look(h.pet, &look);
             h.pet_dim = v->pet_dim;
             h.room_fade = v->room_fade;
-            h.pet_low = low;
         }
         pet_set_mood(h.pet, v->mood);
         pet_set_activity(h.pet, v->activity);
@@ -472,7 +468,8 @@ void home_render(const home_view_t *v)
     if (v->mid == MID_STEPS) steps_update(v);
     else h.steps_sig[0] = 0;
     bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
-    ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
+    if (v->mid != MID_OVERDUE && v->mood == PET_MOOD_SLEEP) ui_hide_now(h.overdue);   /* bedtime: no ghost of the late card */
+    else ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
         worm_layout();
@@ -491,8 +488,10 @@ void home_render(const home_view_t *v)
     ui_show(h.cue, v->cue);
     if (v->cue) cue_set(h.cue, v->cue_ring, v->cue_dark);
 
+    bool to_sleep = v->mood == PET_MOOD_SLEEP;   /* the night screen: what the day showed goes at once, no ghost of it */
     /* ---- the timer ---- */
-    ui_reveal(h.timer, v->timer_show, 0);
+    if (!v->timer_show && to_sleep) ui_hide_now(h.timer);
+    else ui_reveal(h.timer, v->timer_show, 0);
     if (v->timer_show) timer_set(h.timer, v->timer_tone, v->timer_left, v->timer_pulse);
 
     /* ---- the header ---- */
@@ -517,7 +516,8 @@ void home_render(const home_view_t *v)
 
     /* ---- the note ---- */
     bool card = (v->card != CARDPOS_NONE && v->mid != MID_STEPS) || (v->chores_left > 0 && pet_on);
-    ui_reveal(h.card.root, card, 10);
+    if (!card && to_sleep) ui_hide_now(h.card.root);
+    else ui_reveal(h.card.root, card, 10);
     if (card) {
         if (v->card != CARDPOS_NONE) {
             lime_card_set(&h.card, v->card_icon[0] ? v->card_icon : NULL, v->card_text, v->card_end);

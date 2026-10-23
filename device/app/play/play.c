@@ -379,6 +379,9 @@ static void editor_open(int page)
     if (!pl.buddy_pet) {
         pl.buddy_pet = pet_create(pl.root, SCREEN_W);
         lv_obj_set_pos(pl.buddy_pet, 0, 0);
+        pet_look_t bl = pet_default_look(SCREEN_W);
+        bl.dy += PET_LOW_CELLS;   /* Playtime keeps the Figma height */
+        pet_set_look(pl.buddy_pet, &bl);
         lv_obj_move_to_index(pl.buddy_pet, 0);
         pet_set_mood(pl.buddy_pet, PET_MOOD_HAPPY);
     }
@@ -644,6 +647,9 @@ static void see_you_later(void)
     /* Figma "Playtime · See you later": the room, Biscuit waving, "Time to get ready", what's next */
     lv_obj_t *pet = pet_create(pl.root, SCREEN_W);
     lv_obj_set_pos(pet, 0, 0);
+    pet_look_t sl = pet_default_look(SCREEN_W);
+    sl.dy += PET_LOW_CELLS;   /* Playtime keeps the Figma height */
+    pet_set_look(pet, &sl);
     pet_force_clip(pet, PET_CLIP_WAVE);
     scrim_create(pl.root);
     hill_t hl;
