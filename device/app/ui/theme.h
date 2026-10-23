@@ -78,11 +78,11 @@
 #define F_DISPLAY    (&font_mon700_32)   /* Display 32: celebrations */
 #define F_CLOCK      (&font_mon600_52)   /* Big number 52: the night clock, the pairing code (digits) */
 #define F_MESSAGE    (&font_mon500_21)   /* Message 21: a sentence in the middle of the screen */
-#define F_PILL       (&font_pop500_24)   /* Pill 24: time pills and tags */
+#define F_PILL       (&font_pop500_20)   /* Pill 20: time pills and tags (was 24; user, 2026-10-22) */
 #define F_NEXT_LABEL (&font_sg500_22)    /* "Next" on the hill */
 #define F_NEXT_TIME  (&font_sg700_22)    /* its start time */
 #define F_NEXT_TASK  (&font_sg700_24)    /* its name */
-#define F_ITEM       (&font_pop600_24)   /* Item 24: row titles */
+#define F_ITEM       (&font_pop600_20)   /* Item 20: row titles (was 24; user, 2026-10-22) */
 #define F_ITEM_BIG   (&font_pop600_32)   /* the picture view's row now (Today's schedule · Younger) */
 #define F_BODY_P     (&font_pop500_22)   /* Body 22 */
 #define F_DETAIL     (&font_pop500_20)   /* Detail 20: second lines, the smallest a child reads */
