@@ -880,67 +880,44 @@ void reminder_open(const char *next_icon, const char *next_title, const char *ne
 bool reminder_is_open(void) { return reminder != NULL; }
 
 /* ================================================================ reward approved */
-/* Figma "Rewards · Approved!": the burst (charge, flash, confetti, the chime), the room irises on
- * and Biscuit springs out, the reward's icon flies up to the header, the halo rings, the title's
- * words pop, his bubble, then a little party until the child swipes. */
-#define AP_BURST 700
-static struct { char title[56]; lv_obj_t *icon, *overline; bubble_t bubble; } ap;
+/* Figma "Rewards · Approved!", kept light for the board: the child's pet irises on and springs out
+ * cheering, the chime and one burst of confetti, the reward's icon flies up to "You earned it!",
+ * the title's words pop. No bubble, no shaking, no party that goes on; it puts itself away after
+ * six seconds (a swipe sooner). */
+#define AP_BURST 300
+static struct { char title[56]; lv_obj_t *icon, *overline; } ap;
 
-static void ap_tick(lv_obj_t *o, void *u) { (void)o; (void)u; hal_play(HAL_SOUND_TICK); }
 static void ap_go(lv_obj_t *o, void *u) { (void)o; pet_set_paused(u, false); }
 static void ap_burst(lv_obj_t *o, void *u)
 {
     (void)u;
     hal_play(HAL_SOUND_CHIME);
-    fx_jolt(o, 6, 900, 0);
-    fx_confetti(o, CENTER, CENTER, 110, FX_PARTY, 6, 300);
+    fx_confetti(o, CENTER, CENTER, 40, FX_PARTY, 6, 240);
     fx_fly(ap.icon, CENTER, CENTER, CENTER, 34, 294, 0, 420, 0, true);   /* up into the header, then gone */
     fx_rise(ap.overline, 8, 300);
 }
-static void ap_halo(lv_obj_t *o, void *u)
-{
-    (void)u;
-    static const uint32_t C[3] = { C_PINK, C_CARROT, C_SYSTEM };
-    static const lv_opa_t O[3] = { LV_OPA_COVER, LV_OPA_COVER, LV_OPA_COVER };
-    fx_halo(o, C, O, 0, 0);
-}
-static void ap_title(lv_obj_t *o, void *u) { (void)u; fx_words(o, ap.title, F_TITLE, C_TEXT, 50, 0, 60); }
-static void ap_bubble(lv_obj_t *o, void *u)
-{
-    (void)u;
-    bubble_create(o, &ap.bubble);
-    bubble_say_pet(&ap.bubble, "Hooray! Have the best time!", 128, SCREEN_H);
-    fx_rise(ap.bubble.root, 12, 0);
-    fx_rise(ap.bubble.tail, 12, 0);
-}
-static void ap_party(lv_obj_t *o, void *u) { (void)u; fx_drizzle(o, 0, FX_PARTY, 6); }
+static void ap_title(lv_obj_t *o, void *u) { (void)u; fx_words(o, ap.title, F_TITLE, C_TEXT, 50, 0, 50); }
 
 void approved_open(const day_reward_t *r, const char *child_name, const char *pet_name)
 {
     (void)child_name; (void)pet_name;
     lv_obj_t *o = open_overlay(&approved, true);
     snprintf(ap.title, sizeof ap.title, "%s!", r->title);
-    lv_obj_t *pet = ov_party_graphic(o);
+    lv_obj_t *pet = ov_party_graphic(o);   /* the child's own character */
     pet_force_clip(pet, PET_CLIP_CELEBRATE);
     pet_set_paused(pet, true);
-    fx_iris(pet, 160, AP_BURST);
-    fx_burst_cfg_t cfg = { .charge = true, .burst_at = AP_BURST, .flash_r = 290, .waves = 3, .rays = true };
-    fx_burst_create(o, CENTER, CENTER, &cfg);
+    fx_iris(pet, 220, 0);
     ap.overline = ui_label(o, F_CLOCK_LINE, C_TEXT, "You earned it!");
     lv_obj_align(ap.overline, LV_ALIGN_TOP_MID, 0, 18);
     lv_obj_set_style_opa(ap.overline, LV_OPA_TRANSP, 0);
     ap.icon = ui_icon(o, r->icon[0] ? r->icon : "gift", 48, C_ACTION);
     lv_obj_add_flag(ap.icon, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    fx_fly(ap.icon, CENTER, CENTER, CENTER, CENTER, 60, 341, 350, 30, false);
+    fx_fly(ap.icon, CENTER, CENTER, CENTER, CENTER, 60, 341, 260, 0, false);
     ov_hill_empty(o);
-    for (uint32_t k = 0; k < 5; k++) fx_at(o, 120 + k * 100, ap_tick, NULL);
-    fx_at(o, AP_BURST - 420, ap_go, pet);
+    fx_at(o, 120, ap_go, pet);
     fx_at(o, AP_BURST, ap_burst, NULL);
-    fx_at(o, AP_BURST + 160, ap_halo, NULL);
-    fx_at(o, 1150, ap_title, NULL);
-    fx_at(o, 1950, ap_bubble, NULL);
-    fx_at(o, 2400, ap_party, NULL);
-    auto_close(&approved, 120000);
+    fx_at(o, AP_BURST + 320, ap_title, NULL);
+    auto_close(&approved, 6000);
 }
 
 /* ================================================================ reward screens */
