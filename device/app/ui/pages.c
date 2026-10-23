@@ -22,7 +22,7 @@ const char *reward_icon(const char *icon)
 /* ================================================================ rewards */
 /* The rewards shop (Figma "Rewards · Shop v2", 1310:7010), on the MyToki 2 tokens like every other
  * page: the black screen with faint 7 px pinstripes of pink and chip for a wall, a scalloped awning
- * of lavender and hill-navy under the header (the stars to spend), and the rewards one to a shelf,
+ * of lavender and chip under the header (the stars to spend), and the rewards one to a shelf,
  * each shelf a little hill (the hairline, the raised face). A fade at the top and another at the
  * bottom take the shelves into the dark as they turn.
  * On a shelf: the picture standing on it, the name (and, under it, how many more stars when there
@@ -88,7 +88,7 @@ static void wall_draw(lv_event_t *e)
     }
 }
 
-/* The awning: a hairline rod, then stripes of lavender and hill-navy, each ending in a scallop, a
+/* The awning: a hairline rod, then stripes of lavender and chip, each ending in a scallop, a
  * soft shadow under them. Drawn over the shelves, so a shelf turning up goes under it. */
 static void awning_draw(lv_event_t *e)
 {
@@ -100,7 +100,7 @@ static void awning_draw(lv_event_t *e)
     for (int32_t x = a.x1 - 1, k = 0; x < a.x2; x += AWN_SCALLOP, k++)   /* the shadow, 4 px down */
         fill(l, x, y + AWN_BAND - r + 4, x + AWN_SCALLOP - 1, y + AWN_BAND + r + 3, C_SCREEN, 150, LV_RADIUS_CIRCLE);
     for (int32_t x = a.x1 - 1, k = 0; x < a.x2; x += AWN_SCALLOP, k++) {
-        uint32_t c = k % 2 ? C_HILL : C_SYSTEM;   /* Figma Awning: lavender and bg/hill */
+        uint32_t c = k % 2 ? C_CHIP : C_SYSTEM;   /* Figma Awning: lavender and bg/chip (user, 2026-10-22) */
         fill(l, x, y, x + AWN_SCALLOP - 1, y + AWN_BAND - 1, c, LV_OPA_COVER, 0);
         fill(l, x, y + AWN_BAND - r, x + AWN_SCALLOP - 1, y + AWN_BAND + r - 1, c, LV_OPA_COVER, LV_RADIUS_CIRCLE);
     }
