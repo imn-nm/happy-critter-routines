@@ -23,9 +23,10 @@ const char *reward_icon(const char *icon)
 /* The rewards shop, on the MyToki 2 tokens like every other page: the black screen, a scalloped
  * awning of lavender and chip under the header (the stars to spend), and the rewards one to a
  * shelf, each shelf a little hill (the hairline, the raised face).
- * On a shelf: the picture standing on it, the name with the price right after it (and, under them,
- * how many more stars when there aren't enough), and at the end a lime Ask or an Asked pill. Ask
- * sends the request at once (the button is the choice: no screen to confirm it). The shelves turn
+ * On a shelf: the picture standing on it, the name (and, under it, how many more stars when there
+ * aren't enough), and at the right end the price as a pill: lime when the child can pay it (a tap
+ * asks for it, at once: the pill is the choice, no screen to confirm it), calm purple when not, or
+ * Asked once it's been asked for. A reward a grown-up has given leaves the shop. The shelves turn
  * like Chores and the day, the one at rest under the awning, the ones further down fading. */
 #define SHOP_AWN_Y 134       /* the awning's rod, 9 px under the header's pill */
 #define AWN_ROD 3
@@ -39,7 +40,7 @@ const char *reward_icon(const char *icon)
 #define SHOP_MID 46          /* the words' and the end's middle, from the shelf's top: the picture's middle */
 #define SHOP_X_ICON 46       /* inside the circle on the two shelves at rest (the third fades) */
 #define SHOP_X_TEXT 98
-#define SHOP_X_END 418       /* where the end (Ask, Asked) stops */
+#define SHOP_X_END 418       /* where the price pill stops */
 
 static struct {
     page_cb_t on_tap;
@@ -128,8 +129,8 @@ static void plank(lv_obj_t *row, int32_t y, int32_t h, uint32_t col, lv_opa_t op
 }
 
 /* A shelf: a little hill of a plank (the hairline on top, the raised face, a dark edge, a soft
- * shadow), the reward's picture standing on it, its name with the price right after it (and how
- * many more stars under them when there aren't enough), and the end: Ask, or Asked. */
+ * shadow), the reward's picture standing on it, its name (how many more stars under it when there
+ * aren't enough), and at the right end the price pill: lime to tap, calm purple, or Asked. */
 static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
 {
     lv_obj_t *slot = wheel_list_add(&rw.wl);
@@ -139,48 +140,39 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     plank(row, SHOP_PLANK, 2, C_HILL_LINE, LV_OPA_COVER);
     plank(row, SHOP_PLANK + 2, 10, C_RAISED, LV_OPA_COVER);
     plank(row, SHOP_PLANK + 12, 2, C_HILL, LV_OPA_COVER);
-    bool enough = stars >= rd->cost;
+    bool enough = stars >= rd->cost, can = rd->state == REWARD_NONE && enough;
     lv_obj_t *ic = ui_icon(row, reward_icon(rd->icon), SHOP_ICON, C_TEXT);
     lv_obj_set_pos(ic, SHOP_X_ICON, SHOP_PLANK - SHOP_ICON - 2);
-    /* the end first: what's left for the name and the price is what's between */
-    lv_obj_t *end = NULL;
-    if (rd->state == REWARD_WAITING) end = status_pill_create(row, "clock", "Asked", C_SYSTEM);
-    else if (rd->state == REWARD_NONE && enough) {
-        end = button_create(row, BTN_PRIMARY, true, NULL, "Ask");
-        lv_obj_add_event_cb(end, on_ask_tap, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
+    /* the price pill at the right end: the star and the number, or Asked */
+    pill_t pl;
+    pill_create(row, &pl);
+    char cost[8];
+    snprintf(cost, sizeof cost, "%d", rd->cost);
+    if (rd->state == REWARD_WAITING) pill_set(&pl, PILL_SYSTEM, "clock", "Asked");
+    else pill_set(&pl, can ? PILL_ACTION : PILL_CALM, "star-line", cost);
+    if (can) {
+        lv_obj_add_flag(pl.root, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(pl.root, 10);
+        lv_obj_set_style_bg_color(pl.root, COL(C_TEXT), LV_STATE_PRESSED);
+        lv_obj_add_event_cb(pl.root, on_ask_tap, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
     }
-    int32_t end_x = SHOP_X_END;
-    if (end) {
-        lv_obj_update_layout(end);
-        end_x = SHOP_X_END - lv_obj_get_width(end);
-        lv_obj_set_pos(end, end_x, SHOP_MID - lv_obj_get_height(end) / 2);
-        if (just) fx_pop(end, 0);
-    }
-    /* the name, then the price snug beside it (a star and the number, amber when there are enough);
-     * under them, how many more stars when there aren't enough yet */
+    lv_obj_update_layout(pl.root);
+    int32_t end_x = SHOP_X_END - lv_obj_get_width(pl.root);
+    lv_obj_set_pos(pl.root, end_x, SHOP_MID - lv_obj_get_height(pl.root) / 2);
+    if (just) fx_pop(pl.root, 0);
+    /* the name, and under it how many more stars when there aren't enough yet */
     lv_obj_t *words = ui_box(row);
     lv_obj_set_size(words, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(words, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(words, 2, 0);
-    lv_obj_t *line = ui_row(words, 6);
-    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *name = ui_label(line, F_ITEM, C_TEXT, rd->title);
-    lv_obj_t *price = ui_row(line, 3);
-    ui_icon(price, "star-fill", 20, enough ? C_STAR : C_TEXT_MUTED);
-    char cost[8];
-    snprintf(cost, sizeof cost, "%d", rd->cost);
-    ui_label(price, F_ITEM, enough ? C_STAR : C_TEXT_MUTED, cost);
-    lv_obj_update_layout(price);
-    int32_t room = end_x - 8 - SHOP_X_TEXT - 6 - lv_obj_get_width(price);
+    lv_obj_t *name = ui_label(words, F_ITEM, C_TEXT, rd->title);
+    int32_t room = end_x - 12 - SHOP_X_TEXT;
     /* the name at 24 on one line, or on two if they fit; a very long one at 20 on two (never cut off) */
     lv_point_t sz;
     lv_text_get_size(&sz, rd->title, F_ITEM, 0, UI_FIT_SPACE, room, LV_TEXT_FLAG_NONE);
     bool two_big = sz.y <= 2 * lv_font_get_line_height(F_ITEM) + UI_FIT_SPACE;
-    int lines = ui_label_fit(name, F_ITEM, two_big ? F_ITEM : F_LABEL, room, 2);
-    const lv_font_t *f = lv_obj_get_style_text_font(name, 0);
-    /* the name only as wide as its words (its longest line), so the price sits right after it */
-    lv_text_get_size(&sz, rd->title, f, 0, lines == 2 ? UI_FIT_SPACE : 0, lines == 2 ? room : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_obj_set_width(name, sz.x + 8 < room ? sz.x + 8 : room);   /* a little spare, so the same breaks come out */
+    ui_label_fit(name, F_ITEM, two_big ? F_ITEM : F_LABEL, room, 2);
+    lv_obj_set_width(name, room);
     if (rd->state == REWARD_NONE && !enough) {
         char more[24];
         snprintf(more, sizeof more, "%d more star%s to go", rd->cost - stars, rd->cost - stars == 1 ? "" : "s");
@@ -206,13 +198,17 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     snprintf(s, sizeof s, "%d to spend", stars);
     header_set(&rw.head, ui_clock(), "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* the clock, as on Home and Chores */
     if (same) return;
-    int keep = rw.built ? wheel_list_current(&rw.wl) : 0;
+    int keep = rw.built ? wheel_list_current(&rw.wl) : 0, shown = 0;
     wheel_list_clear(&rw.wl);
-    for (int i = 0; i < p->nrewards; i++) shelf(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
+    for (int i = 0; i < p->nrewards; i++) {
+        if (p->rewards[i].state == REWARD_APPROVED) continue;   /* given: it has left the shop */
+        shelf(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
+        shown++;
+    }
     rw.just[0] = 0;
-    if (p->nrewards) wheel_list_focus(&rw.wl, keep < p->nrewards ? keep : p->nrewards - 1, false);
-    if (!rw.built && p->nrewards) fx_rise_children(rw.wl.list, 22, 45);   /* the first time: the shelves arrive one after another */
-    ui_show(rw.empty, p->nrewards == 0);
+    if (shown) wheel_list_focus(&rw.wl, keep < shown ? keep : shown - 1, false);
+    if (!rw.built && shown) fx_rise_children(rw.wl.list, 22, 45);   /* the first time: the shelves arrive one after another */
+    ui_show(rw.empty, shown == 0);
     rw.built = true;
 }
 
