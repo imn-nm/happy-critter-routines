@@ -570,9 +570,10 @@ static void pp_draw(void)
 }
 
 /* ================================================================ Snack Drop */
-/* Figma "Snack Drop · Easy": apples, cookies and berries fall; the ring at the bottom says which to
- * tap. A right one counts; a wrong tap, or a right one dropping past, costs one of three hearts.
- * They fall faster and come quicker as the count goes up, and every ten the snack to catch changes. */
+/* Figma "Snack Drop · Easy": apples, cookies and berries fall; the pill at the bottom ("Tap" and the
+ * snack's picture) says which to tap. A right one counts; a wrong tap, or a right one dropping past,
+ * costs one of three hearts. They fall faster as it goes well, and the snack to tap changes every 5
+ * caught or 9 seconds ("Now tap the cookies!"). */
 #define DR_MAX 8
 #define DR_FLOOR 372
 enum { SN_APPLE, SN_COOKIE, SN_BERRY, SN_KINDS };
@@ -617,6 +618,7 @@ static void snack(int kind, float x, float y, float s)
     }
 }
 
+static void dr_inv_pill(void) { inv(50, 376, 416, 430); }
 static void dr_inv(const drop_t *d) { float r = sn_r(d->kind); inv(d->x - r - 4, d->y - r - 48, d->x + r + 14, d->y + r + 4); }
 
 static void dr_reset(void)
@@ -673,7 +675,7 @@ static void dr_hurt(void)
 {
     dr_set_pace(dr.pace - 4);
     dr.hurt_t = cl.t;
-    inv_box(154, 403, 40);
+    dr_inv_pill();
     if (--dr.lives <= 0) {
         for (int i = 0; i < DR_MAX; i++) dr.d[i].on = false;
         game_over();
@@ -682,7 +684,7 @@ static void dr_hurt(void)
         return;
     }
     hal_play(HAL_SOUND_MISS);
-    inv(150, 380, 340, 426);
+    dr_inv_pill();
 }
 
 /* the next snack to tap: called out in the middle, the ring at the bottom shows it */
@@ -693,14 +695,14 @@ static void dr_switch(void)
     dr.switch_in = DR_SWITCH_MS;
     dr.call_t = cl.t;
     hal_play(HAL_SOUND_CHIME);
-    inv_box(154, 403, 44);
+    dr_inv_pill();
 }
 
 static void dr_update(float dt)
 {
-    if (cl.t - dr.call_t < DR_CALL_MS + 100) { inv(30, 216, 436, 284); inv_box(154, 403, 44); }
+    if (cl.t - dr.call_t < DR_CALL_MS + 100) { inv(30, 216, 436, 284); dr_inv_pill(); }
     if (cl.t - dr.ring_t < 320) inv_box(dr.ring_x, dr.ring_y, 50);
-    if (cl.t - dr.hurt_t < 500) inv_box(154, 403, 40);
+    if (cl.t - dr.hurt_t < 500) dr_inv_pill();
     if (cl.state != ST_PLAY) return;
     if ((dr.switch_in -= dt) <= 0) dr_switch();
     if ((dr.spawn_in -= dt) <= 0) { dr_spawn(); dr.spawn_in = dr.every * (0.8f + frand01() * 0.4f); }
@@ -745,7 +747,7 @@ static void dr_tap(float x, float y)
     dr_set_pace(dr.pace + (dr.ring_y < 230 ? 1.6f : 1));   /* caught high up: a quick one */
     hal_play(HAL_SOUND_POP);
     if (++dr.since >= DR_SWITCH_N) dr_switch();   /* a new snack to catch */
-    inv(150, 380, 340, 426);
+    dr_inv_pill();
 }
 
 static void dr_draw(void)
@@ -763,23 +765,31 @@ static void dr_draw(void)
         if (age < 200) snack(dr.ring_kind, dr.ring_x, dr.ring_y, 1 - age / 200);
         ring(dr.ring_x, dr.ring_y, 30 + 14 * k, 3, dr.ring_good ? C_ACTION : C_LATE, (lv_opa_t)(255 * (1 - k)));
     }
-    /* the count: the ring with the snack to catch, then a pill with the count, the best and the hearts */
-    char t[24];
-    if (cl.state == ST_READY) snprintf(t, sizeof t, "Tap the %s", SN_PLURAL[dr.target]);
-    else if (cl.state == ST_OVER && cl.new_best) snprintf(t, sizeof t, "New best %d!", cl.score);
-    else if (cl.best) snprintf(t, sizeof t, "%d \xC2\xB7 best %d", cl.score, cl.best);
-    else snprintf(t, sizeof t, "%d", cl.score);
-    lv_point_t sz;
-    lv_text_get_size(&sz, t, F_PILL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    bool hearts = cl.state == ST_PLAY;
-    float x0 = 160, x1 = 200 + sz.x + (hearts ? 3 * 22 + 6 : 0) + 16;
-    box(x0, 384, x1, 422, C_RAISED, LV_RADIUS_CIRCLE, LV_OPA_COVER, 0, 0);
-    text_at(t, F_PILL, C_CALM, 200 + sz.x / 2.0f, 403);
-    if (hearts) for (int i = 0; i < 3; i++) icon_at("heart", 20, 200 + sz.x + 16 + i * 22, 403, i < dr.lives ? C_LATE : C_CHIP);
+    /* the pill at the bottom: "Tap" and the snack to tap (its picture, not its name), then the count
+     * and the hearts; at the end, the count and the best */
     bool hurt = cl.t - dr.hurt_t < 500;
-    float called = cl.t - dr.call_t, pulse = called >= 0 && called < DR_CALL_MS ? 4 * fabsf(sinf(called / 140)) : 0;
-    outline(154, 403, 35 + pulse, hurt ? C_LATE : called < DR_CALL_MS ? C_ACTION : C_SYSTEM, 3, C_HILL, LV_OPA_COVER);
-    snack(dr.target, 154, 404, dr.target == SN_BERRY ? 1.15f : 0.85f);
+    float called = cl.t - dr.call_t, pulse = called >= 0 && called < DR_CALL_MS ? fabsf(sinf(called / 140)) : 0;
+    bool tap = cl.state != ST_OVER, hearts = cl.state == ST_PLAY;
+    char rest[24];
+    rest[0] = 0;
+    if (cl.state == ST_OVER) snprintf(rest, sizeof rest, cl.new_best ? "New best %d!" : cl.best ? "%d \xC2\xB7 best %d" : "%d", cl.score, cl.best);
+    else if (cl.state == ST_PLAY) snprintf(rest, sizeof rest, "\xC2\xB7  %d", cl.score);
+    else if (cl.best) snprintf(rest, sizeof rest, "\xC2\xB7  best %d", cl.best);
+    lv_point_t tw = { 0, 0 }, rw = { 0, 0 };
+    if (tap) lv_text_get_size(&tw, "Tap", F_PILL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (rest[0]) lv_text_get_size(&rw, rest, F_PILL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    float w = 18 + (tap ? tw.x + 8 + 30 : 0) + (rest[0] ? (tap ? 10 : 0) + rw.x : 0) + (hearts ? 8 + 3 * 22 : 0) + 16;
+    float x = 233 - w / 2;
+    box(x, 382, x + w, 424, C_RAISED, LV_RADIUS_CIRCLE, LV_OPA_COVER, hurt ? C_LATE : C_ACTION, hurt || pulse > 0 ? 2 : 0);
+    x += 18;
+    if (tap) {
+        text_at("Tap", F_PILL, C_CALM, x + tw.x / 2.0f, 403);
+        x += tw.x + 8;
+        snack(dr.target, x + 15, 404, (dr.target == SN_BERRY ? 0.82f : 0.56f) * (1 + 0.15f * pulse));
+        x += 30 + (rest[0] ? 10 : 0);
+    }
+    if (rest[0]) { text_at(rest, F_PILL, C_CALM, x + rw.x / 2.0f, 403); x += rw.x; }
+    if (hearts) for (int i = 0; i < 3; i++) icon_at("heart", 20, x + 8 + 11 + i * 22, 403, i < dr.lives ? C_LATE : C_CHIP);
     /* a new snack to tap: called out in the middle */
     if (called >= 0 && called < DR_CALL_MS) {
         char ct[24];
