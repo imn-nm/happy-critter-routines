@@ -181,25 +181,25 @@ void timer_set(lv_obj_t *obj, timer_tone_t tone, int16_t left, bool pulse)
 /* ================================================================ Pill */
 /* Figma "Pill": 38 high, fully round, 12 px left (16 without an icon), 16 px right, a 20 px icon,
  * Pill 24. Calm = chip with lavender words; Hurry = amber; Late = coral, no icon; Night, Star and
- * Done = chip with iris, amber or mint words; System = lavender. */
+ * Done = black with iris, amber or mint words; System = lavender. */
 static void pill_colors(pill_tone_t tone, uint32_t *bg, uint32_t *fg)
 {
     switch (tone) {
     case PILL_HURRY: *bg = C_STAR; *fg = C_ON_COLOR; break;
     case PILL_LATE: *bg = C_LATE; *fg = C_ON_COLOR; break;
-    case PILL_NIGHT: *bg = C_CHIP; *fg = C_NIGHT; break;
-    case PILL_STAR: *bg = C_CHIP; *fg = C_STAR; break;
-    case PILL_DONE: *bg = C_CHIP; *fg = C_DONE; break;
+    case PILL_NIGHT: *bg = C_SCREEN; *fg = C_NIGHT; break;
+    case PILL_STAR: *bg = C_SCREEN; *fg = C_STAR; break;
+    case PILL_DONE: *bg = C_SCREEN; *fg = C_DONE; break;
     case PILL_SYSTEM: *bg = C_SYSTEM; *fg = C_ON_COLOR; break;
     case PILL_ACTION: *bg = C_ACTION; *fg = C_ON_COLOR; break;   /* a price the child can pay */
-    default: *bg = C_CHIP; *fg = C_CALM; break;
+    default: *bg = C_SCREEN; *fg = C_CALM; break;   /* the quiet tones sit on black, not the chip (user, 2026-10-22) */
     }
 }
 
 void pill_create(lv_obj_t *parent, pill_t *p)
 {
     p->root = ui_row(parent, 8);
-    ui_style_card(p->root, C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
+    ui_style_card(p->root, C_SCREEN, LV_RADIUS_CIRCLE, 0, 0);
     lv_obj_set_style_pad_left(p->root, 12, 0);
     lv_obj_set_style_pad_right(p->root, 16, 0);
     lv_obj_set_style_pad_ver(p->root, 2, 0);
