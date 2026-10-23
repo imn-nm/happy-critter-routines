@@ -200,10 +200,8 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     /* the name (Item, two lines when it must), and under it how many more stars when there aren't
      * enough yet (Fine 16): a 200 x 92 column, its words centred */
     lv_obj_t *words = ui_box(row);
-    lv_obj_set_size(words, SHOP_W_TEXT, 92);
-    lv_obj_set_pos(words, SHOP_X_TEXT, 0);
+    lv_obj_set_size(words, SHOP_W_TEXT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(words, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(words, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(words, 2, 0);
     lv_obj_t *name = ui_label(words, F_ITEM, C_TEXT, rd->title);
     int32_t room = end_x - 8 - SHOP_X_TEXT < SHOP_W_TEXT ? end_x - 8 - SHOP_X_TEXT : SHOP_W_TEXT;
@@ -215,6 +213,11 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
         lv_obj_t *m = ui_label(words, F_FINE, C_TEXT_MUTED, more);
         lv_obj_set_width(m, room);
     }
+    /* centred on the picture; three lines would cross the plank, so they sit on it instead */
+    lv_obj_update_layout(words);
+    int32_t wh = lv_obj_get_height(words), wy = 46 - wh / 2;
+    if (wy + wh > SHOP_PLANK - 4) wy = SHOP_PLANK - 4 - wh;
+    lv_obj_set_pos(words, SHOP_X_TEXT, wy < 0 ? 0 : wy);
 }
 
 void rewards_page_render(const day_plan_t *p, int stars, bool picture)
