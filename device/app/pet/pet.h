@@ -54,6 +54,9 @@ typedef struct {
 /* MyToki 2 (Figma "Scene"): Biscuit is the same size in every room, 3.609 px per cell, the room
  * drawn solid and carried on to the rim. */
 #define PET_PITCH 3.609f
+/* With nothing on the hill (asleep, a celebration) the pet stands 40 px lower, in the room the hill's
+ * words would have taken: this many cells off look.dy (the window moves up the grid). */
+#define PET_LOW_CELLS 11
 
 /* A round scene `diameter` px wide (MyToki 2: 466 fills the screen, 298 is the small circle under
  * 10 min left). Tapping it makes him react (see pet_set_tappable). */
