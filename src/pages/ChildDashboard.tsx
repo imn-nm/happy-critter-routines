@@ -464,9 +464,9 @@ const ChildDashboard = () => {
             return;
           }
         }
-        if (systemKey === 'school') {
-          // School's get-ready time and steps live on its row, for every day: saved now. Only a
-          // change of times goes on to "this date or all days".
+        if (systemKey === 'school' || systemKey === 'wake') {
+          // School's get-ready time and steps, and Wake Up's steps, live on the row, for every
+          // day: saved now. Only a change of times goes on to "this date or all days".
           const prepNow = taskData.prep_minutes ?? 0, prepWas = editingTask.prep_minutes ?? 0;
           const stepsNow = JSON.stringify(taskData.subtasks ?? []), stepsWas = JSON.stringify(editingTask.subtasks ?? []);
           if (prepNow !== prepWas || stepsNow !== stepsWas) {

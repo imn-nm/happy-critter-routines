@@ -1643,7 +1643,8 @@ const TimelineScheduleView = ({
     if (!activeTask) return;
     // Belt and braces: a row that has already started can't be moved.
     const activeEvent = draggableEvents.find(e => e.id === active.id);
-    if (dayHasPassed || (activeEvent && isPSTToday(selectedDay) && startOfEvent(activeEvent) <= nowMinutes)) {
+    const fixed = activeEvent ? (activeEvent.pinned ?? !!activeEvent.task?.scheduled_time) : true;
+    if (dayHasPassed || (activeEvent && fixed && isPSTToday(selectedDay) && startOfEvent(activeEvent) <= nowMinutes)) {
       toast({ title: "That time has passed", description: `${activeTask.name} can't be moved now.` });
       return;
     }
@@ -1963,7 +1964,8 @@ const TimelineScheduleView = ({
                               isDraggingAny={!!activeId}
                               highlightMinute={gapHighlightMinute}
                               highlightDuration={dragDuration}
-                              isPast={dayHasPassed || (isPSTToday(selectedDay) && startOfEvent(event) <= nowMinutes)}
+                              // A float whose provisional slot has gone can still be moved to later today
+                              isPast={dayHasPassed || (isPSTToday(selectedDay) && startOfEvent(event) <= nowMinutes && (event.pinned ?? !!event.task?.scheduled_time))}
                               pastUntil={pastUntil}
                             />
                           </div>

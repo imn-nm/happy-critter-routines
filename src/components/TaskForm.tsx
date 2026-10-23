@@ -212,6 +212,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // School is somewhere they go: it can have get-ready time and steps like an event (user,
   // 2026-10-22), saved on its row; its times stay in the profile.
   const schoolRow = isSystemEvent && (task?.name ?? '').trim().toLowerCase() === 'school';
+  // Wake Up has a checklist of its own (pee, brush teeth) that a parent can change (user,
+  // 2026-10-22); it's saved on its row like School's steps.
+  const wakeRow = isSystemEvent && (task?.name ?? '').trim().toLowerCase() === 'wake up';
 
   const initialTaskDate = task?.task_date || format(currentDate, 'yyyy-MM-dd');
 
@@ -390,6 +393,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     setFormData({ ...formData, mode: isEvent ? 'task' : formData.mode, scheduledTime: '' });
   };
 
+  // Task or To-do: a parent can change their mind after making it (user, 2026-10-22). A to-do has
+  // no time of its own; a task made from one floats until it's given a time.
+  const setMode = (next: 'task' | 'chore') => {
+    setWhatTouched(true);
+    if (next === 'chore') setFormData({ ...formData, mode: 'chore', getReady: false, scheduledTime: '', choreAnytime: true });
+    else setFormData({ ...formData, mode: 'task', getReady: false });
+  };
+
   // "+ Get ready" makes it something they go to, with steps before it.
   const addGetReady = () => {
     setChecklistOpen(true);
@@ -521,7 +532,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             : undefined),
       window_end: derivedType === 'floating' && !formData.choreAnytime ? formData.windowEnd : undefined,
       // An event's steps are its get-ready steps: none without get-ready time.
-      subtasks: !isChore && (!(isEvent || schoolRow) || formData.getReady) && formData.subtasks.length > 0 ? formData.subtasks : undefined,
+      subtasks: wakeRow ? formData.subtasks
+        : !isChore && (!(isEvent || schoolRow) || formData.getReady) && formData.subtasks.length > 0 ? formData.subtasks : undefined,
       // Must-finish tasks are what runs late; they never give up time. Nor
       // does an event: the game starts when it starts.
       late_policy: isChore || isEvent || formData.isImportant ? 'keep' : formData.latePolicy,
@@ -950,7 +962,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     "tap-target h-11 shrink-0 rounded-[12px] flex items-center justify-center text-focus-muted transition-colors hover:enabled:text-focus-text disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender";
 
   // Steps: a task's checklist, or an event's get-ready steps (in its card).
-  const showSteps = !isSystemEvent && !isChore && (isEvent || checklistOpen || formData.subtasks.length > 0);
+  const showSteps = (!isSystemEvent || wakeRow) && !isChore && (isEvent || checklistOpen || formData.subtasks.length > 0);
   const openSteps = () => {
     setChecklistOpen(true);
     requestAnimationFrame(() => newStepRef.current?.focus({ preventScroll: false }));
@@ -1098,8 +1110,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const canAddOthers = !isSystemEvent && (isEdit ? !!onCopy && !!task?.id : otherChildren.length > 0 && !othersOpen);
   // Kept while its picker is open, or the first star would close it.
   const showStarsChip = hasStars && (coinCount === 0 || starsChipOpen);
-  const showStepsChip = !isSystemEvent && !isChore && !isEvent && !showSteps;
-  const showGetReadyChip = (!isSystemEvent && !isChore && !isEvent && atTime) || (schoolRow && !formData.getReady);
+  const showStepsChip = (!isSystemEvent || wakeRow) && !isChore && !isEvent && !showSteps;
+  const showGetReadyChip = (!isSystemEvent && !isChore && !isEvent) || (schoolRow && !formData.getReady);   /* a float gets a time with it */
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full min-w-0">
@@ -1213,6 +1225,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       {/* === SETTINGS === Set time | Floats (Any time | Between for a to-do),
           its tiles, then the two busy-day toggles. */}
       <div className="flex flex-col gap-1.5 rounded-[18px] bg-focus-surface p-1.5">
+        {!isSystemEvent && (
+          <Segmented
+            label="Task or to-do"
+            value={isChore ? 'chore' : 'task'}
+            options={[{ value: 'task', label: 'Task' }, { value: 'chore', label: 'To-do' }]}
+            onChange={setMode}
+          />
+        )}
         {isChore ? (
           <Segmented
             label="When"
