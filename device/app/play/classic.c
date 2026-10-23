@@ -19,18 +19,17 @@
 
 /* Figma's colours beyond the MyToki 2 tokens */
 #define K_YELLOW 0xFFCD4D     /* a brick row, a puff, the cookie in Snack Drop */
-#define K_COOKIE 0xE6BA4D     /* Snack Trail's treats, Maze Munch's big snacks */
+#define K_COOKIE 0xE6BA4D     /* Snack Trail's treats */
 #define K_CHIP 0x545155       /* the chocolate chips on them */
 #define K_APPLE 0xFF5C5F
 #define K_STREAK 0x383C4A     /* the line a falling snack leaves */
-#define K_WALL C_NIGHT        /* the maze */
+#define K_WALL C_NIGHT        /* Roll home's walls */
 #define K_MATCHED 0x2C5450    /* Pet Pairs: a pair found */
-#define K_PUFF_MINT 0x9CDCBF
 
 enum { ST_READY, ST_PLAY, ST_OVER };
 #define AGAIN_MS 700          /* after a game ends, a tap starts the next only this much later */
 
-static const char *const BEST_KEY[CL_COUNT] = { "best-trail", "best-maze", "best-bricks", "best-pairs", "best-drop", "best-roll" };
+static const char *const BEST_KEY[CL_COUNT] = { "best-trail", "best-bricks", "best-pairs", "best-drop", "best-roll" };
 
 static struct {
     lv_obj_t *obj;
@@ -45,8 +44,7 @@ static struct {
     float over_at;
     bool down, dragged;
     lv_point_t anchor, last;
-    float want_x, want_y;     /* Maze Munch: the way the child wants to go (a swipe or a tilt) */
-    char msg[32];             /* a word in the middle for a moment (Maze Munch: "2 lives left") */
+    char msg[32];             /* a word in the middle for a moment (Roll home: "Maze 2") */
     float msg_until;
     bool again;               /* "Tap to play again" is showing */
 } cl;
@@ -231,7 +229,7 @@ static void again_pill(void)
     text_at(t, F_PILL, C_ON_COLOR, x0 + 18 + 24 + 8 + sz.x / 2.0f, AGAIN_Y + 1);
 }
 
-/* Snack Trail's treat and Maze Munch's big snack: a round cookie with three chips */
+/* Snack Trail's treat: a round cookie with three chips */
 static void cookie(float cx, float cy, float r)
 {
     disc(cx, cy, r, K_COOKIE);
@@ -579,6 +577,9 @@ enum { SN_APPLE, SN_COOKIE, SN_BERRY, SN_KINDS };
 static const char *const SN_PLURAL[SN_KINDS] = { "apples", "cookies", "berries" };
 
 #define DR_SPEED 135.0f       /* px a second at first */
+#define DR_SWITCH_MS 9000.0f  /* the snack to tap changes this often... */
+#define DR_SWITCH_N 5         /* ...or after this many caught, whichever comes first */
+#define DR_CALL_MS 1400.0f    /* "Tap the cookies!" in the middle for this long */
 #define DR_EVERY 900.0f       /* a new snack about this often at first */
 
 typedef struct { bool on; uint8_t kind; float x, y, vy; } drop_t;
@@ -587,6 +588,8 @@ static struct {
     int target, lives;
     float spawn_in, every, speed;
     float pace;               /* how well it's going: up with every catch (more for a quick one), down a lot for a slip */
+    float switch_in, call_t;  /* the snack to tap changes in this long; when it last did (it's called out) */
+    int since;                /* caught since it last changed */
     float ring_x, ring_y, ring_t;   /* the last tap: a ring that grows and fades, the snack shrinking in it */
     bool ring_good;
     uint8_t ring_kind;
@@ -624,6 +627,8 @@ static void dr_reset(void)
     dr.every = DR_EVERY;
     dr.speed = DR_SPEED;
     dr.spawn_in = 300;
+    dr.switch_in = DR_SWITCH_MS;
+    dr.call_t = -1000;
     dr.ring_t = dr.hurt_t = -1000;
     cl.score = 0;
     inv_all();
@@ -678,11 +683,24 @@ static void dr_hurt(void)
     inv(150, 380, 340, 426);
 }
 
+/* the next snack to tap: called out in the middle, the ring at the bottom shows it */
+static void dr_switch(void)
+{
+    dr.target = (dr.target + 1) % SN_KINDS;
+    dr.since = 0;
+    dr.switch_in = DR_SWITCH_MS;
+    dr.call_t = cl.t;
+    hal_play(HAL_SOUND_CHIME);
+    inv_box(154, 403, 44);
+}
+
 static void dr_update(float dt)
 {
+    if (cl.t - dr.call_t < DR_CALL_MS + 100) { inv(30, 216, 436, 284); inv_box(154, 403, 44); }
     if (cl.t - dr.ring_t < 320) inv_box(dr.ring_x, dr.ring_y, 50);
     if (cl.t - dr.hurt_t < 500) inv_box(154, 403, 40);
     if (cl.state != ST_PLAY) return;
+    if ((dr.switch_in -= dt) <= 0) dr_switch();
     if ((dr.spawn_in -= dt) <= 0) { dr_spawn(); dr.spawn_in = dr.every * (0.8f + frand01() * 0.4f); }
     for (int i = 0; i < DR_MAX; i++) {
         drop_t *d = &dr.d[i];
@@ -724,11 +742,7 @@ static void dr_tap(float x, float y)
     cl.score++;
     dr_set_pace(dr.pace + (dr.ring_y < 230 ? 1.6f : 1));   /* caught high up: a quick one */
     hal_play(HAL_SOUND_POP);
-    if (cl.score % 10 == 0) {   /* a new snack to catch */
-        dr.target = (dr.target + 1) % SN_KINDS;
-        hal_play(HAL_SOUND_CHIME);
-        inv_box(154, 403, 40);
-    }
+    if (++dr.since >= DR_SWITCH_N) dr_switch();   /* a new snack to catch */
     inv(150, 380, 340, 426);
 }
 
@@ -761,8 +775,20 @@ static void dr_draw(void)
     text_at(t, F_PILL, C_CALM, 200 + sz.x / 2.0f, 403);
     if (hearts) for (int i = 0; i < 3; i++) icon_at("heart", 20, 200 + sz.x + 16 + i * 22, 403, i < dr.lives ? C_LATE : C_CHIP);
     bool hurt = cl.t - dr.hurt_t < 500;
-    outline(154, 403, 35, hurt ? C_LATE : C_SYSTEM, 3, C_HILL, LV_OPA_COVER);
+    float called = cl.t - dr.call_t, pulse = called >= 0 && called < DR_CALL_MS ? 4 * fabsf(sinf(called / 140)) : 0;
+    outline(154, 403, 35 + pulse, hurt ? C_LATE : called < DR_CALL_MS ? C_ACTION : C_SYSTEM, 3, C_HILL, LV_OPA_COVER);
     snack(dr.target, 154, 404, dr.target == SN_BERRY ? 1.15f : 0.85f);
+    /* a new snack to tap: called out in the middle */
+    if (called >= 0 && called < DR_CALL_MS) {
+        char ct[24];
+        snprintf(ct, sizeof ct, "Now tap the %s!", SN_PLURAL[dr.target]);
+        lv_point_t cs;
+        lv_text_get_size(&cs, ct, F_PILL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        float w = 16 + 36 + 8 + cs.x + 18, x0 = 233 - w / 2;
+        box(x0, 226, x0 + w, 274, C_SYSTEM, LV_RADIUS_CIRCLE, LV_OPA_COVER, 0, 0);
+        snack(dr.target, x0 + 16 + 18, 250, dr.target == SN_BERRY ? 0.9f : 0.7f);
+        text_at(ct, F_PILL, C_ON_COLOR, x0 + 16 + 36 + 8 + cs.x / 2.0f, 251);
+    }
 }
 
 /* ================================================================ Brick Bounce */
@@ -983,518 +1009,53 @@ static void bb_tap(void)
     if (!bb.served) bb_serve();
 }
 
-/* ================================================================ Maze Munch */
-/* Figma "Maze Munch · Round maze": four rings of wall round a little home, with openings, and spokes
- * across some of the paths; snacks along the paths, a big cookie on each side, three puffs. Steer by
- * tipping MyToki or swiping the way to go; the muncher takes the first turn that way. A big cookie
- * makes the puffs run (and you can catch them); a puff catching you costs one of three lives. Every
- * cleared maze comes back faster. */
-#define MZ_CX 233.0f
-#define MZ_CY 238.0f
-#define MZ_PUFFS 3
-#define MZ_SNACKS 24
-#define MZ_SCARED_MS 8000.0f
-#define MZ_ME_SPEED 82.0f       /* px a second */
-#define MZ_PUFF_SPEED 50.0f
-#define MZ_SCARED_SPEED 38.0f
-#define MZ_CATCH 16.0f          /* how near a puff must come */
-/* the puffs rest (wander) for 7 s, then hunt for 13, over and over, starting with a rest */
-#define MZ_REST_MS 7000.0f
-#define MZ_ROUND_MS 20000.0f
-
-static const float MZ_WALL[4] = { 49, 91, 133, 175 };
-static const float MZ_COR[3] = { 70, 112, 154 };
-static const int16_t MZ_GAPS[3][3] = { { 270, -1, -1 }, { 90, 200, 340 }, { 45, 135, 270 } };   /* in walls 0 (home), 1, 2 */
-static const int16_t MZ_SPOKES[3][3] = { { -1, -1, -1 }, { 20, 150, -1 }, { 330, 90, 210 } };  /* across paths 0, 1, 2 */
-static const int MZ_NSNACK[3] = { 12, 18, 24 };
-static const uint32_t MZ_PUFF_COL[MZ_PUFFS] = { K_PUFF_MINT, K_YELLOW, C_PINK };
-
-typedef struct {
-    float r, a;          /* where (from the middle; degrees, 0 = 3 o'clock, clockwise) */
-    int ring;            /* the path it's on (0..2), -1 home */
-    int mode;            /* 0 along the path, 1 through an opening */
-    int dir;             /* along: +1 clockwise, -1 the other way, 0 still; through: +1 out, -1 in */
-    int from, to;        /* through: the path (or -1 home) it left and the one it's heading for */
-    float fx, fy;        /* the way it last moved, for the eyes and the mouth */
-} mz_mover_t;
-
-static struct {
-    mz_mover_t me, puff[MZ_PUFFS];
-    float release[MZ_PUFFS];      /* when each puff leaves home */
-    bool out[MZ_PUFFS];
-    uint8_t eaten[3][MZ_SNACKS];
-    float snack_a[3][MZ_SNACKS];
-    bool big[2];
-    int left, lives, level;
-    float scared_until, pause_until, mouth;
-    float round0;                 /* when the puffs' rest-and-hunt rounds began */
-    bool started;                 /* play has begun (puffs leave home counting from then) */
-} mz;
-
-static float mz_x(const mz_mover_t *m) { return MZ_CX + m->r * cosf(m->a * DEG); }
-static float mz_y(const mz_mover_t *m) { return MZ_CY + m->r * sinf(m->a * DEG); }
-static void mz_inv(const mz_mover_t *m) { inv_box(mz_x(m), mz_y(m), 19); }
-static float mz_margin(int ring) { return 13.0f / MZ_COR[ring] / DEG; }   /* a spoke: stop this far short */
-
-/* the move vectors here: 0 clockwise, 1 the other way, 2 out, 3 in */
-static void mz_vec(const mz_mover_t *m, int k, float *x, float *y)
-{
-    float c = cosf(m->a * DEG), s = sinf(m->a * DEG);
-    switch (k) {
-    case 0: *x = -s; *y = c; break;
-    case 1: *x = s; *y = -c; break;
-    case 2: *x = c; *y = s; break;
-    default: *x = -c; *y = -s; break;
-    }
-}
-
-static bool mz_at_gap(int wall, float a)
-{
-    if (wall < 0 || wall > 2) return false;
-    for (int i = 0; i < 3; i++) if (MZ_GAPS[wall][i] >= 0 && fabsf(adiff(a, MZ_GAPS[wall][i])) < 0.6f) return true;
-    return false;
-}
-
-static bool mz_blocked(int ring, float a, int dir)
-{
-    for (int i = 0; i < 3; i++) {
-        int sp = MZ_SPOKES[ring][i];
-        if (sp < 0) continue;
-        float d = dir > 0 ? norm360(sp - a) : norm360(a - sp);
-        if (d <= mz_margin(ring) + 0.05f) return true;
-    }
-    return false;
-}
-
-static void mz_open(const mz_mover_t *m, bool puff, bool open[4])
-{
-    open[0] = !mz_blocked(m->ring, m->a, 1);
-    open[1] = !mz_blocked(m->ring, m->a, -1);
-    open[2] = m->ring < 2 && mz_at_gap(m->ring + 1, m->a);
-    open[3] = m->ring > 0 && mz_at_gap(m->ring, m->a);   /* home is only for puffs leaving it */
-    (void)puff;
-}
-
-static void mz_take(mz_mover_t *m, int k)
-{
-    if (k <= 1) { m->mode = 0; m->dir = k == 0 ? 1 : -1; }
-    else { m->mode = 1; m->dir = k == 2 ? 1 : -1; m->from = m->ring; m->to = m->ring + (k == 2 ? 1 : -1); }
-    mz_vec(m, k, &m->fx, &m->fy);
-}
-
-/* The puffs find their way: every path cut into 5-degree steps, and how many steps each is from the
- * muncher (walls, spokes and openings as they are), worked out again every frame. */
-#define MZ_BINS 72
-static uint8_t mz_dist[3][MZ_BINS];
-static const float MZ_WANDER[MZ_PUFFS] = { 0.25f, 0.45f, 0.65f };   /* mint hunts, pink mostly wanders */
-
-static int mz_bin(float a) { return ((int)floorf(norm360(a) / 5.0f)) % MZ_BINS; }
-
-static bool mz_has(const int16_t list[3], int deg)
-{
-    for (int i = 0; i < 3; i++) if (list[i] == deg) return true;
-    return false;
-}
-
-static void mz_paths(void)
-{
-    memset(mz_dist, 255, sizeof mz_dist);
-    int q[3 * MZ_BINS], head = 0, n = 0;
-    int r0 = mz.me.mode == 1 ? mz.me.from : mz.me.ring, b0 = mz_bin(mz.me.a);
-    if (r0 < 0) return;
-    mz_dist[r0][b0] = 0;
-    q[n++] = r0 * MZ_BINS + b0;
-    while (head < n) {
-        int v = q[head++], r = v / MZ_BINS, b = v % MZ_BINS, d = mz_dist[r][b] + 1, nr[4], nb[4], k = 0;
-        if (!mz_has(MZ_SPOKES[r], (b + 1) % MZ_BINS * 5)) { nr[k] = r; nb[k++] = (b + 1) % MZ_BINS; }
-        if (!mz_has(MZ_SPOKES[r], b * 5)) { nr[k] = r; nb[k++] = (b + MZ_BINS - 1) % MZ_BINS; }
-        if (r < 2 && mz_has(MZ_GAPS[r + 1], b * 5)) { nr[k] = r + 1; nb[k++] = b; }
-        if (r > 0 && mz_has(MZ_GAPS[r], b * 5)) { nr[k] = r - 1; nb[k++] = b; }
-        for (int i = 0; i < k; i++) {
-            if (mz_dist[nr[i]][nb[i]] != 255) continue;
-            mz_dist[nr[i]][nb[i]] = (uint8_t)d;
-            q[n++] = nr[i] * MZ_BINS + nb[i];
-        }
-    }
-}
-
-/* how far from the muncher a move leads */
-static int mz_far(const mz_mover_t *m, int k)
-{
-    switch (k) {
-    case 0: return mz_dist[m->ring][mz_bin(m->a + 2.6f)];
-    case 1: return mz_dist[m->ring][mz_bin(m->a - 2.6f)];
-    case 2: return m->ring < 2 ? mz_dist[m->ring + 1][mz_bin(m->a)] : 255;
-    default: return m->ring > 0 ? mz_dist[m->ring - 1][mz_bin(m->a)] : 255;
-    }
-}
-
-/* At a turn. A puff takes the way that leads to the muncher (away from it while scared), now and
- * then a random one, and never turns straight back unless it must. The muncher takes the open move
- * most like (wx, wy), and keeps going unless a turn is clearly the way. Returns false if nothing
- * suits (it stays still). */
-static bool mz_choose(mz_mover_t *m, int puff, float wx, float wy)
-{
-    bool open[4];
-    mz_open(m, puff >= 0, open);
-    int cur = m->mode == 0 && m->dir ? (m->dir > 0 ? 0 : 1) : -1, rev = cur < 0 ? -1 : cur ^ 1;
-    if (puff >= 0) {
-        int n = 0, opts[4];
-        for (int k = 0; k < 4; k++) if (open[k] && k != rev) opts[n++] = k;
-        if (!n && rev >= 0 && open[rev]) opts[n++] = rev;
-        if (!n) { m->dir = 0; return false; }
-        bool scared = cl.t < mz.scared_until, rest = fmodf(cl.t - mz.round0, MZ_ROUND_MS) < MZ_REST_MS;
-        int pick = opts[0];
-        if (frand01() < (scared ? 0.3f : rest ? 0.85f : MZ_WANDER[puff])) pick = opts[rand_int(n)];
-        else
-            for (int i = 1; i < n; i++) {
-                int a = mz_far(m, opts[i]), b = mz_far(m, pick);
-                if (scared ? a > b && a != 255 : a < b) pick = opts[i];
-            }
-        mz_take(m, pick);
-        return true;
-    }
-    float len = sqrtf(wx * wx + wy * wy);
-    if (len < 0.01f) { if (cur >= 0 && open[cur]) return true; m->dir = 0; return false; }
-    wx /= len; wy /= len;
-    int pick = -1;
-    float best = 0.3f;
-    for (int k = 0; k < 4; k++) {
-        if (!open[k] || k == rev) continue;   /* turning back is the child's call (mz_advance) */
-        float x, y;
-        mz_vec(m, k, &x, &y);
-        float d = x * wx + y * wy + (k == cur ? 0.25f : 0);
-        if (d > best) { best = d; pick = k; }
-    }
-    if (pick < 0) { if (cur >= 0 && open[cur]) return true; m->dir = 0; return false; }
-    mz_take(m, pick);
-    return true;
-}
-
-/* move m along the paths by s px */
-static void mz_advance(mz_mover_t *m, float s, int puff)
-{
-    for (int guard = 0; guard < 8 && s > 0.01f; guard++) {
-        float wx = cl.want_x, wy = cl.want_y;
-        if (puff < 0 && m->dir) {
-            /* the muncher turns straight back the moment the child asks */
-            float vx, vy;
-            mz_vec(m, m->mode == 0 ? (m->dir > 0 ? 0 : 1) : (m->dir > 0 ? 2 : 3), &vx, &vy);
-            if (vx * wx + vy * wy < -0.6f * sqrtf(wx * wx + wy * wy)) {
-                m->dir = -m->dir;
-                if (m->mode == 1) { int t = m->from; m->from = m->to; m->to = t; }
-                m->fx = -vx;
-                m->fy = -vy;
-            }
-        }
-        if (m->mode == 1) {
-            float target = m->to < 0 ? 0 : MZ_COR[m->to], d = target - m->r, step = fminf(fabsf(d), s);
-            m->r += d > 0 ? step : -step;
-            s -= step;
-            if (fabsf(target - m->r) > 0.01f) continue;
-            m->r = target;
-            m->ring = m->to;
-            m->mode = 0;
-            m->dir = 0;
-            if (m->ring < 0) return;
-            if (!mz_choose(m, puff, wx, wy)) return;
-            continue;
-        }
-        if (m->dir == 0 && !mz_choose(m, puff, wx, wy)) return;
-        if (m->mode == 1) continue;
-        float r = MZ_COR[m->ring], left = s / r / DEG, next = left, gap = -1;
-        bool spoke = false;
-        for (int i = 0; i < 3; i++) {
-            int sp = MZ_SPOKES[m->ring][i];
-            if (sp < 0) continue;
-            float d = (m->dir > 0 ? norm360(sp - m->a) : norm360(m->a - sp)) - mz_margin(m->ring);
-            if (d >= 0 && d < next) { next = d; spoke = true; gap = -1; }
-        }
-        for (int w = m->ring; w <= m->ring + 1 && w <= 2; w++)
-            for (int i = 0; i < 3; i++) {
-                int g = MZ_GAPS[w][i];
-                if (g < 0 || w == 0) continue;   /* home's opening is only for puffs leaving it */
-                float d = m->dir > 0 ? norm360(g - m->a) : norm360(m->a - g);
-                if (d > 0.01f && d < next) { next = d; gap = g; spoke = false; }
-            }
-        m->a = norm360(m->a + m->dir * next);
-        s -= next * DEG * r;
-        if (spoke) {
-            m->dir = 0;
-            if (puff >= 0) continue;
-            /* the muncher waits at a wall for the next swipe (a tip held keeps it going) */
-            cl.want_x = cl.want_y = 0;
-            return;
-        }
-        if (gap >= 0) { m->a = gap; mz_choose(m, puff, wx, wy); continue; }
-        break;
-    }
-}
-
-static void mz_snacks(void)
-{
-    mz.left = 0;
-    for (int k = 0; k < 3; k++)
-        for (int i = 0; i < MZ_SNACKS; i++) {
-            mz.eaten[k][i] = 1;
-            if (i >= MZ_NSNACK[k]) continue;
-            float a = norm360((i + 0.5f) * 360.0f / MZ_NSNACK[k] - 90);
-            bool clear = true;
-            for (int j = 0; j < 3; j++) if (MZ_SPOKES[k][j] >= 0 && fabsf(adiff(a, MZ_SPOKES[k][j])) < mz_margin(k) + 5) clear = false;
-            if (k == 2 && (fabsf(adiff(a, 0)) < 8 || fabsf(adiff(a, 180)) < 8)) clear = false;   /* the big cookies */
-            if (!clear) continue;
-            mz.snack_a[k][i] = a;
-            mz.eaten[k][i] = 0;
-            mz.left++;
-        }
-    mz.big[0] = mz.big[1] = true;
-    mz.left += 2;
-}
-
-static void mz_places(void)
-{
-    mz.me = (mz_mover_t){ .r = MZ_COR[2], .a = 45, .ring = 2, .fx = 1, .fy = 0 };   /* Figma: bottom right */
-    for (int i = 0; i < MZ_PUFFS; i++) {
-        mz.puff[i] = (mz_mover_t){ .r = 15.0f * (i - 1), .a = 0, .ring = -1, .fx = 0, .fy = -1 };
-        mz.out[i] = false;
-        mz.release[i] = cl.t + 2500 + i * 4500 - (mz.level - 1) * 300;
-    }
-    mz.scared_until = 0;
-}
-
-static void mz_reset(void)
-{
-    cl.again = false;
-    memset(&mz, 0, sizeof mz);
-    mz.lives = 3;
-    mz.level = 1;
-    cl.score = 0;
-    mz_snacks();
-    mz_places();
-    inv_all();
-}
-
-static void mz_say(const char *t, float ms)
-{
-    snprintf(cl.msg, sizeof cl.msg, "%s", t);
-    cl.msg_until = cl.t + ms;
-    inv_box(MZ_CX, MZ_CY, 46);
-}
-
-static void mz_eat(void)
-{
-    if (mz.me.mode != 0) return;
-    int k = mz.me.ring;
-    for (int i = 0; i < MZ_NSNACK[k]; i++) {
-        if (mz.eaten[k][i] || fabsf(adiff(mz.me.a, mz.snack_a[k][i])) > 5.5f) continue;
-        mz.eaten[k][i] = 1;
-        mz.left--;
-        cl.score += 10;
-        hal_play(HAL_SOUND_FLIP);
-    }
-    if (k == 2)
-        for (int b = 0; b < 2; b++) {
-            if (!mz.big[b] || fabsf(adiff(mz.me.a, b ? 180 : 0)) > 6) continue;
-            mz.big[b] = false;
-            mz.left--;
-            cl.score += 50;
-            mz.scared_until = cl.t + MZ_SCARED_MS;
-            hal_play(HAL_SOUND_POWER);
-        }
-    if (mz.left <= 0) {   /* the maze cleared: the next, faster */
-        mz.level++;
-        char t[16];
-        snprintf(t, sizeof t, "Maze %d", mz.level);
-        mz_snacks();
-        mz_places();
-        mz.pause_until = cl.t + 1400;
-        mz_say(t, 1400);
-        hal_play(HAL_SOUND_WIN);
-        inv_all();
-    }
-}
-
-static void mz_update(float dt)
-{
-    mz.mouth += dt;
-    if (cl.msg[0] && cl.t >= cl.msg_until) { cl.msg[0] = 0; inv_box(MZ_CX, MZ_CY, 46); }
-    /* the way to go: a tip, when there is one, else the last swipe (a tip starts it too) */
-    float tx, ty;
-    motion_tilt(&tx, &ty);
-    if (tx * tx + ty * ty > 0.09f && cl.state != ST_OVER) {
-        cl.want_x = tx;
-        cl.want_y = ty;
-        if (cl.state == ST_READY) cl.state = ST_PLAY;
-    }
-    if (cl.state != ST_PLAY || cl.t < mz.pause_until) { mz_inv(&mz.me); return; }
-    /* puffs still at home wait from when play really starts */
-    if (cl.t - dt < mz.pause_until || !mz.started) {
-        mz.started = true;
-        mz.round0 = cl.t;
-        for (int i = 0; i < MZ_PUFFS; i++) if (!mz.out[i]) mz.release[i] = fmaxf(mz.release[i], cl.t + 2500 + i * 4500 - (mz.level - 1) * 300);
-    }
-    float lv = 1 + 0.06f * (mz.level - 1), sec = dt / 1000.0f;
-    mz_inv(&mz.me);
-    mz_advance(&mz.me, MZ_ME_SPEED * lv * sec, -1);
-    mz_inv(&mz.me);
-    mz_eat();
-    if (cl.state != ST_PLAY) return;
-    mz_paths();
-    bool scared = cl.t < mz.scared_until;
-    for (int i = 0; i < MZ_PUFFS; i++) {
-        mz_mover_t *p = &mz.puff[i];
-        mz_inv(p);
-        if (!mz.out[i]) {
-            if (cl.t >= mz.release[i]) { mz.out[i] = true; p->mode = 1; p->dir = 1; p->from = -1; p->to = 0; p->r = 0; p->a = 270; }
-            else { mz_inv(p); continue; }
-        }
-        mz_advance(p, (scared ? MZ_SCARED_SPEED : MZ_PUFF_SPEED) * lv * sec, i);
-        mz_inv(p);
-        float dx = mz_x(p) - mz_x(&mz.me), dy = mz_y(p) - mz_y(&mz.me);
-        if (dx * dx + dy * dy > MZ_CATCH * MZ_CATCH) continue;
-        if (scared) {   /* caught a puff: home it goes */
-            cl.score += 200;
-            *p = (mz_mover_t){ .r = 15.0f * (i - 1), .a = 0, .ring = -1, .fx = 0, .fy = -1 };
-            mz.out[i] = false;
-            mz.release[i] = cl.t + 2500;
-            hal_play(HAL_SOUND_EAT);
-            continue;
-        }
-        /* a puff caught the muncher */
-        if (--mz.lives <= 0) { game_over(); hal_play(HAL_SOUND_LOSE); inv_all(); return; }
-        hal_play(HAL_SOUND_MISS);
-        char t[16];
-        snprintf(t, sizeof t, mz.lives == 1 ? "Last life!" : "%d lives left", mz.lives);
-        mz_places();
-        mz.pause_until = cl.t + 1300;
-        mz_say(t, 1300);
-        inv_all();
-        return;
-    }
-}
-
-static void mz_puff_draw(const mz_mover_t *p, uint32_t col, bool scared, bool blink)
-{
-    float x = mz_x(p), y = mz_y(p);
-    uint32_t c = scared ? (blink ? C_TEXT : C_HILL_LINE) : col;
-    disc(x, y - 2, 11, c);
-    box(x - 11, y - 2, x + 11, y + 8, c, 0, LV_OPA_COVER, 0, 0);
-    for (int k = -1; k <= 1; k++) disc(x + k * 7.3f, y + 8, 3.7f, c);
-    if (scared) { disc(x - 4, y - 3, 1.8f, C_TEXT); disc(x + 4, y - 3, 1.8f, C_TEXT); return; }
-    float ex = p->fx * 1.6f, ey = p->fy * 1.6f;
-    disc(x - 4.5f, y - 3, 3.4f, C_TEXT);
-    disc(x + 4.5f, y - 3, 3.4f, C_TEXT);
-    disc(x - 4.5f + ex, y - 3 + ey, 1.7f, C_ON_COLOR);
-    disc(x + 4.5f + ex, y - 3 + ey, 1.7f, C_ON_COLOR);
-}
-
-static void mz_draw(void)
-{
-    /* the walls: each ring broken at its openings (16 px each side), the spokes across the paths */
-    for (int w = 0; w < 4; w++) {
-        float r = MZ_WALL[w], half = 16.0f / r / DEG;
-        int g[3], n = 0;
-        if (w < 3) for (int i = 0; i < 3; i++) if (MZ_GAPS[w][i] >= 0) g[n++] = MZ_GAPS[w][i];
-        if (!n) { arc(MZ_CX, MZ_CY, r, 4, 0, 360, K_WALL, false); continue; }
-        for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) if (g[j] < g[i]) { int t = g[i]; g[i] = g[j]; g[j] = t; }
-        for (int i = 0; i < n; i++) {
-            float a0 = g[i] + half, a1 = g[(i + 1) % n] - half + (i + 1 == n ? 360 : 0);
-            if (n == 1) a1 = g[0] - half + 360;
-            arc(MZ_CX, MZ_CY, r, 4, a0, a1, K_WALL, true);
-        }
-    }
-    for (int k = 0; k < 3; k++)
-        for (int i = 0; i < 3; i++) {
-            int sp = MZ_SPOKES[k][i];
-            if (sp < 0) continue;
-            float c = cosf(sp * DEG), s = sinf(sp * DEG);
-            seg(MZ_CX + MZ_WALL[k] * c, MZ_CY + MZ_WALL[k] * s, MZ_CX + MZ_WALL[k + 1] * c, MZ_CY + MZ_WALL[k + 1] * s, 4, K_WALL, LV_OPA_COVER);
-        }
-    /* the snacks and the two big cookies */
-    for (int k = 0; k < 3; k++)
-        for (int i = 0; i < MZ_NSNACK[k]; i++) {
-            if (mz.eaten[k][i]) continue;
-            float a = mz.snack_a[k][i] * DEG;
-            disc(MZ_CX + MZ_COR[k] * cosf(a), MZ_CY + MZ_COR[k] * sinf(a), 3, C_TEXT);
-        }
-    for (int b = 0; b < 2; b++) if (mz.big[b]) cookie(MZ_CX + (b ? -MZ_COR[2] : MZ_COR[2]), MZ_CY, 11);
-    /* the puffs, then the muncher */
-    bool scared = cl.t < mz.scared_until, blink = scared && mz.scared_until - cl.t < 1500 && ((int)(cl.t / 180) % 2);
-    for (int i = 0; i < MZ_PUFFS; i++) mz_puff_draw(&mz.puff[i], MZ_PUFF_COL[i], scared && mz.out[i], blink);
-    if (cl.state != ST_OVER) {
-        float x = mz_x(&mz.me), y = mz_y(&mz.me), face = atan2f(mz.me.fy, mz.me.fx) / DEG;
-        float open = cl.state == ST_PLAY && mz.me.dir ? 6 + 34 * fabsf(sinf(mz.mouth / 110.0f)) : 26;
-        lv_draw_arc_dsc_t a;
-        if (seen(x - 14, y - 14, x + 14, y + 14)) {
-            lv_draw_arc_dsc_init(&a);
-            a.center.x = OX + lroundf(x);
-            a.center.y = OY + lroundf(y);
-            a.radius = 13;
-            a.width = 13;
-            a.color = COL(C_ACTION);
-            a.opa = LV_OPA_COVER;
-            a.start_angle = norm360(face + open);
-            a.end_angle = norm360(face - open);
-            lv_draw_arc(L, &a);
-        }
-    }
-    if (cl.msg[0]) text_at(cl.msg, F_DETAIL, C_TEXT, MZ_CX, MZ_CY);
-}
-
-static void mz_swipe(int dx, int dy)
-{
-    if (cl.state == ST_READY) cl.state = ST_PLAY;
-    float l = sqrtf((float)(dx * dx + dy * dy));
-    if (l > 0) { cl.want_x = dx / l; cl.want_y = dy / l; }
-}
-
-static void mz_tap(void)
-{
-    if (cl.state == ST_READY) { cl.state = ST_PLAY; return; }
-    if (cl.state == ST_OVER && cl.t - cl.over_at > AGAIN_MS) { mz_reset(); cl.state = ST_PLAY; }
-}
-
 /* ================================================================ Roll home */
-/* Maze Munch's round maze, tipped like a marble maze: the muncher rolls the way MyToki leans (it
- * gathers speed, keeps rolling, bounces off the walls) and has to reach home in the middle through
- * the openings, four rings in. Puffs pace up and down some paths: touch one and it's back to the
- * start of that maze (the clock keeps going). Three mazes, each trickier; the time for all three is
- * the score, and the best is the fastest. */
+/* A marble maze: tip MyToki and the ball rolls that way, as if MyToki were a board in the hand (it
+ * gathers speed, keeps rolling, bounces off the walls). Five rings of wall with openings, spokes that
+ * close a path off, and holes: roll over one and the ball drops in and starts the maze again (the
+ * clock keeps going). A hole to one side of a path can be passed by hugging the other wall; one in
+ * the middle can't. Three mazes, each harder; the time for all three is the score, and the best is
+ * the fastest. */
 #define RL_CX 233.0f
-#define RL_CY 250.0f         /* a little lower than Maze Munch: the top path clear of the play time pill */
-#define RL_WALLS 5
-#define RL_PATHS 4
-static const float RL_WALL[RL_WALLS] = { 40, 72, 104, 136, 168 };
-static const float RL_COR[RL_PATHS] = { 56, 88, 120, 152 };
-#define RL_BALL 9.0f
-#define RL_G 600.0f          /* px/s² at a full tip */
-#define RL_DAMP 0.7f         /* how fast it slows by itself, per second */
-#define RL_VMAX 280.0f
-#define RL_BOUNCE 0.35f      /* how much of its speed a wall gives back */
-#define RL_GAP 16.0f         /* half an opening, px (the muncher is 18 across) */
-#define RL_HOME 24.0f        /* nearer the middle than this: home */
+#define RL_CY 233.0f         /* in the middle of the display (the header is the clock alone) */
+#define RL_WALLS 6
+#define RL_PATHS 5
+static const float RL_WALL[RL_WALLS] = { 36, 63, 90, 117, 144, 171 };
+static const float RL_COR[RL_PATHS] = { 49.5f, 76.5f, 103.5f, 130.5f, 157.5f };
+#define RL_BALL 7.0f
+#define RL_G 700.0f          /* px/s² at a full tip */
+#define RL_DAMP 0.4f         /* how fast it slows by itself, per second: a heavy ball keeps rolling */
+#define RL_VMAX 300.0f
+#define RL_BOUNCE 0.4f       /* how much of its speed a wall gives back */
+#define RL_GAP 13.0f         /* half an opening, px */
+#define RL_HOME 20.0f        /* nearer the middle than this: home */
+#define RL_HOLE 8.0f         /* a hole's size */
+#define RL_DROP 5.5f         /* the ball's middle this near a hole's: in it goes */
+#define RL_HOLE_OFF 5.0f     /* a hole to one side sits this far off the path's middle */
+#define RL_FALL_MS 380.0f
 #define RL_MAZES 3
-#define RL_PUFFS 4
-#define RL_SEGS 480
+#define RL_HOLES 10
+#define RL_SEGS 560
 
-/* a puff pacing a path: which path, round which angle, how far each way (degrees), how quickly */
-typedef struct { int8_t path; int16_t at, swing; float speed; } rl_puff_t;
-/* openings in walls 0 (home) to 3 and spokes across paths 0 to 3 (degrees, 0 = 3 o'clock,
- * clockwise; -1 none); where it starts on the outer path; the puffs */
-typedef struct { int16_t gaps[RL_WALLS - 1][3], spokes[RL_PATHS][3], start; rl_puff_t puff[RL_PUFFS]; } rl_maze_t;
+/* a hole: which path, at what angle, which side (1 the outer wall's, -1 the inner's, 0 the middle) */
+typedef struct { int8_t path, side; int16_t at; } rl_hole_t;
+/* openings in walls 0 (home) to 4 and spokes across paths 0 to 4 (degrees, 0 = 3 o'clock,
+ * clockwise; -1 none); where it starts on the outer path; the holes (path -1: none) */
+typedef struct { int16_t gaps[RL_WALLS - 1][2], spokes[RL_PATHS][2], start; rl_hole_t hole[RL_HOLES]; } rl_maze_t;
+#define NO_HOLE { -1, 0, 0 }
 static const rl_maze_t RL_MAZE[RL_MAZES] = {
-    /* in at the bottom, the top, the bottom, the top; a spoke on each inner path says which way round */
-    { { { 270, -1, -1 }, { 90, -1, -1 }, { 270, -1, -1 }, { 90, -1, -1 } },
-      { { 180, -1, -1 }, { 0, -1, -1 }, { 180, -1, -1 }, { -1, -1, -1 } }, 270,
-      { { 2, 0, 25, 1.4f }, { -1, 0, 0, 0 }, { -1, 0, 0, 0 }, { -1, 0, 0, 0 } } },
-    /* two ways in from the outside, one a dead end; the short way round past a puff */
-    { { { 120, -1, -1 }, { 300, -1, -1 }, { 180, -1, -1 }, { 0, 180, -1 } },
-      { { 30, -1, -1 }, { 200, -1, -1 }, { 120, 240, -1 }, { -1, -1, -1 } }, 270,
-      { { 3, 225, 30, 1.6f }, { 1, 30, 25, 1.8f }, { 0, 220, 35, 1.5f }, { -1, 0, 0, 0 } } },
-    /* the long way round every time, with puffs where it matters */
-    { { { 150, -1, -1 }, { 20, -1, -1 }, { 240, -1, -1 }, { 300, -1, -1 } },
-      { { 100, -1, -1 }, { 150, 60, -1 }, { 330, 210, -1 }, { 240, -1, -1 } }, 180,
-      { { 3, 90, 20, 1.7f }, { 3, 0, 25, 1.9f }, { 1, 330, 25, 2.0f }, { 0, 260, 40, 2.2f } } },
+    /* in at the bottom, the top, the bottom...; spokes say which way round; holes to steer round */
+    { { { 90, -1 }, { 270, -1 }, { 90, -1 }, { 270, -1 }, { 90, -1 } },
+      { { 0, -1 }, { 180, -1 }, { 0, -1 }, { 180, -1 }, { -1, -1 } }, 270,
+      { { 4, 0, 180 }, { 3, 1, 0 }, { 2, -1, 180 }, { 1, 1, 0 }, NO_HOLE, NO_HOLE, NO_HOLE, NO_HOLE, NO_HOLE, NO_HOLE } },
+    /* a way in that's a dead end with a hole in it; the long way round, hugging one wall then the other */
+    { { { 300, -1 }, { 100, -1 }, { 200, -1 }, { 60, -1 }, { 180, 300 } },
+      { { 60, -1 }, { 230, -1 }, { 120, -1 }, { 240, 330 }, { -1, -1 } }, 0,
+      { { 4, 0, 90 }, { 3, 0, 270 }, { 2, 1, 330 }, { 2, -1, 260 }, { 1, 1, 150 }, { 0, 1, 200 }, NO_HOLE, NO_HOLE, NO_HOLE, NO_HOLE } },
+    /* holes on both sides of the outer path, holes just past openings for a ball that rolls too far */
+    { { { 300, -1 }, { 200, -1 }, { 90, -1 }, { 120, -1 }, { 0, -1 } },
+      { { 240, -1 }, { 120, -1 }, { 150, 60 }, { 30, -1 }, { -1, -1 } }, 180,
+      { { 4, 1, 270 }, { 4, -1, 90 }, { 3, -1, 270 }, { 3, 1, 180 }, { 3, 0, 100 }, { 1, 1, 30 }, { 1, -1, 300 }, { 1, 0, 170 }, { 0, 1, 90 }, NO_HOLE } },
 };
 
 typedef struct { float x0, y0, x1, y1, r; } rl_seg_t;   /* r: the wall's radius (0 for a spoke), to skip far ones */
@@ -1503,20 +1064,27 @@ static int rl_nseg;
 
 static struct {
     int maze;
-    float x, y, vx, vy, fx, fy;   /* where, how fast, the way it faces */
+    float x, y, vx, vy;           /* where, how fast */
     float time;                   /* ms, all the mazes so far */
-    float pause_until, bump_at, mouth;
-    float px[RL_PUFFS], py[RL_PUFFS];   /* where the puffs are now */
+    float pause_until, bump_at;
+    float fall_t, fall_x, fall_y; /* dropping into a hole: when, and the hole */
 } rl;
 
+static void rl_hole_xy(const rl_hole_t *h, float *x, float *y)
+{
+    float r = RL_COR[h->path] + h->side * RL_HOLE_OFF, a = h->at * DEG;
+    *x = RL_CX + r * cosf(a);
+    *y = RL_CY + r * sinf(a);
+}
+
 /* the solid parts of wall w between its openings, as [a0, a1] spans in degrees (a1 may pass 360) */
-static int rl_spans(const rl_maze_t *m, int w, float span[4][2])
+static int rl_spans(const rl_maze_t *m, int w, float span[3][2])
 {
     float R = RL_WALL[w], half = RL_GAP / R / DEG;
-    int g[3], n = 0;
-    if (w < RL_WALLS - 1) for (int i = 0; i < 3; i++) if (m->gaps[w][i] >= 0) g[n++] = m->gaps[w][i];
+    int g[2], n = 0;
+    if (w < RL_WALLS - 1) for (int i = 0; i < 2; i++) if (m->gaps[w][i] >= 0) g[n++] = m->gaps[w][i];
     if (!n) { span[0][0] = 0; span[0][1] = 360; return 1; }
-    for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) if (g[j] < g[i]) { int t = g[i]; g[i] = g[j]; g[j] = t; }
+    if (n == 2 && g[1] < g[0]) { int t = g[0]; g[0] = g[1]; g[1] = t; }
     for (int i = 0; i < n; i++) {
         span[i][0] = g[i] + half;
         span[i][1] = (i + 1 < n ? g[i + 1] : g[0] + 360) - half;
@@ -1537,7 +1105,7 @@ static void rl_build(void)
     const rl_maze_t *m = &RL_MAZE[rl.maze];
     rl_nseg = 0;
     for (int w = 0; w < RL_WALLS; w++) {
-        float span[4][2], R = RL_WALL[w];
+        float span[3][2], R = RL_WALL[w];
         int n = rl_spans(m, w, span);
         for (int i = 0; i < n; i++) {
             int steps = (int)ceilf((span[i][1] - span[i][0]) / 4.0f);
@@ -1549,7 +1117,7 @@ static void rl_build(void)
         }
     }
     for (int k = 0; k < RL_PATHS; k++)
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) {
             int sp = m->spokes[k][i];
             if (sp < 0 || rl_nseg >= RL_SEGS) continue;
             float c = cosf(sp * DEG), s = sinf(sp * DEG);
@@ -1563,14 +1131,13 @@ static void rl_reset(void)
 {
     cl.again = false;
     memset(&rl, 0, sizeof rl);
-    rl.fx = 1;
-    rl.bump_at = -1000;
+    rl.bump_at = rl.fall_t = -1000;
     cl.score = 0;
     rl_build();
 }
 
 static void rl_inv(void) { inv_box(rl.x, rl.y, RL_BALL + 6); }
-static void rl_inv_clock(void) { inv(RL_CX - 34, RL_CY - 24, RL_CX + 34, RL_CY + 24); }
+static void rl_inv_clock(void) { inv(RL_CX - 32, RL_CY - 24, RL_CX + 32, RL_CY + 24); }
 
 static void rl_home(void)
 {
@@ -1589,33 +1156,39 @@ static void rl_home(void)
     cl.msg_until = rl.pause_until = cl.t + 1300;
 }
 
-/* the puffs pace their paths (they keep pacing during a pause, so it's never safe to wait forever) */
-static void rl_puffs(void)
+/* into a hole: it drops away, then waits at the start */
+static void rl_fall(float hx, float hy)
 {
-    const rl_maze_t *m = &RL_MAZE[rl.maze];
-    for (int i = 0; i < RL_PUFFS; i++) {
-        const rl_puff_t *p = &m->puff[i];
-        if (p->path < 0) continue;
-        inv_box(rl.px[i], rl.py[i], 13);
-        float a = (p->at + p->swing * sinf(cl.t / 1000.0f * p->speed + i)) * DEG;
-        rl.px[i] = RL_CX + RL_COR[p->path] * cosf(a);
-        rl.py[i] = RL_CY + RL_COR[p->path] * sinf(a);
-        inv_box(rl.px[i], rl.py[i], 13);
-    }
+    rl_inv();
+    rl.fall_t = cl.t;
+    rl.fall_x = hx;
+    rl.fall_y = hy;
+    rl.vx = rl.vy = 0;
+    rl.pause_until = cl.t + RL_FALL_MS + 500;
+    hal_play(HAL_SOUND_MISS);
 }
 
 static void rl_update(float dt)
 {
-    rl.mouth += dt;
     if (cl.msg[0] && cl.t >= cl.msg_until) { cl.msg[0] = 0; rl_inv_clock(); }
-    if (cl.state != ST_OVER) rl_puffs();
+    /* the drop: once it's gone, back to the start */
+    if (rl.fall_t >= 0 && cl.t - rl.fall_t < RL_FALL_MS + 40) inv_box(rl.fall_x, rl.fall_y, RL_HOLE + 2);
+    if (rl.fall_t >= 0 && cl.t - rl.fall_t >= RL_FALL_MS) {
+        rl.fall_t = -1000;
+        rl_start_spot();
+        snprintf(cl.msg, sizeof cl.msg, "Again!");
+        cl.msg_until = cl.t + 700;
+        rl_inv_clock();
+    }
     float tx, ty;
     motion_tilt(&tx, &ty);
     if (cl.state == ST_READY && tx * tx + ty * ty > 0.06f) cl.state = ST_PLAY;   /* a tip starts it */
-    if (cl.state != ST_PLAY || cl.t < rl.pause_until) { rl_inv(); return; }
+    if (cl.state != ST_PLAY) { rl_inv(); return; }
     rl.time += dt;
     if ((int)(rl.time / 100) != (int)((rl.time - dt) / 100)) rl_inv_clock();
+    if (cl.t < rl.pause_until || rl.fall_t >= 0) { rl_inv(); return; }
     rl_inv();
+    const rl_maze_t *m = &RL_MAZE[rl.maze];
     const float rr = RL_BALL + 2;
     for (int step = 0; step < 3; step++) {
         float h = dt / 3000.0f;
@@ -1651,39 +1224,48 @@ static void rl_update(float dt)
             }
         if (hit > 110 && cl.t - rl.bump_at > 150) { hal_play(HAL_SOUND_BOUNCE); rl.bump_at = cl.t; }
         if (d < RL_HOME) { rl_home(); return; }
-    }
-    float sp = sqrtf(rl.vx * rl.vx + rl.vy * rl.vy);
-    if (sp > 8) { rl.fx = rl.vx / sp; rl.fy = rl.vy / sp; }
-    /* a puff: back to the start of this maze */
-    const rl_maze_t *m = &RL_MAZE[rl.maze];
-    for (int i = 0; i < RL_PUFFS; i++) {
-        if (m->puff[i].path < 0 || hypotf(rl.px[i] - rl.x, rl.py[i] - rl.y) > RL_BALL + 8) continue;
-        rl_inv();
-        rl_start_spot();
-        snprintf(cl.msg, sizeof cl.msg, "Oops!");
-        cl.msg_until = rl.pause_until = cl.t + 900;
-        rl_inv_clock();
-        hal_play(HAL_SOUND_MISS);
-        break;
+        for (int i = 0; i < RL_HOLES; i++) {
+            if (m->hole[i].path < 0) continue;
+            float hx, hy;
+            rl_hole_xy(&m->hole[i], &hx, &hy);
+            if (hypotf(hx - rl.x, hy - rl.y) < RL_DROP) { rl_fall(hx, hy); return; }
+        }
     }
     rl_inv();
+}
+
+/* the ball: shaded like a marble, light from the top left */
+static void rl_ball(float x, float y, float r)
+{
+    if (r < 0.5f) return;
+    disc(x, y, r, 0xB9B3A0);
+    disc(x - r * 0.18f, y - r * 0.18f, r * 0.78f, 0xDCD6C2);
+    disc(x - r * 0.3f, y - r * 0.3f, r * 0.5f, C_TEXT);
+    disc(x - r * 0.4f, y - r * 0.4f, r * 0.2f, 0xFFFFFF);
 }
 
 static void rl_draw(void)
 {
     const rl_maze_t *m = &RL_MAZE[rl.maze];
     for (int w = 0; w < RL_WALLS; w++) {
-        float span[4][2];
+        float span[3][2];
         int n = rl_spans(m, w, span);
         for (int i = 0; i < n; i++) arc(RL_CX, RL_CY, RL_WALL[w], 4, span[i][0], span[i][1], K_WALL, span[i][1] - span[i][0] < 360);
     }
     for (int k = 0; k < RL_PATHS; k++)
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) {
             int sp = m->spokes[k][i];
             if (sp < 0) continue;
             float c = cosf(sp * DEG), s = sinf(sp * DEG);
             seg(RL_CX + RL_WALL[k] * c, RL_CY + RL_WALL[k] * s, RL_CX + RL_WALL[k + 1] * c, RL_CY + RL_WALL[k + 1] * s, 4, K_WALL, LV_OPA_COVER);
         }
+    /* the holes: dark, with a thin rim */
+    for (int i = 0; i < RL_HOLES; i++) {
+        if (m->hole[i].path < 0) continue;
+        float hx, hy;
+        rl_hole_xy(&m->hole[i], &hx, &hy);
+        outline(hx, hy, RL_HOLE, C_HILL_LINE, 2, 0x03050B, LV_OPA_COVER);
+    }
     /* home: the house and the time so far (or a word for a moment) */
     if (cl.msg[0]) text_at(cl.msg, F_DETAIL, C_TEXT, RL_CX, RL_CY);
     else {
@@ -1693,35 +1275,13 @@ static void rl_draw(void)
         icon_at("home", 16, RL_CX, RL_CY - 10, C_ACTION);
         text_at(t, F_DETAIL, C_TEXT, RL_CX, RL_CY + 10);
     }
-    /* the puffs, small enough for the narrow paths */
-    for (int i = 0; i < RL_PUFFS; i++) {
-        if (m->puff[i].path < 0) continue;
-        float x = rl.px[i], y = rl.py[i];
-        uint32_t c = MZ_PUFF_COL[i % MZ_PUFFS];
-        disc(x, y - 2, 8, c);
-        box(x - 8, y - 2, x + 8, y + 5, c, 0, LV_OPA_COVER, 0, 0);
-        for (int k = -1; k <= 1; k++) disc(x + k * 5.3f, y + 5, 2.7f, c);
-        disc(x - 3.2f, y - 2, 2.4f, C_TEXT);
-        disc(x + 3.2f, y - 2, 2.4f, C_TEXT);
-        disc(x - 3.2f, y - 2, 1.2f, C_ON_COLOR);
-        disc(x + 3.2f, y - 2, 1.2f, C_ON_COLOR);
-    }
-    /* the muncher, mouth to the way it rolls */
     if (cl.state == ST_OVER) return;
-    float face = atan2f(rl.fy, rl.fx) / DEG, sp = sqrtf(rl.vx * rl.vx + rl.vy * rl.vy);
-    float open = sp > 20 ? 6 + 30 * fabsf(sinf(rl.mouth / 90.0f)) : 24;
-    if (!seen(rl.x - RL_BALL - 2, rl.y - RL_BALL - 2, rl.x + RL_BALL + 2, rl.y + RL_BALL + 2)) return;
-    lv_draw_arc_dsc_t a;
-    lv_draw_arc_dsc_init(&a);
-    a.center.x = OX + lroundf(rl.x);
-    a.center.y = OY + lroundf(rl.y);
-    a.radius = (uint16_t)RL_BALL;
-    a.width = (uint16_t)RL_BALL;
-    a.color = COL(C_ACTION);
-    a.opa = LV_OPA_COVER;
-    a.start_angle = norm360(face + open);
-    a.end_angle = norm360(face - open);
-    lv_draw_arc(L, &a);
+    if (rl.fall_t >= 0) {   /* dropping in: it shrinks into the hole */
+        float k = clampf((cl.t - rl.fall_t) / RL_FALL_MS, 0, 1);
+        rl_ball(rl.fall_x + (rl.x - rl.fall_x) * (1 - k), rl.fall_y + (rl.y - rl.fall_y) * (1 - k), RL_BALL * (1 - k));
+        return;
+    }
+    rl_ball(rl.x, rl.y, RL_BALL);
 }
 
 static void rl_tap(void)
@@ -1741,7 +1301,6 @@ static void on_draw(lv_event_t *e)
     box(0, 0, SCREEN_W, SCREEN_H, C_HILL, 0, LV_OPA_COVER, 0, 0);
     switch (cl.id) {
     case CL_TRAIL: tr_draw(); break;
-    case CL_MAZE: mz_draw(); break;
     case CL_BRICKS: bb_draw(); break;
     case CL_PAIRS: pp_draw(); break;
     case CL_DROP: dr_draw(); break;
@@ -1756,7 +1315,6 @@ static void on_draw(lv_event_t *e)
 static void swiped(int dx, int dy)
 {
     if (cl.id == CL_TRAIL) tr_swipe(abs(dx) > abs(dy) ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3));
-    else if (cl.id == CL_MAZE) mz_swipe(dx, dy);
 }
 
 static void on_touch(lv_event_t *e)
@@ -1791,7 +1349,6 @@ static void on_touch(lv_event_t *e)
         if (!tap) return;
         switch (cl.id) {
         case CL_TRAIL: tr_tap(); break;
-        case CL_MAZE: mz_tap(); break;
         case CL_BRICKS: bb_tap(); break;
         case CL_PAIRS: pp_tap(p.x, p.y); break;
         case CL_DROP: dr_tap(p.x, p.y); break;
@@ -1812,7 +1369,6 @@ static void tick(lv_timer_t *t)
     cl.t += dt;
     switch (cl.id) {
     case CL_TRAIL: tr_update(dt); break;
-    case CL_MAZE: mz_update(dt); break;
     case CL_BRICKS: bb_update(dt); break;
     case CL_PAIRS: pp_update(dt); break;
     case CL_DROP: dr_update(dt); break;
@@ -1858,14 +1414,12 @@ void classic_start(classic_id_t id)
     cl.t = 0;
     cl.msg[0] = 0;
     cl.again = false;
-    cl.want_x = cl.want_y = 0;
     cl.best = best_load(id);
     cl.new_best = false;
     cl.last_ms = lv_tick_get();
     motion_level();   /* however it's held now is level */
     switch (id) {
     case CL_TRAIL: tr_reset(); break;
-    case CL_MAZE: mz_reset(); break;
     case CL_BRICKS: bb_reset(); break;
     case CL_PAIRS: pp_reset(); break;   /* the cards are dealt: a tap turns one */
     case CL_DROP: dr_reset(); break;
@@ -1887,7 +1441,7 @@ void classic_stop(void)
 
 bool classic_running(void) { return cl.running; }
 classic_id_t classic_current(void) { return cl.id; }
-bool classic_wide(void) { return cl.running && (cl.id == CL_MAZE || cl.id == CL_ROLL); }
+bool classic_wide(void) { return cl.running && cl.id == CL_ROLL; }
 
 bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
 {
@@ -1910,14 +1464,6 @@ bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
         else if (cl.best) snprintf(text, text_n, "%d flips \xC2\xB7 best %d", cl.score, cl.best);
         else snprintf(text, text_n, "%d flips", cl.score);
         return true;
-    case CL_MAZE:
-        if (cl.state == ST_PLAY) return false;   /* Figma: the maze fills the screen */
-        snprintf(icon, icon_n, ready ? "move" : "star-line");
-        if (ready) snprintf(text, text_n, "Tip or swipe to move");
-        else if (cl.new_best) snprintf(text, text_n, "New best %d!", cl.score);
-        else if (cl.best) snprintf(text, text_n, "%d \xC2\xB7 best %d", cl.score, cl.best);
-        else snprintf(text, text_n, "%d", cl.score);
-        return true;
     case CL_BRICKS:
         if (cl.state == ST_PLAY && bb.served) return false;   /* Figma: nothing over the play */
         snprintf(icon, icon_n, ready || cl.state == ST_PLAY ? "pointer" : "star-line");
@@ -1933,7 +1479,7 @@ bool classic_status(char *icon, size_t icon_n, char *text, size_t text_n)
         snprintf(now, sizeof now, "%d:%02d.%d", cl.score / 60000, cl.score / 1000 % 60, cl.score / 100 % 10);
         snprintf(best, sizeof best, "%d:%02d.%d", cl.best / 60000, cl.best / 1000 % 60, cl.best / 100 % 10);
         snprintf(icon, icon_n, ready ? "move" : "timer");
-        if (ready) snprintf(text, text_n, "Tip to roll home");
+        if (ready) snprintf(text, text_n, "Tip to roll the ball home");
         else if (cl.new_best) snprintf(text, text_n, "New best %s!", now);
         else if (cl.best) snprintf(text, text_n, "%s \xC2\xB7 best %s", now, best);
         else snprintf(text, text_n, "%s", now);

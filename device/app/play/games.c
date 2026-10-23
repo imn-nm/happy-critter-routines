@@ -302,7 +302,21 @@ static void bp_draw(stage_t *s)
 }
 
 /* ================================================================ Carrot catch */
+/* 30 seconds: Biscuit (a size smaller than in the other games) faces the child holding out a basket,
+ * and runs left and right (a tip, or the finger) to catch the falling carrots in it; gold ones count
+ * 3. The carrots caught so far poke out of the basket. */
 #define ROUND_MS 30000.0f
+#define CC_SCALE 0.7f             /* Biscuit's size here */
+#define CC_W 22                   /* the box cc.x is the left of: Biscuit's middle is cc.x + 11 */
+#define CC_BASKET_Y 46            /* the basket's rim */
+static const char *const BASKET[] = {
+    "aAAAAAAAAAAAa",
+    "aaaaaaaaaaaaa",
+    ".AaAaAaAaAaA.",
+    ".aAaAaAaAaAa.",
+    "..AaAaAaAaA..",
+    "...aaaaaaa...",
+};
 static const char *const CARROT[] = { "G.g.G", ".GgG.", ".OOO.", ".OOo.", ".OOo.", "..Oo.", "..O.." };
 static const char *const GOLD[] = { "G.g.G", ".GgG.", ".YYY.", ".YYy.", ".YYy.", "..Yy.", "..Y.." };
 static const char *const HUD_CARROT[] = { ".G.", "GgG", ".O.", "OOo", "OO.", ".O." };
@@ -313,7 +327,7 @@ enum { CC_READY, CC_PLAYING, CC_END };
 #define CC_TILT_SPEED 70.0f       /* px/s at full tilt */
 static struct {
     int state, score, best;
-    float time, spawn_t, x, hop, munch, touch_at;
+    float time, spawn_t, x, hop, munch, touch_at;   /* munch: the moment after a catch */
     int dir;
     bool has_target, moving, record;
     float target;
@@ -353,10 +367,8 @@ static void cc_finish(void)
     cc.has_target = false;
     cc.nc = 0;
     snprintf(cc.label, sizeof cc.label, "YUM! %d", cc.score);
-    bool mirror = cc.dir > 0;
-    cc.end_fx0 = front_x_for((int)lroundf(cc.x), mirror);
+    cc.end_fx0 = (int)lroundf(cc.x);   /* he already faces the child: he puts the basket down and cheers */
     actor.n = 0;
-    act_turn_to_you(&actor, (int)lroundf(cc.x), mirror);
     act_cheer(&actor, cc.end_fx0);
     actor_play(&actor, NULL, NULL);
     hal_play(HAL_SOUND_DONE);
@@ -404,11 +416,11 @@ static void cc_update(float dt)
     if (v) {
         cc.dir = v;
         float move = cc.has_target ? fminf(step, fabsf(cc.target - cc.x)) : step;
-        cc.x = fmaxf(-2, fminf(LW - 27, cc.x + v * move));
+        cc.x = fmaxf(-3, fminf(LW - 19, cc.x + v * move));
         cc.hop += dt;
         cc.moving = true;
     } else cc.moving = false;
-    float hx0 = cc.x + (cc.dir < 0 ? 0 : 6), hy0 = SY + 10;
+    float bx = cc.x + CC_W / 2;   /* the basket's middle */
     int k = 0;
     for (int i = 0; i < cc.nc; i++) {
         __typeof__(cc.c[0]) *c = &cc.c[i];
@@ -416,18 +428,16 @@ static void cc_update(float dt)
         bool gone = false;
         if (c->st == 0) {
             c->y += c->vy * dt / 1000;
-            float tx = c->x, ty = c->y + 6;
-            if (tx >= hx0 - 1 && tx <= hx0 + 23 && ty >= hy0 && ty <= hy0 + 16) {
+            float tx = c->x, ty = c->y + 6;   /* its tip */
+            if (fabsf(tx - bx) <= 7 && ty >= CC_BASKET_Y - 2 && ty <= CC_BASKET_Y + 3) {   /* into the basket */
                 gone = true;
                 int n = c->gold ? 3 : 1;
                 cc.score += n;
                 cc.munch = 520;
                 char t[6];
                 snprintf(t, sizeof t, "+%d", n);
-                parts_add(&parts, PT_TEXT, tx - 3, hy0 - 6, 0, -14, 0, 800, c->gold ? 'Y' : 'H', t);
-                for (int j = 0; j < 3; j++)
-                    parts_add(&parts, PT_CRUMB, cc.x + (cc.dir < 0 ? 6 : 22), SY + 24, (frand() - 0.5f) * 18, -8, 90, 500, c->gold ? 'Y' : 'O', NULL);
-                if (c->gold) parts_burst(&parts, tx, hy0, 4);
+                parts_add(&parts, PT_TEXT, bx - 3, CC_BASKET_Y - 10, 0, -14, 0, 800, c->gold ? 'Y' : 'H', t);
+                if (c->gold) parts_burst(&parts, bx, CC_BASKET_Y - 2, 4);
                 hal_play(c->gold ? HAL_SOUND_POWER : HAL_SOUND_EAT);
             } else if (c->y + 7 >= FLOOR) {
                 /* a missed carrot just bounces away */
@@ -450,7 +460,7 @@ static void cc_press(float x, float y)
 {
     (void)y;
     if (cc.state != CC_PLAYING) return;
-    cc.target = fmaxf(-2, fminf(LW - 27, x - 13));
+    cc.target = fmaxf(-3, fminf(LW - 19, x - CC_W / 2));   /* the basket goes under the finger */
     cc.has_target = true;
     cc.touch_at = now;
 }
@@ -466,22 +476,37 @@ static void cc_draw(stage_t *s)
     }
     const pose_t *a = actor_pose(&actor, &parts);
     pose_t p;
-    bool mirror = cc.dir > 0;
-    int x = (int)lroundf(cc.x);
+    int x = (int)lroundf(cc.x), hop = 0;
     if (a) p = *a;
     else if (cc.state == CC_END) p = (pose_t){ blinking(now, 2800, 0) ? PET_POSE_F_T_BLINK_YAY : PET_POSE_F_T_YAY, 1, 1, cc.end_fx0, SY };
-    else if (cc.munch > 0) {
-        bool m = ((int)(cc.munch / 100)) % 2;
-        p = (pose_t){ m ? (mirror ? PET_POSE_S_MUNCH_O_M : PET_POSE_S_MUNCH_O) : (mirror ? PET_POSE_S_MUNCH_CHEEK_M : PET_POSE_S_MUNCH_CHEEK), 1, 1, x, SY };
-    } else if (cc.moving) {
-        static const int8_t HOP[6] = { 0, -1, -2, -2, -1, 0 };
-        int ph = ((int)(cc.hop / 70)) % 6;
-        p = (pose_t){ mirror ? PET_POSE_S_REST_M : PET_POSE_S_REST, ph == 0 ? 1.04f : 1, ph == 0 ? 0.95f : 1, x, SY + HOP[ph] };
-    } else {
-        bool b = blinking(now, 3600, 0);
-        p = (pose_t){ b ? (mirror ? PET_POSE_S_BLINK_M : PET_POSE_S_BLINK) : (mirror ? PET_POSE_S_REST_M : PET_POSE_S_REST), 1, 1, x, SY };
+    else if (cc.munch > 0) p = (pose_t){ PET_POSE_F_HAPPY_SMILE, 1, 1, x, SY };   /* got one */
+    else {
+        if (cc.moving) {
+            static const int8_t HOP[6] = { 0, -1, -2, -2, -1, 0 };
+            hop = HOP[((int)(cc.hop / 70)) % 6];
+        }
+        p = (pose_t){ blinking(now, 3600, 0) ? PET_POSE_F_BLINK_SMILE : PET_POSE_F_SMILE, 1, 1, x, SY + hop };
     }
+    p.sx = (p.sx ? p.sx : 1) * CC_SCALE;
+    p.sy = (p.sy ? p.sy : 1) * CC_SCALE;
     stage_pose(s, &p, -1);
+    /* the basket: held out in front of him (in his own layer, over him), or put down beside him at the
+     * end, with the carrots caught so far poking out */
+    bool down = cc.state == CC_END;
+    int bx = down ? cc.end_fx0 + CC_W / 2 + (cc.end_fx0 > LW / 2 ? -16 : 16) : x + CC_W / 2;
+    int by = down ? FLOOR - N(BASKET) : CC_BASKET_Y + hop + (cc.munch > 380 ? 1 : 0);
+    int shown = cc.score < 5 ? cc.score : 5;
+    for (int i = 0; i < shown; i++) {
+        int cx = bx - 4 + i * 2;
+        stage_set(s, cx, by - 1, stage_key('O'));
+        stage_set(s, cx, by - 2, stage_key(i % 2 ? 'g' : 'G'));
+    }
+    for (int j = 0; j < N(BASKET); j++)
+        for (int i = 0; BASKET[j][i]; i++) {
+            if (BASKET[j][i] == '.') continue;
+            int gx = bx - 6 + i + ST_OX, gy = by + j + ST_OY;
+            if (gx >= 0 && gy >= 0 && gx < ST_W && gy < ST_H) s->body[gy * ST_W + gx] = stage_key(BASKET[j][i]);
+        }
     parts_draw(&parts, s);
     stage_stamp(s, HUD_CARROT, N(HUD_CARROT), 3, 2, 0);
     char n[12];

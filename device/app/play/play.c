@@ -16,8 +16,8 @@
 #define SEE_YOU_MS 8000
 
 /* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is Biscuit's games in
- * two rows of two (Roll home, drawn in classic.c, among them); page 1 the five classic games (CLASSIC
- * below), three above and two below. "%s" in a title or label is the pet's name. Dress up is not a
+ * two rows of two (Roll home, drawn in classic.c, among them); page 1 the four classic games (CLASSIC
+ * below), two rows of two. "%s" in a title or label is the pet's name. Dress up is not a
  * game: it lives in My pet (a long tap on the pet, any time), with choosing the buddy, so it has no
  * circle (page -1). */
 #define MENU_PAGES 2
@@ -32,9 +32,8 @@ static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = {
 };
 /* Figma "13 · Classic games" (and Roll home, on Biscuit's page) */
 static const struct { const char *title, *icon; int32_t x, y; int page; } CLASSIC[CL_COUNT] = {
-    [CL_TRAIL] = { "Snack Trail", "cookie", 44, 126, 1 },   /* three 140 apart: the names don't touch */
-    [CL_MAZE] = { "Maze Munch", "circle-dot", 184, 126, 1 },
-    [CL_BRICKS] = { "Brick Bounce", "brick", 324, 126, 1 },
+    [CL_TRAIL] = { "Snack Trail", "cookie", 120, 126, 1 },
+    [CL_BRICKS] = { "Brick Bounce", "brick", 248, 126, 1 },
     [CL_PAIRS] = { "Pet Pairs", "sparkles", 120, 250, 1 },
     [CL_DROP] = { "Snack Drop", "apple", 248, 250, 1 },
     [CL_ROLL] = { "Roll home", "move", 248, 250, 0 },
@@ -152,10 +151,11 @@ static void set_header(const char *icon, const char *title)
                    pl.editor_page ? "Swipe back to My buddy" : "Swipe to dress up");
         return;
     }
-    /* a classic game (Figma "13 · Classic games"): the clock, its name, the play time left; Maze
-     * Munch fills the screen, so no name */
+    /* a classic game (Figma "13 · Classic games"): the clock, its name, the play time left; Roll
+     * home's maze fills the display, so the clock alone (the rim still shows the play time) */
     if (pl.in_game && pl.classic) {
-        header_set(&pl.head, ui_clock(), classic_wide() ? NULL : head_title, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+        bool wide = classic_wide();
+        header_set(&pl.head, ui_clock(), wide ? NULL : head_title, wide ? HEADER_NONE : HEADER_PILL, PILL_DONE, "kite", pl.left_text);
         return;
     }
     /* the menu and the other games: the clock and the pill only (a 32 px "Play with Biscuit" would
@@ -477,7 +477,7 @@ static void classic_controls(void)
     lv_obj_clean(pl.bottom);
     pl.score = NULL;
     pl.bar_fill = NULL;
-    set_header(NULL, NULL);   /* Maze Munch's name goes once it fills the screen */
+    set_header(NULL, NULL);   /* Roll home's name goes once its maze fills the screen */
     if (!on) return;
     pl.score = status_pill_create(pl.bottom, icon, text, C_BONE);
     lv_obj_update_layout(pl.score);

@@ -76,9 +76,13 @@ static const char *invitation_for(const char *o)
 /* The slice under the pointer, given how far the wheel has turned. */
 static int under_pointer(const wheel_t *w)
 {
+    /* the angle grows with every spin: a remainder that can come out negative is turned round (it
+     * used to add 3600 instead, which stopped working after three spins and kept landing on one) */
     float slice = 360.0f / w->n;
-    float a = fmodf(-w->angle + slice / 2 + 3600.0f, 360.0f);
-    return ((int)(a / slice)) % w->n;
+    float a = fmodf(slice / 2 - w->angle, 360.0f);
+    if (a < 0) a += 360.0f;
+    int i = (int)(a / slice);
+    return i < 0 ? 0 : i >= w->n ? w->n - 1 : i;
 }
 
 static int32_t norm360(float a)
@@ -214,6 +218,7 @@ static void spin_done(lv_anim_t *a)
     lv_obj_t *obj = a->var;
     wheel_t *w = lv_obj_get_user_data(obj);
     w->spinning = false;
+    w->angle = fmodf(w->angle, 360.0f);   /* back within a turn: the next spin starts from here */
     w->result = under_pointer(w);
     show_result(w);
     lv_obj_invalidate(obj);
