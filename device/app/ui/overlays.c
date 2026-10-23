@@ -11,7 +11,7 @@
 #include <math.h>
 #include <string.h>
 
-static lv_obj_t *sched, *others, *reminder, *approved, *denied, *chosen, *asked, *stars, *streak, *battery, *sys;
+static lv_obj_t *sched, *others, *reminder, *approved, *denied, *stars, *streak, *battery, *sys;
 static sys_screen_t sys_kind;
 
 static void cleared(void *user) { *(lv_obj_t **)user = NULL; }
@@ -944,18 +944,15 @@ void approved_open(const day_reward_t *r, const char *child_name, const char *pe
 }
 
 /* ================================================================ reward screens */
-/* Figma "Rewards · Choose and ask", "Waiting" and "Not this time": no room, the faint circle with
- * the reward's picture in it, its name, a line, and the action on the hill. */
+/* Figma "Rewards · Not this time": no room, the faint circle with the reward's picture in it, its
+ * name, a line, and the action on the hill. (Asking happens on the shop's shelves.) */
 static overlay_cb_t circle_cb;
 static lv_obj_t **circle_slot;
 
 static void on_back_to_shop(hill_tap_t tap)
 {
     (void)tap;
-    if (circle_slot && *circle_slot) {
-        if (circle_slot == &asked) overlay_slide_away(*circle_slot, 1);
-        else overlay_fade_away(*circle_slot);
-    }
+    if (circle_slot && *circle_slot) overlay_fade_away(*circle_slot);
     if (circle_cb) circle_cb(0);
 }
 
@@ -1006,61 +1003,6 @@ void denied_open(const day_reward_t *r, const char *note, overlay_cb_t on_shop)
     ov_header(o, true, "Not this time", HEADER_NONE, PILL_CALM, NULL, NULL);
     auto_close(&denied, 20000);
     overlay_enter_rise(o);
-}
-
-void reward_asked_open(const day_reward_t *r)
-{
-    circle_slot = &asked;
-    circle_cb = NULL;
-    lv_obj_t *o = open_overlay(&asked, true);
-    faint_circle_create(o);
-    ov_reward_art(o, r, 120, 150);
-    ov_line(o, F_ITEM, C_TEXT, r->title, 284, 320);
-    ov_hill_button(o, NULL, "Back to shop", on_back_to_shop);
-    ov_header(o, false, "Request sent!", HEADER_PILL, PILL_CALM, "clock", "Waiting for a grown-up");
-    overlay_enter_push(o);
-}
-
-static overlay_cb_t ask_cb;
-static int ask_index;
-static bool ask_enough;
-
-static void on_ask_hill(hill_tap_t tap)
-{
-    (void)tap;
-    if (!ask_enough) { if (chosen) overlay_slide_away(chosen, 1); return; }
-    if (chosen) overlay_slide_away(chosen, -1);
-    if (ask_cb) ask_cb(ask_index);
-}
-
-static void on_not_now(lv_event_t *e)
-{
-    (void)e;
-    if (chosen) overlay_slide_away(chosen, 1);
-}
-
-void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_t cb)
-{
-    ask_cb = cb;
-    ask_index = index;
-    ask_enough = stars >= r->cost;
-    lv_obj_t *o = open_overlay(&chosen, true);
-    faint_circle_create(o);
-    ov_reward_art(o, r, 120, 140);
-    ov_line(o, F_ITEM, C_TEXT, r->title, 268, 320);
-    if (ask_enough) {
-        lv_obj_t *no = button_create(o, BTN_TERTIARY, false, NULL, "Not now");
-        lv_obj_add_event_cb(no, on_not_now, LV_EVENT_CLICKED, NULL);
-        lv_obj_update_layout(no);
-        lv_obj_align(no, LV_ALIGN_TOP_MID, 0, 306);
-    }
-    ov_hill_button(o, NULL, ask_enough ? "Ask for this" : "Back to shop", on_ask_hill);
-    char cost[24];
-    if (ask_enough) snprintf(cost, sizeof cost, "%d stars", r->cost);
-    else snprintf(cost, sizeof cost, "%d more stars", r->cost - stars);
-    /* short of stars there is nothing to ask yet: "Not yet" over how many more */
-    ov_header(o, false, ask_enough ? "Ask for this?" : "Not yet", HEADER_PILL, PILL_STAR, "star-line", cost);
-    overlay_enter_push(o);
 }
 
 /* ================================================================ stars from a grown-up */
@@ -1266,12 +1208,12 @@ void overlays_close_idle(void)
 
 bool overlays_any_open(void)
 {
-    return sched || others || reminder || approved || denied || chosen || asked || stars || streak || battery;
+    return sched || others || reminder || approved || denied || stars || streak || battery;
 }
 
 void overlays_close_all(void)
 {
-    lv_obj_t **slots[] = { &sched, &others, &reminder, &approved, &denied, &chosen, &asked, &stars, &streak, &battery };
+    lv_obj_t **slots[] = { &sched, &others, &reminder, &approved, &denied, &stars, &streak, &battery };
     for (unsigned i = 0; i < sizeof slots / sizeof slots[0]; i++)
         if (*slots[i]) { lv_obj_delete(*slots[i]); *slots[i] = NULL; }
 }

@@ -812,26 +812,18 @@ static int available_stars(void)
     return s < 0 ? 0 : s;
 }
 
-/* the child asked for a reward (Rewards · 02 · Choose and ask): one request, then "Asked!" */
-static void on_ask(int i)
+/* Ask tapped on a shelf: the request goes at once (the button is the choice, no screen to confirm
+ * it), and the shelf says Asked */
+static void on_reward_tap(int i)
 {
     day_reward_t *r = &app.plan->rewards[i];
     if (r->state != REWARD_NONE || available_stars() < r->cost) return;
     r->state = REWARD_WAITING;
     send("reward_request", "reward_id", r->id, r->cost);
     save_progress();
-    hal_play(HAL_SOUND_TICK);
+    hal_play(HAL_SOUND_CHIME);
+    rewards_page_asked(r->id);
     rewards_page_render(app.plan, available_stars(), app.plan->child.picture);
-    reward_asked_open(r);
-}
-
-/* a reward tapped in the shop: see it bigger and ask for it */
-static void on_reward_tap(int i)
-{
-    const day_reward_t *r = &app.plan->rewards[i];
-    if (r->state == REWARD_WAITING) { reward_asked_open(r); return; }
-    if (r->state != REWARD_NONE) return;
-    reward_choose_open(r, i, available_stars(), on_ask);
 }
 
 static void on_other_done(int task)

@@ -12,6 +12,8 @@ typedef void (*page_cb_t)(int index);   /* reward tapped / chore ticked */
 void rewards_page_create(lv_obj_t *page, page_cb_t on_tap);
 /* stars: what the child has to spend (asked-for rewards already taken off). */
 void rewards_page_render(const day_plan_t *p, int stars, bool picture);
+/* The reward just asked for: its "Asked" pops in on the shelf. */
+void rewards_page_asked(const char *id);
 
 void chores_page_create(lv_obj_t *page, page_cb_t on_done);
 void chores_page_render(const day_plan_t *p, int now_min, bool picture);

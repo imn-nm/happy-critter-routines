@@ -25,12 +25,6 @@ typedef void (*schedule_now_cb_t)(void);
 void schedule_set_on_now(schedule_now_cb_t cb);
 void schedule_close(void);
 
-/* Rewards · 02 · Choose and ask: the reward bigger, its price, Ask for this / Not now.
- * on_ask(index) when the child asks. */
-void reward_choose_open(const day_reward_t *r, int index, int stars, overlay_cb_t on_ask);
-/* Rewards · 03 · Waiting: "Asked!", the stars saved for it, Back to shop. */
-void reward_asked_open(const day_reward_t *r);
-
 /* Other things to finish: late must-finish tasks waiting while an event or bedtime is on. */
 void others_open(const day_plan_t *p, const logic_now_t *n, int32_t now_s, overlay_cb_t on_done);
 void others_refresh(const day_plan_t *p, const logic_now_t *n, int32_t now_s);
