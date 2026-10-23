@@ -20,15 +20,19 @@ const char *reward_icon(const char *icon)
 }
 
 /* ================================================================ rewards */
-/* The rewards shop, on the MyToki 2 tokens like every other page: the black screen, a scalloped
- * awning of lavender and black under the header (the stars to spend), and the rewards one to a
- * shelf, each shelf a little hill (the hairline, the raised face).
+/* The rewards shop (Figma "Rewards · Shop v2", 1310:7010), on the MyToki 2 tokens like every other
+ * page: the black screen with faint 7 px pinstripes of pink and chip for a wall, a scalloped awning
+ * of lavender and hill-navy under the header (the stars to spend), and the rewards one to a shelf,
+ * each shelf a little hill (the hairline, the raised face). A fade at the top and another at the
+ * bottom take the shelves into the dark as they turn.
  * On a shelf: the picture standing on it, the name (and, under it, how many more stars when there
  * aren't enough), and at the right end the price as a pill: lime when the child can pay it (a tap
  * asks for it, at once: the pill is the choice, no screen to confirm it), calm purple when not, or
  * Asked once it's been asked for. A reward a grown-up has given leaves the shop. The shelves turn
- * like Chores and the day, the one at rest under the awning, the ones further down fading. */
+ * like Chores and the day, the one at rest under the awning. */
 #define SHOP_AWN_Y 134       /* the awning's rod, 9 px under the header's pill */
+#define SHOP_WALL_Y 136      /* the pinstripes: from here, 295 px down */
+#define SHOP_WALL_H 295
 #define AWN_ROD 3
 #define AWN_BAND 16
 #define AWN_SCALLOP 36       /* a scallop's width (13 across the screen) */
@@ -36,15 +40,17 @@ const char *reward_icon(const char *icon)
 #define SHOP_ROW 96          /* a shelf: the reward above, the plank under it */
 #define SHOP_FOCUS (SHOP_TOP + 6 + SHOP_ROW / 2)   /* the middle of the shelf at rest */
 #define SHOP_PLANK 70        /* the plank's top, from the shelf's top */
-#define SHOP_ICON 40
-#define SHOP_MID 46          /* the words' and the end's middle, from the shelf's top: the picture's middle */
-#define SHOP_X_ICON 46       /* inside the circle on the two shelves at rest (the third fades) */
-#define SHOP_X_TEXT 98
+#define SHOP_ICON 48         /* Figma: 46; the nearest icon drawn */
+#define SHOP_X_ICON 41       /* its middle at x 65, y 46, as in the Figma */
+#define SHOP_Y_ICON 22
+#define SHOP_X_TEXT 108      /* the words: 200 wide, centred on the row's 92 */
+#define SHOP_W_TEXT 200
+#define SHOP_Y_PILL 27       /* the price pill's top */
 #define SHOP_X_END 418       /* where the price pill stops */
 
 static struct {
     page_cb_t on_tap;
-    lv_obj_t *page, *awning, *empty;
+    lv_obj_t *page, *wall, *awning, *empty;
     wheel_list_t wl;
     header_t head;
     char sig[256];
@@ -69,8 +75,21 @@ static void fill(lv_layer_t *l, int32_t x0, int32_t y0, int32_t x1, int32_t y1, 
     lv_draw_rect(l, &d, &a);
 }
 
-/* The awning: a hairline rod, then stripes of lavender and black, each ending in a scallop, a soft
- * shadow under them. Drawn over the shelves, so a shelf turning up goes under it. */
+/* The wall: 7 px pinstripes, pink then chip, 14 px apart, at 14 % (only the part being redrawn). */
+static void wall_draw(lv_event_t *e)
+{
+    lv_obj_t *o = lv_event_get_target(e);
+    lv_layer_t *l = lv_event_get_layer(e);
+    lv_area_t a;
+    lv_obj_get_coords(o, &a);
+    for (int32_t x = a.x1 - 1; x < a.x2; x += 14) {
+        fill(l, x, a.y1, x + 6, a.y2, C_PINK, 36, 0);
+        fill(l, x + 7, a.y1, x + 13, a.y2, C_CHIP, 36, 0);
+    }
+}
+
+/* The awning: a hairline rod, then stripes of lavender and hill-navy, each ending in a scallop, a
+ * soft shadow under them. Drawn over the shelves, so a shelf turning up goes under it. */
 static void awning_draw(lv_event_t *e)
 {
     lv_obj_t *o = lv_event_get_target(e);
@@ -81,7 +100,7 @@ static void awning_draw(lv_event_t *e)
     for (int32_t x = a.x1 - 1, k = 0; x < a.x2; x += AWN_SCALLOP, k++)   /* the shadow, 4 px down */
         fill(l, x, y + AWN_BAND - r + 4, x + AWN_SCALLOP - 1, y + AWN_BAND + r + 3, C_SCREEN, 150, LV_RADIUS_CIRCLE);
     for (int32_t x = a.x1 - 1, k = 0; x < a.x2; x += AWN_SCALLOP, k++) {
-        uint32_t c = k % 2 ? C_SCREEN : C_SYSTEM;   /* lavender and black (user, 2026-10-22) */
+        uint32_t c = k % 2 ? C_HILL : C_SYSTEM;   /* Figma Awning: lavender and bg/hill */
         fill(l, x, y, x + AWN_SCALLOP - 1, y + AWN_BAND - 1, c, LV_OPA_COVER, 0);
         fill(l, x, y + AWN_BAND - r, x + AWN_SCALLOP - 1, y + AWN_BAND + r - 1, c, LV_OPA_COVER, LV_RADIUS_CIRCLE);
     }
@@ -97,11 +116,26 @@ static lv_obj_t *drawn_box(lv_obj_t *page, int32_t y, int32_t h, lv_event_cb_t d
     return o;
 }
 
-/* Shelves away from the one at rest fade (they keep their size: a shelf doesn't shrink). */
-static void shelf_style(lv_obj_t *card, float d)
+/* The shelves keep their size and colour wherever they are: the fades at the top and the bottom
+ * of the screen do the dimming (Figma). */
+static void shelf_style(lv_obj_t *card, float d) { (void)d; ui_row_fade(card, LV_OPA_COVER); }
+
+/* Figma's two fades over the shelves: black at the top to clear by y 169 (under the awning), and
+ * clear from y 389 to black by y 441 at the bottom. */
+static lv_obj_t *shop_fade(lv_obj_t *page, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t f0, uint8_t f1, bool from_top)
 {
-    float ad = fabsf(d), far = fmaxf(0.0f, ad - 1.3f);
-    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.3f * fminf(ad, 1.0f)) * fmaxf(0.0f, 1.0f - far / 0.9f)));
+    lv_obj_t *o = ui_box(page);
+    lv_obj_set_size(o, w, h);
+    lv_obj_set_pos(o, x, y);
+    lv_grad_dsc_t *g = lv_malloc_zeroed(sizeof(lv_grad_dsc_t));
+    g->dir = LV_GRAD_DIR_VER;
+    g->stops_count = 3;
+    g->stops[0].color = g->stops[1].color = g->stops[2].color = COL(C_SCREEN);
+    if (from_top) { g->stops[0].opa = LV_OPA_COVER; g->stops[0].frac = 0; g->stops[1].opa = LV_OPA_COVER; g->stops[1].frac = f0; g->stops[2].opa = LV_OPA_TRANSP; g->stops[2].frac = f1; }
+    else { g->stops[0].opa = LV_OPA_TRANSP; g->stops[0].frac = f0; g->stops[1].opa = LV_OPA_COVER; g->stops[1].frac = f1; g->stops[2].opa = LV_OPA_COVER; g->stops[2].frac = 255; }
+    lv_obj_set_style_bg_grad(o, g, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    return o;
 }
 
 void rewards_page_create(lv_obj_t *page, page_cb_t cb)
@@ -109,9 +143,12 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     memset(&rw, 0, sizeof rw);
     rw.on_tap = cb;
     rw.page = page;
+    rw.wall = drawn_box(page, SHOP_WALL_Y, SHOP_WALL_H, wall_draw);
     wheel_list_create(page, &rw.wl, 0, SHOP_TOP, SCREEN_W, SCREEN_H - SHOP_TOP, SHOP_FOCUS - SHOP_TOP, SHOP_ROW);
     rw.wl.style = shelf_style;
     rw.awning = drawn_box(page, SHOP_AWN_Y, AWN_ROD + AWN_BAND + AWN_SCALLOP / 2 + 4, awning_draw);
+    shop_fade(page, 51, 354, 360, 112, 79, 199, false);   /* clear at 31 %, black from 78 % */
+    shop_fade(page, 31, 0, 400, 182, 145, 237, true);     /* black to 57 %, clear by 93 % */
     header_create(page, &rw.head);
     page_dots_create(page, 0);
     rw.empty = note_create(page, 230);
@@ -142,7 +179,7 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     plank(row, SHOP_PLANK + 12, 2, C_HILL, LV_OPA_COVER);
     bool enough = stars >= rd->cost, can = rd->state == REWARD_NONE && enough;
     lv_obj_t *ic = ui_icon(row, reward_icon(rd->icon), SHOP_ICON, C_TEXT);
-    lv_obj_set_pos(ic, SHOP_X_ICON, SHOP_PLANK - SHOP_ICON - 2);
+    lv_obj_set_pos(ic, SHOP_X_ICON, SHOP_Y_ICON);
     /* the price pill at the right end: the star and the number, or Asked */
     pill_t pl;
     pill_create(row, &pl);
@@ -158,28 +195,26 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     }
     lv_obj_update_layout(pl.root);
     int32_t end_x = SHOP_X_END - lv_obj_get_width(pl.root);
-    lv_obj_set_pos(pl.root, end_x, SHOP_MID - lv_obj_get_height(pl.root) / 2);
+    lv_obj_set_pos(pl.root, end_x, SHOP_Y_PILL);
     if (just) fx_pop(pl.root, 0);
-    /* the name, and under it how many more stars when there aren't enough yet */
+    /* the name (Item, two lines when it must), and under it how many more stars when there aren't
+     * enough yet (Fine 16): a 200 x 92 column, its words centred */
     lv_obj_t *words = ui_box(row);
-    lv_obj_set_size(words, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_size(words, SHOP_W_TEXT, 92);
+    lv_obj_set_pos(words, SHOP_X_TEXT, 0);
     lv_obj_set_flex_flow(words, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(words, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(words, 2, 0);
     lv_obj_t *name = ui_label(words, F_ITEM, C_TEXT, rd->title);
-    int32_t room = end_x - 12 - SHOP_X_TEXT;
-    /* the name at 24 on one line, or on two if they fit; a very long one at 20 on two (never cut off) */
-    lv_point_t sz;
-    lv_text_get_size(&sz, rd->title, F_ITEM, 0, UI_FIT_SPACE, room, LV_TEXT_FLAG_NONE);
-    bool two_big = sz.y <= 2 * lv_font_get_line_height(F_ITEM) + UI_FIT_SPACE;
-    ui_label_fit(name, F_ITEM, two_big ? F_ITEM : F_LABEL, room, 2);
+    int32_t room = end_x - 8 - SHOP_X_TEXT < SHOP_W_TEXT ? end_x - 8 - SHOP_X_TEXT : SHOP_W_TEXT;
+    ui_label_fit(name, F_ITEM, F_ITEM, room, 2);
     lv_obj_set_width(name, room);
     if (rd->state == REWARD_NONE && !enough) {
         char more[24];
         snprintf(more, sizeof more, "%d more star%s to go", rd->cost - stars, rd->cost - stars == 1 ? "" : "s");
-        ui_label(words, F_DETAIL, C_TEXT_MUTED, more);
+        lv_obj_t *m = ui_label(words, F_FINE, C_TEXT_MUTED, more);
+        lv_obj_set_width(m, room);
     }
-    lv_obj_update_layout(words);
-    lv_obj_set_pos(words, SHOP_X_TEXT, SHOP_MID - lv_obj_get_height(words) / 2);
 }
 
 void rewards_page_render(const day_plan_t *p, int stars, bool picture)
@@ -219,6 +254,7 @@ void rewards_page_parallax(float t)
 {
     int32_t back = (int32_t)lroundf(-t * SCREEN_W * 0.10f), front = (int32_t)lroundf(t * SCREEN_W * 0.08f);
     if (lv_obj_get_style_translate_x(rw.awning, 0) != back) lv_obj_set_style_translate_x(rw.awning, back, 0);
+    if (lv_obj_get_style_translate_x(rw.wall, 0) != back) lv_obj_set_style_translate_x(rw.wall, back, 0);
     if (lv_obj_get_style_translate_x(rw.head.root, 0) != front) lv_obj_set_style_translate_x(rw.head.root, front, 0);
 }
 

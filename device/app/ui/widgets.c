@@ -202,7 +202,7 @@ void pill_create(lv_obj_t *parent, pill_t *p)
     ui_style_card(p->root, C_SCREEN, LV_RADIUS_CIRCLE, 0, 0);
     lv_obj_set_style_pad_left(p->root, 12, 0);
     lv_obj_set_style_pad_right(p->root, 16, 0);
-    lv_obj_set_style_pad_ver(p->root, 2, 0);
+    lv_obj_set_style_pad_ver(p->root, 4, 0);   /* Figma Pill: space/4 */
     p->icon = ui_icon(p->root, "timer", 20, C_CALM);
     p->text = ui_label(p->root, F_PILL, C_CALM, "");
     p->tone = PILL_CALM;

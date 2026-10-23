@@ -86,6 +86,7 @@
 #define F_ITEM_BIG   (&font_pop600_32)   /* the picture view's row now (Today's schedule · Younger) */
 #define F_BODY_P     (&font_pop500_22)   /* Body 22 */
 #define F_DETAIL     (&font_pop500_20)   /* Detail 20: second lines, the smallest a child reads */
+#define F_FINE       (&font_pop500_16)   /* Fine 16: the shop's "14 more stars to go" (Figma Rewards · Shop v2) */
 #define F_BUTTON     (&font_pop700_22)   /* Button 22 */
 #define F_SPEECH     (&font_pop500_20)   /* Speech 20: Biscuit's bubble */
 #define F_LABEL      (&font_pop600_20)   /* Label 20: wheels, tabs, tiles */

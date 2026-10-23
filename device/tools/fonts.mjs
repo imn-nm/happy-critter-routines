@@ -31,7 +31,7 @@ const FONTS = [
   ['Montserrat-700.ttf', 'mon700', [26, 32], TEXT],
   ['Montserrat-600.ttf', 'mon600', [52], DIGITS],
   ['Montserrat-500.ttf', 'mon500', [21], TEXT],
-  ['Poppins-500.ttf', 'pop500', [18, 20, 22, 24], TEXT],
+  ['Poppins-500.ttf', 'pop500', [16, 18, 20, 22, 24], TEXT],
   ['Poppins-600.ttf', 'pop600', [20, 22, 24, 32], TEXT],
   ['Poppins-700.ttf', 'pop700', [22, 24, 30], TEXT],
   ['SpaceGrotesk-500.ttf', 'sg500', [22], TEXT],
