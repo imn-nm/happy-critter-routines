@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import TimeSelect from "@/components/TimeSelect";
+import DurationSelect from "@/components/DurationSelect";
 import { cn } from "@/lib/utils";
 import { ICON_OPTIONS, getTaskIconComponent } from "@/utils/taskIcon";
 import { type Task, type Subtask } from "@/types/Task";
@@ -22,7 +23,6 @@ import {
   Caption,
   ChoiceButton,
   SectionHeading,
-  SelectTile,
   SheetHeader,
   StarStepper,
   SwitchRow,
@@ -116,13 +116,6 @@ const fmtStartOf = (start: string, end: string) => {
   return sameHalf ? fmtTime(start).slice(0, -3) : fmtTime(start);
 };
 
-// One curated duration list instead of separate hour + minute dropdowns —
-// picking "45 min" directly beats composing it from two controls. Fine steps
-// where tasks actually live (5–60min), coarser above; 8h covers School's 7h.
-const DURATION_OPTIONS = [
-  5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60,
-  75, 90, 105, 120, 150, 180, 240, 300, 360, 420, 480,
-];
 /** Every task has a length; this is what a new one starts at. */
 const DEFAULT_DURATION_MINUTES = 30;
 
@@ -160,8 +153,18 @@ const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
 );
 
 const PickerLabel = ({ children }: { children: ReactNode }) => (
-  <p className="text-12 font-medium text-focus-muted mb-2">{children}</p>
+  <p className="text-12 font-medium text-focus-muted">{children}</p>
 );
+
+/** Every picker a lime part opens: one width, a label, the same spacing. */
+const Picker = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="flex w-[300px] max-w-full flex-col gap-2.5">
+    <PickerLabel>{label}</PickerLabel>
+    {children}
+  </div>
+);
+/** The choice buttons inside a picker. */
+const pickChoice = "rounded-[12px] px-1";
 
 /** Two-way switch at the top of the settings block: Set time | Floats. */
 function Segmented<T extends string>({ value, options, onChange, label }: {
@@ -714,9 +717,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   // === Pickers, each used by a tile and by the lime part of the summary ===
   const daysPicker = (
-    <div className="flex w-[280px] max-w-full flex-col gap-2.5">
+    <div className="flex w-[300px] max-w-full flex-col gap-2.5">
       <PickerLabel>Days</PickerLabel>
-      <div role="radiogroup" aria-label="One day or repeats" className="grid grid-cols-2 gap-2 -mt-1">
+      <div role="radiogroup" aria-label="One day or repeats" className="grid grid-cols-2 gap-1.5">
         <ChoiceButton selected={!repeats} onClick={chooseSingleDate} disabled={followsRoutine}>One day</ChoiceButton>
         <ChoiceButton selected={repeats} onClick={chooseRepeats}>Repeats</ChoiceButton>
       </div>
@@ -801,28 +804,17 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     setDuration(length);
   };
   const timePicker = (label: string, value: string, onChange: (v: string) => void) => (
-    <>
-      <PickerLabel>{label}</PickerLabel>
+    <Picker label={label}>
       <TimeSelect value={value} onChange={onChange} stepMinutes={5} />
-    </>
+    </Picker>
   );
-  const durationValues = DURATION_OPTIONS.includes(durationTotal)
-    ? DURATION_OPTIONS
-    : [...DURATION_OPTIONS, durationTotal].sort((a, b) => a - b);
   const lengthPicker = (
-    <div className="w-[264px] max-w-full">
-      <PickerLabel>Length</PickerLabel>
-      <div className="grid max-h-64 grid-cols-3 gap-1.5 overflow-y-auto">
-        {durationValues.map(m => (
-          <ChoiceButton key={m} selected={m === durationTotal} onClick={() => setDuration(m)} className="rounded-[10px] px-1">
-            {fmtLen(m)}
-          </ChoiceButton>
-        ))}
-      </div>
-    </div>
+    <Picker label="How long">
+      <DurationSelect value={durationTotal} onChange={setDuration} />
+    </Picker>
   );
   const placePicker = (
-    <div className="flex w-[264px] max-w-full flex-col gap-1.5">
+    <div className="flex w-[300px] max-w-full flex-col gap-1.5">
       <PickerLabel>Where it goes</PickerLabel>
       <ChoiceButton selected={!anchor} onClick={() => setFormData({ ...formData, afterTaskId: '' })} className="rounded-[12px] justify-start px-3">
         Wherever there's room
@@ -872,7 +864,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     </div>
   );
   const dayPicker = (
-    <div className="flex w-[300px] max-w-full flex-col gap-2">
+    <div className="flex w-[300px] max-w-full flex-col gap-2.5">
       <PickerLabel>{word === 'before' ? 'Before what?' : 'After what?'} Tap it on their day</PickerLabel>
       <div className="flex max-h-[min(22rem,55vh)] flex-col gap-1.5 overflow-y-auto pr-0.5">
         {shownRows.map((r, i) => {
@@ -899,7 +891,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                     onClick={() => (word === 'before' ? putBefore(r.taskId!, r.start) : putAfter(r.taskId!, r.end))}
                     className={cn(
                       "min-h-10 flex-1 min-w-0 flex items-center justify-between gap-2 rounded-[10px] bg-focus-surface px-3 text-left hover:enabled:bg-focus-raised disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
-                      tieRow === i && "ring-[1.5px] ring-focus-lime",
+                      tieRow === i && "ring-2 ring-focus-lavender",
                     )}
                     aria-label={`${word === 'before' ? 'Before' : 'After'} ${r.name}`}
                   >
@@ -939,39 +931,22 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       mode: isEvent ? 'task' : formData.mode,
     });
   };
-  const WORDS: { value: TieWord; caption: string }[] = [
-    { value: 'after', caption: 'Starts when something ends, and moves with it' },
-    { value: 'before', caption: 'Ends when something starts, and moves with it' },
-    { value: 'at', caption: 'Starts and ends at a set time' },
-  ];
+  const WORDS: TieWord[] = ['after', 'before', 'at'];
   const wordPicker = (
-    <div role="radiogroup" aria-label="After, before or at" className="flex w-[300px] max-w-full flex-col gap-1.5">
-      {WORDS.map(w => {
-        const on = word === w.value;
-        return (
-          <button
-            key={w.value}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => chooseWord(w.value)}
-            className={cn(
-              "flex min-h-11 flex-col items-start gap-0.5 rounded-[12px] px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
-              on ? "bg-focus-lime/10 ring-[1.5px] ring-focus-lime" : "bg-focus-surface hover:bg-focus-raised",
-            )}
-          >
-            <span className={cn("text-[17px] font-semibold leading-[22px]", on ? "text-focus-lime" : "text-focus-text")}>{w.value}</span>
-            <span className="text-12 leading-4 text-focus-muted">{w.caption}</span>
-          </button>
-        );
-      })}
-    </div>
+    <Picker label="When">
+      <div role="radiogroup" aria-label="After, before or at" className="grid grid-cols-3 gap-1.5">
+        {WORDS.map(w => (
+          <ChoiceButton key={w} selected={word === w} onClick={() => chooseWord(w)} className={pickChoice}>
+            {w}
+          </ChoiceButton>
+        ))}
+      </div>
+    </Picker>
   );
   const prepPicker = (
-    <div className="w-[240px] max-w-full">
-      <PickerLabel>Time to get ready</PickerLabel>
+    <Picker label="Time to get ready">
       <div className="grid grid-cols-3 gap-1.5">
-        <ChoiceButton selected={!formData.getReady} onClick={() => setFormData({ ...formData, getReady: false })} className="rounded-[10px] px-1">
+        <ChoiceButton selected={!formData.getReady} onClick={() => setFormData({ ...formData, getReady: false })} className={pickChoice}>
           None
         </ChoiceButton>
         {(PREP_OPTIONS.includes(formData.prepMinutes) ? PREP_OPTIONS : [...PREP_OPTIONS, formData.prepMinutes].sort((a, b) => a - b)).map(m => (
@@ -979,19 +954,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
             key={m}
             selected={formData.getReady && formData.prepMinutes === m}
             onClick={() => setFormData({ ...formData, getReady: true, prepMinutes: m })}
-            className="rounded-[10px] px-1"
+            className={pickChoice}
           >
             {fmtLen(m)}
           </ChoiceButton>
         ))}
       </div>
-    </div>
+    </Picker>
   );
   const starsPicker = (
-    <div className="w-[240px] max-w-full">
-      <PickerLabel>Stars you give when it's done</PickerLabel>
+    <Picker label="Stars you give when it's done">
       <StarStepper value={coinCount} onChange={setCoins} max={MAX_STARS} />
-    </div>
+    </Picker>
   );
   const mustFinishRow = (id = "mustFinish") => (
     <SwitchRow
@@ -1035,16 +1009,15 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     <SummaryPart
       label={`${typeOptions.find(o => o.value === taskType)!.label}. Change`}
       picker={(
-        <div className="w-[280px] max-w-full">
-          <PickerLabel>Is it something they</PickerLabel>
+        <Picker label="Is it something they">
           <div role="radiogroup" aria-label="Type" className="grid grid-cols-3 gap-1.5">
             {typeOptions.map(o => (
-              <ChoiceButton key={o.value} selected={taskType === o.value} onClick={() => setType(o.value)} className="rounded-[10px] px-1">
+              <ChoiceButton key={o.value} selected={taskType === o.value} onClick={() => setType(o.value)} className={pickChoice}>
                 {o.label}
               </ChoiceButton>
             ))}
           </div>
-        </div>
+        </Picker>
       )}
     >
       {isWants ? 'wants to' : 'needs to'}
@@ -1063,8 +1036,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       open={whatOpen}
       onOpenChange={setWhatOpen}
       picker={(
-        <div className="flex w-[280px] max-w-full flex-col gap-2">
-          <PickerLabel>What do they do?</PickerLabel>
+        <Picker label="What do they do?">
           <input
             autoFocus
             value={whatText}
@@ -1085,14 +1057,14 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   key={p.label}
                   type="button"
                   onClick={() => { setWhat(p.phrase, p.label); setWhatOpen(false); }}
-                  className={choiceClass(p.label === name, "h-9 rounded-full px-3 text-13")}
+                  className={choiceClass(p.label === name, "rounded-full px-3")}
                 >
                   {p.phrase}
                 </button>
               ))}
             </div>
           )}
-        </div>
+        </Picker>
       )}
     >
       {name ? (knownPhrase(name) ?? (whatText.trim() || phraseFor(name))) : <Blank>what</Blank>}
@@ -1107,10 +1079,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           {lead}{' '}
           {formData.choreAnytime ? (
             <SummaryPart label="Any time. Change" picker={(
-              <div className="w-[240px] max-w-full">
-                <PickerLabel>When</PickerLabel>
-                <Segmented value="any" label="When" options={[{ value: 'any', label: 'Any time' }, { value: 'between', label: 'Between' }]} onChange={(v) => setFormData({ ...formData, choreAnytime: v === 'any' })} />
-              </div>
+              <Picker label="When">
+                <div role="radiogroup" aria-label="When" className="grid grid-cols-2 gap-1.5">
+                  <ChoiceButton selected onClick={() => setFormData({ ...formData, choreAnytime: true })} className={pickChoice}>Any time</ChoiceButton>
+                  <ChoiceButton selected={false} onClick={() => setFormData({ ...formData, choreAnytime: false })} className={pickChoice}>Between</ChoiceButton>
+                </div>
+              </Picker>
             )}>any time</SummaryPart>
           ) : (
             <>
@@ -1146,8 +1120,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     }
     const rules: ReactNode[] = [];
     if (!isSystemEvent && !isEvent) {
-      const done = <SummaryPart label="Must press Done. Change" picker={mustFinishRow("mustFinishPart")}>must press Done</SummaryPart>;
-      const startTap = <SummaryPart label="Waits for their Start tap. Change" picker={startTapRow("needsStartPart")}>their Start tap</SummaryPart>;
+      const done = <SummaryPart label="Must press Done. Change" picker={<Picker label="When it's done">{mustFinishRow("mustFinishPart")}</Picker>}>must press Done</SummaryPart>;
+      const startTap = <SummaryPart label="Waits for their Start tap. Change" picker={<Picker label="When it starts">{startTapRow("needsStartPart")}</Picker>}>their Start tap</SummaryPart>;
       if (mustFinish) {
         rules.push(formData.needsStart
           ? <Fragment key="must"> It waits for {startTap}, and they {done} to mark it complete.</Fragment>
@@ -1249,14 +1223,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const startsTile = <TimeTile label="Starts" value={formData.scheduledTime} onChange={setStart} className={blockTile} />;
   const endsTile = <TimeTile label="Ends" value={badEnd ?? endTime} onChange={setEnd} className={blockTile} />;
   const lengthTile = (
-    <SelectTile
-      label="Length"
-      value={String(durationTotal)}
-      display={fmtLen(durationTotal)}
-      onChange={(v) => setDuration(parseInt(v))}
-      options={durationValues.map(m => ({ value: String(m), label: fmtLen(m) }))}
-      className={blockTile}
-    />
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={cn(tileClass, blockTile)} aria-label={`Length: ${fmtLen(durationTotal)}`}>
+          <TileText label="Length" value={fmtLen(durationTotal)} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+        {lengthPicker}
+      </PopoverContent>
+    </Popover>
   );
 
   const noun = isChore ? 'To-do' : isEvent ? 'Event' : 'Task';
@@ -1474,7 +1450,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   {coinCount > 0 ? `Stars · ${coinCount}` : 'Stars'}
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-auto p-3 bg-focus-sheet border-focus-raised">
+              <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
                 {starsPicker}
               </PopoverContent>
             </Popover>
