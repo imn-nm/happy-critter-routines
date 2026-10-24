@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import RewardsManagement from "@/components/RewardsManagement";
 import TimelineScheduleView from "@/components/TimelineScheduleView";
 import TimelineHeader from "@/components/TimelineHeader";
-import TaskForm from "@/components/TaskForm";
+import TaskForm, { type DayRow } from "@/components/TaskForm";
 import RoutinesDialog from "@/components/RoutinesDialog";
 import CopyToChildDialog from "@/components/CopyToChildDialog";
 import { syncSchoolRoutines, useRoutines } from "@/hooks/useRoutines";
@@ -59,6 +59,8 @@ const ChildDashboard = () => {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [prefillTime, setPrefillTime] = useState<string | undefined>(undefined);
+  // The day as the timeline lays it out, for the sheet's "when" picker.
+  const [dayRows, setDayRows] = useState<DayRow[]>([]);
   // A new item from the To-do tray's "+ Add" opens the sheet as a to-do.
   const [newAs, setNewAs] = useState<'task' | 'chore'>('task');
   const [currentDate, setCurrentDate] = useState(getPSTDate());
@@ -128,11 +130,9 @@ const ChildDashboard = () => {
     // Guard against accidental event/object args from `onClick={handleAddTask}`
     const safeTime = typeof time === 'string' ? time : undefined;
     setEditingTask(null);
-    // Opened from the generic button rather than a specific gap: show the slot
-    // the task would land in anyway, so the parent can see and change it
-    // instead of discovering it after saving. When adding to today that slot
-    // starts at the current time — never a gap that has already passed.
-    setPrefillTime(safeTime ?? suggestSlot(format(currentDate, 'yyyy-MM-dd'), DEFAULT_SLOT_MINUTES));
+    // From the "Add Task" button the sheet's "when" starts blank; from a free
+    // gap it starts there, hanging off the row before it.
+    setPrefillTime(safeTime);
     setNewAs('task');
     setShowTaskForm(true);
   };
@@ -946,6 +946,7 @@ const ChildDashboard = () => {
                   onTaskTimeUpdate={handleTaskTimeUpdate}
                   onAddTodo={handleAddTodo}
                   todoTrayOffset={BOTTOM_BAR_HEIGHT}
+                  onDayRows={setDayRows}
                 />
               )}
             </div>
@@ -1164,6 +1165,8 @@ const ChildDashboard = () => {
             prefillTime={prefillTime}
             otherChildren={children.filter(c => c.id !== childId).map(c => ({ id: c.id, name: c.name }))}
             anchorOptions={anchorOptions}
+            childName={child?.name}
+            dayRows={dayRows}
             routines={routines}
             schoolDays={child?.school_days}
             builtInRunsOn={(name, date) => {

@@ -18,6 +18,7 @@ import { isBedtimeRoutine, tieDay } from '@/utils/dayTies';
 import { findScheduleConflicts } from '@/utils/scheduleOverlap';
 import { resolveDropStart, OccupiedBlock } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
+import type { DayRow } from "@/components/TaskForm";
 import { prepMinutes } from '@/utils/eventWindow';
 import { getTaskIcon } from '@/utils/taskIcon';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
@@ -121,6 +122,8 @@ interface TimelineScheduleViewProps {
    * elsewhere (e.g. inside an iris-tinted panel).
    */
   hideHeader?: boolean;
+  /** The day as laid out here (tasks and free time), for the add-task sheet's "when". */
+  onDayRows?: (rows: DayRow[]) => void;
 }
 
 interface TimelineEvent {
@@ -143,6 +146,8 @@ interface TimelineEvent {
   starsGiven?: number;
   /** Has a set time on this day (a task made "whenever there is room" for one day is not). */
   pinned?: boolean;
+  /** The row it hangs off ("after Lunch"), when it has one. */
+  afterName?: string;
 }
 
 // System events are now managed in the database via the systemTasks utility
@@ -559,7 +564,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           if (event.name === 'Bedtime') {
             metaParts.push('Lights Out');
           } else if (floats) {
-            metaParts.push(formatDuration(event.duration), 'floats');
+            metaParts.push(formatDuration(event.duration));
+            // Hangs off another row ("after Lunch") or just floats.
+            metaParts.push(event.afterName ? `after ${event.afterName}` : 'floats');
             if (isDraggable) metaParts.push('drag to move');
           } else {
             metaParts.push(formatRange(event.time, event.duration));
@@ -584,9 +591,9 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           ) : isOverdueImportant && !event.isCompleted ? (
             <span className={cn(chipClass, "bg-focus-coral/20 text-focus-coral")}>Overdue</span>
           ) : event.isCompleted ? null : mustFinish ? (
-            <span className={cn(chipClass, "bg-focus-lime/20 text-focus-lime")}>Must finish</span>
+            <span className={cn(chipClass, "bg-focus-lime/20 text-focus-lime")}>Press Done</span>
           ) : canShrink ? (
-            <span className={cn(chipClass, "bg-focus-mint/20 text-focus-mint")}>Can shrink</span>
+            <span className={cn(chipClass, "bg-focus-mint/20 text-focus-mint")}>Wants to</span>
           ) : null;
 
           const actionButton = (() => {
@@ -886,6 +893,7 @@ const TimelineScheduleView = ({
   onAddTodo,
   todoTrayOffset = 0,
   hideHeader = false,
+  onDayRows,
 }: TimelineScheduleViewProps) => {
   const [currentWeek, setCurrentWeek] = useState(getPSTDate());
   const [selectedDay, setSelectedDay] = useState(currentDate);
@@ -1389,6 +1397,7 @@ const TimelineScheduleView = ({
       task: task,
       // Set time today? A task made "whenever there is room" for the day moves freely.
       pinned: !!task.scheduled_time && !task.date_overrides?.[selectedDayDateString]?.anytime,
+      afterName: task.after_task_id ? tasksWithCompletion.find(o => o.id === task.after_task_id)?.name : undefined,
       coins: task.coins,
       isCompleted,
       isLate: false,
@@ -1483,6 +1492,22 @@ const TimelineScheduleView = ({
   };
 
   const allEvents = createEmptyTimeBlocks(sortedEvents);
+
+  // Hand the laid-out day to the host, for the sheet's "when" picker.
+  const dayRows: DayRow[] = allEvents
+    .filter(e => e.type !== 'prep')
+    .map(e => {
+      const [h, m] = e.time.split(':').map(Number);
+      const start = h * 60 + m;
+      return e.type === 'gap'
+        ? { id: e.id, name: e.name, start, end: start + e.duration, gap: true }
+        : { id: e.id, taskId: e.task?.id ?? e.id, name: e.name, start, end: start + e.duration };
+    });
+  const dayRowsKey = JSON.stringify(dayRows);
+  useEffect(() => {
+    onDayRows?.(JSON.parse(dayRowsKey));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayRowsKey]);
 
   // Where the current-time marker sits (today only). Inside a row that's
   // running now (8:58 during an 8:00–3:00 School) it's drawn across that
