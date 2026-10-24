@@ -19,6 +19,9 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms);
  * Full tilt (1.0) is MOTION_TILT_FULL_G of gravity, about 30 degrees. Measured from level, which is
  * lying flat until motion_level() says otherwise. */
 void motion_tilt(float *x, float *y);
+/* Real gravity across the screen, in g, never levelled: which way a ball on the glass would roll
+ * (x right, y down). Flat on a table it is 0; held up like a phone, y is near 1. */
+void motion_fall(float *x, float *y);
 /* How far from level, in g (0 = level). */
 float motion_lean(void);
 /* However it is held now counts as level (a child holds it tipped towards them, not flat): a game

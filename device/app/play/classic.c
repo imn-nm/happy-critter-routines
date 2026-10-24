@@ -1506,7 +1506,8 @@ static void mz_tap(void)
 static const float RL_WALL[RL_WALLS] = { 36, 63, 90, 117, 144, 171 };
 static const float RL_COR[RL_PATHS] = { 49.5f, 76.5f, 103.5f, 130.5f, 157.5f };
 #define RL_BALL 7.0f
-#define RL_G 700.0f          /* px/s² at a full tip */
+#define RL_G 700.0f          /* px/s² at a 30 degree tip (twice that held upright) */
+#define RL_FLAT_G 0.04f      /* under this (about 2 degrees) it lies flat */
 #define RL_DAMP 0.4f         /* how fast it slows by itself, per second: a heavy ball keeps rolling */
 #define RL_VMAX 300.0f
 #define RL_BOUNCE 0.4f       /* how much of its speed a wall gives back */
@@ -1663,8 +1664,13 @@ static void rl_update(float dt)
         cl.msg_until = cl.t + 700;
         rl_inv_clock();
     }
+    /* real gravity, as a wooden marble maze has: not levelled at the start, so held up like a phone
+     * the ball falls to the bottom, and turning MyToki round steers it (user, 2026-10-23) */
     float tx, ty;
-    motion_tilt(&tx, &ty);
+    motion_fall(&tx, &ty);
+    if (hypotf(tx, ty) < RL_FLAT_G) tx = ty = 0;   /* a table that's nearly level */
+    tx /= MOTION_TILT_FULL_G;
+    ty /= MOTION_TILT_FULL_G;
     if (cl.state == ST_READY && tx * tx + ty * ty > 0.06f) cl.state = ST_PLAY;   /* a tip starts it */
     if (cl.state != ST_PLAY) { rl_inv(); return; }
     rl.time += dt;

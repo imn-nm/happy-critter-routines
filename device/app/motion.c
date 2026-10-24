@@ -128,6 +128,12 @@ void motion_tilt(float *x, float *y)
     if (y) *y = ty;
 }
 
+void motion_fall(float *x, float *y)
+{
+    if (x) *x = -m.gx;
+    if (y) *y = m.gy;
+}
+
 float motion_lean(void)
 {
     float px, py;
