@@ -1928,6 +1928,14 @@ void classic_stop(void)
     if (cl.obj) lv_obj_add_flag(cl.obj, LV_OBJ_FLAG_HIDDEN);
 }
 
+void classic_set_paused(bool paused)
+{
+    if (!cl.timer) return;
+    if (paused) { lv_timer_pause(cl.timer); return; }
+    cl.last_ms = lv_tick_get();   /* the dark doesn't count as a frame */
+    lv_timer_resume(cl.timer);
+}
+
 bool classic_running(void) { return cl.running; }
 classic_id_t classic_current(void) { return cl.id; }
 bool classic_wide(void) { return cl.running && (cl.id == CL_MAZE || cl.id == CL_ROLL); }

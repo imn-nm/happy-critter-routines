@@ -71,6 +71,9 @@ bool hal_docked(void);
  * web app). hal_screen turns it off, and stops drawing, or back on; on, it lights up once the
  * screen is redrawn, at the brightness last asked for. */
 bool hal_screen_sleeps(void);
+/* The panel is an OLED, which keeps a faint ghost of anything left in one place for hours (the
+ * board; not the simulator or the web app): MyToki moves the whole picture a few pixels now and then. */
+bool hal_oled(void);
 void hal_screen(bool on);
 
 /* Battery charge, 0-100 (100 when the platform can't tell). */

@@ -10,6 +10,8 @@ static struct {
     uint32_t last_ms;        /* when the last sample arrived; 0 = never */
     uint32_t still_ms;
     uint32_t rest_ms;
+    bool marked;
+    uint32_t turn_ms, lift_ms;   /* since motion_mark: turned past MOTION_TURN_G, moving past MOTION_PICKUP_G */
     uint32_t face_down_ms;
     uint32_t tap_pending_ms; /* a spike seen, waiting for it to settle */
     uint32_t tap_last_ms;
@@ -100,6 +102,14 @@ void motion_push(float ax, float ay, float az, uint32_t now_ms)
 
     if (m.gz < MOTION_FACE_DOWN_G) m.face_down_ms += dt;
     else m.face_down_ms = 0;
+
+    if (m.marked) {
+        if (motion_turned() > MOTION_TURN_G) m.turn_ms += dt;
+        else m.turn_ms = 0;
+        /* a lift lets up for a sample now and then: it leaks away as fast as it builds */
+        if (e > MOTION_PICKUP_G) m.lift_ms += dt;
+        else m.lift_ms = m.lift_ms > dt ? m.lift_ms - dt : 0;
+    }
 }
 
 void motion_tilt(float *x, float *y)
@@ -142,6 +152,13 @@ void motion_mark(void)
     float n = sqrtf(m.gx * m.gx + m.gy * m.gy + m.gz * m.gz);
     if (n < 0.5f) n = 1;
     m.mx = m.gx / n; m.my = m.gy / n; m.mz = m.gz / n;
+    m.marked = true;
+    m.turn_ms = m.lift_ms = 0;
+}
+
+bool motion_picked_up(void)
+{
+    return m.marked && (m.turn_ms >= MOTION_TURN_HOLD_MS || m.lift_ms >= MOTION_PICKUP_MS);
 }
 
 float motion_turned(void)

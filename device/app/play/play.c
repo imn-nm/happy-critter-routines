@@ -8,6 +8,7 @@
 #include "../ui/widgets.h"
 #include "../ui/swipe.h"
 #include "../mytoki.h"
+#include "../motion.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -686,6 +687,15 @@ static void step(lv_timer_t *t)
     game_update(STEP_MS);
     game_controls();
     draw_stage();
+}
+
+void play_set_paused(bool paused)
+{
+    if (!pl.root || !pl.timer_obj) return;
+    if (paused) lv_timer_pause(pl.timer_obj);
+    else lv_timer_resume(pl.timer_obj);
+    if (pl.classic) classic_set_paused(paused);
+    if (!paused && pl.in_game) motion_level();   /* picked up again: however it's held now is level */
 }
 
 void play_set_time_total(int32_t s) { if (pl.root && s > pl.total) { pl.total = s; play_set_time_left(pl.left); } }

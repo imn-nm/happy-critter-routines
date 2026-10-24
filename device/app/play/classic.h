@@ -18,6 +18,8 @@ lv_obj_t *classic_create(lv_obj_t *parent);
 void classic_start(classic_id_t id);
 /* The game stops (its timer goes); the surface hides. */
 void classic_stop(void);
+/* Held still while the screen is dark; back, it carries on with no jump. */
+void classic_set_paused(bool paused);
 bool classic_running(void);
 classic_id_t classic_current(void);
 /* What the status pill shows (icon, words); false: no pill (the game draws its own, or none now). */

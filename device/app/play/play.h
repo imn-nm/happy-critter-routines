@@ -28,6 +28,9 @@ bool play_in_menu(void);
 /* A game is being played (not the menu, My pet or the goodbye). */
 bool play_in_game(void);
 void play_close(void);
+/* The screen went off (true) or came back (false): the game holds still in the dark, and carries on
+ * level with however MyToki is held when it comes back. Play time keeps counting. */
+void play_set_paused(bool paused);
 /* The hardware button while a game is on (back to the menu; Biscuit says mid-round: "Button") or
  * the goodbye / My pet is showing (close). */
 void play_button(void);

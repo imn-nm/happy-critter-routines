@@ -247,6 +247,7 @@ void hal_set_brightness(uint8_t percent)
     if (!screen_dark) bsp_display_brightness_set(bright_want);
 }
 bool hal_screen_sleeps(void) { return true; }
+bool hal_oled(void) { return true; }
 static void screen_drawn(lv_event_t *e)
 {
     (void)e;

@@ -124,10 +124,12 @@ static struct {
     /* the screen off when put down */
     bool screen_off, sleep_test;
     uint32_t touch_ms, awake_ms;    /* the last touch or press; the screen last came on */
+    int shift, shift_min;           /* burn-in: where the picture sits now (SHIFT), the minute it last moved */
     lv_obj_t *wake_catcher;         /* over everything while it's off: the touch that wakes it does nothing else */
 } app;
 
 static void screen_wake(void);
+static void pixel_shift(bool now);
 static void screen_init(void);
 
 /* ---- a task's steps: checked in any order, and unchecked again ---- */
@@ -1670,6 +1672,7 @@ static void tick(lv_timer_t *timer)
     snprintf(app.today, sizeof app.today, "%04d-%02d-%02d", app.t.year, app.t.month, app.t.day);
     app.now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
     ui_set_clock(app.now_s / 60);
+    if (app.now_s / 60 != app.shift_min) { app.shift_min = app.now_s / 60; pixel_shift(false); }
 
     if (app.hello_until && (int32_t)(now_ms() - app.hello_until) >= 0) {
         app.hello_until = 0;
@@ -1869,6 +1872,9 @@ void mytoki_start(void)
     lv_obj_t *scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, COL(C_INK), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    /* under the screen: the sliver the burn-in shift uncovers at the edge */
+    lv_obj_set_style_bg_color(lv_layer_bottom(), COL(C_INK), 0);
+    lv_obj_set_style_bg_opa(lv_layer_bottom(), LV_OPA_COVER, 0);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     app.carousel = ui_box(scr);
@@ -2038,14 +2044,32 @@ void mytoki_day_failed(int reason)
 
 /* ================================================================ the screen off when put down */
 /* Completely still for 10 s at any angle (on a table, propped up), untouched, the screen goes off
- * (held in a hand, however steadily, it stays on: a hand trembles); picked up, tipped or turned, the
- * button or a touch brings it back, and that touch or press does nothing else. It stays on on the
- * dock (the night clock), while the alarm rings, in Playtime, and without a motion sensor. */
+ * (held in a hand, however steadily, it stays on: a hand trembles); picked up (turned and held there,
+ * or lifted: a bump or a little jerk is not enough), the button or a touch brings it back, and that
+ * touch or press does nothing else. The same everywhere:
+ * plugged in or on the dock, while the alarm rings (it goes on ringing in the dark) and in Playtime
+ * (the game waits) (user, 2026-10-23). Only without a motion sensor does it stay on. */
+/* Burn-in: an OLED keeps a ghost of what stays in one place for hours (the clock, the pills, the
+ * rim). The whole picture moves 3 px every minute round a small square (never under a finger), and
+ * again each time the screen comes back on. Together with the screen going off when put down, no
+ * pixel holds the same thing for long. */
+#define SHIFT_PX 3
+static const int8_t SHIFT[9][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } };
+
+static void pixel_shift(bool now)
+{
+    if (!hal_oled() || app.screen_off) return;
+    if (!now && now_ms() - app.touch_ms < 3000) return;   /* mid-touch: the next minute */
+    app.shift = (app.shift + 1) % 9;
+    int32_t x = SHIFT[app.shift][0] * SHIFT_PX, y = SHIFT[app.shift][1] * SHIFT_PX;
+    lv_obj_set_pos(lv_screen_active(), x, y);
+    lv_obj_set_pos(lv_layer_top(), x, y);
+}
+
 static bool may_sleep(void)
 {
     if (!hal_screen_sleeps() && !app.sleep_test) return false;
-    if (!motion_alive(now_ms()) || hal_docked() || play_is_open()) return false;
-    return app.state != ST_ALARM && app.state != ST_SNOOZE && app.state != ST_IM_UP;
+    return motion_alive(now_ms());
 }
 
 static void screen_wake(void)
@@ -2058,6 +2082,8 @@ static void screen_wake(void)
     if (!in || lv_indev_get_active_obj() != app.wake_catcher) ui_show(app.wake_catcher, false);
     pet_freeze_all(false);
     lv_timer_resume(lv_anim_get_timer());
+    play_set_paused(false);   /* the game carries on from where it was, level as it's held now */
+    pixel_shift(true);        /* it comes back a few pixels over: it redraws everything anyway */
     hal_screen(true);
     app.brightness = 0;   /* straight to the right brightness, no fade up */
     brightness();
@@ -2074,6 +2100,7 @@ static void screen_sleep(void)
      * chip can sleep between the clock's ticks */
     pet_freeze_all(true);
     lv_timer_pause(lv_anim_get_timer());
+    play_set_paused(true);   /* a game waits in the dark: no snack lost, no round over */
     hal_screen(false);
 }
 
@@ -2081,7 +2108,7 @@ static void screen_watch(void)
 {
     uint32_t now = now_ms();
     if (app.screen_off) {
-        if (motion_energy() > MOTION_PICKUP_G || motion_turned() > MOTION_TURN_G || !may_sleep()) screen_wake();
+        if (motion_picked_up() || !may_sleep()) screen_wake();
         else if (lv_obj_get_index(app.wake_catcher) != (int32_t)lv_obj_get_child_count(lv_layer_top()) - 1)
             lv_obj_move_foreground(app.wake_catcher);   /* still over anything that opened meanwhile */
         return;

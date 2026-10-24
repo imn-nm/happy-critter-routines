@@ -36,10 +36,14 @@ uint32_t motion_still_ms(void);
  * A hand trembles more than MOTION_REST_G, so holding it, however steadily, doesn't count. */
 uint32_t motion_rest_ms(void);
 /* Remember which way up it lies now; motion_turned() is then how far it has turned since, in g
- * (the change in gravity's direction: MOTION_TURN_G is about 8 degrees). */
+ * (the change in gravity's direction: MOTION_TURN_G is about 17 degrees). */
 void motion_mark(void);
 float motion_turned(void);
-/* The last sample's movement, in g (gravity taken out): a pickup is well over MOTION_PICKUP_G. */
+/* Picked up, not just jolted (a bump of the table, a little jerk): since motion_mark, turned past
+ * MOTION_TURN_G and kept there for MOTION_TURN_HOLD_MS, or moving harder than MOTION_PICKUP_G for
+ * about MOTION_PICKUP_MS (a jolt is over in a sample or two). */
+bool motion_picked_up(void);
+/* The last sample's movement, in g (gravity taken out). */
 float motion_energy(void);
 /* Screen facing down. */
 bool motion_face_down(void);
@@ -59,8 +63,10 @@ void motion_reset(void);
 #define MOTION_TAP_GAP_MS 200        /* two knocks closer than this count once */
 #define MOTION_STILL_G 0.08f         /* quiet threshold */
 #define MOTION_REST_G 0.015f         /* put down: under a hand's tremble, over the sensor's own noise */
-#define MOTION_TURN_G 0.14f          /* turned this far from where it was put down (about 8 degrees): picked up */
-#define MOTION_PICKUP_G 0.06f        /* picked up (or the table knocked) */
+#define MOTION_TURN_G 0.30f          /* turned this far from where it was put down (about 17 degrees)... */
+#define MOTION_TURN_HOLD_MS 150      /* ...and kept there: picked up (8 degrees woke it at a jerk, user 2026-10-23) */
+#define MOTION_PICKUP_G 0.15f        /* moving this hard... */
+#define MOTION_PICKUP_MS 200         /* ...for this long: picked up (one sample over 0.06 g did, a table bumped) */
 #define MOTION_FACE_DOWN_G -0.5f
 #define MOTION_DT_MIN_MS 4
 #define MOTION_DT_MAX_MS 100
