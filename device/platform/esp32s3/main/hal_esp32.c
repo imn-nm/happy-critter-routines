@@ -190,6 +190,24 @@ static volatile bool bat_plugged;
 
 static bool axp_read(uint8_t reg, uint8_t *v) { return i2c_master_transmit_receive(axp, &reg, 1, v, 1, 50) == ESP_OK; }
 
+/* Plugged in (the dock, a cable), the chip doesn't light-sleep: power doesn't matter then, and a
+ * computer's USB port that goes idle let it sleep and stop answering (flashing failed until the
+ * board was unplugged). The screen still goes dark as usual. */
+static void plugged_hold(bool vbus)
+{
+#if CONFIG_PM_ENABLE
+    static esp_pm_lock_handle_t lock;
+    static bool held;
+    if (!lock && esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "mytoki-plugged", &lock) != ESP_OK) return;
+    if (vbus == held) return;
+    if (vbus) esp_pm_lock_acquire(lock);
+    else esp_pm_lock_release(lock);
+    held = vbus;
+#else
+    (void)vbus;
+#endif
+}
+
 static void power_poll(void)
 {
     static int64_t next_us;
@@ -218,6 +236,7 @@ static void power_poll(void)
     if (!axp_read(AXP_STATUS1, &s1)) return;
     bool battery = s1 & 0x08;
     bat_plugged = battery && (s1 & 0x20);
+    plugged_hold(s1 & 0x20);
     if (!battery) bat_percent = 100;
     else if (axp_read(AXP_BAT_PERCENT, &pct) && pct <= 100) bat_percent = pct;
     static bool told;
