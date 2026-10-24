@@ -122,6 +122,8 @@ void ring_set_wave(lv_obj_t *ring, bool wave, int8_t drift);
 
 /* ---- the lime arc at 1 o'clock: the housing's button does something now (the alarm's I'm up, Playtime) ---- */
 lv_obj_t *cue_create(lv_obj_t *parent);
+/* The screen went dark (true) or came back: the widgets' own timers stop and start. */
+void ui_widget_timers_pause(bool paused);
 void cue_set(lv_obj_t *cue, uint8_t ring, bool dark);
 
 /* ---- Side nav: Rewards (left) and Chores (right), 54 px at (24, 206) and (388, 206) ---- */

@@ -55,6 +55,7 @@ static struct {
     lv_obj_t *worm_ring, *worm_icon;
     char worm_icon_name[20];
     lv_timer_t *worm_timer;
+    bool worm_on, dark, cue_on, stars_on;   /* the endless animations, run only while they show */
     char title_sig[48];
     home_graphic_t graphic;
     int16_t pet_dim;          /* the look last given to the pet (-1: none yet) */
@@ -167,6 +168,68 @@ static void twinkle_exec(void *obj, int32_t v)
 {
     lv_obj_set_style_image_opa(obj, (lv_opa_t)v, 0);
     lv_image_set_scale(obj, (uint32_t)(150 + v * 130 / 255));
+}
+
+/* The stars about Biscuit when he can be tapped, each in its own time. */
+static const struct { int16_t deg, size; uint16_t ms, delay; } STARS[] = {
+    { 210, 16, 900, 0 }, { 236, 12, 700, 350 }, { 304, 14, 800, 600 },
+    { 330, 18, 1000, 150 }, { 150, 12, 750, 800 }, { 30, 16, 850, 450 },
+};
+
+/* The endless little animations (the cue's breath, the stars, the worm) run only while they show
+ * and the screen is on: one running keeps LVGL's animation timer, and the chip, awake every frame. */
+static void cue_breathe(bool on)
+{
+    if (on == h.cue_on) return;
+    h.cue_on = on;
+    lv_anim_delete(h.cue, ring_opa);
+    lv_obj_set_style_opa(h.cue, LV_OPA_COVER, 0);
+    if (!on) return;
+    lv_anim_t ca;
+    lv_anim_init(&ca);
+    lv_anim_set_var(&ca, h.cue);
+    lv_anim_set_exec_cb(&ca, ring_opa);
+    lv_anim_set_values(&ca, 255, 110);
+    lv_anim_set_duration(&ca, 700);
+    lv_anim_set_playback_duration(&ca, 700);
+    lv_anim_set_repeat_count(&ca, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&ca);
+}
+
+static void stars_twinkle(bool on)
+{
+    if (on == h.stars_on) return;
+    h.stars_on = on;
+    uint32_t n = lv_obj_get_child_count(h.tap_stars);
+    for (uint32_t i = 0; i < n && i < sizeof STARS / sizeof STARS[0]; i++) {
+        lv_obj_t *s = lv_obj_get_child(h.tap_stars, (int32_t)i);
+        lv_anim_delete(s, twinkle_exec);
+        if (!on) { twinkle_exec(s, 0); continue; }
+        lv_anim_t t;
+        lv_anim_init(&t);
+        lv_anim_set_var(&t, s);
+        lv_anim_set_exec_cb(&t, twinkle_exec);
+        lv_anim_set_values(&t, 0, 255);
+        lv_anim_set_duration(&t, STARS[i].ms);
+        lv_anim_set_playback_duration(&t, STARS[i].ms);
+        lv_anim_set_repeat_delay(&t, 300 + STARS[i].delay / 2);
+        lv_anim_set_delay(&t, STARS[i].delay);
+        lv_anim_set_path_cb(&t, lv_anim_path_ease_in_out);
+        lv_anim_set_repeat_count(&t, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&t);
+    }
+}
+
+static void worm_run(void)
+{
+    if (h.worm_on && !h.dark) lv_timer_resume(h.worm_timer);
+    else lv_timer_pause(h.worm_timer);
+}
+
+void home_pause(bool dark)
+{
+    h.dark = dark;
+    worm_run();
 }
 
 /* Figma Going out · Get ready (Step rows): the step now is a lime row 348 wide, fully round, on the
@@ -323,6 +386,7 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_obj_center(h.worm_icon);
     snprintf(h.worm_icon_name, sizeof h.worm_icon_name, "kite");
     h.worm_timer = lv_timer_create(worm_tick, 40, NULL);
+    lv_timer_pause(h.worm_timer);   /* until it's running late */
 
     /* Get ready: the checklist */
     wheel_list_create(page, &h.steps, 0, STEPS_Y, SCREEN_W, STEPS_H, STEPS_FOCUS - STEPS_Y, STEPS_ROW);
@@ -337,22 +401,9 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     /* the lime arc at 1 o'clock while the alarm sounds: the button there says I'm up; it breathes */
     h.cue = cue_create(page);
     cue_set(h.cue, 0, false);
-    lv_anim_t ca;
-    lv_anim_init(&ca);
-    lv_anim_set_var(&ca, h.cue);
-    lv_anim_set_exec_cb(&ca, ring_opa);
-    lv_anim_set_values(&ca, 255, 110);
-    lv_anim_set_duration(&ca, 700);
-    lv_anim_set_playback_duration(&ca, 700);
-    lv_anim_set_repeat_count(&ca, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&ca);
 
     /* Biscuit can be tapped (free time): little stars twinkle about him, each in its own time (no
      * badge: the stars say it), clear of the header, the side buttons and the hill */
-    static const struct { int16_t deg, size; uint16_t ms, delay; } STARS[] = {
-        { 210, 16, 900, 0 }, { 236, 12, 700, 350 }, { 304, 14, 800, 600 },
-        { 330, 18, 1000, 150 }, { 150, 12, 750, 800 }, { 30, 16, 850, 450 },
-    };
     h.tap_stars = ui_box(page);
     lv_obj_set_size(h.tap_stars, SCREEN_W, SCREEN_H);
     for (unsigned i = 0; i < sizeof STARS / sizeof STARS[0]; i++) {
@@ -361,18 +412,7 @@ void home_create(lv_obj_t *page, home_cb_t cb)
         lv_obj_t *s = ui_icon(h.tap_stars, "star-fill", sz, i % 2 ? C_TEXT : C_ACTION);
         lv_obj_set_pos(s, CENTER + (int32_t)(cosf(ang) * r) - sz / 2, TAP_CY + (int32_t)(sinf(ang) * r) - sz / 2);
         lv_image_set_pivot(s, sz / 2, sz / 2);
-        lv_anim_t t;
-        lv_anim_init(&t);
-        lv_anim_set_var(&t, s);
-        lv_anim_set_exec_cb(&t, twinkle_exec);
-        lv_anim_set_values(&t, 0, 255);
-        lv_anim_set_duration(&t, STARS[i].ms);
-        lv_anim_set_playback_duration(&t, STARS[i].ms);
-        lv_anim_set_repeat_delay(&t, 300 + STARS[i].delay / 2);
-        lv_anim_set_delay(&t, STARS[i].delay);
-        lv_anim_set_path_cb(&t, lv_anim_path_ease_in_out);
-        lv_anim_set_repeat_count(&t, LV_ANIM_REPEAT_INFINITE);
-        lv_anim_start(&t);
+        twinkle_exec(s, 0);   /* they twinkle while they show (stars_twinkle) */
     }
 
     hill_create(page, &h.hill, on_hill);
@@ -470,6 +510,8 @@ void home_render(const home_view_t *v)
     bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
     if (v->mid != MID_OVERDUE && v->mood == PET_MOOD_SLEEP) ui_hide_now(h.overdue);   /* bedtime: no ghost of the late card */
     else ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
+    h.worm_on = v->mid == MID_OVERDUE;
+    worm_run();
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
         worm_layout();
@@ -485,7 +527,9 @@ void home_render(const home_view_t *v)
         }
     }
     ui_show(h.tap_stars, pet_on && v->tap_ring);
+    stars_twinkle(pet_on && v->tap_ring);
     ui_show(h.cue, v->cue);
+    cue_breathe(v->cue);
     if (v->cue) cue_set(h.cue, v->cue_ring, v->cue_dark);
 
     bool to_sleep = v->mood == PET_MOOD_SLEEP;   /* the night screen: what the day showed goes at once, no ghost of it */

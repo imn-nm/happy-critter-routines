@@ -137,6 +137,51 @@ static void timer_draw(lv_event_t *e)
     }
 }
 
+/* The widgets' own timers (the rim timer's breathing, the rings): all paused while the screen is
+ * dark, and the rim timer's while it isn't breathing, so they don't wake the chip for nothing. */
+#define WTIMERS 16
+static lv_timer_t *wtimers[WTIMERS];
+static bool wtimers_paused;
+
+static void wtimer_add(lv_timer_t *t)
+{
+    for (int i = 0; i < WTIMERS; i++)
+        if (!wtimers[i]) { wtimers[i] = t; if (wtimers_paused) lv_timer_pause(t); return; }
+}
+
+static void wtimer_remove(lv_timer_t *t)
+{
+    for (int i = 0; i < WTIMERS; i++) if (wtimers[i] == t) wtimers[i] = NULL;
+}
+
+void ui_widget_timers_pause(bool paused)
+{
+    wtimers_paused = paused;
+    for (int i = 0; i < WTIMERS; i++) {
+        if (!wtimers[i]) continue;
+        if (paused) lv_timer_pause(wtimers[i]);
+        else lv_timer_resume(wtimers[i]);
+    }
+}
+
+/* Only the rim's band, as twelve boxes round it: the timer's own box is the whole screen, and its
+ * breathing redrew everything under it a dozen times a second. */
+static void timer_invalidate_rim(lv_obj_t *obj)
+{
+    lv_area_t c;
+    lv_obj_get_coords(obj, &c);
+    const float m = TIMER_W + 3;
+    for (int k = 0; k < 12; k++) {
+        float p = k * PI_F / 6, q = (k + 1) * PI_F / 6;
+        float xa = TIMER_R * cosf(p), xb = TIMER_R * cosf(q), ya = TIMER_R * sinf(p), yb = TIMER_R * sinf(q);
+        lv_area_t a = {
+            .x1 = c.x1 + CENTER + (int32_t)floorf(fminf(xa, xb) - m), .y1 = c.y1 + CENTER + (int32_t)floorf(fminf(ya, yb) - m),
+            .x2 = c.x1 + CENTER + (int32_t)ceilf(fmaxf(xa, xb) + m), .y2 = c.y1 + CENTER + (int32_t)ceilf(fmaxf(ya, yb) + m),
+        };
+        lv_obj_invalidate_area(obj, &a);
+    }
+}
+
 static void timer_tick(lv_timer_t *tm)
 {
     lv_obj_t *obj = lv_timer_get_user_data(tm);
@@ -144,13 +189,13 @@ static void timer_tick(lv_timer_t *tm)
     if (!t->pulse || lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) return;
     float ph = (lv_tick_get() % 1600) / 1600.0f;
     t->breath = (uint8_t)(255 * (0.5f + 0.5f * cosf(ph * 2 * PI_F)));
-    lv_obj_invalidate(obj);
+    timer_invalidate_rim(obj);
 }
 
 static void timer_delete(lv_event_t *e)
 {
     timer_data_t *t = lv_obj_get_user_data(lv_event_get_target(e));
-    if (t) { lv_timer_delete(t->timer); lv_free(t); }
+    if (t) { wtimer_remove(t->timer); lv_timer_delete(t->timer); lv_free(t); }
 }
 
 lv_obj_t *timer_create(lv_obj_t *parent)
@@ -162,7 +207,8 @@ lv_obj_t *timer_create(lv_obj_t *parent)
     lv_obj_set_user_data(o, t);
     lv_obj_add_event_cb(o, timer_draw, LV_EVENT_DRAW_MAIN, NULL);
     lv_obj_add_event_cb(o, timer_delete, LV_EVENT_DELETE, NULL);
-    t->timer = lv_timer_create(timer_tick, 80, o);
+    t->timer = lv_timer_create(timer_tick, 120, o);   /* the breath at 8 frames a second */
+    lv_timer_pause(t->timer);   /* until it breathes */
     return o;
 }
 
@@ -172,6 +218,10 @@ void timer_set(lv_obj_t *obj, timer_tone_t tone, int16_t left, bool pulse)
     if (left < 0) left = 0;
     if (left > 1000) left = 1000;
     if (t->tone == tone && t->left == left && t->pulse == pulse) return;
+    if (t->pulse != pulse) {
+        if (pulse) { wtimer_add(t->timer); if (!wtimers_paused) lv_timer_resume(t->timer); }
+        else { wtimer_remove(t->timer); lv_timer_pause(t->timer); }
+    }
     t->tone = tone;
     t->left = left;
     t->pulse = pulse;
@@ -720,7 +770,7 @@ static void ring_delete(lv_event_t *e)
 {
     ring_data_t *d = lv_obj_get_user_data(lv_event_get_target(e));
     if (d) {
-        if (d->timer) lv_timer_delete(d->timer);
+        if (d->timer) { wtimer_remove(d->timer); lv_timer_delete(d->timer); }
         lv_free(d);
     }
 }
@@ -744,6 +794,7 @@ lv_obj_t *ring_create(lv_obj_t *parent, int32_t radius)
     lv_obj_add_event_cb(o, ring_ext, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
     lv_obj_add_event_cb(o, ring_delete, LV_EVENT_DELETE, NULL);
     d->timer = lv_timer_create(ring_tick, 80, o);
+    wtimer_add(d->timer);
     return o;
 }
 
@@ -756,7 +807,13 @@ void ring_set(lv_obj_t *ring, const ring_style_t *s)
 }
 
 /* ================================================================ button cue (Playtime) */
-/* the cue's state lives in its user data: the ring (0..100) in the low byte, dark in bit 8 */
+/* the cue's state lives in its user data: the ring (0..100) in the low byte, dark in bit 8. Its
+ * box is just the arc at 1 o'clock (r 222-228, 293-307 degrees, round ends), so its breathing
+ * redraws that corner and not the whole screen. */
+#define CUE_X 312
+#define CUE_Y 16
+#define CUE_W 66
+#define CUE_H 46
 void cue_set(lv_obj_t *cue, uint8_t ring, bool dark)
 {
     intptr_t v = (intptr_t)ring | (dark ? 0x100 : 0);
@@ -776,8 +833,8 @@ static void cue_draw(lv_event_t *e)
     lv_obj_get_coords(obj, &c);
     lv_draw_arc_dsc_t a;
     lv_draw_arc_dsc_init(&a);
-    a.center.x = c.x1 + CENTER;
-    a.center.y = c.y1 + CENTER;
+    a.center.x = c.x1 + CENTER - CUE_X;
+    a.center.y = c.y1 + CENTER - CUE_Y;
     a.rounded = 1;
     a.radius = 228;
     a.width = TIMER_W;
@@ -800,7 +857,8 @@ static void cue_draw(lv_event_t *e)
 lv_obj_t *cue_create(lv_obj_t *parent)
 {
     lv_obj_t *o = ui_box(parent);
-    lv_obj_set_size(o, SCREEN_W, SCREEN_H);
+    lv_obj_set_size(o, CUE_W, CUE_H);
+    lv_obj_set_pos(o, CUE_X, CUE_Y);
     lv_obj_add_event_cb(o, cue_draw, LV_EVENT_DRAW_MAIN, NULL);
     return o;
 }

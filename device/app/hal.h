@@ -74,6 +74,8 @@ bool hal_screen_sleeps(void);
 /* The panel is an OLED, which keeps a faint ghost of anything left in one place for hours (the
  * board; not the simulator or the web app): MyToki moves the whole picture a few pixels now and then. */
 bool hal_oled(void);
+/* The child is asleep (Goodnight until the alarm): the board looks for news less often while dark. */
+void hal_set_night(bool night);
 void hal_screen(bool on);
 
 /* Battery charge, 0-100 (100 when the platform can't tell). */

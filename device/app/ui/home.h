@@ -110,6 +110,8 @@ typedef void (*home_cb_t)(home_event_t ev, int arg);
 
 void home_create(lv_obj_t *page, home_cb_t cb);
 void home_render(const home_view_t *v);
+/* The screen went dark (true) or came back: its endless animations stop and start. */
+void home_pause(bool dark);
 void home_set_wheel(const char options[][20], int n);
 void home_wheel_reset(void);
 lv_obj_t *home_pet(void);

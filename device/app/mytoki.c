@@ -42,6 +42,8 @@
 #define IDLE_MS (2 * 60 * 1000)   /* moving but no touch or button this long (a pocket, a bag): off too... */
 #define GLANCE_MS 30000           /* ...or this long after a pickup lit it, if it's still not touched */
 #define GAME_IDLE_MS (5 * 60 * 1000)   /* in a game: the tilt games are played without a touch */
+#define DIM_AFTER_MS 15000        /* untouched this long, the panel eases down to 70% */
+#define DARK_TICK_MS 1000         /* the app's tick while the screen is dark (TICK_MS while it's on) */
 #define SYNC_GRACE_S 120          /* what the child did here wins over a fresh plan this long (the server may not have it yet); then the plan, where a grown-up may have changed it, wins */
 #define PET_VIEW_MS 6000            /* the spin's result stays this long, then Biscuit plays it */
 #define GET_READY_S (5 * 60)
@@ -130,6 +132,7 @@ static struct {
     uint32_t pick_ms;               /* a pickup last lit it */
     uint32_t touch_ms, awake_ms;    /* the last touch or press; the screen last came on */
     int shift, shift_min;           /* burn-in: where the picture sits now (SHIFT), the minute it last moved */
+    lv_timer_t *tick_timer;
     lv_obj_t *wake_catcher;         /* over everything while it's off: the touch that wakes it does nothing else */
 } app;
 
@@ -1649,7 +1652,7 @@ static void on_state_change(state_t from, state_t to)
 static void brightness(void)
 {
     if (app.screen_off) return;
-    uint8_t b = 80;   /* full brightness was too bright (user, 2026-10-20) */
+    uint8_t b = 60;   /* full was too bright (user, 2026-10-20); 80 to 60 for the battery (2026-10-23): an OLED's draw is what's lit */
     /* the pull-down shows the child's level as it is, never dimmed for the night, so they can see
      * what they're setting (user, 2026-10-21); closed, the night dims again from there */
     if (!controls_is_open()) switch (app.state) {
@@ -1660,11 +1663,15 @@ static void brightness(void)
     case ST_BED_SOON: b = 65; break;
     default: break;
     }
+    /* nobody has touched it or seen anything new for 15 s: down to 70% until they do */
+    uint32_t seen = (int32_t)(app.touch_ms - app.awake_ms) > 0 ? app.touch_ms : app.awake_ms;
+    if (!controls_is_open() && now_ms() - seen > DIM_AFTER_MS) b = (uint8_t)(b * 7 / 10);
     b = (uint8_t)(b * app.user_bright / 100);   /* the pull-down's slider: night still dims from there */
     if (b < 5) b = 5;
-    /* fade to it, a step a tick (about two seconds from dim to full), so waking up brightens */
+    /* fade to it, a step a tick (about two seconds from dim to full), so waking up brightens; back up
+     * from the untouched dim quicker */
     if (b == app.brightness) return;
-    int step = 8, d = (int)b - (int)app.brightness;
+    int d = (int)b - (int)app.brightness, step = d > 0 ? 16 : 8;
     if (!app.brightness) app.brightness = b;   /* the very first screen: no fade from black */
     else app.brightness = (uint8_t)(app.brightness + (d > step ? step : d < -step ? -step : d));
     hal_set_brightness(app.brightness);
@@ -1776,6 +1783,7 @@ static void tick(lv_timer_t *timer)
         }
     }
     brightness();
+    hal_set_night(app.state == ST_SLEEPY || app.state == ST_DAY_OVER);
     bool locked = app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_ALARM || app.state == ST_SNOOZE
                || app.state == ST_IM_UP || app.state == ST_SCHOOL_OFF || app.state == ST_SCHOOL;
     set_night_lock(locked, app.state == ST_BEDTIME);
@@ -1915,7 +1923,7 @@ void mytoki_start(void)
         if (hal_store_get("name", known, sizeof known) && known[0]) snprintf(hello, sizeof hello, "Hello, %s!", known);
         system_show(SYS_SCREEN_LOADING, hello[0] ? hello : NULL, NULL);
     }
-    lv_timer_create(tick, TICK_MS, NULL);
+    app.tick_timer = lv_timer_create(tick, TICK_MS, NULL);
     request_plan();
 }
 
@@ -2089,6 +2097,9 @@ static void screen_wake(void)
     pet_freeze_all(false);
     lv_timer_resume(lv_anim_get_timer());
     play_set_paused(false);   /* the game carries on from where it was, level as it's held now */
+    ui_widget_timers_pause(false);
+    home_pause(false);
+    if (app.tick_timer) lv_timer_set_period(app.tick_timer, TICK_MS);
     pixel_shift(true);        /* it comes back a few pixels over: it redraws everything anyway */
     hal_screen(true);
     app.brightness = 0;   /* straight to the right brightness, no fade up */
@@ -2107,6 +2118,9 @@ static void screen_sleep(void)
     pet_freeze_all(true);
     lv_timer_pause(lv_anim_get_timer());
     play_set_paused(true);   /* a game waits in the dark: no snack lost, no round over */
+    ui_widget_timers_pause(true);
+    home_pause(true);
+    if (app.tick_timer) lv_timer_set_period(app.tick_timer, DARK_TICK_MS);   /* nothing to show: the clock and the alarm once a second */
     hal_screen(false);
 }
 

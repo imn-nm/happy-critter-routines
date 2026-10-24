@@ -12,6 +12,7 @@
 #include "bsp/touch.h"
 #include "esp_lv_adapter.h"
 #include "esp_timer.h"
+#include "esp_pm.h"
 #include "lvgl.h"
 #include "mytoki.h"
 #include "hal_esp32.h"
@@ -39,6 +40,17 @@ static void round_area(lv_event_t *e)
  * drawing), not just LVGL's own work. */
 static uint32_t tick_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
+#if CONFIG_PM_ENABLE
+/* The chip idles at 80 MHz (power saving, hal_esp32.c); each frame is drawn at full speed and it
+ * drops back as soon as the frame is done. */
+static esp_pm_lock_handle_t draw_lock;
+static void draw_fast(lv_event_t *e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_REFR_START) esp_pm_lock_acquire(draw_lock);
+    else esp_pm_lock_release(draw_lock);
+}
+#endif
+
 static lv_display_t *display_start(void)
 {
     esp_lv_adapter_config_t adapter = ESP_LV_ADAPTER_DEFAULT_CONFIG();
@@ -55,6 +67,7 @@ static lv_display_t *display_start(void)
     esp_lcd_panel_handle_t panel = NULL;
     esp_lcd_panel_io_handle_t io = NULL;
     if (bsp_display_new(&panel_cfg, &panel, &io) != ESP_OK) return NULL;
+    hal_esp32_set_panel_io(io);
 
     esp_lv_adapter_display_config_t disp_cfg = {
         .panel = panel,
@@ -74,6 +87,12 @@ static lv_display_t *display_start(void)
     lv_display_t *disp = esp_lv_adapter_register_display(&disp_cfg);
     if (!disp) return NULL;
     lv_display_add_event_cb(disp, round_area, LV_EVENT_INVALIDATE_AREA, NULL);
+#if CONFIG_PM_ENABLE
+    if (esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "mytoki-draw", &draw_lock) == ESP_OK) {
+        lv_display_add_event_cb(disp, draw_fast, LV_EVENT_REFR_START, NULL);
+        lv_display_add_event_cb(disp, draw_fast, LV_EVENT_REFR_READY, NULL);
+    }
+#endif
 
     const bsp_display_cfg_t touch_cfg = { .touch_flags = { .swap_xy = 0, .mirror_x = 1, .mirror_y = 1 } };
     esp_lcd_touch_handle_t tp = NULL;

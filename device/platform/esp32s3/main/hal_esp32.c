@@ -38,10 +38,13 @@
 #include "nvs.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "driver/i2s_std.h"
+#include "esp_lcd_panel_io.h"
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "lvgl.h"
 #include "esp_codec_dev.h"
+#include "esp_codec_dev_defaults.h"
 #include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "hal.h"
@@ -224,17 +227,39 @@ static void power_poll(void)
 int hal_battery(void) { return bat_percent; }
 bool hal_charging(void) { return bat_plugged; }
 
-/* The screen off when put down: dark and not drawing. Back on, it lights once the first frame is
- * redrawn (the panel still holds the old one), at the brightness last asked for. */
+/* The screen off when put down: dark, not drawing, and the panel itself asleep (Sleep In: a few
+ * microamps instead of a lit panel at brightness 0). Back on: Sleep Out, the first frame is drawn
+ * into it, and it lights once that's done and the panel has had its 120 ms, at the brightness last
+ * asked for. Not the driver's own sleep: with a reset pin it goes to deep standby, and waking from
+ * that reruns the panel's start-up (over a second, and a flash at full brightness). */
 static uint8_t bright_want = 100;
 static bool screen_dark, screen_waking;
-static lv_timer_t *input_tmr;   /* the button and motion into the app (below): every 5 ms, 50 ms while dark */
+static lv_timer_t *input_tmr;   /* the button and motion into the app (below): every 5 ms, 100 ms while dark */
+static esp_lcd_panel_io_handle_t panel_io;
+static int64_t panel_slept_us, panel_woke_us;
+static bool wifi_started;
+#define PANEL_SETTLE_US 120000   /* the CO5300 after Sleep In or Sleep Out */
+
+void hal_esp32_set_panel_io(esp_lcd_panel_io_handle_t io) { panel_io = io; }
+
+static void panel_cmd(uint8_t cmd)
+{
+    if (panel_io) esp_lcd_panel_io_tx_param(panel_io, (int)((0x02u << 24) | ((uint32_t)cmd << 8)), NULL, 0);   /* a QSPI write command */
+}
+
+static void wait_since(int64_t since_us, int64_t settle_us)
+{
+    int64_t left = settle_us - (esp_timer_get_time() - since_us);
+    if (since_us && left > 0) vTaskDelay(pdMS_TO_TICKS((left + 999) / 1000));
+}
 
 /* While the screen is off the chip should sleep: the button, motion, touch and the app's input are
- * looked at less often (a touch or a pickup still wakes it within a tenth of a second). */
+ * looked at less often (a touch or a pickup still wakes it within a tenth of a second), and the
+ * radio wakes for every tenth beacon instead of each one. */
 static void input_pace(bool dark)
 {
-    if (input_tmr) lv_timer_set_period(input_tmr, dark ? 50 : 5);
+    if (input_tmr) lv_timer_set_period(input_tmr, dark ? 100 : 5);
+    if (wifi_started) esp_wifi_set_ps(dark ? WIFI_PS_MAX_MODEM : WIFI_PS_MIN_MODEM);
     for (lv_indev_t *i = lv_indev_get_next(NULL); i; i = lv_indev_get_next(i)) {
         lv_timer_t *t = lv_indev_get_read_timer(i);
         if (t) lv_timer_set_period(t, dark ? 100 : LV_DEF_REFR_PERIOD);   /* the touch is read this often */
@@ -254,6 +279,8 @@ static void screen_drawn(lv_event_t *e)
     if (!screen_waking) return;
     screen_waking = false;
     screen_dark = false;
+    wait_since(panel_woke_us, PANEL_SETTLE_US);
+    panel_cmd(0x29);   /* Display On */
     bsp_display_brightness_set(bright_want);
 }
 void hal_screen(bool on)
@@ -263,16 +290,25 @@ void hal_screen(bool on)
     static bool hooked;
     if (!hooked) { hooked = true; lv_display_add_event_cb(d, screen_drawn, LV_EVENT_REFR_READY, NULL); }
     if (!on) {
+        bool was_waking = screen_waking;
         screen_dark = true;
         screen_waking = false;
         bsp_display_brightness_set(0);
         lv_display_enable_invalidation(d, false);
+        if (was_waking) wait_since(panel_woke_us, PANEL_SETTLE_US);
+        panel_cmd(0x28);   /* Display Off */
+        panel_cmd(0x10);   /* Sleep In */
+        panel_slept_us = esp_timer_get_time();
         input_pace(true);
         return;
     }
-    if (!screen_dark) return;
+    if (!screen_dark || screen_waking) return;
     screen_waking = true;
     look_next_us = 0;
+    wait_since(panel_slept_us, PANEL_SETTLE_US);   /* put down and picked up at once */
+    panel_cmd(0x11);   /* Sleep Out: the frame is drawn into it while it settles */
+    panel_woke_us = esp_timer_get_time();
+    vTaskDelay(pdMS_TO_TICKS(10));
     input_pace(false);
     lv_display_enable_invalidation(d, true);
     lv_obj_invalidate(lv_display_get_screen_active(d));
@@ -333,7 +369,8 @@ static esp_err_t http_once(const char *url, const char *post, const char *if_non
             .event_handler = on_http,
             .timeout_ms = 10000,
             .crt_bundle_attach = esp_crt_bundle_attach,
-            .keep_alive_enable = true,
+            /* no TCP keep-alive: its probe every few seconds woke the radio for nothing; a connection
+             * the server has closed meanwhile is simply made again (http, below) */
             .buffer_size_tx = 1536,   /* the quick look sends the public key twice (apikey, Authorization): 512 is too small */
         };
         conn = esp_http_client_init(&cfg);
@@ -490,19 +527,23 @@ static void plan_cache_offer(void)
 }
 
 /* How often the quick look (below) asks, balanced against the battery: the radio is what drains it.
- * On the charger every 5 s; in a hand (the screen on) every 10 s; put down (the screen dark) every
- * 30 s, as often as the day was asked for before the quick look; on a low battery once a minute. */
+ * On the charger every 5 s; in a hand (the screen on) every 10 s; dark every 2 minutes, every 10 at
+ * night while the child sleeps (picked up, it looks at once); on a low battery once a minute at most. */
+static volatile bool night;
+void hal_set_night(bool is_night) { night = is_night; }
+
 static uint32_t look_every_ms(void)
 {
     if (bat_plugged) return 5000;
-    if (bat_percent <= 15) return 60000;
-    return screen_dark ? 30000 : 10000;
+    uint32_t ms = !screen_dark ? 10000 : night ? 10 * 60000 : 2 * 60000;
+    return bat_percent <= 15 && ms < 60000 ? 60000 : ms;
 }
 
 /* The app asks for the day every 30 s. While the quick look has just found nothing new, the kept day
  * answers without the radio; a real ask still goes at least every 5 minutes (a new build of the
  * plan code changes the day without changing its number). */
 #define DAY_ASK_MAX_US (5 * 60 * 1000000LL)
+#define DAY_ASK_MAX_DARK_US (30 * 60 * 1000000LL)   /* dark: the quick look still sees a change at once */
 static int64_t look_same_us, day_asked_us;
 
 static void fetch_day(bool changed)
@@ -515,7 +556,7 @@ static void fetch_day(bool changed)
     if (!CONFIG_MYTOKI_DEVICE_TOKEN[0]) { with_lock_fail(3); return; } /* not paired: the device shows its code */
     int64_t now = esp_timer_get_time();
     if (!changed && day_body && day_etag[0] && look_same_us && now - look_same_us < (look_every_ms() + 2000) * 1000LL &&
-        now - day_asked_us < DAY_ASK_MAX_US) {
+        now - day_asked_us < (screen_dark ? DAY_ASK_MAX_DARK_US : DAY_ASK_MAX_US)) {
         with_lock_day(day_body, day_len);
         return;
     }
@@ -656,10 +697,12 @@ static void wifi_start(void)
     wifi_config_t wc = { 0 };
     strncpy((char *)wc.sta.ssid, CONFIG_MYTOKI_WIFI_SSID, sizeof wc.sta.ssid - 1);
     strncpy((char *)wc.sta.password, CONFIG_MYTOKI_WIFI_PASSWORD, sizeof wc.sta.password - 1);
+    wc.sta.listen_interval = 10;   /* dark (WIFI_PS_MAX_MODEM): it wakes for every tenth beacon, about a second */
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     esp_wifi_start();
-    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);   /* the radio sleeps between the access point's beacons */
+    esp_wifi_set_ps(screen_dark ? WIFI_PS_MAX_MODEM : WIFI_PS_MIN_MODEM);   /* the radio sleeps between the access point's beacons */
+    wifi_started = true;
     esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     sntp.sync_cb = on_sntp;
     esp_netif_sntp_init(&sntp);
@@ -676,11 +719,11 @@ static void button_task(void *arg)
     for (;;) {
         int v = gpio_get_level(pin);
         if (v != last) { stable = 0; last = v; }
-        else if (++stable == 3 && v == 0) { /* pressed for 30 ms */
+        else if (++stable == (screen_dark ? 1 : 3) && v == 0) { /* pressed for 30 ms (dark: two looks, 50 ms apart) */
             input_t in = { 0 };
             xQueueSend(input_q, &in, 0);
         }
-        vTaskDelay(pdMS_TO_TICKS(screen_dark ? 25 : 10));   /* dark: three looks are still a short press */
+        vTaskDelay(pdMS_TO_TICKS(screen_dark ? 50 : 10));
     }
 }
 
@@ -733,7 +776,7 @@ static void motion_task(void *arg)
     ESP_LOGI(TAG, "motion: QMI8658 at 100 Hz");
     TickType_t wake = xTaskGetTickCount();
     for (;;) {
-        vTaskDelayUntil(&wake, pdMS_TO_TICKS(screen_dark ? 40 : 10));   /* dark: 25 Hz still sees a pickup */
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(screen_dark ? 80 : 10));   /* dark: 12.5 Hz still sees a pickup (it takes 150 ms) */
         uint8_t raw[6];
         if (!imu_read(QMI_AX_L, raw, 6)) continue;
         float a[3];
@@ -780,23 +823,75 @@ void hal_play(hal_sound_t s)
     xQueueSend(sound_q, &s, 0);
 }
 
+/* The speaker: our own playback-only I2S channel and ES8311, as the board package sets them up but
+ * without its microphone channel. Its bsp_audio_init turned both channels on at start-up for good,
+ * and a running I2S channel holds a power lock that kept the chip from ever sleeping. Here the codec,
+ * the amplifier and the channel are opened for a sound and closed after SPK_IDLE_MS of quiet. */
+#define SPK_RATE 22050
+#define SPK_IDLE_MS 2000
+
+static esp_codec_dev_handle_t speaker_new(void)
+{
+    if (bsp_i2c_init() != ESP_OK) return NULL;
+    i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(CONFIG_BSP_I2S_NUM, I2S_ROLE_MASTER);
+    cc.auto_clear = true;
+    i2s_chan_handle_t tx = NULL;
+    if (i2s_new_channel(&cc, &tx, NULL) != ESP_OK) return NULL;
+    i2s_std_config_t std = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SPK_RATE),
+        .slot_cfg = I2S_STD_PHILIP_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = { .mclk = BSP_I2S_MCLK, .bclk = BSP_I2S_SCLK, .ws = BSP_I2S_LCLK, .dout = BSP_I2S_DOUT, .din = I2S_GPIO_UNUSED },
+    };
+    if (i2s_channel_init_std_mode(tx, &std) != ESP_OK) { i2s_del_channel(tx); return NULL; }   /* left off: opening turns it on */
+    audio_codec_i2s_cfg_t ic = { .port = CONFIG_BSP_I2S_NUM, .tx_handle = tx };
+    const audio_codec_data_if_t *data = audio_codec_new_i2s_data(&ic);
+    audio_codec_i2c_cfg_t i2c = { .port = BSP_I2C_NUM, .addr = ES8311_CODEC_DEFAULT_ADDR, .bus_handle = bsp_i2c_get_handle() };
+    const audio_codec_ctrl_if_t *ctrl = audio_codec_new_i2c_ctrl(&i2c);
+    const audio_codec_gpio_if_t *gpio = audio_codec_new_gpio();
+    if (!data || !ctrl || !gpio) return NULL;
+    es8311_codec_cfg_t es = {
+        .ctrl_if = ctrl,
+        .gpio_if = gpio,
+        .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
+        .pa_pin = BSP_POWER_AMP_IO,
+        .pa_reverted = false,
+        .master_mode = false,
+        .use_mclk = true,
+        .digital_mic = false,
+        .invert_mclk = false,
+        .invert_sclk = false,
+        .hw_gain = { .pa_voltage = 5.0, .codec_dac_voltage = 3.3 },
+    };
+    const audio_codec_if_t *codec = es8311_codec_new(&es);
+    if (!codec) return NULL;
+    esp_codec_dev_cfg_t dc = { .dev_type = ESP_CODEC_DEV_TYPE_OUT, .codec_if = codec, .data_if = data };
+    return esp_codec_dev_new(&dc);
+}
+
 static void sound_task(void *arg)
 {
     (void)arg;
-    const int rate = 22050;
-    esp_codec_dev_handle_t spk = bsp_audio_codec_speaker_init();
+    const int rate = SPK_RATE;
+    esp_codec_dev_handle_t spk = speaker_new();
     if (!spk) { ESP_LOGW(TAG, "no speaker"); vTaskDelete(NULL); return; }
-    uint8_t volume_now = 55;
-    esp_codec_dev_set_out_vol(spk, volume_now);
     esp_codec_dev_sample_info_t fs = { .sample_rate = rate, .channel = 2, .bits_per_sample = 16 };
-    esp_codec_dev_open(spk, &fs);
+    bool open = false;
+    uint8_t volume_now = 0;
     const int max_ms = 1300;
     int16_t *pcm = heap_caps_malloc((size_t)rate * max_ms / 1000 * 2 * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     hal_sound_t s;
     for (;;) {
-        if (xQueueReceive(sound_q, &s, portMAX_DELAY) != pdTRUE || !pcm || s >= sizeof SOUNDS / sizeof SOUNDS[0]) continue;
+        if (xQueueReceive(sound_q, &s, open ? pdMS_TO_TICKS(SPK_IDLE_MS) : portMAX_DELAY) != pdTRUE) {
+            if (open) { esp_codec_dev_close(spk); open = false; }   /* quiet: codec, amplifier and channel off */
+            continue;
+        }
+        if (!pcm || s >= sizeof SOUNDS / sizeof SOUNDS[0] || !volume_want) continue;
+        if (!open) {
+            if (esp_codec_dev_open(spk, &fs) != ESP_CODEC_DEV_OK) continue;
+            open = true;
+            volume_now = 0;
+        }
         if (volume_now != volume_want) { volume_now = volume_want; esp_codec_dev_set_out_vol(spk, volume_now); }
-        if (!volume_now) continue;
         int end_ms = 0;
         for (int k = 0; k < 4; k++) if (SOUNDS[s][k].f > 0 && SOUNDS[s][k].at + SOUNDS[s][k].dur > end_ms) end_ms = SOUNDS[s][k].at + SOUNDS[s][k].dur;
         if (end_ms > max_ms) end_ms = max_ms;
@@ -834,7 +929,17 @@ static void input_timer(lv_timer_t *t)
 /* ================================================================ start-up */
 void hal_esp32_init(void)
 {
+    /* quiet logs for the battery (the panel driver alone logged every step of a brightness fade);
+     * MyToki's own still say what they did */
+    esp_log_level_set("*", ESP_LOG_WARN);
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+    esp_log_level_set("mytoki", ESP_LOG_INFO);
 #if CONFIG_PM_ENABLE
+    /* Light sleep switches GPIOs to their sleep setting (CONFIG_PM_SLP_DISABLE_GPIO): these keep
+     * what they are, so the panel's reset and select, the touch chip, the button, the I2C bus and the
+     * amplifier don't float while the chip sleeps. */
+    static const gpio_num_t KEEP[] = { GPIO_NUM_0, BSP_LCD_RST, BSP_LCD_CS, BSP_LCD_TOUCH_RST, BSP_LCD_TOUCH_INT, BSP_I2C_SCL, BSP_I2C_SDA, BSP_POWER_AMP_IO };
+    for (unsigned i = 0; i < sizeof KEEP / sizeof KEEP[0]; i++) gpio_sleep_sel_dis(KEEP[i]);
     /* the chip slows to 80 MHz and light-sleeps whenever every task is waiting; Wi-Fi keeps its
      * connection, waking for the access point's beacons. Not while a computer is on the USB port
      * (CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION), so logs and flashing still work. */

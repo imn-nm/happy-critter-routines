@@ -79,7 +79,8 @@ static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *px)
 
 /* ---- the screen off (put down): the simulator only does it for a test (mytoki_debug "sleep") ---- */
 bool hal_screen_sleeps(void) { return false; }
-bool hal_oled(void) { return false; }   /* the pictures stay put, so screenshots line up with the Figma */
+bool hal_oled(void) { return false; }
+void hal_set_night(bool night) { (void)night; }   /* the pictures stay put, so screenshots line up with the Figma */
 void hal_screen(bool on)
 {
     lv_display_t *d = lv_display_get_default();
