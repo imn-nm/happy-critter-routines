@@ -468,6 +468,14 @@ static void check_news(const day_plan_t *p)
     extern void mytoki_open_rewards(int);
     /* a grown-up said no (or later) */
     for (int i = 0; i < p->nrewards; i++) {
+        if (p->rewards[i].state == REWARD_WAITING) {
+            /* asked again: the next no is news again */
+            for (int k = cJSON_GetArraySize(dn) - 1; k >= 0; k--) {
+                const cJSON *it = cJSON_GetArrayItem(dn, k);
+                if (cJSON_IsString(it) && !strcmp(it->valuestring, p->rewards[i].id)) cJSON_DeleteItemFromArray(dn, k);
+            }
+            continue;
+        }
         if (p->rewards[i].state != REWARD_DENIED) continue;
         bool known = false;
         const cJSON *it;
@@ -543,7 +551,7 @@ static void check_news(const day_plan_t *p)
                 const day_reward_t *best = NULL, *near = NULL;
                 for (int r = 0; r < p->nrewards; r++) {
                     const day_reward_t *rd = &p->rewards[r];
-                    if (rd->state != REWARD_NONE) continue;
+                    if (rd->state != REWARD_NONE && rd->state != REWARD_DENIED) continue;
                     if (rd->cost <= stars && (!best || rd->cost > best->cost)) best = rd;
                     if (rd->cost > stars && (!near || rd->cost < near->cost)) near = rd;
                 }
@@ -827,7 +835,7 @@ static int available_stars(void)
 static void on_reward_tap(int i)
 {
     day_reward_t *r = &app.plan->rewards[i];
-    if (r->state != REWARD_NONE || available_stars() < r->cost) return;
+    if ((r->state != REWARD_NONE && r->state != REWARD_DENIED) || available_stars() < r->cost) return;
     r->state = REWARD_WAITING;
     send("reward_request", "reward_id", r->id, r->cost);
     save_progress();

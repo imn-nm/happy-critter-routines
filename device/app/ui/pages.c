@@ -177,7 +177,9 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     plank(row, SHOP_PLANK, 2, C_HILL_LINE, LV_OPA_COVER);
     plank(row, SHOP_PLANK + 2, 10, C_RAISED, LV_OPA_COVER);
     plank(row, SHOP_PLANK + 12, 2, C_HILL, LV_OPA_COVER);
-    bool enough = stars >= rd->cost, can = rd->state == REWARD_NONE && enough;
+    /* a grown-up's no puts it back on the shelf: it can be asked for again */
+    bool open = rd->state == REWARD_NONE || rd->state == REWARD_DENIED;
+    bool enough = stars >= rd->cost, can = open && enough;
     lv_obj_t *ic = ui_icon(row, reward_icon(rd->icon), SHOP_ICON, C_TEXT);
     lv_obj_set_pos(ic, SHOP_X_ICON, SHOP_Y_ICON);
     /* the price pill at the right end: the star and the number, or Asked */
@@ -207,7 +209,7 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     int32_t room = end_x - 8 - SHOP_X_TEXT < SHOP_W_TEXT ? end_x - 8 - SHOP_X_TEXT : SHOP_W_TEXT;
     ui_label_fit(name, F_ITEM, F_ITEM, room, 2);
     lv_obj_set_width(name, room);
-    if (rd->state == REWARD_NONE && !enough) {
+    if (open && !enough) {
         char more[24];
         snprintf(more, sizeof more, "%d more star%s to go", rd->cost - stars, rd->cost - stars == 1 ? "" : "s");
         lv_obj_t *m = ui_label(words, F_FINE, C_TEXT_MUTED, more);
@@ -239,7 +241,7 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     int keep = rw.built ? wheel_list_current(&rw.wl) : 0, shown = 0;
     wheel_list_clear(&rw.wl);
     for (int i = 0; i < p->nrewards; i++) {
-        if (p->rewards[i].state == REWARD_APPROVED) continue;   /* given: it has left the shop */
+        if (p->rewards[i].state == REWARD_APPROVED) continue;   /* given: it has left the shop (a no stays) */
         shelf(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
         shown++;
     }

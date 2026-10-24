@@ -16,7 +16,7 @@ import { fetchLinkedSiblings } from "@/utils/linkedTasks";
 import { templateForName, suggestedSteps } from "@/data/taskTemplates";
 import { DEFAULT_PREP_MINUTES, PREP_OPTIONS } from "@/utils/eventWindow";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
-import { isWantsTask, knownPhrase, labelFor, phraseFor, phraseSuggestions } from "@/utils/taskPhrase";
+import { isOutingPhrase, isWantsTask, knownPhrase, labelFor, phraseFor, phraseSuggestions } from "@/utils/taskPhrase";
 import { routineDays, routineDaysLabel, type Routine } from "@/hooks/useRoutines";
 import { toast } from "sonner";
 import {
@@ -311,7 +311,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [lengthSet, setLengthSet] = useState(isEdit);
   // What the parent typed for "what", as an action ("do homework"); the
   // task is saved under its short label ("Homework").
-  const [whatText, setWhatText] = useState(task?.name ? phraseFor(task.name) : "");
+  // Somewhere they go says so: "go to swim class".
+  const [whatText, setWhatText] = useState(!task?.name ? ""
+    : task.is_event && !knownPhrase(task.name) ? `go to ${phraseFor(task.name)}` : phraseFor(task.name));
   const [moreOpen, setMoreOpen] = useState(false);
   const [word, setWord] = useState<TieWord>(() =>
     formData.scheduledTime && !startsAsChore ? 'at' : task?.before_task_id ? 'before' : 'after');
@@ -456,7 +458,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const taskType: TaskType = isChore ? 'chore' : isWants ? 'wants' : 'needs';
   const setType = (next: TaskType) => {
     setFunTouched(true);
-    setWhatTouched(true);
+    // Needs to can still be somewhere they go; Wants to and Chore can't.
+    if (next !== 'needs') setWhatTouched(true);
     if (next === 'chore') return setMode('chore');
     if (next === 'wants') {
       if (formData.scheduledTime) setLastTime(formData.scheduledTime);
@@ -494,7 +497,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   // What the name suggests: a length and an icon (applied while untouched)
   // and checklist steps (offered, never applied on their own).
-  const onNameChange = (name: string) => {
+  const onNameChange = (name: string, outing = false) => {
     const t = isSystemEvent ? null : templateForName(name);
     const next = { ...formData, name };
     if (t && !durationTouched) {
@@ -505,15 +508,21 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     }
     if (t && !iconTouched) next.icon = t.icon;
     if (!t && !iconTouched) next.icon = '';
-    // Games, practices and lessons get get-ready time on their own, until
-    // the parent adds or removes it themselves.
+    // Games, practices, lessons and anything "go to …" are somewhere they
+    // go: a set time with get-ready time, until the parent turns it off.
+    const goes = !!t?.event || outing;
     if (!whatTouched && next.mode !== 'chore') {
-      if (t?.event && next.mode !== 'event') {
+      if (goes && next.mode !== 'event') {
         next.mode = 'event';
-        next.scheduledTime = next.scheduledTime || lastTime;
+        next.scheduledTime = next.scheduledTime || formData.placeHint || lastTime;
         next.getReady = true;
-        next.prepMinutes = t.prep ?? DEFAULT_PREP_MINUTES;
-      } else if (!t?.event && next.mode === 'event') {
+        next.prepMinutes = t?.prep ?? DEFAULT_PREP_MINUTES;
+        // It now has a time of its own: the sentence says "at …".
+        setWord('at');
+        setWhenSet(true);
+        next.isImportant = false;
+        next.latePolicy = 'keep';
+      } else if (!goes && next.mode === 'event') {
         next.mode = 'task';
       }
     }
@@ -660,7 +669,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const blanks = isSystemEvent ? [] : [
     !formData.name.trim() && 'what',
     !isChore && !atTime && !tie && !whenSet && 'when',
-    !isChore && !atTime && !lengthSet && 'how long',
+    !isChore && !lengthSet && 'how long',
   ].filter(Boolean) as string[];
   const canSubmit = formData.name.trim().length > 0 && blanks.length === 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !badEnd;
 
@@ -1027,7 +1036,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // "what": typed as an action ("do homework"), saved as its label ("Homework").
   const setWhat = (text: string, label = labelFor(text)) => {
     setWhatText(text);
-    onNameChange(label);
+    onNameChange(label, isOutingPhrase(text));
   };
   const whatIdeas = phraseSuggestions(whatText);
   const whatPart = (

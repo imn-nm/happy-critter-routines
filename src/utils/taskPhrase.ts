@@ -32,7 +32,10 @@ export const TASK_PHRASES: { label: string; phrase: string; wants?: boolean }[] 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** Verbs a typed action may start with; dropped for the label ("do homework" → "Homework"). */
-const LEADS = ['go to ', 'have a ', 'have an ', 'have ', 'do the ', 'do ', 'watch ', 'practice ', 'practise '];
+const LEADS = ['go to the ', 'go to ', 'have a ', 'have an ', 'have ', 'do the ', 'do ', 'watch ', 'practice ', 'practise '];
+
+/** "go to …": somewhere they go (soccer, a class), with time to get ready first. */
+export const isOutingPhrase = (typed: string) => /^go to( |$)/.test(norm(typed));
 
 /** What the parent typed in the sentence → the name the task is saved under. */
 export function labelFor(typed: string): string {
