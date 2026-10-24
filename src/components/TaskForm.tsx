@@ -47,7 +47,7 @@ interface TaskFormProps {
   /** The child's age, for age-appropriate checklist suggestions. */
   childAge?: number | null;
   /** The child's timed tasks, for "after…" on a floating task. */
-  anchorOptions?: { id: string; name: string; after_task_id?: string | null }[];
+  anchorOptions?: { id: string; name: string; after_task_id?: string | null; before_task_id?: string | null }[];
   /** The child's routines, so a task can repeat with one. */
   routines?: Routine[];
   /** The child's school days, for a "school days" routine. */
@@ -201,6 +201,9 @@ const ExtraChip = ({ icon: Icon, label, onClick, pressed }: { icon: typeof Star;
   </button>
 );
 
+/** How "when" is said: after something, before something, or at a time. */
+type TieWord = 'after' | 'before' | 'at';
+
 /** A part of the sentence still to fill in: "what", "when", "how long". */
 const Blank = ({ children }: { children: ReactNode }) => (
   <span className="inline-block min-w-[4.2em] border-b-2 border-dashed border-focus-lime/55 px-1.5 text-center font-medium italic leading-[26px] text-focus-lime/60">{children}</span>
@@ -283,6 +286,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     latePolicy: (task?.late_policy ?? (task?.is_fun_time ? 'skip' : 'keep')) as LatePolicy,
     minDuration: task?.min_duration ?? 10,
     afterTaskId: task?.after_task_id ?? gapAnchor ?? '',
+    beforeTaskId: task?.before_task_id ?? '',
     // Where a floating task was put on the day (its slot when nothing ties it).
     placeHint: toHHMM(task?.scheduled_time) || toHHMM(task?.window_start) || toHHMM(prefillTime) || '',
     routineId: task?.routine_id ?? '',
@@ -306,6 +310,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // task is saved under its short label ("Homework").
   const [whatText, setWhatText] = useState(task?.name ? phraseFor(task.name) : "");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [word, setWord] = useState<TieWord>(() =>
+    formData.scheduledTime && !startsAsChore ? 'at' : task?.before_task_id ? 'before' : 'after');
   const [whatOpen, setWhatOpen] = useState(false);
   // An end time picked before the start: shown with an error, never saved.
   const [badEnd, setBadEnd] = useState<string | null>(null);
@@ -364,14 +370,18 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   for (let grew = true; grew;) {
     grew = false;
     for (const o of anchorOptions) {
-      if (o.after_task_id && followers.has(o.after_task_id) && !followers.has(o.id)) {
+      const tiedTo = o.after_task_id || o.before_task_id;
+      if (tiedTo && followers.has(tiedTo) && !followers.has(o.id)) {
         followers.add(o.id);
         grew = true;
       }
     }
   }
   const anchors = anchorOptions.filter(o => !followers.has(o.id));
-  const anchor = anchors.find(o => o.id === formData.afterTaskId);
+  const anchor = word === 'after' ? anchors.find(o => o.id === formData.afterTaskId) : undefined;
+  const beforeAnchor = word === 'before' ? anchors.find(o => o.id === formData.beforeTaskId) : undefined;
+  // What "after" or "before" hangs off.
+  const tie = anchor ?? beforeAnchor;
 
   const durationTotal = (parseInt(formData.durationHours) || 0) * 60 + (parseInt(formData.durationMinutes) || 0);
   const setDuration = (minutes: number) => {
@@ -606,6 +616,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       days_override: !!routine && formData.daysOverride,
       // Only a floating task follows another; a set time is its own start.
       after_task_id: !isChore && !scheduledTimeStr && anchor ? anchor.id : null,
+      // Or ends right as another starts ("before Bedtime"). Sent only when
+      // it has or had one, so tasks save on a database without the column.
+      ...(beforeAnchor || task?.before_task_id
+        ? { before_task_id: !isChore && !scheduledTimeStr && beforeAnchor ? beforeAnchor.id : null }
+        : {}),
     };
     onSave({ ...newTask, _additionalChildIds: isEdit ? undefined : additionalChildIds });
   };
@@ -641,7 +656,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // Blanks left in the sentence (a built-in row's sentence has none).
   const blanks = isSystemEvent ? [] : [
     !formData.name.trim() && 'what',
-    !isChore && !atTime && !anchor && !whenSet && 'when',
+    !isChore && !atTime && !tie && !whenSet && 'when',
     !isChore && !atTime && !lengthSet && 'how long',
   ].filter(Boolean) as string[];
   const canSubmit = formData.name.trim().length > 0 && blanks.length === 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !badEnd;
@@ -826,87 +841,54 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       </button>
     </div>
   );
-  // "when": their day, free time dashed. Tapping a free spot puts the task
-  // there, hanging off whatever comes before it; tapping a task puts it
-  // straight after that task. Hanging off something means it moves with it.
+  // "when" is two lime parts: a word (after / before / at) and what follows
+  // it. After and before hang off something on their day, picked on the
+  // schedule view, and move with it; at is a clock time of its own.
   const [whenOpen, setWhenOpen] = useState(false);
+  const [wordOpen, setWordOpen] = useState(false);
   const shownRows = dayRows.filter(r => !task?.id || r.taskId !== task.id);
-  const anchorable = (taskId?: string) => !!taskId && anchors.some(a => a.id === taskId);
+  // Nothing comes after Bedtime: the day ends at midnight.
+  const anchorable = (taskId?: string, as: TieWord = word) =>
+    !!taskId && anchors.some(a => a.id === taskId && (as !== 'after' || a.name !== 'Bedtime'));
   const putAfter = (taskId: string, at: number) => {
-    if (formData.scheduledTime) setLastTime(formData.scheduledTime);
     setWhenSet(true);
-    setFormData({ ...formData, afterTaskId: taskId, scheduledTime: '', placeHint: hhmmOf(at), mode: isEvent ? 'task' : formData.mode });
-    setWhenMode('day');
+    setFormData({ ...formData, afterTaskId: taskId, beforeTaskId: '', scheduledTime: '', placeHint: hhmmOf(at), mode: isEvent ? 'task' : formData.mode });
     setWhenOpen(false);
   };
-  const putAt = (at: number) => {
+  const putBefore = (taskId: string, at: number) => {
     setWhenSet(true);
-    // Wants to never has a set time: it just sits there, wherever there's room.
-    if (isWants) setFormData({ ...formData, afterTaskId: '', placeHint: hhmmOf(at) });
-    else { setLastTime(hhmmOf(at)); setFormData({ ...formData, afterTaskId: '', scheduledTime: hhmmOf(at), placeHint: hhmmOf(at) }); }
+    setFormData({ ...formData, beforeTaskId: taskId, afterTaskId: '', scheduledTime: '', placeHint: hhmmOf(Math.max(0, at - durationTotal)), mode: isEvent ? 'task' : formData.mode });
     setWhenOpen(false);
   };
-  // Where the task sits in the list: after its anchor, or by its time.
-  const pickedAfter = anchor
-    ? shownRows.findIndex(r => r.taskId === anchor.id)
-    : atTime && startMinutes != null
-      ? shownRows.reduce((idx, r, i) => (!r.gap && r.start <= startMinutes ? i : idx), -1)
-      : -2;
+  // Where the new task shows on the schedule view: right after or right
+  // before what it hangs off.
+  const tieRow = tie ? shownRows.findIndex(r => r.taskId === tie.id) : -1;
   const ghost = (
-    <div className="flex items-center justify-between gap-2 rounded-[10px] bg-focus-lime px-3 py-2 text-focus-bg">
-      <span className="truncate text-13 font-semibold">{formData.name.trim() || 'This'}</span>
-      <span className="shrink-0 text-12 font-semibold">{anchor ? `after ${anchor.name}` : atTime ? fmtTime(formData.scheduledTime) : ''}</span>
+    <div className="pl-14">
+      <div className="flex items-center justify-between gap-2 rounded-[10px] bg-focus-lime px-3 py-2 text-focus-bg">
+        <span className="truncate text-13 font-semibold">{formData.name.trim() || 'This'}</span>
+        <span className="shrink-0 text-12 font-semibold">{tie ? `${word} ${tie.name}` : ''}</span>
+      </div>
     </div>
   );
-  // Or a clock time of its own: a start and an end, as before. Only a Needs
-  // to has one, so a Wants to given a set time becomes a Needs to.
-  const [whenMode, setWhenMode] = useState<'day' | 'time'>(atTime ? 'time' : 'day');
-  const chooseSetTime = () => {
-    setWhenMode('time');
-    setWhenSet(true);
-    setLengthSet(true);
-    const start = formData.scheduledTime || formData.placeHint || lastTime;
-    setLastTime(start);
-    setFormData({ ...formData, scheduledTime: start, latePolicy: 'keep', isFunTime: false, mode: formData.mode === 'chore' ? 'task' : formData.mode });
-  };
   const dayPicker = (
     <div className="flex w-[300px] max-w-full flex-col gap-2">
-      <Segmented
-        label="On their day or at a set time"
-        value={whenMode}
-        options={[{ value: 'day', label: 'On their day' }, { value: 'time', label: 'Set time' }]}
-        onChange={(m) => (m === 'time' ? chooseSetTime() : setWhenMode('day'))}
-      />
-      {whenMode === 'time' ? (
-        <>
-          <div className="flex gap-1.5">
-            <TimeTile label="Starts" value={formData.scheduledTime} onChange={setStart} className={blockTile} />
-            <TimeTile label="Ends" value={badEnd ?? endTime} onChange={setEnd} className={blockTile} />
-          </div>
-          {badEnd && <Caption tone="error" role="alert">It has to end after it starts.</Caption>}
-          <button
-            type="button"
-            onClick={() => setWhenOpen(false)}
-            className="min-h-11 rounded-[12px] bg-focus-lavender text-14 font-semibold text-focus-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
-          >
-            Done
-          </button>
-        </>
-      ) : (
-      <>
-      <PickerLabel>Tap a free spot on their day</PickerLabel>
+      <PickerLabel>{word === 'before' ? 'Before what?' : 'After what?'} Tap it on their day</PickerLabel>
       <div className="flex max-h-[min(22rem,55vh)] flex-col gap-1.5 overflow-y-auto pr-0.5">
         {shownRows.map((r, i) => {
-          const before = i > 0 ? shownRows[i - 1] : undefined;
+          // A free spot hangs off what is just before it (after) or just after it (before).
+          const neighbour = word === 'before' ? shownRows[i + 1] : shownRows[i - 1];
           return (
             <Fragment key={r.id}>
+              {word === 'before' && tieRow === i && ghost}
               <div className="flex items-stretch gap-2">
                 <span className="w-12 shrink-0 pt-2 text-12 font-semibold text-focus-muted">{minutesLabel(r.start).replace(/ [ap]m$/, '')}</span>
                 {r.gap ? (
                   <button
                     type="button"
-                    onClick={() => (anchorable(before?.taskId) ? putAfter(before!.taskId!, r.start) : putAt(r.start))}
-                    className="min-h-10 flex-1 rounded-[10px] border border-dashed border-focus-lavender/45 px-3 text-left text-12 font-medium text-focus-muted hover:bg-focus-lavender/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+                    disabled={!anchorable(neighbour?.taskId)}
+                    onClick={() => (word === 'before' ? putBefore(neighbour!.taskId!, r.end) : putAfter(neighbour!.taskId!, r.start))}
+                    className="min-h-10 flex-1 rounded-[10px] border border-dashed border-focus-lavender/45 px-3 text-left text-12 font-medium text-focus-muted hover:enabled:bg-focus-lavender/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
                   >
                     {fmtLen(r.end - r.start)} free
                   </button>
@@ -914,23 +896,75 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   <button
                     type="button"
                     disabled={!anchorable(r.taskId)}
-                    onClick={() => putAfter(r.taskId!, r.end)}
-                    className="min-h-10 flex-1 min-w-0 flex items-center justify-between gap-2 rounded-[10px] bg-focus-surface px-3 text-left hover:enabled:bg-focus-raised disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
-                    aria-label={`After ${r.name}`}
+                    onClick={() => (word === 'before' ? putBefore(r.taskId!, r.start) : putAfter(r.taskId!, r.end))}
+                    className={cn(
+                      "min-h-10 flex-1 min-w-0 flex items-center justify-between gap-2 rounded-[10px] bg-focus-surface px-3 text-left hover:enabled:bg-focus-raised disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+                      tieRow === i && "ring-[1.5px] ring-focus-lime",
+                    )}
+                    aria-label={`${word === 'before' ? 'Before' : 'After'} ${r.name}`}
                   >
                     <span className="truncate text-13 font-semibold text-focus-text">{r.name}</span>
                     <span className="shrink-0 text-11 text-focus-muted">{fmtRange(hhmmOf(r.start), hhmmOf(r.end))}</span>
                   </button>
                 )}
               </div>
-              {pickedAfter === i && <div className="pl-14">{ghost}</div>}
+              {word === 'after' && tieRow === i && ghost}
             </Fragment>
           );
         })}
-        {pickedAfter === -1 && <div className="pl-14">{ghost}</div>}
       </div>
-      </>
-      )}
+    </div>
+  );
+  // At: a clock time of its own. Only a Needs to has one, so a Wants to
+  // given a time becomes a Needs to.
+  const chooseWord = (next: TieWord) => {
+    setWordOpen(false);
+    setWord(next);
+    if (next === 'at') {
+      setWhenSet(true);
+      const start = formData.scheduledTime || formData.placeHint || lastTime;
+      setLastTime(start);
+      setFormData({ ...formData, scheduledTime: start, latePolicy: 'keep', isFunTime: false, mode: formData.mode === 'chore' ? 'task' : formData.mode });
+      return;
+    }
+    // After ↔ before keeps what it hangs off; leaving "at" makes it float.
+    const keep = formData.afterTaskId || formData.beforeTaskId;
+    if (formData.scheduledTime) setLastTime(formData.scheduledTime);
+    setFormData({
+      ...formData,
+      scheduledTime: '',
+      placeHint: formData.scheduledTime || formData.placeHint,
+      afterTaskId: next === 'after' && anchorable(keep, 'after') ? keep : '',
+      beforeTaskId: next === 'before' && anchorable(keep, 'before') ? keep : '',
+      mode: isEvent ? 'task' : formData.mode,
+    });
+  };
+  const WORDS: { value: TieWord; caption: string }[] = [
+    { value: 'after', caption: 'Starts when something ends, and moves with it' },
+    { value: 'before', caption: 'Ends when something starts, and moves with it' },
+    { value: 'at', caption: 'Starts and ends at a set time' },
+  ];
+  const wordPicker = (
+    <div role="radiogroup" aria-label="After, before or at" className="flex w-[300px] max-w-full flex-col gap-1.5">
+      {WORDS.map(w => {
+        const on = word === w.value;
+        return (
+          <button
+            key={w.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => chooseWord(w.value)}
+            className={cn(
+              "flex min-h-11 flex-col items-start gap-0.5 rounded-[12px] px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender",
+              on ? "bg-focus-lime/10 ring-[1.5px] ring-focus-lime" : "bg-focus-surface hover:bg-focus-raised",
+            )}
+          >
+            <span className={cn("text-[17px] font-semibold leading-[22px]", on ? "text-focus-lime" : "text-focus-text")}>{w.value}</span>
+            <span className="text-12 leading-4 text-focus-muted">{w.caption}</span>
+          </button>
+        );
+      })}
     </div>
   );
   const prepPicker = (
@@ -1121,54 +1155,78 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       } else if (formData.needsStart && !isFun && !isWants) {
         rules.push(<Fragment key="start"> It waits for {startTap}.</Fragment>);
       }
-      if (isWants && (whenSet || anchor)) rules.push(<Fragment key="shrink"> If the day runs late, it shrinks first.</Fragment>);
+      if (isWants && (whenSet || tie)) rules.push(<Fragment key="shrink"> If the day runs late, it shrinks first.</Fragment>);
       if (starsSentence) rules.push(<Fragment key="stars"> You give {starsSentence}.</Fragment>);
     }
-    if (atTime) {
+    const getReady = isEvent || (schoolRow && formData.getReady) ? (
+      <>, with{' '}
+        <SummaryPart label="Time to get ready. Change" picker={prepPicker}>
+          {formData.getReady ? `${fmtLen(formData.prepMinutes)} to get ready` : 'no time to get ready'}
+        </SummaryPart>.
+      </>
+    ) : '.';
+    // A built-in row keeps its own times: "School from 8:00 to 3:00 pm."
+    if (isSystemEvent) {
+      if (!atTime) return <>{lead} for {fmtLen(durationTotal)}.</>;
       return (
         <>
           {lead} from{' '}
-          <SummaryPart
-            label={`Starts ${fmtTime(formData.scheduledTime)}. Change`}
-            open={isSystemEvent ? undefined : whenOpen}
-            onOpenChange={isSystemEvent ? undefined : (o) => { if (o) setWhenMode('time'); setWhenOpen(o); }}
-            picker={isSystemEvent ? timePicker('Starts', formData.scheduledTime, setStart) : dayPicker}
-          >
+          <SummaryPart label={`Starts ${fmtTime(formData.scheduledTime)}. Change`} picker={timePicker('Starts', formData.scheduledTime, setStart)}>
             {fmtStartOf(formData.scheduledTime, endTime)}
           </SummaryPart>{' '}
           to{' '}
           <SummaryPart label={`Ends ${fmtTime(endTime)}. Change`} picker={timePicker('Ends', badEnd ?? endTime, setEnd)}>
             {fmtTime(endTime)}
           </SummaryPart>
-          {!isSystemEvent && onDays}
-          {isEvent || (schoolRow && formData.getReady) ? (
-            <>, with{' '}
-              <SummaryPart label="Time to get ready. Change" picker={prepPicker}>
-                {formData.getReady ? `${fmtLen(formData.prepMinutes)} to get ready` : 'no time to get ready'}
-              </SummaryPart>.
-            </>
-          ) : '.'}
+          {getReady}
           {rules}
         </>
       );
     }
-    if (isSystemEvent) return <>{lead} for {fmtLen(durationTotal)}.</>;
-    const whenWords = anchor ? `after ${anchor.name}` : "wherever there's room";
+    // A task floating with nothing to hang off (Floats, or from before)
+    // reads "wherever there's room" in place of the word.
+    const roomOnly = !atTime && !tie && whenSet;
+    const wordPart = (
+      <SummaryPart label={`${roomOnly ? "Wherever there's room" : word}. Change`} open={wordOpen} onOpenChange={setWordOpen} picker={wordPicker}>
+        {roomOnly ? "wherever there's room" : word}
+      </SummaryPart>
+    );
+    const lengthPart = (
+      <SummaryPart label={lengthSet ? `Length ${fmtLen(durationTotal)}. Change` : 'How long. Fill in'} picker={lengthPicker}>
+        {lengthSet ? fmtLen(durationTotal) : <Blank>how long</Blank>}
+      </SummaryPart>
+    );
+    if (atTime) {
+      return (
+        <>
+          {lead} {wordPart}{' '}
+          <SummaryPart label={`At ${fmtTime(formData.scheduledTime)}. Change`} picker={timePicker('Starts', formData.scheduledTime, setStart)}>
+            {fmtTime(formData.scheduledTime)}
+          </SummaryPart>{' '}
+          for {lengthPart}
+          {onDays}
+          {getReady}
+          {rules}
+        </>
+      );
+    }
     return (
       <>
-        {lead}{' '}
-        <SummaryPart
-          label={whenSet || anchor ? `When: ${whenWords}. Change` : 'When. Fill in'}
-          open={whenOpen}
-          onOpenChange={(o) => { if (o) setWhenMode('day'); setWhenOpen(o); }}
-          picker={shownRows.length ? dayPicker : placePicker}
-        >
-          {whenSet || anchor ? whenWords : <Blank>when</Blank>}
-        </SummaryPart>{' '}
-        for{' '}
-        <SummaryPart label={lengthSet ? `Length ${fmtLen(durationTotal)}. Change` : 'How long. Fill in'} picker={lengthPicker}>
-          {lengthSet ? fmtLen(durationTotal) : <Blank>how long</Blank>}
-        </SummaryPart>
+        {lead} {wordPart}
+        {!roomOnly && (
+          <>
+            {' '}
+            <SummaryPart
+              label={tie ? `${word} ${tie.name}. Change` : `${word} what. Fill in`}
+              open={whenOpen}
+              onOpenChange={setWhenOpen}
+              picker={shownRows.length ? dayPicker : placePicker}
+            >
+              {tie ? tie.name : <Blank>something</Blank>}
+            </SummaryPart>
+          </>
+        )}{' '}
+        for {lengthPart}
         {onDays}.
         {rules}
       </>
@@ -1515,7 +1573,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
               label="Set time or floats"
               value={kind}
               options={[{ value: 'fixed', label: 'Set time' }, { value: 'flexible', label: 'Floats' }]}
-              onChange={(k) => { setWhenSet(true); if (k === 'fixed') setLengthSet(true); setKind(k); }}
+              onChange={(k) => { setWhenSet(true); setWord(k === 'fixed' ? 'at' : 'after'); setKind(k); }}
             />
           )}
           <div className="flex gap-1.5">

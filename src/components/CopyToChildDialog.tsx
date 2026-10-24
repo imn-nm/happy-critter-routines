@@ -188,6 +188,15 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
             routine_id: newRoutineId,
             days_override: !!newRoutineId && !!t.days_override,
             after_task_id: link.copied ? newIds.get(link.copied) ?? null : link.theirs?.id ?? null,
+            // "before" points at a copied task, else theirs of the same name.
+            ...(t.before_task_id ? {
+              before_task_id: (() => {
+                const b = byId.get(t.before_task_id!);
+                if (!b) return null;
+                if (chosenIds.has(b.id)) return newIds.get(b.id) ?? null;
+                return theirTasks.find(o => o.is_active !== false && o.name === b.name)?.id ?? null;
+              })(),
+            } : {}),
             link_id: linkId,
           })
           .select("id")

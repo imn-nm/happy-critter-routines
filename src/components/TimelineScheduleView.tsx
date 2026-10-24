@@ -148,6 +148,8 @@ interface TimelineEvent {
   pinned?: boolean;
   /** The row it hangs off ("after Lunch"), when it has one. */
   afterName?: string;
+  /** The row it comes right before ("before Bedtime"), when it has one. */
+  beforeName?: string;
 }
 
 // System events are now managed in the database via the systemTasks utility
@@ -566,7 +568,7 @@ const SortableTimelineEvent = ({ event, onEditTask, onDeleteTask, onToggleComple
           } else if (floats) {
             metaParts.push(formatDuration(event.duration));
             // Hangs off another row ("after Lunch") or just floats.
-            metaParts.push(event.afterName ? `after ${event.afterName}` : 'floats');
+            metaParts.push(event.afterName ? `after ${event.afterName}` : event.beforeName ? `before ${event.beforeName}` : 'floats');
             if (isDraggable) metaParts.push('drag to move');
           } else {
             metaParts.push(formatRange(event.time, event.duration));
@@ -1141,6 +1143,7 @@ const TimelineScheduleView = ({
           isEvent: t.is_event,
           prepMinutes: t.prep_minutes,
           afterTaskId: t.after_task_id,
+          beforeTaskId: t.before_task_id,
         };
       }),
   ], child);
@@ -1338,10 +1341,14 @@ const TimelineScheduleView = ({
     return h * 60 + m;
   };
   fixedEvents.forEach(e => endsAt.set(e.id, toMinutesOfDay(e.time) + e.duration));
+  // …and where they start, for a task set to come "before" one of them.
+  const startsAt = new Map<string, number>();
+  fixedEvents.forEach(e => startsAt.set(e.id, toMinutesOfDay(e.time)));
   const pinnedTimeOf = (task: typeof draggableTasks[number]) => dayPinnedTime(task);
   draggableTasks.forEach(task => {
     const pinned = pinnedTimeOf(task);
     if (pinned) endsAt.set(task.id, toMinutesOfDay(pinned) + getTaskTimeForDay(task).duration);
+    if (pinned) startsAt.set(task.id, toMinutesOfDay(pinned));
   });
   // Flex tasks (no pinned time) are placed in turn: after their anchor when
   // they have one, otherwise at their window_start hint (moved along with
@@ -1352,11 +1359,16 @@ const TimelineScheduleView = ({
     const taskDuration = getTaskTimeForDay(task).duration;
     const anchorId = dayTies.anchors.get(task.id) ?? task.after_task_id;
     const anchorEnd = anchorId ? endsAt.get(anchorId) : undefined;
+    const anchorStart = !anchorId && task.before_task_id ? startsAt.get(task.before_task_id) : undefined;
     const windowStart = dayTies.times.get(task.id) ?? task.date_overrides?.[selectedDayDateString]?.window_start ?? task.window_start;
     let startMin: number;
     if (anchorEnd != null) {
       // "After this": right after the anchor, or the next gap after it.
       startMin = resolveDropStart(flexOccupied, anchorEnd, taskDuration, dayBounds) ?? anchorEnd;
+    } else if (anchorStart != null) {
+      // "Before this": it ends as the anchor starts, or the nearest gap to that.
+      const want = Math.max(dayBounds.dayStart, anchorStart - taskDuration);
+      startMin = resolveDropStart(flexOccupied, want, taskDuration, dayBounds) ?? want;
     } else {
       const hint = windowStart || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
@@ -1378,6 +1390,7 @@ const TimelineScheduleView = ({
     // Whatever spot this task took is occupied for the next flex task.
     flexOccupied.push({ start: startMin, end: startMin + taskDuration });
     endsAt.set(task.id, startMin + taskDuration);
+    startsAt.set(task.id, startMin);
     flexTimes.set(task.id, minutesToTimeStr(startMin));
   }
 
@@ -1398,6 +1411,7 @@ const TimelineScheduleView = ({
       // Set time today? A task made "whenever there is room" for the day moves freely.
       pinned: !!task.scheduled_time && !task.date_overrides?.[selectedDayDateString]?.anytime,
       afterName: task.after_task_id ? tasksWithCompletion.find(o => o.id === task.after_task_id)?.name : undefined,
+      beforeName: task.before_task_id ? tasksWithCompletion.find(o => o.id === task.before_task_id)?.name : undefined,
       coins: task.coins,
       isCompleted,
       isLate: false,

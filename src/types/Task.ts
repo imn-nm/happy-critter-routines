@@ -30,6 +30,8 @@ export interface Task {
   days_override?: boolean;
   /** A flexible task that starts right after this task ("Reading after Bath"). */
   after_task_id?: string | null;
+  /** Ends right when this task starts ("before Bedtime"). */
+  before_task_id?: string | null;
   /** Shared with the same task copied to other children; edits carry over. */
   link_id?: string | null;
   window_start?: string;

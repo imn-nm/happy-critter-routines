@@ -3162,7 +3162,7 @@ function tieDay(items, everyday) {
     hidden.add(meal.id);
     for (const item of items) if (item.afterTaskId === meal.id) anchors.set(item.id, event.id);
   }
-  const canMove = (item) => !isSystemTaskName(item.name) && !item.isEvent && item.type !== "floating" && !!item.isRecurring && !item.movedToday && !item.afterTaskId;
+  const canMove = (item) => !isSystemTaskName(item.name) && !item.isEvent && item.type !== "floating" && !!item.isRecurring && !item.movedToday && !item.afterTaskId && !item.beforeTaskId;
   const moveTo = (item, minute) => times.set(item.id, minutesToTime(Math.min(LAST_MINUTE, Math.max(0, minute))));
   const wakeItem = items.find((i) => i.name === "Wake Up");
   const everydayWake = timeToMinutes(everyday.wake_time);
@@ -3758,7 +3758,8 @@ var orderByAnchors = (tasks) => {
     if (state.get(t.id) === "done") return;
     if (state.get(t.id) === "visiting") return;
     state.set(t.id, "visiting");
-    const anchor = t.after_task_id ? byId.get(t.after_task_id) : void 0;
+    const anchorId = t.after_task_id || t.before_task_id;
+    const anchor = anchorId ? byId.get(anchorId) : void 0;
     if (anchor) visit(anchor);
     state.set(t.id, "done");
     out.push(t);
@@ -3800,7 +3801,7 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     const dateOverride = task.date_overrides?.[todayStr];
     const weekdayOverride = task.schedule_overrides?.[currentDay];
     const override = dateOverride || weekdayOverride;
-    const hintFor = (pinned) => !pinned && !task.after_task_id ? dateOverride?.window_start || task.window_start || void 0 : void 0;
+    const hintFor = (pinned) => !pinned && !task.after_task_id && !task.before_task_id ? dateOverride?.window_start || task.window_start || void 0 : void 0;
     if (dateOverride?.anytime) {
       return {
         ...task,
@@ -3836,7 +3837,8 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     isRecurring: task.is_recurring,
     isEvent: task.is_event,
     prepMinutes: task.prep_minutes,
-    afterTaskId: task.after_task_id
+    afterTaskId: task.after_task_id,
+    beforeTaskId: task.before_task_id
   })), child);
   const resolvedTasks = dayTimes.filter((task) => !ties.hidden.has(task.id)).map((task) => {
     const time = ties.times.get(task.id);
@@ -3877,10 +3879,12 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
   };
   const endsAt = /* @__PURE__ */ new Map();
+  const startsAt = /* @__PURE__ */ new Map();
   tasksWithDaySpecificTimes.forEach((t) => {
     if (!t.scheduled_time || t.type === "floating") return;
     const [h, m] = t.scheduled_time.slice(0, 5).split(":").map(Number);
     endsAt.set(t.id, h * 60 + m + (t.duration ?? 0));
+    startsAt.set(t.id, h * 60 + m);
   });
   const placedAt = /* @__PURE__ */ new Map();
   for (const task of orderByAnchors(tasksWithDaySpecificTimes)) {
@@ -3888,10 +3892,13 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     if (hasTime || task.type === "floating") continue;
     const duration = task.duration ?? 30;
     const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : void 0;
+    const anchorStart = task.before_task_id ? startsAt.get(task.before_task_id) : void 0;
     const atMinute = (start) => start == null ? null : `${Math.floor(start / 60).toString().padStart(2, "0")}:${(start % 60).toString().padStart(2, "0")}`;
     let slot;
     if (anchorEnd != null) {
       slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+    } else if (anchorStart != null) {
+      slot = atMinute(resolveDropStart(occupied, Math.max(dayBounds.dayStart, anchorStart - duration), duration, dayBounds));
     } else if (task.placementHint) {
       const [hh, hm] = task.placementHint.slice(0, 5).split(":").map(Number);
       const hint = hh * 60 + hm;
@@ -3905,6 +3912,7 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     occupied.push({ start: h * 60 + m, end: h * 60 + m + duration });
     occupied.sort((a, b) => a.start - b.start);
     endsAt.set(task.id, h * 60 + m + duration);
+    startsAt.set(task.id, h * 60 + m);
     placedAt.set(task.id, slot);
   }
   const withAutoPlacement = tasksWithDaySpecificTimes.map((task) => placedAt.has(task.id) ? { ...task, scheduled_time: placedAt.get(task.id) } : task);
@@ -3991,4 +3999,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "ea18eb7ecf";
+export const PLAN_REV = "f2b96cc5a1";

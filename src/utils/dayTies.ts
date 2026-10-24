@@ -35,6 +35,7 @@ export interface DayItem {
   isEvent?: boolean | null;
   prepMinutes?: number | null;
   afterTaskId?: string | null;
+  beforeTaskId?: string | null;
 }
 
 /** The child's everyday routine times (profile fields). */
@@ -90,7 +91,7 @@ export function tieDay(items: DayItem[], everyday: EverydayTimes): DayTies {
   // not moved for this day, not following another task (those follow it).
   const canMove = (item: DayItem) =>
     !isSystemTaskName(item.name) && !item.isEvent && item.type !== 'floating'
-    && !!item.isRecurring && !item.movedToday && !item.afterTaskId;
+    && !!item.isRecurring && !item.movedToday && !item.afterTaskId && !item.beforeTaskId;
   const moveTo = (item: DayItem, minute: number) =>
     times.set(item.id, minutesToTime(Math.min(LAST_MINUTE, Math.max(0, minute))));
 

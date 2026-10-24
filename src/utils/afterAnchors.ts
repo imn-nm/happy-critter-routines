@@ -5,7 +5,7 @@
  * A task whose anchor isn't in the list (not on today, deleted) is placed
  * like any other flexible task; a loop of anchors is broken where found.
  */
-export const orderByAnchors = <T extends { id: string; after_task_id?: string | null }>(tasks: T[]): T[] => {
+export const orderByAnchors = <T extends { id: string; after_task_id?: string | null; before_task_id?: string | null }>(tasks: T[]): T[] => {
   const byId = new Map(tasks.map(t => [t.id, t]));
   const out: T[] = [];
   const state = new Map<string, 'visiting' | 'done'>();
@@ -13,7 +13,8 @@ export const orderByAnchors = <T extends { id: string; after_task_id?: string | 
     if (state.get(t.id) === 'done') return;
     if (state.get(t.id) === 'visiting') return; // a loop: stop here
     state.set(t.id, 'visiting');
-    const anchor = t.after_task_id ? byId.get(t.after_task_id) : undefined;
+    const anchorId = t.after_task_id || t.before_task_id;
+    const anchor = anchorId ? byId.get(anchorId) : undefined;
     if (anchor) visit(anchor);
     state.set(t.id, 'done');
     out.push(t);

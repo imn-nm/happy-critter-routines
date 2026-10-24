@@ -73,7 +73,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     const weekdayOverride = task.schedule_overrides?.[currentDay];
     const override = dateOverride || weekdayOverride;
     const hintFor = (pinned: string | null | undefined) =>
-      !pinned && !task.after_task_id ? dateOverride?.window_start || task.window_start || undefined : undefined;
+      !pinned && !task.after_task_id && !task.before_task_id ? dateOverride?.window_start || task.window_start || undefined : undefined;
     if (dateOverride?.anytime) {
       // "Whenever there is room" today: it sits at its hint until dragged.
       return {
@@ -115,6 +115,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     isEvent: task.is_event,
     prepMinutes: task.prep_minutes,
     afterTaskId: task.after_task_id,
+    beforeTaskId: task.before_task_id,
   })), child);
   const resolvedTasks = dayTimes
     .filter(task => !ties.hidden.has(task.id))
@@ -177,10 +178,13 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
   // Where each task ends up today, so a task that follows it can start
   // straight after. Anchors are placed first (orderByAnchors).
   const endsAt = new Map<string, number>();
+  // …and where each starts, for a task that comes "before" it.
+  const startsAt = new Map<string, number>();
   tasksWithDaySpecificTimes.forEach(t => {
     if (!t.scheduled_time || t.type === 'floating') return;
     const [h, m] = t.scheduled_time.slice(0, 5).split(':').map(Number);
     endsAt.set(t.id, h * 60 + m + (t.duration ?? 0));
+    startsAt.set(t.id, h * 60 + m);
   });
   const placedAt = new Map<string, string>();
   for (const task of orderByAnchors(tasksWithDaySpecificTimes)) {
@@ -189,11 +193,15 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     if (hasTime || task.type === 'floating') continue;
     const duration = task.duration ?? 30;
     const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : undefined;
+    const anchorStart = task.before_task_id ? startsAt.get(task.before_task_id) : undefined;
     const atMinute = (start: number | null) =>
       start == null ? null : `${Math.floor(start / 60).toString().padStart(2, '0')}:${(start % 60).toString().padStart(2, '0')}`;
     let slot: string | null;
     if (anchorEnd != null) {
       slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+    } else if (anchorStart != null) {
+      // "Before this": it ends as the anchor starts, or the nearest gap to that.
+      slot = atMinute(resolveDropStart(occupied, Math.max(dayBounds.dayStart, anchorStart - duration), duration, dayBounds));
     } else if (task.placementHint) {
       // The nearest free gap to its hint (snapped to a neighbour's edge within
       // 15 minutes); with no gap left, still inside the waking day.
@@ -209,6 +217,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     occupied.push({ start: h * 60 + m, end: h * 60 + m + duration });
     occupied.sort((a, b) => a.start - b.start);
     endsAt.set(task.id, h * 60 + m + duration);
+    startsAt.set(task.id, h * 60 + m);
     placedAt.set(task.id, slot);
   }
   const withAutoPlacement = tasksWithDaySpecificTimes.map(task =>

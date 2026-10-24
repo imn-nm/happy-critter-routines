@@ -170,7 +170,7 @@ const ChildDashboard = () => {
 
   const anchorOptions = (() => {
     const timed = tasks
-      .filter(t => t.type !== 'floating' && t.is_active !== false && t.name !== 'Bedtime')
+      .filter(t => t.type !== 'floating' && t.is_active !== false)
       .sort((a, b) => (a.scheduled_time ?? '99').localeCompare(b.scheduled_time ?? '99') || a.sort_order - b.sort_order);
     const count = new Map<string, number>();
     timed.forEach(t => count.set(t.name, (count.get(t.name) ?? 0) + 1));
@@ -180,6 +180,7 @@ const ChildDashboard = () => {
       return {
         id: t.id,
         after_task_id: t.after_task_id,
+        before_task_id: t.before_task_id,
         name: (count.get(t.name) ?? 0) > 1 && which ? `${t.name} (${which})` : t.name,
       };
     });
@@ -541,7 +542,7 @@ const ChildDashboard = () => {
         // Safety net for anything that still reaches save without a placement
         // (e.g. the /tasks page, which doesn't prefill). Say where it landed.
         let autoPlacedAt: string | undefined;
-        if (!finalTaskData.scheduled_time && !finalTaskData.window_start && !finalTaskData.after_task_id && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
+        if (!finalTaskData.scheduled_time && !finalTaskData.window_start && !finalTaskData.after_task_id && !finalTaskData.before_task_id && (finalTaskData.type === 'regular' || finalTaskData.type === 'flexible')) {
           autoPlacedAt = suggestSlot(finalTaskData.task_date || format(currentDate, 'yyyy-MM-dd'), finalTaskData.duration || DEFAULT_SLOT_MINUTES);
           if (autoPlacedAt) finalTaskData.scheduled_time = autoPlacedAt;
         }
@@ -588,6 +589,10 @@ const ChildDashboard = () => {
             if (row.after_task_id) {
               const anchorName = tasks.find(t => t.id === row.after_task_id)?.name;
               row.after_task_id = theirs.find(t => t.name === anchorName && t.is_active !== false)?.id ?? null;
+            }
+            if (row.before_task_id) {
+              const anchorName = tasks.find(t => t.id === row.before_task_id)?.name;
+              row.before_task_id = theirs.find(t => t.name === anchorName && t.is_active !== false)?.id ?? null;
             }
             const dates = row.is_recurring ? upcomingDates(theirs, sibling) : [row.task_date || format(currentDate, 'yyyy-MM-dd')];
             const clash = findStartClash({ ...row, id: 'new', is_active: true } as TaskLike, dates, theirs, sibling);
