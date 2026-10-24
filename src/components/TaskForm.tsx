@@ -130,7 +130,7 @@ const MAX_STARS = 20;
 // ---------------------------------------------------------------------------
 
 /**
- * A lime, dotted-underlined part of the summary ("3:00", "weekdays") that
+ * A lime part of the summary ("3:00", "weekdays") in its own dark box, that
  * opens its own small picker.
  */
 const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
@@ -141,7 +141,7 @@ const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
       <button
         type="button"
         aria-label={label}
-        className="rounded-[4px] font-semibold text-focus-lime underline decoration-dotted decoration-2 decoration-focus-lime/70 underline-offset-[6px] transition-colors hover:text-focus-lime/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+        className="max-w-full rounded-[10px] bg-focus-surface px-1 align-baseline font-semibold leading-[31px] text-focus-lime transition-colors hover:bg-focus-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
       >
         {children}
       </button>
@@ -209,7 +209,7 @@ type TieWord = 'after' | 'before' | 'at';
 
 /** A part of the sentence still to fill in: "what", "when", "how long". */
 const Blank = ({ children }: { children: ReactNode }) => (
-  <span className="inline-block min-w-[4.2em] border-b-2 border-dashed border-focus-lime/55 px-1.5 text-center font-medium italic leading-[26px] text-focus-lime/60">{children}</span>
+  <span className="inline-block min-w-[4.2em] px-1 text-center font-medium italic text-focus-lime/55">{children}</span>
 );
 
 const minutesLabel = (m: number) => fmtTime(`${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
@@ -1426,7 +1426,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {/* === SUMMARY === the form: blanks to fill in, every lime part opens
           its own small picker. */}
-      <div className="rounded-[20px] border-[1.5px] border-focus-lavender bg-focus-bg px-[18px] py-4 text-[20px] leading-[32px] text-focus-text break-words">
+      <div className="rounded-[20px] border-[1.5px] border-focus-lavender bg-focus-bg px-[18px] py-4 text-[20px] leading-[38px] text-focus-text break-words">
         {summary}
       </div>
       {addsBuiltIn && (
