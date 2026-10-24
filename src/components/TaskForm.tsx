@@ -836,6 +836,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     if (formData.scheduledTime) setLastTime(formData.scheduledTime);
     setWhenSet(true);
     setFormData({ ...formData, afterTaskId: taskId, scheduledTime: '', placeHint: hhmmOf(at), mode: isEvent ? 'task' : formData.mode });
+    setWhenMode('day');
     setWhenOpen(false);
   };
   const putAt = (at: number) => {
@@ -857,8 +858,42 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       <span className="shrink-0 text-12 font-semibold">{anchor ? `after ${anchor.name}` : atTime ? fmtTime(formData.scheduledTime) : ''}</span>
     </div>
   );
+  // Or a clock time of its own: a start and an end, as before. Only a Needs
+  // to has one, so a Wants to given a set time becomes a Needs to.
+  const [whenMode, setWhenMode] = useState<'day' | 'time'>(atTime ? 'time' : 'day');
+  const chooseSetTime = () => {
+    setWhenMode('time');
+    setWhenSet(true);
+    setLengthSet(true);
+    const start = formData.scheduledTime || formData.placeHint || lastTime;
+    setLastTime(start);
+    setFormData({ ...formData, scheduledTime: start, latePolicy: 'keep', isFunTime: false, mode: formData.mode === 'chore' ? 'task' : formData.mode });
+  };
   const dayPicker = (
-    <div className="flex w-[300px] max-w-full flex-col gap-1.5">
+    <div className="flex w-[300px] max-w-full flex-col gap-2">
+      <Segmented
+        label="On their day or at a set time"
+        value={whenMode}
+        options={[{ value: 'day', label: 'On their day' }, { value: 'time', label: 'Set time' }]}
+        onChange={(m) => (m === 'time' ? chooseSetTime() : setWhenMode('day'))}
+      />
+      {whenMode === 'time' ? (
+        <>
+          <div className="flex gap-1.5">
+            <TimeTile label="Starts" value={formData.scheduledTime} onChange={setStart} className={blockTile} />
+            <TimeTile label="Ends" value={badEnd ?? endTime} onChange={setEnd} className={blockTile} />
+          </div>
+          {badEnd && <Caption tone="error" role="alert">It has to end after it starts.</Caption>}
+          <button
+            type="button"
+            onClick={() => setWhenOpen(false)}
+            className="min-h-11 rounded-[12px] bg-focus-lavender text-14 font-semibold text-focus-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+          >
+            Done
+          </button>
+        </>
+      ) : (
+      <>
       <PickerLabel>Tap a free spot on their day</PickerLabel>
       <div className="flex max-h-[min(22rem,55vh)] flex-col gap-1.5 overflow-y-auto pr-0.5">
         {shownRows.map((r, i) => {
@@ -894,6 +929,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         })}
         {pickedAfter === -1 && <div className="pl-14">{ghost}</div>}
       </div>
+      </>
+      )}
     </div>
   );
   const prepPicker = (
@@ -1091,7 +1128,12 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       return (
         <>
           {lead} from{' '}
-          <SummaryPart label={`Starts ${fmtTime(formData.scheduledTime)}. Change`} picker={timePicker('Starts', formData.scheduledTime, setStart)}>
+          <SummaryPart
+            label={`Starts ${fmtTime(formData.scheduledTime)}. Change`}
+            open={isSystemEvent ? undefined : whenOpen}
+            onOpenChange={isSystemEvent ? undefined : (o) => { if (o) setWhenMode('time'); setWhenOpen(o); }}
+            picker={isSystemEvent ? timePicker('Starts', formData.scheduledTime, setStart) : dayPicker}
+          >
             {fmtStartOf(formData.scheduledTime, endTime)}
           </SummaryPart>{' '}
           to{' '}
@@ -1118,7 +1160,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         <SummaryPart
           label={whenSet || anchor ? `When: ${whenWords}. Change` : 'When. Fill in'}
           open={whenOpen}
-          onOpenChange={setWhenOpen}
+          onOpenChange={(o) => { if (o) setWhenMode('day'); setWhenOpen(o); }}
           picker={shownRows.length ? dayPicker : placePicker}
         >
           {whenSet || anchor ? whenWords : <Blank>when</Blank>}
