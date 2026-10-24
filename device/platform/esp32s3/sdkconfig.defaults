@@ -72,4 +72,6 @@ CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=y
 # computer is on the USB port (logs and flashing keep working there).
 CONFIG_PM_ENABLE=y
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+# Wi-Fi and Bluetooth's MAC and baseband power down in light sleep (restored on wake)
+CONFIG_ESP_PHY_MAC_BB_PD=y
 CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y
