@@ -829,6 +829,7 @@ void hal_play(hal_sound_t s)
  * the amplifier and the channel are opened for a sound and closed after SPK_IDLE_MS of quiet. */
 #define SPK_RATE 22050
 #define SPK_IDLE_MS 2000
+static i2s_chan_handle_t spk_tx;
 
 static esp_codec_dev_handle_t speaker_new(void)
 {
@@ -843,6 +844,7 @@ static esp_codec_dev_handle_t speaker_new(void)
         .gpio_cfg = { .mclk = BSP_I2S_MCLK, .bclk = BSP_I2S_SCLK, .ws = BSP_I2S_LCLK, .dout = BSP_I2S_DOUT, .din = I2S_GPIO_UNUSED },
     };
     if (i2s_channel_init_std_mode(tx, &std) != ESP_OK) { i2s_del_channel(tx); return NULL; }   /* left off: opening turns it on */
+    spk_tx = tx;
     audio_codec_i2s_cfg_t ic = { .port = CONFIG_BSP_I2S_NUM, .tx_handle = tx };
     const audio_codec_data_if_t *data = audio_codec_new_i2s_data(&ic);
     audio_codec_i2c_cfg_t i2c = { .port = BSP_I2C_NUM, .addr = ES8311_CODEC_DEFAULT_ADDR, .bus_handle = bsp_i2c_get_handle() };
@@ -887,6 +889,7 @@ static void sound_task(void *arg)
         }
         if (!pcm || s >= sizeof SOUNDS / sizeof SOUNDS[0] || !volume_want) continue;
         if (!open) {
+            i2s_channel_enable(spk_tx);   /* the codec layer turns it off first to set it up, and logs an error if it was never on */
             if (esp_codec_dev_open(spk, &fs) != ESP_CODEC_DEV_OK) continue;
             open = true;
             volume_now = 0;
