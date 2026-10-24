@@ -39,6 +39,9 @@
 #define AUTO_NEXT_MS STEPS_ALL_MS /* a whole-task checklist done: then the next thing starts (an untick in that time stops it) */
 #define STEPS_PEEK_MS 8000        /* "Steps done" tapped: the list again, to uncheck one */
 #define SLEEP_MS 10000            /* put down this long (and not touched), the screen goes off */
+#define IDLE_MS (2 * 60 * 1000)   /* moving but no touch or button this long (a pocket, a bag): off too... */
+#define GLANCE_MS 30000           /* ...or this long after a pickup lit it, if it's still not touched */
+#define GAME_IDLE_MS (5 * 60 * 1000)   /* in a game: the tilt games are played without a touch */
 #define SYNC_GRACE_S 120          /* what the child did here wins over a fresh plan this long (the server may not have it yet); then the plan, where a grown-up may have changed it, wins */
 #define PET_VIEW_MS 6000            /* the spin's result stays this long, then Biscuit plays it */
 #define GET_READY_S (5 * 60)
@@ -123,6 +126,8 @@ static struct {
     int32_t last_now_s;         /* to notice the clock jumping back (the simulator's jumps) */
     /* the screen off when put down */
     bool screen_off, sleep_test;
+    bool idle_off;                  /* it went off untouched while moving: only the button or a touch wakes it */
+    uint32_t pick_ms;               /* a pickup last lit it */
     uint32_t touch_ms, awake_ms;    /* the last touch or press; the screen last came on */
     int shift, shift_min;           /* burn-in: where the picture sits now (SHIFT), the minute it last moved */
     lv_obj_t *wake_catcher;         /* over everything while it's off: the touch that wakes it does nothing else */
@@ -2077,6 +2082,7 @@ static void screen_wake(void)
     app.awake_ms = now_ms();
     if (!app.screen_off) return;
     app.screen_off = false;
+    app.idle_off = false;
     /* a finger on it lifts first (on_catcher); picked up, it's gone at once */
     lv_indev_t *in = lv_indev_active();
     if (!in || lv_indev_get_active_obj() != app.wake_catcher) ui_show(app.wake_catcher, false);
@@ -2104,16 +2110,29 @@ static void screen_sleep(void)
     hal_screen(false);
 }
 
+/* Off untouched while moving (user, 2026-10-23): in a pocket or a bag it never lies still, so after
+ * 2 minutes with no touch or button press it goes off anyway, and then only the button or a touch
+ * brings it back (moving is what it was doing). Put down after that, a pickup lights it again; a
+ * pickup is a glance, so untouched it goes off again after 30 s. Something new (the next thing, free
+ * time, the alarm, a ring) still lights it, for 10 s if nobody touches it. In a game it waits 5
+ * minutes: the tilt games are played without a touch. */
 static void screen_watch(void)
 {
     uint32_t now = now_ms();
     if (app.screen_off) {
-        if (motion_picked_up() || !may_sleep()) screen_wake();
+        if (app.idle_off && motion_rest_ms() >= SLEEP_MS) { app.idle_off = false; motion_mark(); }   /* put down since */
+        if (!app.idle_off && motion_picked_up()) { app.pick_ms = now; screen_wake(); }
+        else if (!may_sleep()) screen_wake();
         else if (lv_obj_get_index(app.wake_catcher) != (int32_t)lv_obj_get_child_count(lv_layer_top()) - 1)
             lv_obj_move_foreground(app.wake_catcher);   /* still over anything that opened meanwhile */
         return;
     }
-    if (may_sleep() && motion_rest_ms() >= SLEEP_MS && now - app.touch_ms >= SLEEP_MS && now - app.awake_ms >= SLEEP_MS) screen_sleep();
+    if (!may_sleep() || now - app.awake_ms < SLEEP_MS) return;
+    bool rest = motion_rest_ms() >= SLEEP_MS && now - app.touch_ms >= SLEEP_MS;
+    bool idle = now - app.touch_ms >= (play_in_game() ? GAME_IDLE_MS : IDLE_MS) && now - app.pick_ms >= GLANCE_MS;
+    if (!rest && !idle) return;
+    app.idle_off = !rest;
+    screen_sleep();
 }
 
 static void on_catcher(lv_event_t *e)
