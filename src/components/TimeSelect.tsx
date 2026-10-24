@@ -35,7 +35,7 @@ const TimeSelect = ({ value, onChange, className, stepMinutes = 5 }: TimeSelectP
   // Widths account for the trigger's chevron (16px) and horizontal padding —
   // px-4 left barely 14px for the label, which clipped "12" and ":00". Tighter
   // padding plus shrink-0 so a narrow container can't squeeze them either.
-  const trigger = "shrink-0 rounded-pill px-3 gap-1";
+  const trigger = "shrink-0 h-11 rounded-[12px] border-0 px-3 gap-1";
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>

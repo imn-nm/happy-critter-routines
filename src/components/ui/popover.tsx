@@ -34,6 +34,9 @@ const Popover = ({ open: openProp, defaultOpen, onOpenChange, ...props }: Popove
 
 const PopoverTrigger = PopoverPrimitive.Trigger
 
+/** Positions the panel against another element (or a virtualRef) instead of the trigger. */
+const PopoverAnchor = PopoverPrimitive.Anchor
+
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
@@ -81,4 +84,4 @@ const PopoverContent = React.forwardRef<
 })
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
-export { Popover, PopoverTrigger, PopoverContent }
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }

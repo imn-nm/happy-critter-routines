@@ -1,11 +1,11 @@
-import { Fragment, useRef, useState, type ReactNode } from "react";
+import { createContext, Fragment, useContext, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, isValid, parse } from "date-fns";
 import { ArrowDown, ArrowUp, Backpack, Bookmark, Check, ChevronDown, Circle, ListChecks, Plus, Smile, Sparkles, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import TimeSelect from "@/components/TimeSelect";
 import DurationSelect from "@/components/DurationSelect";
 import { cn } from "@/lib/utils";
@@ -133,10 +133,30 @@ const MAX_STARS = 20;
  * A lime part of the summary ("3:00", "weekdays") in its own dark box, that
  * opens its own small picker.
  */
+const SentenceBox = createContext<RefObject<HTMLDivElement> | null>(null);
+
+/** A panel the size of the screen's gutters, for pickers that open from a tile or chip. */
+const pickerPanel = "w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised";
+
 const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
   children: ReactNode; label: string; picker: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void;
-}) => (
-  <Popover open={open} onOpenChange={onOpenChange}>
+}) => {
+  // Every part's picker opens just above the sentence, as wide as it: one
+  // steady place, whichever word was tapped and however the sentence wraps.
+  // Where the sentence was when it opened, so the panel stays put while the
+  // sheet grows or shrinks under it (a get-ready card appearing, say).
+  const box = useContext(SentenceBox);
+  const at = useRef<DOMRect | null>(null);
+  const anchor = useMemo(() => ({
+    current: { getBoundingClientRect: () => at.current ?? box?.current?.getBoundingClientRect() ?? new DOMRect() },
+  }), [box]);
+  const openChange = (next: boolean) => {
+    if (next && box?.current) at.current = box.current.getBoundingClientRect();
+    onOpenChange?.(next);
+  };
+  return (
+  <Popover open={open} onOpenChange={openChange}>
+    {box && <PopoverAnchor virtualRef={anchor} />}
     <PopoverTrigger asChild>
       <button
         type="button"
@@ -146,11 +166,17 @@ const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
         {children}
       </button>
     </PopoverTrigger>
-    <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+    <PopoverContent
+      side="top"
+      align="center"
+      sideOffset={10}
+      className={box ? "w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] p-3 bg-focus-sheet border-focus-raised" : pickerPanel}
+    >
       {picker}
     </PopoverContent>
   </Popover>
-);
+  );
+};
 
 const PickerLabel = ({ children }: { children: ReactNode }) => (
   <p className="text-12 font-medium text-focus-muted">{children}</p>
@@ -158,7 +184,7 @@ const PickerLabel = ({ children }: { children: ReactNode }) => (
 
 /** Every picker a lime part opens: one width, a label, the same spacing. */
 const Picker = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex w-[300px] max-w-full flex-col gap-2.5">
+  <div className="flex w-full flex-col gap-2.5">
     <PickerLabel>{label}</PickerLabel>
     {children}
   </div>
@@ -315,6 +341,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const [whatText, setWhatText] = useState(!task?.name ? ""
     : task.is_event && !knownPhrase(task.name) ? `go to ${phraseFor(task.name)}` : phraseFor(task.name));
   const [moreOpen, setMoreOpen] = useState(false);
+  const sentenceRef = useRef<HTMLDivElement>(null);
   const [word, setWord] = useState<TieWord>(() =>
     formData.scheduledTime && !startsAsChore ? 'at' : task?.before_task_id ? 'before' : 'after');
   const [whatOpen, setWhatOpen] = useState(false);
@@ -726,7 +753,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
   // === Pickers, each used by a tile and by the lime part of the summary ===
   const daysPicker = (
-    <div className="flex w-[300px] max-w-full flex-col gap-2.5">
+    <div className="flex w-full flex-col gap-2.5">
       <PickerLabel>Days</PickerLabel>
       <div role="radiogroup" aria-label="One day or repeats" className="grid grid-cols-2 gap-1.5">
         <ChoiceButton selected={!repeats} onClick={chooseSingleDate} disabled={followsRoutine}>One day</ChoiceButton>
@@ -823,7 +850,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     </Picker>
   );
   const placePicker = (
-    <div className="flex w-[300px] max-w-full flex-col gap-1.5">
+    <div className="flex w-full flex-col gap-1.5">
       <PickerLabel>Where it goes</PickerLabel>
       <ChoiceButton selected={!anchor} onClick={() => setFormData({ ...formData, afterTaskId: '' })} className="rounded-[12px] justify-start px-3">
         Wherever there's room
@@ -873,7 +900,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     </div>
   );
   const dayPicker = (
-    <div className="flex w-[300px] max-w-full flex-col gap-2.5">
+    <div className="flex w-full flex-col gap-2.5">
       <PickerLabel>{word === 'before' ? 'Before what?' : 'After what?'} Tap it on their day</PickerLabel>
       <div className="flex max-h-[min(22rem,55vh)] flex-col gap-1.5 overflow-y-auto pr-0.5">
         {shownRows.map((r, i) => {
@@ -1081,23 +1108,31 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   );
   const lead = isSystemEvent ? <>{name || "It's"}</> : <>{subject} {typePart} {whatPart}</>;
 
+  // A chore's when: any time, or between two times (each then its own part).
+  const [choreWhenOpen, setChoreWhenOpen] = useState(false);
+  const setChoreAnytime = (any: boolean) => {
+    setFormData({ ...formData, choreAnytime: any });
+    setChoreWhenOpen(false);
+  };
+  const choreWhenPicker = (
+    <Picker label="When">
+      <div role="radiogroup" aria-label="When" className="grid grid-cols-2 gap-1.5">
+        <ChoiceButton selected={formData.choreAnytime} onClick={() => setChoreAnytime(true)} className={pickChoice}>Any time</ChoiceButton>
+        <ChoiceButton selected={!formData.choreAnytime} onClick={() => setChoreAnytime(false)} className={pickChoice}>Between</ChoiceButton>
+      </div>
+    </Picker>
+  );
+
   const summary: ReactNode = (() => {
     if (isChore) {
       return (
         <>
           {lead}{' '}
           {formData.choreAnytime ? (
-            <SummaryPart label="Any time. Change" picker={(
-              <Picker label="When">
-                <div role="radiogroup" aria-label="When" className="grid grid-cols-2 gap-1.5">
-                  <ChoiceButton selected onClick={() => setFormData({ ...formData, choreAnytime: true })} className={pickChoice}>Any time</ChoiceButton>
-                  <ChoiceButton selected={false} onClick={() => setFormData({ ...formData, choreAnytime: false })} className={pickChoice}>Between</ChoiceButton>
-                </div>
-              </Picker>
-            )}>any time</SummaryPart>
+            <SummaryPart label="Any time. Change" open={choreWhenOpen} onOpenChange={setChoreWhenOpen} picker={choreWhenPicker}>any time</SummaryPart>
           ) : (
             <>
-              between{' '}
+              <SummaryPart label="Between. Change" open={choreWhenOpen} onOpenChange={setChoreWhenOpen} picker={choreWhenPicker}>between</SummaryPart>{' '}
               <SummaryPart label={`From ${fmtTime(formData.windowStart)}. Change`} picker={timePicker('From', formData.windowStart, (v) => setFormData({ ...formData, windowStart: v }))}>
                 {fmtStartOf(formData.windowStart, formData.windowEnd)}
               </SummaryPart>{' '}
@@ -1224,7 +1259,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           <TileText label="Days" value={daysTileText} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+      <PopoverContent align="end" className={pickerPanel}>
         {daysPicker}
       </PopoverContent>
     </Popover>
@@ -1238,7 +1273,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           <TileText label="Length" value={fmtLen(durationTotal)} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+      <PopoverContent align="start" className={pickerPanel}>
         {lengthPicker}
       </PopoverContent>
     </Popover>
@@ -1426,9 +1461,11 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
 
       {/* === SUMMARY === the form: blanks to fill in, every lime part opens
           its own small picker. */}
-      <div className="rounded-[20px] border-[1.5px] border-focus-lavender bg-focus-bg px-[18px] py-4 text-[20px] leading-[38px] text-focus-text break-words">
-        {summary}
-      </div>
+      <SentenceBox.Provider value={sentenceRef}>
+        <div ref={sentenceRef} className="rounded-[20px] border-[1.5px] border-focus-lavender bg-focus-bg px-[18px] py-4 text-[20px] leading-[38px] text-focus-text break-words">
+          {summary}
+        </div>
+      </SentenceBox.Provider>
       {addsBuiltIn && (
         <Caption>Adds {reserved} to {dateLabel} only. Its usual days stay as they are.</Caption>
       )}
@@ -1459,7 +1496,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
                   {coinCount > 0 ? `Stars · ${coinCount}` : 'Stars'}
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-auto max-w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-focus-raised">
+              <PopoverContent align="start" className={pickerPanel}>
                 {starsPicker}
               </PopoverContent>
             </Popover>
