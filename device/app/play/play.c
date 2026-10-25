@@ -48,12 +48,13 @@ static const struct { bool classic; int id; const char *name; } GAME_CIRCLES[] =
     { true, CL_DROP, "Drop" },
 };
 #define GAME_CIRCLE_COUNT ((int)(sizeof GAME_CIRCLES / sizeof GAME_CIRCLES[0]))
-/* Three rows of three under the clock and the play-time pill (it ends at y 83): 98 px circles, 104
- * apart, their middles at x 129 / 233 / 337 and y 143 / 247 / 351, so the corner ones stay inside
- * the play-time ring at the rim (206 px from the middle at most). */
+/* Rows of 2, 4 and 3 (user, 2026-10-25) under the clock and the play-time pill (it ends at y 83):
+ * 98 px circles 104 apart along a row. The 4 cross the middle of the screen, where it is widest; the
+ * 2 sit straight above its inner pair, the 3 tuck in between its circles (90 below). Every circle
+ * stays inside the play-time ring at the rim (206 px from the middle at most). */
 #define GC_D 98
 #define GC_STEP 104
-#define GC_Y0 143
+static const struct { int n; int32_t y; } GC_ROWS[] = { { 2, 149 }, { 4, 253 }, { 3, 343 } };
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
@@ -539,7 +540,9 @@ static void on_game_circle(lv_event_t *e)
  * inside the circle, its short name in small type (picture view: a bigger picture alone). */
 static void game_circle(int i, bool picture)
 {
-    int32_t cx = SCREEN_W / 2 + (i % 3 - 1) * GC_STEP, cy = GC_Y0 + (i / 3) * GC_STEP;
+    int row = 0, k = i;
+    while (k >= GC_ROWS[row].n) k -= GC_ROWS[row++].n;
+    int32_t cx = SCREEN_W / 2 + (2 * k - (GC_ROWS[row].n - 1)) * GC_STEP / 2, cy = GC_ROWS[row].y;
     lv_obj_t *c = ui_box(pl.menu);
     lv_obj_set_size(c, GC_D, GC_D);
     lv_obj_set_pos(c, cx - GC_D / 2, cy - GC_D / 2);
