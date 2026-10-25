@@ -12,6 +12,7 @@ import { useHolidays } from '@/hooks/useHolidays';
 import { useCompletions } from '@/hooks/useCompletions';
 import { format, addMinutes, parse, isBefore, isAfter } from 'date-fns';
 import { getSystemTaskScheduleForDay } from '@/utils/systemTasks';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 interface TimelineViewProps {
   child: Child;
@@ -211,7 +212,7 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
         // Chores repeat on their weekdays, or pin to a single date.
         if (task.type === 'floating') {
           if (task.is_recurring && task.recurring_days?.length) {
-            return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(today);
+            return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(today) && !repeatEnded(task, today);
           }
           if (task.task_date) return task.task_date === today;
           if (task.created_at) {
@@ -225,7 +226,7 @@ const TimelineView = ({ child, simple = false, currentDate = new Date() }: Timel
         // (and not excluded for this specific date).
         if (task.is_recurring && task.recurring_days) {
           if (!task.recurring_days.includes(dayName)) return false;
-          if (task.excluded_dates?.includes(today)) return false;
+          if (task.excluded_dates?.includes(today) || repeatEnded(task, today)) return false;
           return true;
         }
         

@@ -3768,6 +3768,9 @@ var orderByAnchors = (tasks) => {
   return out;
 };
 
+// src/utils/repeatEnds.ts
+var repeatEnded = (task, date) => !!task.repeat_until && date > task.repeat_until.slice(0, 10);
+
 // src/utils/todaysSchedule.ts
 function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHoliday }) {
   const currentDay = getPSTDayName();
@@ -3775,7 +3778,7 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
   let todaysTasks = tasksWithCompletion.filter((task) => {
     if (task.is_active === false) return false;
     if (task.is_recurring && task.recurring_days) {
-      if (task.excluded_dates?.includes(todayStr)) return false;
+      if (task.excluded_dates?.includes(todayStr) || repeatEnded(task, todayStr)) return false;
       return task.recurring_days.includes(currentDay) || isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, todayStr);
     }
     if (!task.is_recurring && task.task_date) {
@@ -3954,7 +3957,7 @@ function todaysChores(tasksWithCompletion) {
     if (task.type !== "floating") return false;
     if (!task.is_active) return false;
     if (task.is_recurring && task.recurring_days?.length) {
-      return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr);
+      return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr) && !repeatEnded(task, todayStr);
     }
     if (task.task_date) return task.task_date === todayStr;
     if (task.created_at) {
@@ -3999,4 +4002,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "f2b96cc5a1";
+export const PLAN_REV = "11545a3715";

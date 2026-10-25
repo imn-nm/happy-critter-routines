@@ -32,6 +32,8 @@ export interface Task {
   after_task_id?: string | null;
   /** Ends right when this task starts ("before Bedtime"). */
   before_task_id?: string | null;
+  /** A repeating task's last day (yyyy-MM-dd); none repeats on. */
+  repeat_until?: string | null;
   /** Shared with the same task copied to other children; edits carry over. */
   link_id?: string | null;
   window_start?: string;

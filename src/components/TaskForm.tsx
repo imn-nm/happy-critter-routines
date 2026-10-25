@@ -1,6 +1,6 @@
 import { createContext, Fragment, useContext, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isValid, parse } from "date-fns";
+import { addWeeks, format, isValid, parse } from "date-fns";
 import { ArrowDown, ArrowUp, Backpack, Bookmark, Check, ChevronDown, Circle, ListChecks, Plus, Smile, Sparkles, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -328,6 +328,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     // Where a floating task was put on the day (its slot when nothing ties it).
     placeHint: toHHMM(task?.scheduled_time) || toHHMM(task?.window_start) || toHHMM(prefillTime) || '',
     routineId: task?.routine_id ?? '',
+    // A repeat's last day (yyyy-MM-dd); empty repeats on.
+    repeatUntil: task?.repeat_until?.slice(0, 10) ?? '',
     daysOverride: task?.days_override ?? false,
     // An event's get-ready time before it starts (its steps show then).
     getReady: (task?.prep_minutes ?? 0) > 0,
@@ -629,6 +631,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       icon: formData.icon || null,
       // Tasks and chores both repeat on the picked weekdays.
       is_recurring: repeats,
+      repeat_until: repeats && formData.repeatUntil ? formData.repeatUntil : null,
       recurring_days: repeats ? repeatDays : undefined,
       // Pass-through: the form has no description control, but system tasks
       // carry one from systemTasks.ts and dropping the key would clear it.
@@ -674,6 +677,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   };
 
   const needsDays = !followsRoutine && formData.isRecurring && formData.recurringDays.length === 0;
+  const endsTooSoon = repeats && !!formData.repeatUntil && formData.repeatUntil < formData.taskDate;
   // The child's day starts fresh at midnight, so nothing may run past it.
   // Bedtime's length is the wind-down, not something on the clock, so only
   // its start counts, and it can't be after midnight (earlier than wake-up).
@@ -707,7 +711,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     !isChore && !atTime && !tie && !whenSet && 'when',
     !isChore && !lengthSet && 'how long',
   ].filter(Boolean) as string[];
-  const canSubmit = formData.name.trim().length > 0 && blanks.length === 0 && !needsDays && !nameClash && !timeProblem && !windowBackwards && !badEnd;
+  const canSubmit = formData.name.trim().length > 0 && blanks.length === 0 && !needsDays && !endsTooSoon && !nameClash && !timeProblem && !windowBackwards && !badEnd;
 
   const coinCount = parseInt(formData.coins) || 0;
   const setCoins = (n: number) => setFormData({ ...formData, coins: String(n) });
@@ -717,7 +721,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   const dateObj = parse(formData.taskDate, 'yyyy-MM-dd', new Date());
   const dateLabel = isValid(dateObj) ? format(dateObj, 'EEE, MMM d') : formData.taskDate;
   const dateWeekday = isValid(dateObj) ? format(dateObj, 'EEEE').toLowerCase() : '';
-  const daysText = repeats ? daysWords(repeatDays) : dateLabel;
+  const untilObj = formData.repeatUntil ? parse(formData.repeatUntil, 'yyyy-MM-dd', new Date()) : null;
+  const untilText = repeats && untilObj && isValid(untilObj) ? ` until ${format(untilObj, 'MMM d')}` : '';
+  const daysText = repeats ? `${daysWords(repeatDays)}${untilText}` : dateLabel;
   // The tile is a third of the row: a one-off date drops its weekday there.
   const daysTileText = repeats ? capitalize(daysText) : isValid(dateObj) ? format(dateObj, 'MMM d') : dateLabel;
 
@@ -758,7 +764,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         ? `Repeats with ${routine.name}: ${routineDaysLabel(routine).toLowerCase()}. Tap a day to give it days of its own.`
         : routine
           ? `Part of ${routine.name}, on days of its own.`
-          : 'Runs again on the days you pick.';
+          : untilText ? `Runs on the days you pick, the last time on ${format(untilObj!, 'EEE, MMM d')}.` : 'Runs again on the days you pick.';
 
   // === Pickers, each used by a tile and by the lime part of the summary ===
   const daysPicker = (
@@ -795,7 +801,38 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           ))}
         </div>
       )}
-      {needsDays ? <Caption tone="error" role="alert">Pick at least one day.</Caption> : <Caption>{daysCaption}</Caption>}
+      {repeats && !isSystemEvent && (
+        <div className="flex flex-col gap-1.5">
+          <PickerLabel>Ends</PickerLabel>
+          <div role="radiogroup" aria-label="Ends" className="grid grid-cols-2 gap-1.5">
+            <ChoiceButton selected={!formData.repeatUntil} onClick={() => setFormData({ ...formData, repeatUntil: '' })} className={pickChoice}>
+              Never
+            </ChoiceButton>
+            <ChoiceButton
+              selected={!!formData.repeatUntil}
+              // Starts four weeks out, a typical term or season to adjust from.
+              onClick={() => setFormData({ ...formData, repeatUntil: formData.repeatUntil || format(addWeeks(isValid(dateObj) ? dateObj : new Date(), 4), 'yyyy-MM-dd') })}
+              className={pickChoice}
+            >
+              On a date
+            </ChoiceButton>
+          </div>
+          {!!formData.repeatUntil && (
+            <Input
+              type="date"
+              aria-label="Last day"
+              min={formData.taskDate}
+              value={formData.repeatUntil}
+              onChange={(e) => { if (e.target.value) setFormData({ ...formData, repeatUntil: e.target.value }); }}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="h-11 min-w-0 max-w-full rounded-[12px] border-0 px-3"
+            />
+          )}
+        </div>
+      )}
+      {needsDays ? <Caption tone="error" role="alert">Pick at least one day.</Caption>
+        : endsTooSoon ? <Caption tone="error" role="alert">It has to end on or after {dateLabel}.</Caption>
+        : <Caption>{daysCaption}</Caption>}
       {/* A routine's tasks repeat together on its days; one task can still
           keep days of its own. */}
       {!isChore && !isSystemEvent && routines.length > 0 && (
@@ -1041,11 +1078,16 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
   // === The summary: the form itself. It starts with blanks to fill in;
   // every lime part opens its own small picker. ===
   const name = formData.name.trim();
-  const subject = childName || 'They';
+  // Every child it's for: this one, plus the others ticked to share it (or,
+  // editing, the ones it's already shared with). "Amira and Noora need to…"
+  const alsoFor = isEdit ? linkedNames : otherChildren.filter(c => additionalChildIds.includes(c.id)).map(c => c.name);
+  const names = childName ? [childName, ...alsoFor] : [];
+  const subject = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? 'They';
+  const plural = names.length !== 1;
   const daysPart = (
     <SummaryPart label={`Days: ${daysText}. Change`} picker={daysPicker}>{daysText}</SummaryPart>
   );
-  const onDays = repeats && daysText === 'every day' ? <> {daysPart}</> : <> on {daysPart}</>;
+  const onDays = repeats && daysText.startsWith('every day') ? <> {daysPart}</> : <> on {daysPart}</>;
   const starsSentence = coinCount > 0 && hasStars ? (
     <SummaryPart label={`${coinCount} stars. Change`} picker={starsPicker}>{coinCount} ★</SummaryPart>
   ) : null;
@@ -1066,7 +1108,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
         </Picker>
       )}
     >
-      {isWants ? 'wants to' : 'needs to'}
+      {isWants ? (plural ? 'want to' : 'wants to') : (plural ? 'need to' : 'needs to')}
     </SummaryPart>
   );
 

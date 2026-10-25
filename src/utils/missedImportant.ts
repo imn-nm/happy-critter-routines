@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getPSTDateString, getPSTDayName, getPSTTimeString } from "@/utils/pstDate";
 import { isRestDate } from "@/utils/restDays";
+import { repeatEnded } from '@/utils/repeatEnds';
 
 /**
  * "Missed" important tasks: important, scheduled for today, window has ended,
@@ -22,6 +23,7 @@ interface TaskLike {
   recurring_days?: string[] | null;
   task_date?: string | null;
   excluded_dates?: string[] | null;
+  repeat_until?: string | null;
   created_at?: string;
   date_overrides?: Record<string, { scheduled_time?: string; duration?: number; anytime?: boolean }> | null;
   schedule_overrides?: Record<string, { scheduled_time?: string; duration?: number }> | null;
@@ -40,7 +42,7 @@ export const occursOnDate = (task: TaskLike, dateStr: string, dayName: string): 
   if (task.is_active === false) return false;
   if (task.is_recurring && task.recurring_days) {
     if (!task.recurring_days.includes(dayName)) return false;
-    if (task.excluded_dates?.includes(dateStr)) return false;
+    if (task.excluded_dates?.includes(dateStr) || repeatEnded(task, dateStr)) return false;
     return true;
   }
   if (!task.is_recurring && task.task_date) return task.task_date === dateStr;

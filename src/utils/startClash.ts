@@ -4,6 +4,7 @@ import type { Child } from '@/hooks/useChildren';
 import { getSystemTaskScheduleForDay, isSystemTaskName, systemRowAddedOn } from '@/utils/systemTasks';
 import { timeToMinutes } from '@/utils/scheduleOverlap';
 import { getPSTDateString } from '@/utils/pstDate';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 /**
  * Two things can never start at the same minute on the same day: the child's
@@ -22,7 +23,7 @@ const dayNameOf = (date: string) => format(new Date(`${date}T00:00:00`), 'EEEE')
 export const runsOn = (task: TaskLike, date: string, child?: Child | null) => {
   if (task.is_active === false || task.type === 'floating') return false;
   if (task.is_recurring) {
-    if (task.excluded_dates?.includes(date)) return false;
+    if (task.excluded_dates?.includes(date) || repeatEnded(task, date)) return false;
     // A built-in row can be added to one day on its own (Lunch, no school).
     return !!task.recurring_days?.includes(dayNameOf(date))
       || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, date));

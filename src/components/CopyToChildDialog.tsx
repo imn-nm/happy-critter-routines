@@ -186,6 +186,7 @@ const CopyToChildDialog = ({ open, onOpenChange, fromChild, items, allTasks = []
               ? (t.subtasks.map(s => ({ id: crypto.randomUUID(), text: s.text })) as unknown as Json)
               : null,
             routine_id: newRoutineId,
+            repeat_until: t.repeat_until ?? null,
             days_override: !!newRoutineId && !!t.days_override,
             after_task_id: link.copied ? newIds.get(link.copied) ?? null : link.theirs?.id ?? null,
             // "before" points at a copied task, else theirs of the same name.

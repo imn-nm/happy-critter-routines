@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import HolidayFormDialog, { HolidayFormData } from './HolidayFormDialog';
 import DayNoteDialog from './DayNoteDialog';
 import ParentEventDialog, { ParentEventFormData } from './ParentEventDialog';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 interface MonthViewProps {
   child: Child;
@@ -184,7 +185,7 @@ const MonthView = ({
       // Chores repeat on their weekdays, or pin to a single date.
       if (task.type === 'floating') {
         if (task.is_recurring && task.recurring_days?.length) {
-          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString);
+          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString) && !repeatEnded(task, dateString);
         }
         if (task.task_date) return task.task_date === dateString;
         if (task.created_at) {
@@ -194,7 +195,7 @@ const MonthView = ({
         return false;
       }
       if (task.is_recurring && task.recurring_days) {
-        if (task.excluded_dates?.includes(dateString)) return false;
+        if (task.excluded_dates?.includes(dateString) || repeatEnded(task, dateString)) return false;
         // A built-in row can be added to one day on its own (Lunch, no school).
         return task.recurring_days.includes(dayName)
           || (systemTaskNames.includes(task.name) && systemRowAddedOn(child, task.name, dateString));

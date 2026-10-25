@@ -6,6 +6,7 @@ import { Child, useChildren } from '@/hooks/useChildren';
 import { Task } from '@/hooks/useTasks';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parse, addDays, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 interface UpcomingEvent {
   id: string;
@@ -116,7 +117,7 @@ const UpcomingEventsForAll = () => {
           const dateKey = format(eventDate, 'yyyy-MM-dd');
 
           if (!task.recurring_days?.includes(dayOfWeek)) continue;
-          if (task.excluded_dates?.includes(dateKey)) continue;
+          if (task.excluded_dates?.includes(dateKey) || repeatEnded(task, dateKey)) continue;
 
           const isToday = dayOffset === 0;
           if (isToday && taskTime <= currentTime) continue;

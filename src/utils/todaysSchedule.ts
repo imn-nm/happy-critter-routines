@@ -15,6 +15,7 @@ import { resolveDropStart } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
 import { clampScheduleOverlaps } from '@/utils/scheduleOverlap';
 import { getPSTDateString, getPSTDayName, toPSTDateString } from '@/utils/pstDate';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 export type TaskRow = Task & { isCompleted?: boolean };
 
@@ -34,7 +35,7 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
   let todaysTasks = tasksWithCompletion.filter(task => {
     if (task.is_active === false) return false;
     if (task.is_recurring && task.recurring_days) {
-      if (task.excluded_dates?.includes(todayStr)) return false;
+      if (task.excluded_dates?.includes(todayStr) || repeatEnded(task, todayStr)) return false;
       // A built-in row can be added to one day on its own (Lunch, no school).
       return task.recurring_days.includes(currentDay)
         || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, todayStr));
@@ -273,7 +274,7 @@ export function todaysChores(tasksWithCompletion: TaskRow[]) {
     if (task.type !== 'floating') return false;
     if (!task.is_active) return false;
     if (task.is_recurring && task.recurring_days?.length) {
-      return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr);
+      return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr) && !repeatEnded(task, todayStr);
     }
     if (task.task_date) return task.task_date === todayStr;
     if (task.created_at) {

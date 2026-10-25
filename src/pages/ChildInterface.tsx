@@ -56,6 +56,7 @@ import { speak } from "@/lib/speech";
 import StarBadge from "@/components/StarBadge";
 import ParentNoteOverlay from "@/components/ParentNoteOverlay";
 import { useUnseenParentNotes } from "@/hooks/useParentNotes";
+import { repeatEnded } from '@/utils/repeatEnds';
 
 interface ChildInterfaceProps {
   childId?: string;
@@ -445,7 +446,7 @@ const ChildInterface = ({ childId: propChildId, preview }: ChildInterfaceProps =
       if (!task.is_active) return false;
       // Repeating chores show on their weekdays; one-offs pin to a date.
       if (task.is_recurring && task.recurring_days?.length) {
-        return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr);
+        return task.recurring_days.includes(currentDay) && !task.excluded_dates?.includes(todayStr) && !repeatEnded(task, todayStr);
       }
       if (task.task_date) return task.task_date === todayStr;
       // Legacy fallback: chores added before task_date existed pin to created_at.

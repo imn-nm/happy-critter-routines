@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         .in('child_id', childIds),
       admin
         .from('tasks')
-        .select('id, child_id, name, scheduled_time, duration, prep_minutes, is_recurring, recurring_days, task_date, created_at, excluded_dates, date_overrides, schedule_overrides')
+        .select('id, child_id, name, scheduled_time, duration, prep_minutes, is_recurring, recurring_days, task_date, created_at, excluded_dates, repeat_until, date_overrides, schedule_overrides')
         .in('child_id', childIds)
         .eq('is_event', true)
         .eq('is_active', true),

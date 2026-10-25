@@ -897,6 +897,7 @@ export type Database = {
         Row: {
           after_task_id: string | null
           before_task_id: string | null
+          repeat_until: string | null
           child_id: string
           coins: number
           created_at: string
@@ -933,6 +934,7 @@ export type Database = {
         Insert: {
           after_task_id?: string | null
           before_task_id?: string | null
+          repeat_until?: string | null
           child_id: string
           coins?: number
           created_at?: string
@@ -969,6 +971,7 @@ export type Database = {
         Update: {
           after_task_id?: string | null
           before_task_id?: string | null
+          repeat_until?: string | null
           child_id?: string
           coins?: number
           created_at?: string

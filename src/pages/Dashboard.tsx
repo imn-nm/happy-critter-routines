@@ -28,6 +28,7 @@ import { tasksOnDate } from "@/utils/startClash";
 import { isSystemTaskName } from "@/utils/systemTasks";
 import StarBadge from "@/components/StarBadge";
 import { prepMinutes } from "@/utils/eventWindow";
+import { repeatEnded } from '@/utils/repeatEnds';
 
 // Per-child chip colours on event cards (Figma 390:3407: tinted fill, same-
 // colour text). Assigned by the child's position in the list.
@@ -213,7 +214,7 @@ const Dashboard = () => {
           const day = format(date, "EEEE").toLowerCase();
           const dateKey = format(date, "yyyy-MM-dd");
           if (!task.recurring_days.includes(day)) continue;
-          if (task.excluded_dates?.includes(dateKey)) continue;
+          if (task.excluded_dates?.includes(dateKey) || repeatEnded(task, dateKey)) continue;
           if (offset === 0 && time <= currentTime) continue;
           addGroup(date, time, task.name, child);
         }

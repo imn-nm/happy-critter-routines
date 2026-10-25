@@ -48,6 +48,7 @@ import { cn } from '@/lib/utils';
 import { motion } from "motion/react";
 import { springs } from "@/lib/motion";
 import ParentNoteDialog from '@/components/ParentNoteDialog';
+import { repeatEnded } from '@/utils/repeatEnds';
 
 // ── Drag sensors ──────────────────────────────────────────────
 // Mouse and touch get separate sensors: the old PointerSensor also caught
@@ -1052,7 +1053,7 @@ const TimelineScheduleView = ({
       // Chores (floating) repeat on their weekdays, or pin to a single date.
       if (task.type === 'floating') {
         if (task.is_recurring && task.recurring_days?.length) {
-          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString);
+          return task.recurring_days.includes(dayName) && !task.excluded_dates?.includes(dateString) && !repeatEnded(task, dateString);
         }
         if (task.task_date) return task.task_date === dateString;
         if (task.created_at) {
@@ -1065,7 +1066,7 @@ const TimelineScheduleView = ({
       // For recurring tasks, check if today is in their recurring days
       // (and not in the per-occurrence exclusion list).
       if (task.is_recurring && task.recurring_days) {
-        if (task.excluded_dates?.includes(dateString)) return false;
+        if (task.excluded_dates?.includes(dateString) || repeatEnded(task, dateString)) return false;
         // A built-in row can be added to one day on its own (Lunch, no school).
         return task.recurring_days.includes(dayName)
           || (isSystemTaskName(task.name) && systemRowAddedOn(child, task.name, dateString));

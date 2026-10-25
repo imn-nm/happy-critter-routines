@@ -23,6 +23,8 @@ export interface EventTaskRow {
   task_date: string | null;
   created_at: string;
   excluded_dates: string[] | null;
+  /** Last day a repeating event runs; null repeats on. */
+  repeat_until?: string | null;
   date_overrides: Record<string, { scheduled_time?: string | null; duration?: number | null }> | null;
   schedule_overrides: Record<string, { scheduled_time?: string | null; duration?: number | null }> | null;
 }
@@ -115,6 +117,8 @@ async function piecesFor(t: EventTaskRow, timeZone: string): Promise<Piece[]> {
   const days = (t.recurring_days ?? []).filter(d => BYDAY[d]);
   if (!days.length) return [];
   const from = dateIn(t.created_at, timeZone);
+  // An end date stops the series after that day.
+  const until = t.repeat_until ? t.repeat_until.slice(0, 10) : null;
 
   // Weekdays sharing a time and length form one weekly series.
   const groups = new Map<string, { start: string; minutes: number; days: string[] }>();
@@ -132,6 +136,7 @@ async function piecesFor(t: EventTaskRow, timeZone: string): Promise<Piece[]> {
   for (const g of groups.values()) {
     let date = from;
     while (!g.days.includes(dayName(date))) date = addDays(date, 1);
+    if (until && date > until) continue;
     // Skipped days and days moved on their own drop out of the series.
     const out = [...excluded, ...Object.keys(moved)]
       .filter(d => d >= date && g.days.includes(dayName(d)))
@@ -143,7 +148,7 @@ async function piecesFor(t: EventTaskRow, timeZone: string): Promise<Piece[]> {
       start: g.start,
       minutes: g.minutes,
       recurrence: [
-        `RRULE:FREQ=WEEKLY;BYDAY=${g.days.map(d => BYDAY[d]).join(',')}`,
+        `RRULE:FREQ=WEEKLY;BYDAY=${g.days.map(d => BYDAY[d]).join(',')}${until ? `;UNTIL=${until.replace(/-/g, '')}T235959Z` : ''}`,
         ...[...new Set(out)].map(d => `EXDATE;TZID=${timeZone}:${compact(d, g.start)}`),
       ],
     });
