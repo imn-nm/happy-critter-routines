@@ -161,7 +161,7 @@ const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
       <button
         type="button"
         aria-label={label}
-        className="max-w-full rounded-[10px] bg-focus-surface px-1 align-baseline font-semibold leading-[31px] text-focus-lime transition-colors hover:bg-focus-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
+        className="max-w-full rounded-[10px] bg-focus-raised px-1 align-baseline font-semibold leading-[31px] text-focus-lime transition-colors hover:bg-ink-400focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-lavender"
       >
         {children}
       </button>
