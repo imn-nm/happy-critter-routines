@@ -141,14 +141,19 @@ const pickerPanel = "w-[min(320px,calc(100vw-32px))] p-3 bg-focus-sheet border-f
 const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
   children: ReactNode; label: string; picker: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void;
 }) => {
-  // Every part's picker opens just above the sentence, as wide as it: one
-  // steady place, whichever word was tapped and however the sentence wraps.
-  // Where the sentence was when it opened, so the panel stays put while the
+  // Every part's picker opens over the sentence: its top on the sentence's
+  // top, as wide as it, whichever word was tapped and however the sentence
+  // wraps. The spot is taken when it opens, so the panel stays put while the
   // sheet grows or shrinks under it (a get-ready card appearing, say).
   const box = useContext(SentenceBox);
   const at = useRef<DOMRect | null>(null);
   const anchor = useMemo(() => ({
-    current: { getBoundingClientRect: () => at.current ?? box?.current?.getBoundingClientRect() ?? new DOMRect() },
+    current: {
+      getBoundingClientRect: () => {
+        const r = at.current ?? box?.current?.getBoundingClientRect() ?? new DOMRect();
+        return new DOMRect(r.left, r.top, r.width, 0);   // the sentence's top edge
+      },
+    },
   }), [box]);
   const openChange = (next: boolean) => {
     if (next && box?.current) at.current = box.current.getBoundingClientRect();
@@ -167,10 +172,14 @@ const SummaryPart = ({ children, label, picker, open, onOpenChange }: {
       </button>
     </PopoverTrigger>
     <PopoverContent
-      side="top"
+      side="bottom"
       align="center"
-      sideOffset={10}
-      className={box ? "w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] p-3 bg-focus-sheet border-focus-raised" : pickerPanel}
+      sideOffset={0}
+      // Never flips above the sentence: a tall picker scrolls inside instead.
+      avoidCollisions={!box}
+      className={box
+        ? "w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] max-h-[calc(var(--radix-popover-content-available-height)-16px)] overflow-y-auto p-3 bg-focus-sheet border-focus-raised"
+        : pickerPanel}
     >
       {picker}
     </PopoverContent>
@@ -766,7 +775,8 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           value={formData.taskDate}
           onChange={(e) => { if (e.target.value) setFormData({ ...formData, taskDate: e.target.value }); }}
           onKeyDown={(e) => e.stopPropagation()}
-          className="rounded-[12px] px-3"
+          // Native date fields have a wide built-in size: keep it inside the picker.
+          className="h-11 min-w-0 max-w-full rounded-[12px] border-0 px-3"
         />
       )}
       {repeats && (
