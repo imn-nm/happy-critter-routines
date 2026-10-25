@@ -16,30 +16,44 @@
 #define STEP_MS 66
 #define SEE_YOU_MS 8000
 
-/* Figma "Playtime · Menu": 97 px circles, each with its icon and name. Page 0 is Biscuit's games in
- * two rows of two (Roll home, drawn in classic.c, among them); page 1 the five classic games (CLASSIC
- * below), three above and two below. "%s" in a title or label is the pet's name. Dress up is not a
+/* The games menu: one list, like Chores and the shop (user, 2026-10-25): Biscuit's games first, then
+ * the classic ones, each row a picture of the game (device/tools/icons/game-*.svg), its name and a
+ * few words on how it's played. "%s" in a title or a line is the pet's name. Dress up is not a
  * game: it lives in My pet (a long tap on the pet, any time), with choosing the buddy, so it has no
- * circle (page -1). */
-#define MENU_PAGES 2
-static const struct { const char *title, *label, *icon; int32_t x, y; int page; } MENU[GAME_COUNT] = {
-    [GAME_DRESSUP] = { "Dress up", "Dress up", "shirt", 0, 0, -1 },
-    [GAME_BATH] = { "Bath time", "Bath time", "droplets", 120, 126, 0 },
-    [GAME_CARROT] = { "Carrot catch", "Carrot catch", "carrot", 248, 126, 0 },
-    [GAME_BUBBLES] = { "Bubble pop", "Bubble pop", "bubble", 120, 250, 0 },
+ * row. */
+static const struct { const char *title, *icon; } MENU[GAME_COUNT] = {
+    [GAME_DRESSUP] = { "Dress up", "shirt" },
+    [GAME_BATH] = { "Bath time", "game-bath" },
+    [GAME_CARROT] = { "Carrot catch", "game-carrot" },
+    [GAME_BUBBLES] = { "Bubble pop", "game-bubbles" },
 };
-static const struct { const char *title, *icon; } PAGE_HEAD[MENU_PAGES] = {
-    { "Play with %s", "kite" }, { "Classic games", "game" },
+static const struct { const char *title, *icon; } CLASSIC[CL_COUNT] = {
+    [CL_TRAIL] = { "Snack Trail", "game-trail" },
+    [CL_MAZE] = { "Maze Munch", "game-maze" },
+    [CL_BRICKS] = { "Brick Bounce", "game-bricks" },
+    [CL_PAIRS] = { "Pet Pairs", "game-pairs" },
+    [CL_DROP] = { "Snack Drop", "game-drop" },
+    [CL_ROLL] = { "Roll home", "game-roll" },
 };
-/* Figma "13 · Classic games" (and Roll home, on Biscuit's page) */
-static const struct { const char *title, *icon; int32_t x, y; int page; } CLASSIC[CL_COUNT] = {
-    [CL_TRAIL] = { "Snack Trail", "cookie", 44, 126, 1 },   /* three 140 apart: the names don't touch */
-    [CL_MAZE] = { "Maze Munch", "circle-dot", 184, 126, 1 },
-    [CL_BRICKS] = { "Brick Bounce", "brick", 324, 126, 1 },
-    [CL_PAIRS] = { "Pet Pairs", "sparkles", 120, 250, 1 },
-    [CL_DROP] = { "Snack Drop", "apple", 248, 250, 1 },
-    [CL_ROLL] = { "Roll home", "move", 248, 250, 0 },
+/* The rows, in order, and the line under each name */
+static const struct { bool classic; int id; const char *how; } GAME_ROWS[] = {
+    { false, GAME_BATH, "Scrub, rinse, dry" },
+    { false, GAME_CARROT, "Catch the carrots" },
+    { false, GAME_BUBBLES, "Tap the bubbles" },
+    { true, CL_ROLL, "Tip to roll home" },
+    { true, CL_TRAIL, "Steer to cookies" },
+    { true, CL_MAZE, "Eat every snack" },
+    { true, CL_BRICKS, "Break the bricks" },
+    { true, CL_PAIRS, "Find the pairs" },
+    { true, CL_DROP, "Tap the right one" },
 };
+#define GAME_ROW_COUNT ((int)(sizeof GAME_ROWS / sizeof GAME_ROWS[0]))
+/* Placed as Chores: the list reaches up behind the header, rows 82 apart, the one at rest at y 171 */
+#define GL_TOP 67
+#define GL_FOCUS 171
+#define GL_ROW 82
+#define GL_W 360
+#define GL_H 72
 
 /* Line icons for the dress-up items (the kit draws only Biscuit as pixel art). */
 static const char *const ACC_ICON[PET_ACC_COUNT] = {
@@ -55,9 +69,7 @@ static struct {
     lv_obj_t *root, *canvas, *shade_top, *shade_low, *bottom, *menu, *menu_pet, *timer;
     lv_obj_t *bar_fill;         /* Bath time: how far the step has got */
     int32_t total;              /* the play time there was at the start, for the timer */
-    lv_obj_t *circle[GAME_COUNT], *chev_l, *chev_r;
-    lv_obj_t *classic_circle[CL_COUNT];
-    lv_obj_t *back_wheel;       /* the menu's way out: back to the wheel */
+    wheel_list_t wl;            /* the games menu: a row per game */
     lv_obj_t *buddy_pet;        /* My pet: the pet trying each choice on */
     bool classic;               /* the game being played is a classic one (classic.c draws it) */
     bool buddy;                 /* My pet is showing */
@@ -70,7 +82,6 @@ static struct {
     led_cache_t cache;          /* what's in buf: a step repaints only what moved */
     lv_timer_t *timer_obj;
     bool in_game, see_you;
-    int page;
     int32_t left;
     float t;
     char next[44], next_icon[20], next_time[8], pet[16];
@@ -82,7 +93,6 @@ static struct {
 } pl;
 
 static void open_menu(void);
-static void menu_page(int page);
 
 /* "%s says" with the pet's name in it */
 static void named(char *out, size_t n, const char *fmt)
@@ -161,9 +171,8 @@ static void set_header(const char *icon, const char *title)
         header_set(&pl.head, ui_clock(), wide ? NULL : head_title, bare ? HEADER_NONE : HEADER_PILL, PILL_DONE, "kite", pl.left_text);
         return;
     }
-    /* the menu and the other games: the clock and the pill only (a 32 px "Play with Biscuit" would
-     * wrap onto the games) */
-    header_set(&pl.head, ui_clock(), NULL, HEADER_PILL, PILL_DONE, "kite", pl.left_text);
+    /* the menu: "Games" over the list, as Chores; the other games: the clock and the pill only */
+    header_set(&pl.head, ui_clock(), pl.in_game ? NULL : "Games", HEADER_PILL, PILL_DONE, "kite", pl.left_text);
 }
 
 /* A 128 px shade at the top and a 152 px one at the bottom so the words read over the room. */
@@ -508,9 +517,27 @@ static void game_shown(const char *title)
     hal_play(HAL_SOUND_TICK);
 }
 
-static void on_game(lv_event_t *e)
+/* As Chores: the row at rest is full size; one away 90 %, two away a little smaller again, further
+ * ones fade out. */
+static void game_row_style(lv_obj_t *card, float d)
 {
-    game_id_t g = (game_id_t)(intptr_t)lv_event_get_user_data(e);
+    float ad = fabsf(d), k = fminf(ad, 1.0f), k2 = fminf(fmaxf(0.0f, ad - 1.0f), 1.0f), far = fmaxf(0.0f, ad - 2.0f);
+    ui_row_scale(card, (int32_t)lroundf(256 * (1.0f - 0.10f * k - 0.06f * k2)), true);
+    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f)));
+}
+
+static void on_game_row(lv_event_t *e)
+{
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (GAME_ROWS[i].classic) {
+        classic_id_t g = (classic_id_t)GAME_ROWS[i].id;
+        pl.classic = true;
+        classic_start(g);
+        game_shown(CLASSIC[g].title);
+        classic_controls();
+        return;
+    }
+    game_id_t g = (game_id_t)GAME_ROWS[i].id;
     pl.classic = false;
     game_start(g, pl.pet);
     char t[40];
@@ -518,36 +545,54 @@ static void on_game(lv_event_t *e)
     game_shown(t);
 }
 
-static void on_classic(lv_event_t *e)
-{
-    classic_id_t g = (classic_id_t)(intptr_t)lv_event_get_user_data(e);
-    pl.classic = true;
-    classic_start(g);
-    game_shown(CLASSIC[g].title);
-    classic_controls();
-}
+static void on_back_wheel(lv_event_t *e);
 
-/* One page of the ring: its circles spring in, a chevron points at the other page. */
-static void menu_page(int page)
+/* A game's row (the Chore row's shape, 360 x 72, fully round, on the raised card): the game's
+ * picture in lime, its name and how it's played, and a lime Play disc at the end. The last row,
+ * Spin the wheel, goes back to the free-time wheel (a swipe right does too). */
+static void game_row(int i, bool picture)
 {
-    pl.page = page;
-    for (int g = 0; g < GAME_COUNT; g++) if (pl.circle[g]) ui_show(pl.circle[g], MENU[g].page == page);
-    for (int g = 0; g < CL_COUNT; g++) if (pl.classic_circle[g]) ui_show(pl.classic_circle[g], CLASSIC[g].page == page);
-    ui_show(pl.chev_r, page < MENU_PAGES - 1);
-    ui_show(pl.chev_l, page > 0);
-    fx_spring_children(pl.menu, 50);
-    char t[40];
-    named(t, sizeof t, PAGE_HEAD[page].title);
-    set_header(PAGE_HEAD[page].icon, t);
-}
-
-static void on_chevron(lv_event_t *e)
-{
-    int dir = (int)(intptr_t)lv_event_get_user_data(e);
-    int to = pl.page + dir;
-    if (to < 0 || to >= MENU_PAGES) return;
-    menu_page(to);
-    hal_play(HAL_SOUND_TICK);
+    bool spin = i < 0;
+    lv_obj_t *slot = wheel_list_add(&pl.wl);
+    lv_obj_t *card = ui_row(slot, 14);
+    lv_obj_set_size(card, GL_W, GL_H);
+    lv_obj_center(card);
+    lv_obj_set_style_pad_left(card, 18, 0);
+    lv_obj_set_style_pad_right(card, 12, 0);
+    ui_style_card(card, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_bg_color(card, COL(C_CHIP), LV_STATE_PRESSED);
+    const char *icon = spin ? "wheel" : GAME_ROWS[i].classic ? CLASSIC[GAME_ROWS[i].id].icon : MENU[GAME_ROWS[i].id].icon;
+    lv_obj_t *ic = ui_icon(card, icon, 40, spin ? C_SYSTEM : C_LIME);
+    lv_obj_set_size(ic, 40, 40);
+    lv_image_set_inner_align(ic, LV_IMAGE_ALIGN_CENTER);
+    lv_obj_t *body = ui_box(card);
+    lv_obj_set_size(body, 10, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(body, 1);
+    lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
+    char name[40], how[48];
+    if (spin) snprintf(name, sizeof name, "Spin the wheel");
+    else named(name, sizeof name, GAME_ROWS[i].classic ? CLASSIC[GAME_ROWS[i].id].title : MENU[GAME_ROWS[i].id].title);
+    lv_obj_t *n = ui_label(body, F_ITEM, C_TEXT, name);
+    lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(n, lv_pct(100), lv_font_get_line_height(F_ITEM));
+    if (!picture) {   /* picture view: the picture and the name are enough */
+        if (spin) snprintf(how, sizeof how, "Back to the wheel");
+        else named(how, sizeof how, GAME_ROWS[i].how);
+        lv_obj_t *h = ui_label(body, F_DETAIL, C_TEXT_MUTED, how);
+        lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+        lv_obj_set_size(h, lv_pct(100), lv_font_get_line_height(F_DETAIL));
+    }
+    if (!spin) {
+        lv_obj_t *go = ui_box(card);
+        lv_obj_set_size(go, 48, 48);
+        ui_style_card(go, C_LIME, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_add_flag(go, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_t *pi = ui_icon(go, "go", 22, C_ON_COLOR);
+        lv_obj_center(pi);
+    }
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    if (spin) lv_obj_add_event_cb(card, on_back_wheel, LV_EVENT_CLICKED, NULL);
+    else lv_obj_add_event_cb(card, on_game_row, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 }
 
 static void open_menu(void)
@@ -566,7 +611,7 @@ static void open_menu(void)
     ui_show(pl.canvas, false);
     ui_show(pl.shade_top, false);
     ui_show(pl.shade_low, false);
-    menu_page(pl.page);   /* back to the page the game came from */
+    set_header(NULL, NULL);   /* the list stays where it was: the game just played is at rest */
 }
 
 static void close_sliding(int dir);
@@ -590,6 +635,7 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
 {
     (void)owner; (void)user;
     if (dir == SWIPE_DOWN) return false;
+    if (dir == SWIPE_UP && !pl.in_game && !pl.see_you && !pl.buddy) return false;   /* the list turning */
     if (pl.in_game && !pl.see_you) return false;   /* a game is left only by the button */
     if (!commit) return true;
     /* My pet: left for Dress up, right back to My buddy; right from My buddy leaves it */
@@ -600,10 +646,7 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
         close_sliding(dir);
         return true;
     }
-    if (!pl.see_you) {
-        if (dir == SWIPE_LEFT) { if (pl.page < MENU_PAGES - 1) { menu_page(pl.page + 1); hal_play(HAL_SOUND_TICK); } return true; }
-        if (pl.page > 0) { menu_page(pl.page - 1); hal_play(HAL_SOUND_TICK); return true; }
-    }
+    if (!pl.see_you && dir == SWIPE_LEFT) return true;   /* the games are one list: nothing to the left */
     close_sliding(dir);
     return true;
 }
@@ -637,9 +680,7 @@ static void see_you_later(void)
     pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
-    pl.chev_l = pl.chev_r = pl.back_wheel = NULL;
-    memset(pl.circle, 0, sizeof pl.circle);
-    memset(pl.classic_circle, 0, sizeof pl.classic_circle);
+    memset(&pl.wl, 0, sizeof pl.wl);
     pl.classic = false;
     lv_free(pl.buf);
     pl.buf = NULL;
@@ -772,61 +813,17 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
 
     pl.timer = timer_create(pl.root);
 
-    /* the menu (Figma Playtime · Menu): no room, the games in rows of three and two, a page at a time */
+    /* the menu: the games as one list, like Chores, the rows turning under the header; a tap on a
+     * row plays that game, and the last row (or a swipe right) goes back to the wheel */
     pl.menu = ui_box(pl.root);
     lv_obj_set_size(pl.menu, SCREEN_W, SCREEN_H);
+    wheel_list_create(pl.menu, &pl.wl, 0, GL_TOP, SCREEN_W, SCREEN_H - GL_TOP, GL_FOCUS - GL_TOP, GL_ROW);
+    pl.wl.style = game_row_style;
     bool picture = ui_picture();
-    for (int g = 0; g < GAME_COUNT + CL_COUNT; g++) {
-        bool classic = g >= GAME_COUNT;
-        int k = classic ? g - GAME_COUNT : g;
-        int page = classic ? CLASSIC[k].page : MENU[k].page;
-        if (page < 0) continue;   /* Dress up: in My pet */
-        lv_obj_t *t = ui_box(pl.menu);
-        if (classic) pl.classic_circle[k] = t;
-        else pl.circle[k] = t;
-        lv_obj_set_size(t, 140, 122);   /* the 98 tile, wider so a long name fits on one line */
-        lv_obj_set_pos(t, (classic ? CLASSIC[k].x : MENU[k].x) - 21, classic ? CLASSIC[k].y : MENU[k].y);
-        lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(t, classic ? on_classic : on_game, LV_EVENT_CLICKED, (void *)(intptr_t)k);
-        lv_obj_t *b = ui_box(t);
-        lv_obj_set_size(b, 88, 88);
-        lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 0);
-        ui_style_card(b, C_RAISED, LV_RADIUS_CIRCLE, C_CHIP, LV_OPA_COVER);
-        lv_obj_set_style_border_width(b, 2, 0);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_set_style_bg_color(b, COL(C_CHIP), LV_STATE_PRESSED);
-        lv_obj_t *ic = ui_icon(b, classic ? CLASSIC[k].icon : MENU[k].icon, 36, C_LIME);
-        lv_obj_center(ic);
-        if (picture && page > 0) continue;   /* picture view: the classic games are icon-first */
-        char label[32];
-        named(label, sizeof label, classic ? CLASSIC[k].title : MENU[k].label);
-        lv_obj_t *l = ui_label(t, F_LABEL, C_BONE, label);
-        lv_obj_set_size(l, 140, lv_font_get_line_height(F_LABEL));
-        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 94);
-    }
-    /* small chevrons inside the rim, between the rows, pointing at the other page */
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *b = ui_box(pl.menu);
-        lv_obj_set_size(b, 32, 32);
-        lv_obj_set_pos(b, i ? 408 : 26, 262);
-        ui_style_card(b, C_GLASS, LV_RADIUS_CIRCLE, C_LINE, LV_OPA_COVER);
-        lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(b, 10);
-        lv_obj_add_event_cb(b, on_chevron, LV_EVENT_CLICKED, (void *)(intptr_t)(i ? 1 : -1));
-        lv_obj_t *ic = ui_icon(b, i ? "chevron" : "chevron-left", 16, C_BONE);
-        lv_obj_center(ic);
-        if (i) pl.chev_r = b; else pl.chev_l = b;
-    }
-    /* under the games, Spin back to the wheel: the wheel's Games button turned round (same size
-     * and place, Figma Free time · Spin's hill button at y 382); a swipe right does the same */
-    pl.back_wheel = button_create(pl.menu, BTN_SECONDARY, false, NULL, "Spin");
-    lv_obj_set_height(pl.back_wheel, 52);
-    lv_obj_update_layout(pl.back_wheel);
-    lv_obj_set_pos(pl.back_wheel, CENTER - lv_obj_get_width(pl.back_wheel) / 2, 382);
-    lv_obj_add_event_cb(pl.back_wheel, on_back_wheel, LV_EVENT_CLICKED, NULL);
+    for (int i = 0; i < GAME_ROW_COUNT; i++) game_row(i, picture);
+    game_row(-1, picture);
+    wheel_list_focus(&pl.wl, 0, false);
+    list_fade_create(pl.menu, GL_TOP);
 
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);
