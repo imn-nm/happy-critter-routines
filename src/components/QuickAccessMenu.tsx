@@ -44,7 +44,7 @@ export default function QuickAccessMenu({
       <DropdownMenuContent align="end" sideOffset={8} aria-label={`More for ${childName}`}>
         <DropdownMenuItem onSelect={onEditSchedule}>
           <CalendarCog aria-hidden />
-          Edit Schedule
+          Edit Profile & Schedule
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onActivityWheel}>
           <Shuffle aria-hidden />

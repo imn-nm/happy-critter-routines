@@ -59,7 +59,7 @@ const SLIDES: Slide[] = [
         Icon: ListChecks,
         tint: "text-focus-mint bg-focus-mint/20 border-focus-mint/30",
         term: "Anytime Chore",
-        text: "A separate to-do that doesn’t take up schedule time, like feeding the dog.",
+        text: "A chore on its own that doesn’t take up schedule time, like feeding the dog.",
       },
     ],
   },

@@ -39,7 +39,7 @@ interface TaskFormProps {
   isEdit?: boolean;
   currentDate: Date;
   prefillTime?: string;
-  /** A new item opened from the To-do tray starts as a to-do (a chore). */
+  /** A new item opened from the Chores tray starts as a chore. */
   startAs?: 'task' | 'chore';
   otherChildren?: { id: string; name: string }[];
   /** The child's wake-up time ("HH:MM"), so Bedtime can't land after midnight. */
@@ -1331,7 +1331,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
     </Popover>
   );
 
-  const noun = isChore ? 'To-do' : isEvent ? 'Event' : 'Task';
+  const noun = isChore ? 'Chore' : isEvent ? 'Event' : 'Task';
   const sheetTitle = `${isEdit ? 'Edit' : 'New'} ${noun}`;
   const stepInputClass =
     "h-11 flex-1 min-w-0 rounded-[12px] border-0 bg-focus-surface px-3 text-[16px] text-focus-text placeholder:text-focus-muted/70 focus:outline-none focus:ring-2 focus:ring-focus-lavender";
@@ -1714,7 +1714,7 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
           disabled={!canSubmit}
           className="w-full h-[52px] rounded-[16px] text-16 font-semibold"
         >
-          {blanks.length ? 'Fill in the blanks' : isEdit ? 'Save changes' : isChore ? 'Add to the to-dos' : 'Add to the day'}
+          {blanks.length ? 'Fill in the blanks' : isEdit ? 'Save changes' : isChore ? 'Add to the chores' : 'Add to the day'}
         </Button>
 
         {/* A built-in row (School, a meal) can be skipped for one day: no

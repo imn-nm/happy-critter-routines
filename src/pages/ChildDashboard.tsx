@@ -91,7 +91,7 @@ const ChildDashboard = () => {
   const { toggleCompletion } = useCompletions(childId || '');
   const alertCount = useAlertCount(childId);
   const [showAlerts, setShowAlerts] = useState(false);
-  // "Edit Schedule" in the quick access sheet opens the profile/schedule editor.
+  // "Edit Profile & Schedule" in the quick access sheet opens the profile/schedule editor.
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const openProfileEdit = () => setShowProfileEdit(true);
 
@@ -1151,8 +1151,8 @@ const ChildDashboard = () => {
             above it. It opens straight on the name: the title is for screen
             readers, and the grabber, a tap outside or Esc closes it. */}
         <DialogContent className="sm:max-w-[480px] bg-focus-sheet [&>button]:hidden" onKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}>
-          <DialogTitle className="sr-only">{editingTask ? "Edit" : newAs === 'chore' ? "Add a to-do" : "Add to the day"}</DialogTitle>
-          <DialogDescription className="sr-only">{editingTask ? "Change what is on the day" : newAs === 'chore' ? "A to-do they tick off" : "Something on their day"}</DialogDescription>
+          <DialogTitle className="sr-only">{editingTask ? "Edit" : newAs === 'chore' ? "Add a chore" : "Add to the day"}</DialogTitle>
+          <DialogDescription className="sr-only">{editingTask ? "Change what is on the day" : newAs === 'chore' ? "A chore they tick off" : "Something on their day"}</DialogDescription>
           <TaskForm
             wakeTime={child?.wake_time}
             childAge={child?.age}

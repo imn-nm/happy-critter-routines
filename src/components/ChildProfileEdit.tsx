@@ -37,7 +37,7 @@ interface ChildProfileEditProps {
   child: Child;
   onUpdateChild?: (id: string, updates: Partial<Child>) => Promise<any>;
   onDeleteChild?: (id: string) => Promise<void>;
-  /** Open the editor from outside (e.g. Quick Access → Edit Schedule). */
+  /** Open the editor from outside (e.g. Quick Access → Edit Profile & Schedule). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Hide the built-in gear trigger when another control opens the editor. */

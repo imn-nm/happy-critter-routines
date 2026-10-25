@@ -110,7 +110,7 @@ interface TimelineScheduleViewProps {
    * takes back given stars, so this prop is not used.
    */
   onToggleCompletion?: (taskId: string) => void;
-  /** "+ Add" in the To-do tray: a new to-do (a chore) for this day. */
+  /** "+ Add" in the Chores tray: a new chore for this day. */
   onAddTodo?: () => void;
   /**
    * How far above the bottom of the screen the To-do tray pins (the height of
@@ -799,7 +799,7 @@ const TodoTray = <T extends TodoItem>({ todos, offset, onAdd, onToggle, onEdit, 
     <div className="sticky z-10 -mx-1 px-1 py-2 bg-focus-bg" style={{ bottom: offset }}>
       <section aria-labelledby="todo-tray-title" className="flex flex-col gap-2.5 rounded-[18px] border border-focus-raised bg-focus-surface/60 px-3.5 py-3">
         <div className="flex items-center gap-2 min-h-7">
-          <h2 id="todo-tray-title" className="text-[12px] leading-4 font-semibold uppercase tracking-wide text-focus-muted">To-do</h2>
+          <h2 id="todo-tray-title" className="text-[12px] leading-4 font-semibold uppercase tracking-wide text-focus-muted">Chores</h2>
           <span className="flex-1 min-w-0 truncate text-[12px] leading-4 text-focus-muted">
             {todos.length ? `${done} of ${todos.length} done` : 'Nothing yet'}
           </span>

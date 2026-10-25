@@ -6,6 +6,7 @@ import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { closeButtonClass, closeIconClass, scrimClass } from "@/lib/focusStyles"
 import { cardMotion, overlayMotion, sheetMotion, useMotionPrefs } from "@/lib/motion"
+import { useKeyboardInset } from "@/hooks/useKeyboardInset"
 
 /**
  * Dialogs render as the Figma bottom sheet, animated with Motion for React:
@@ -83,6 +84,15 @@ const DialogContent = React.forwardRef<
   const { open, setOpen } = React.useContext(DialogStateContext)
   const { reduce, t } = useMotionPrefs()
   const dragControls = useDragControls()
+  // With the iPhone keyboard up, the sheet sits on top of it, not behind it.
+  const keyboard = useKeyboardInset(open && variant === "sheet")
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  // When the keyboard comes up, keep the field being typed in on screen.
+  React.useEffect(() => {
+    if (!keyboard.inset) return
+    const el = document.activeElement as HTMLElement | null
+    if (el && scrollRef.current?.contains(el)) requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }))
+  }, [keyboard.inset])
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.y > DISMISS_OFFSET || info.velocity.y > DISMISS_VELOCITY) setOpen(false)
@@ -140,6 +150,7 @@ const DialogContent = React.forwardRef<
                 "max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh]",
                 className
               )}
+              style={keyboard.height != null ? { bottom: keyboard.inset, maxHeight: keyboard.height - 12 } : undefined}
               initial={sheetMotion.initial}
               animate={sheetMotion.animate}
               exit={{ ...sheetMotion.exit, transition: t(sheetMotion.exitTransition) }}
@@ -161,7 +172,7 @@ const DialogContent = React.forwardRef<
               >
                 <span className="h-1 w-14 rounded-full bg-focus-lavender/70" />
               </div>
-              <motion.div layoutScroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 grid content-start gap-4">
+              <motion.div ref={scrollRef} layoutScroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 grid content-start gap-4">
                 {children}
               </motion.div>
               <DialogPrimitive.Close className={cn("absolute right-4 top-6 z-10", closeButtonClass)}>
