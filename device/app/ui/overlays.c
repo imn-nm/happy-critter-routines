@@ -720,6 +720,10 @@ void reminder_open(const char *next_icon, const char *next_title, const char *ne
         lv_obj_add_flag(b, LV_OBJ_FLAG_EVENT_BUBBLE);
     }
     rem_head = ov_header_in(&rem_header, o, true, title, HEADER_PILL, PILL_HURRY, "timer", "5 min", picture);   /* the younger child's: Big, the Sky */
+    if (picture) {   /* the Sky: what is coming (dinner's plate), amber like the timer */
+        header_set_sky(rem_head, picture_icon(next_icon, next_title));
+        header_set_sky_tone(rem_head, C_HURRY);
+    }
     reminder_update(seconds_left);
     hal_play(HAL_SOUND_SOON);
     auto_close(&reminder, 15000);

@@ -671,6 +671,7 @@ void home_render(const home_view_t *v)
         h.hdr.low = v->mid == MID_STEP;                     /* the younger one-step screens: the title down at y 54 */
         header_set_big(&h.hdr, v->title_big);
         header_set_sky(&h.hdr, v->sky);
+        header_set_sky_tone(&h.hdr, v->timer_show ? timer_tone_color(v->timer_tone) : 0);   /* the icon in the timer's colour */
         header_set(&h.hdr, v->clock_line, v->title, below, tone, v->late_chip ? NULL : v->status_icon, text);
         if (strcmp(h.title_sig, v->title)) { snprintf(h.title_sig, sizeof h.title_sig, "%s", v->title); fx_slide(h.hdr.root, 10, 0); }   /* a new screen */
     }

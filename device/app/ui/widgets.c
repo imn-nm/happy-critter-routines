@@ -15,7 +15,7 @@ void ui_set_clock(int minutes) { ui_fmt_clock(clock_now, sizeof clock_now, minut
 const char *ui_clock(void) { return clock_now; }
 void ui_set_picture(bool picture) { picture_mode = picture; }
 bool ui_picture(void) { return picture_mode; }
-static char sky_now[12] = "sun";
+static char sky_now[20] = "sun";
 void ui_set_sky(const char *icon) { snprintf(sky_now, sizeof sky_now, "%s", icon && *icon ? icon : "sun"); }
 const char *ui_sky(void) { return sky_now; }
 
@@ -44,6 +44,7 @@ static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_even
 typedef struct { timer_tone_t tone; int16_t left; bool pulse; uint8_t breath; lv_timer_t *timer; } timer_data_t;
 
 static const uint32_t TONE_COLOR[] = { C_PLENTY, C_HURRY, C_LATE_RING, C_NIGHT };
+uint32_t timer_tone_color(timer_tone_t tone) { return TONE_COLOR[tone]; }
 
 /* piece i runs from piece_a[i] to piece_b[i] degrees (on the stroke's centre line) */
 static void timer_piece(int i, float *a, float *b)
@@ -328,6 +329,7 @@ void header_create(lv_obj_t *parent, header_t *h)
 {
     h->root = ui_box(parent);
     h->tight = h->big = h->low = false;
+    h->sky_tone = 0;
     h->sky_name[0] = 0;
     lv_obj_set_size(h->root, 340, LV_SIZE_CONTENT);
     lv_obj_set_pos(h->root, 63, HEADER_Y);
@@ -361,6 +363,12 @@ void header_create(lv_obj_t *parent, header_t *h)
 
 void header_set_big(header_t *h, bool big) { h->big = big; }
 
+/* the timer's colour while one runs; without one the moon iris, anything else amber */
+static void sky_color(header_t *h)
+{
+    if (h->sky_name[0]) ui_set_color(h->sky_icon, h->sky_tone ? h->sky_tone : !strcmp(h->sky_name, "moon") ? C_NIGHT : C_STAR);
+}
+
 void header_set_sky(header_t *h, const char *icon)
 {
     const char *name = icon ? icon : "";
@@ -368,11 +376,15 @@ void header_set_sky(header_t *h, const char *icon)
     snprintf(h->sky_name, sizeof h->sky_name, "%s", name);
     ui_show(h->sky, *name != 0);
     if (!*name) return;
-    /* the moon iris; the sun, or a task's own icon (running late), amber */
-    uint32_t col = !strcmp(name, "moon") ? C_NIGHT : C_STAR;
     ui_icon_set(h->sky_icon, name, 32);
-    ui_set_color(h->sky_icon, col);
+    sky_color(h);
     lv_obj_center(h->sky_icon);
+}
+
+void header_set_sky_tone(header_t *h, uint32_t color)
+{
+    h->sky_tone = color;
+    sky_color(h);
 }
 
 static void set_margin(lv_obj_t *o, int32_t m) { if (lv_obj_get_style_margin_top(o, 0) != m) lv_obj_set_style_margin_top(o, m, 0); }

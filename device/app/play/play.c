@@ -175,6 +175,8 @@ static void set_header(const char *icon, const char *title)
      * Younger · Playtime · Games, Games · Bath time); in a game, as the older child's */
     if (young && !pl.in_game) {
         header_set_sky(&pl.head, ui_sky());
+        /* the play time's timer runs round the menu: the icon in its colour (none on the start card) */
+        header_set_sky_tone(&pl.head, pl.card_game >= 0 ? 0 : pl.left < 600 ? C_HURRY : C_PLENTY);
         header_set_big(&pl.head, pl.card_game >= 0);
         header_set(&pl.head, NULL, pl.card_game >= 0 ? head_title : NULL, HEADER_NONE, PILL_DONE, NULL, NULL);
         return;

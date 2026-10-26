@@ -1151,7 +1151,6 @@ static void younger_view(home_view_t *v)
          * worm eating the play it's taking (two big dots, the play in an amber circle) */
         v->timer_tone = TIMER_HURRY;
         v->timer_pulse = false;
-        if (t && t->icon[0]) snprintf(v->sky, sizeof v->sky, "%s", t->icon);
         const reserve_t *r = &n->reserve;
         if (r->free_reserve || app.state == ST_WAIT_START) {
             snprintf(v->overdue_text, sizeof v->overdue_text, "Playtime is going away");
@@ -1754,6 +1753,31 @@ static void brightness(void)
     hal_set_brightness(app.brightness);
 }
 
+/* The younger child's Sky (the chip at the top of their screens) is what they are doing now: the
+ * task's own picture (the wake-up's sun at the alarm, School's, an event's), free time's kite, the
+ * bedtime routine's as bedtime nears. With nothing on, the sun by day and the moon from 7 pm and
+ * through the night. */
+static const char *sky_icon(void)
+{
+    const day_plan_t *p = app.plan;
+    const logic_now_t *n = &app.now;
+    bool night = app.t.hour >= 19 || app.state == ST_SLEEPY || app.state == ST_BEDTIME || app.state == ST_DAY_OVER;
+    if (!app.have_plan) return night ? "moon" : "sun";
+    switch (app.state) {
+    case ST_FREE: case ST_FREE_DAY:
+        return "kite";
+    case ST_BED_SOON:
+        if (n->nupcoming && p->tasks[n->upcoming[0]].icon[0]) return picture_icon(p->tasks[n->upcoming[0]].icon, p->tasks[n->upcoming[0]].title);
+        break;
+    case ST_SLEEPY: case ST_DAY_OVER: case ST_WAITING: case ST_WELCOME: case ST_ALL_DONE: case ST_REST:
+        break;   /* nothing on now */
+    default:
+        if (app.focus >= 0 && p->tasks[app.focus].icon[0]) return picture_icon(p->tasks[app.focus].icon, p->tasks[app.focus].title);
+        break;
+    }
+    return night ? "moon" : "sun";
+}
+
 static void tick(lv_timer_t *timer)
 {
     (void)timer;
@@ -1761,9 +1785,6 @@ static void tick(lv_timer_t *timer)
     snprintf(app.today, sizeof app.today, "%04d-%02d-%02d", app.t.year, app.t.month, app.t.day);
     app.now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
     ui_set_clock(app.now_s / 60);
-    /* the younger child's Sky: the moon from 7 pm and through the night, the sun by day */
-    bool night = app.t.hour >= 19 || app.state == ST_SLEEPY || app.state == ST_BED_SOON || app.state == ST_BEDTIME || app.state == ST_DAY_OVER;
-    ui_set_sky(night ? "moon" : "sun");
     if (app.now_s / 60 != app.shift_min) { app.shift_min = app.now_s / 60; pixel_shift(false); }
 
     if (app.hello_until && (int32_t)(now_ms() - app.hello_until) >= 0) {
@@ -1809,6 +1830,7 @@ static void tick(lv_timer_t *timer)
         }
     }
     app.state = derive();
+    ui_set_sky(sky_icon());   /* before a state change opens anything that shows it */
     if (app.state != app.last_state) {
         on_state_change(app.last_state, app.state);
         app.last_state = app.state;

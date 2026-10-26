@@ -41,6 +41,8 @@ typedef enum { TIMER_PLENTY, TIMER_HURRY, TIMER_LATE, TIMER_NIGHT } timer_tone_t
 lv_obj_t *timer_create(lv_obj_t *parent);
 /* left: 0..1000 of the arc lit. pulse: running over, the lit dashes breathe. */
 void timer_set(lv_obj_t *timer, timer_tone_t tone, int16_t left, bool pulse);
+/* The colour a tone lights the timer in. */
+uint32_t timer_tone_color(timer_tone_t tone);
 
 /* ---- Pill: time left, a status or a count under the title ---- */
 typedef enum { PILL_CALM, PILL_HURRY, PILL_LATE, PILL_NIGHT, PILL_STAR, PILL_DONE, PILL_SYSTEM, PILL_ACTION } pill_tone_t;
@@ -56,7 +58,7 @@ typedef enum { HEADER_NONE, HEADER_PILL, HEADER_TEXT } header_below_t;
  * pill down at the foot of the screen (y 385).
  * sky: the younger child's chip over the title instead of the clock (Figma "Sky": the sun by day,
  * the moon at night, or the task's own icon), set with header_set_sky. */
-typedef struct { lv_obj_t *root, *clock, *title, *text, *sky, *sky_icon; pill_t pill, foot; bool tight, big, low; char sky_name[20]; } header_t;
+typedef struct { lv_obj_t *root, *clock, *title, *text, *sky, *sky_icon; pill_t pill, foot; bool tight, big, low; char sky_name[20]; uint32_t sky_tone; } header_t;
 void header_create(lv_obj_t *parent, header_t *h);
 /* clock or title NULL/"" = hidden. */
 void header_set(header_t *h, const char *clock, const char *title, header_below_t below,
@@ -65,6 +67,9 @@ void header_set(header_t *h, const char *clock, const char *title, header_below_
 void header_set_big(header_t *h, bool big);
 /* The younger child's Sky chip: "sun", "moon" or a task's icon; NULL or "" = none. */
 void header_set_sky(header_t *h, const char *icon);
+/* The Sky's icon in the timer's colour while a timer runs round the screen; 0 = none runs (the moon
+ * iris, anything else amber). */
+void header_set_sky_tone(header_t *h, uint32_t color);
 
 /* ---- Hill: the dark curve at the bottom (y 368) with what comes next, one button, a quiet line or
  * the Spin / Play switch, and the carousel's page dots ---- */
@@ -130,8 +135,9 @@ const char *ui_clock(void);
 /* Picture view (younger kids). Set when the day loads. */
 void ui_set_picture(bool picture);
 bool ui_picture(void);
-/* The younger child's Sky chip for now: "sun" by day, "moon" from 7 pm and before wake-up. Kept up
- * to date by the controller; the overlays and pages read it. */
+/* The younger child's Sky chip for now: the current task's icon, free time's kite, or with nothing
+ * on "sun" by day and "moon" at night. Kept up to date by the controller; the overlays and pages
+ * read it. */
 void ui_set_sky(const char *icon);
 const char *ui_sky(void);
 void ring_set_scale(lv_obj_t *ring, int32_t permille);
