@@ -3407,6 +3407,11 @@ var getPSTDayName = () => {
   const d = getPSTDate();
   return d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
 };
+var toPSTMinutes = (at) => {
+  const d = new Date(new Date(at).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  return d.getHours() * 60 + d.getMinutes();
+};
+var addedFloor = (task, day) => task.created_at && toPSTDateString(task.created_at) === day ? toPSTMinutes(task.created_at) : void 0;
 var toPSTDateString = (at) => {
   const d = new Date(new Date(at).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -3874,8 +3879,8 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     }
     return { dayStart, dayEnd };
   })();
-  const findNextSlot = (duration) => {
-    const start = resolveDropStart(occupied, dayBounds.dayStart, duration, dayBounds);
+  const findNextSlot = (duration, bounds = dayBounds) => {
+    const start = resolveDropStart(occupied, bounds.dayStart, duration, bounds);
     if (start == null) return null;
     const h = Math.floor(start / 60);
     const m = start % 60;
@@ -3897,18 +3902,22 @@ function buildTodaysSchedule({ tasksWithCompletion, child, holidays, todaysHolid
     const anchorEnd = task.after_task_id ? endsAt.get(task.after_task_id) : void 0;
     const anchorStart = task.before_task_id ? startsAt.get(task.before_task_id) : void 0;
     const atMinute = (start) => start == null ? null : `${Math.floor(start / 60).toString().padStart(2, "0")}:${(start % 60).toString().padStart(2, "0")}`;
+    const floor = addedFloor(task, todayStr);
+    const bounds = floor != null ? { ...dayBounds, dayStart: Math.max(dayBounds.dayStart, floor) } : dayBounds;
+    const atLeast = (min) => floor != null ? Math.max(min, floor) : min;
+    const hintAt = task.placementHint || (task.after_task_id || task.before_task_id ? task.date_overrides?.[todayStr]?.window_start || task.window_start : void 0);
     let slot;
     if (anchorEnd != null) {
-      slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+      slot = atMinute(resolveDropStart(occupied, atLeast(anchorEnd), duration, bounds));
     } else if (anchorStart != null) {
-      slot = atMinute(resolveDropStart(occupied, Math.max(dayBounds.dayStart, anchorStart - duration), duration, dayBounds));
-    } else if (task.placementHint) {
-      const [hh, hm] = task.placementHint.slice(0, 5).split(":").map(Number);
-      const hint = hh * 60 + hm;
-      const clamped = Math.max(dayBounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
-      slot = atMinute(resolveDropStart(occupied, hint, duration, dayBounds) ?? clamped);
+      slot = atMinute(resolveDropStart(occupied, atLeast(Math.max(dayBounds.dayStart, anchorStart - duration)), duration, bounds));
+    } else if (hintAt) {
+      const [hh, hm] = hintAt.slice(0, 5).split(":").map(Number);
+      const hint = atLeast(hh * 60 + hm);
+      const clamped = Math.max(bounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
+      slot = atMinute(resolveDropStart(occupied, hint, duration, bounds) ?? clamped);
     } else {
-      slot = findNextSlot(duration);
+      slot = findNextSlot(duration, bounds);
     }
     if (!slot) continue;
     const [h, m] = slot.split(":").map(Number);
@@ -4002,4 +4011,4 @@ export {
   resolvePetId,
   toPSTDateString
 };
-export const PLAN_REV = "11545a3715";
+export const PLAN_REV = "6352535048";

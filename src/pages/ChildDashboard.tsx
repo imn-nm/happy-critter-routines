@@ -168,9 +168,12 @@ const ChildDashboard = () => {
     setShowTaskForm(true);
   };
 
+  // What a task can follow: the repeating ones, and one-offs on the day shown
+  // (a one-off from another day isn't there to follow).
   const anchorOptions = (() => {
+    const shownDate = format(currentDate, 'yyyy-MM-dd');
     const timed = tasks
-      .filter(t => t.type !== 'floating' && t.is_active !== false)
+      .filter(t => t.type !== 'floating' && t.is_active !== false && (t.is_recurring || runsOn(t as TaskLike, shownDate, child ?? null)))
       .sort((a, b) => (a.scheduled_time ?? '99').localeCompare(b.scheduled_time ?? '99') || a.sort_order - b.sort_order);
     const count = new Map<string, number>();
     timed.forEach(t => count.set(t.name, (count.get(t.name) ?? 0) + 1));
@@ -583,18 +586,20 @@ const ChildDashboard = () => {
             const sibling = children.find(c => c.id === otherId) ?? null;
             const theirs = (siblingTasks ?? []).filter(t => t.child_id === otherId) as unknown as Task[];
             // Routines and "after" links are per child: drop the routine and
-            // follow their task of the same name, if they have one.
+            // follow their task of the same name on that day (a repeat: one
+            // that repeats too), if they have one. Any one of that name used
+            // to do, so a Snack from weeks ago put today's task at its time.
             row.routine_id = null;
             row.days_override = false;
-            if (row.after_task_id) {
-              const anchorName = tasks.find(t => t.id === row.after_task_id)?.name;
-              row.after_task_id = theirs.find(t => t.name === anchorName && t.is_active !== false)?.id ?? null;
-            }
-            if (row.before_task_id) {
-              const anchorName = tasks.find(t => t.id === row.before_task_id)?.name;
-              row.before_task_id = theirs.find(t => t.name === anchorName && t.is_active !== false)?.id ?? null;
-            }
-            const dates = row.is_recurring ? upcomingDates(theirs, sibling) : [row.task_date || format(currentDate, 'yyyy-MM-dd')];
+            const onDay = row.task_date || format(currentDate, 'yyyy-MM-dd');
+            const theirsNamed = (id: string) => {
+              const anchorName = tasks.find(t => t.id === id)?.name;
+              return theirs.find(t => t.name === anchorName && t.is_active !== false
+                && (row.is_recurring ? t.is_recurring : runsOn(t as TaskLike, onDay, sibling)))?.id ?? null;
+            };
+            if (row.after_task_id) row.after_task_id = theirsNamed(row.after_task_id);
+            if (row.before_task_id) row.before_task_id = theirsNamed(row.before_task_id);
+            const dates = row.is_recurring ? upcomingDates(theirs, sibling) : [onDay];
             const clash = findStartClash({ ...row, id: 'new', is_active: true } as TaskLike, dates, theirs, sibling);
             if (clash) {
               skipped.push(`${sibling?.name ?? 'another child'}: ${describeClash(clash)}`);
@@ -699,8 +704,13 @@ const ChildDashboard = () => {
       // hint the timeline already respects) so the "Set Time"
       // toggle in the edit form stays off.
       const dateStrForDrag = format(currentDate, 'yyyy-MM-dd');
-      // Made "whenever there is room" for this day: a drag keeps it that way.
-      const anytimeToday = !!task.date_overrides?.[dateStrForDrag]?.anytime;
+      // A task that follows another ("after Snack") goes where it's dropped:
+      // the tie used to put it straight back after Snack.
+      const tied = !!(task.after_task_id || task.before_task_id);
+      const untie = tied ? { after_task_id: null, ...(task.before_task_id ? { before_task_id: null } : {}) } : {};
+      // Made "whenever there is room" for this day: a drag keeps it that way
+      // (a tied one is pinned for the day instead, or the tie would win).
+      const anytimeToday = !!task.date_overrides?.[dateStrForDrag]?.anytime && !tied;
       const hadFixedTime = !!task.scheduled_time && !anytimeToday;
       if (task.is_recurring) {
         // A drag on one day's timeline moves it on that day only;
@@ -726,7 +736,7 @@ const ChildDashboard = () => {
               await updateTask(taskId, (hadFixedTime
                 ? { scheduled_time: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }
                 // Anytime today and dragged here: anytime every day, from here.
-                : { ...(anytimeToday ? { scheduled_time: null } : {}), window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }) as Partial<Task>);
+                : { ...(anytimeToday ? { scheduled_time: null } : {}), ...untie, window_start: newTime, date_overrides: Object.keys(everyDay).length ? everyDay : null }) as Partial<Task>);
               await refetch();
             },
           },
@@ -735,7 +745,7 @@ const ChildDashboard = () => {
       } else if (hadFixedTime) {
         await updateTask(taskId, { scheduled_time: newTime });
       } else {
-        await updateTask(taskId, { window_start: newTime });
+        await updateTask(taskId, { ...untie, window_start: newTime } as Partial<Task>);
       }
       await refetch();
     } catch { toast({ title: "Error", variant: "destructive" }); }

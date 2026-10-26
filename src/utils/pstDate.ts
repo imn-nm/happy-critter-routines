@@ -35,6 +35,21 @@ export const getPSTDayName = (): string => {
   return d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 };
 
+/** Minutes since midnight, Pacific Time, for a timestamp (e.g. a row's created_at). */
+export const toPSTMinutes = (at: Date | string): number => {
+  const d = new Date(new Date(at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+/**
+ * The earliest a task can be placed on `day` ("yyyy-MM-dd"): on the day it
+ * was added, no earlier than when it was added (user, 2026-10-26: a task
+ * added at 4:15 "after Snack", when Snack ended at 3:50, starts at 4:15).
+ * Undefined on any other day.
+ */
+export const addedFloor = (task: { created_at?: string | null }, day: string): number | undefined =>
+  task.created_at && toPSTDateString(task.created_at) === day ? toPSTMinutes(task.created_at) : undefined;
+
 /** "yyyy-MM-dd" in Pacific Time for a timestamp (e.g. a row's created_at). */
 export const toPSTDateString = (at: Date | string): string => {
   const d = new Date(new Date(at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));

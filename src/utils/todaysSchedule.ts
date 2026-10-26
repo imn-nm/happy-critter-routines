@@ -14,7 +14,7 @@ import { withGetReadyTime } from '@/utils/eventWindow';
 import { resolveDropStart } from '@/utils/dragSnap';
 import { orderByAnchors } from '@/utils/afterAnchors';
 import { clampScheduleOverlaps } from '@/utils/scheduleOverlap';
-import { getPSTDateString, getPSTDayName, toPSTDateString } from '@/utils/pstDate';
+import { addedFloor, getPSTDateString, getPSTDayName, toPSTDateString } from '@/utils/pstDate';
 import { repeatEnded } from '@/utils/repeatEnds';
 
 export type TaskRow = Task & { isCompleted?: boolean };
@@ -168,8 +168,8 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     return { dayStart, dayEnd };
   })();
 
-  const findNextSlot = (duration: number): string | null => {
-    const start = resolveDropStart(occupied, dayBounds.dayStart, duration, dayBounds);
+  const findNextSlot = (duration: number, bounds = dayBounds): string | null => {
+    const start = resolveDropStart(occupied, bounds.dayStart, duration, bounds);
     if (start == null) return null; // day is full — leave the task untimed
     const h = Math.floor(start / 60);
     const m = start % 60;
@@ -197,21 +197,28 @@ export function buildTodaysSchedule({ tasksWithCompletion, child, holidays, toda
     const anchorStart = task.before_task_id ? startsAt.get(task.before_task_id) : undefined;
     const atMinute = (start: number | null) =>
       start == null ? null : `${Math.floor(start / 60).toString().padStart(2, '0')}:${(start % 60).toString().padStart(2, '0')}`;
+    // Added today: never before it was added, as on the parent's timeline.
+    const floor = addedFloor(task, todayStr);
+    const bounds = floor != null ? { ...dayBounds, dayStart: Math.max(dayBounds.dayStart, floor) } : dayBounds;
+    const atLeast = (min: number) => (floor != null ? Math.max(min, floor) : min);
+    // What it follows isn't on today: its spot instead, as the parent's timeline does.
+    const hintAt = task.placementHint
+      || (task.after_task_id || task.before_task_id ? task.date_overrides?.[todayStr]?.window_start || task.window_start : undefined);
     let slot: string | null;
     if (anchorEnd != null) {
-      slot = atMinute(resolveDropStart(occupied, anchorEnd, duration, dayBounds));
+      slot = atMinute(resolveDropStart(occupied, atLeast(anchorEnd), duration, bounds));
     } else if (anchorStart != null) {
       // "Before this": it ends as the anchor starts, or the nearest gap to that.
-      slot = atMinute(resolveDropStart(occupied, Math.max(dayBounds.dayStart, anchorStart - duration), duration, dayBounds));
-    } else if (task.placementHint) {
+      slot = atMinute(resolveDropStart(occupied, atLeast(Math.max(dayBounds.dayStart, anchorStart - duration)), duration, bounds));
+    } else if (hintAt) {
       // The nearest free gap to its hint (snapped to a neighbour's edge within
       // 15 minutes); with no gap left, still inside the waking day.
-      const [hh, hm] = task.placementHint.slice(0, 5).split(':').map(Number);
-      const hint = hh * 60 + hm;
-      const clamped = Math.max(dayBounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
-      slot = atMinute(resolveDropStart(occupied, hint, duration, dayBounds) ?? clamped);
+      const [hh, hm] = hintAt.slice(0, 5).split(':').map(Number);
+      const hint = atLeast(hh * 60 + hm);
+      const clamped = Math.max(bounds.dayStart, Math.min((dayBounds.dayEnd ?? 24 * 60) - duration, hint));
+      slot = atMinute(resolveDropStart(occupied, hint, duration, bounds) ?? clamped);
     } else {
-      slot = findNextSlot(duration);
+      slot = findNextSlot(duration, bounds);
     }
     if (!slot) continue;
     const [h, m] = slot.split(':').map(Number);

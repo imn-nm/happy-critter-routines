@@ -22,7 +22,7 @@ import type { DayRow } from "@/components/TaskForm";
 import { prepMinutes } from '@/utils/eventWindow';
 import { getTaskIcon } from '@/utils/taskIcon';
 import { formatDuration as formatDurationUtil } from '@/utils/formatDuration';
-import { getPSTDate, getPSTTimeString, getPSTDateString } from '@/utils/pstDate';
+import { getPSTDate, getPSTTimeString, getPSTDateString, addedFloor } from '@/utils/pstDate';
 import {
   DndContext,
   DragOverlay,
@@ -1362,23 +1362,27 @@ const TimelineScheduleView = ({
     const anchorEnd = anchorId ? endsAt.get(anchorId) : undefined;
     const anchorStart = !anchorId && task.before_task_id ? startsAt.get(task.before_task_id) : undefined;
     const windowStart = dayTies.times.get(task.id) ?? task.date_overrides?.[selectedDayDateString]?.window_start ?? task.window_start;
+    // Added today: never before it was added (the same rule as the child's day, todaysSchedule).
+    const floor = addedFloor(task, selectedDayDateString);
+    const bounds = floor != null ? { ...dayBounds, dayStart: Math.max(dayBounds.dayStart, floor) } : dayBounds;
+    const atLeast = (min: number) => (floor != null ? Math.max(min, floor) : min);
     let startMin: number;
     if (anchorEnd != null) {
       // "After this": right after the anchor, or the next gap after it.
-      startMin = resolveDropStart(flexOccupied, anchorEnd, taskDuration, dayBounds) ?? anchorEnd;
+      startMin = resolveDropStart(flexOccupied, atLeast(anchorEnd), taskDuration, bounds) ?? atLeast(anchorEnd);
     } else if (anchorStart != null) {
       // "Before this": it ends as the anchor starts, or the nearest gap to that.
-      const want = Math.max(dayBounds.dayStart, anchorStart - taskDuration);
-      startMin = resolveDropStart(flexOccupied, want, taskDuration, dayBounds) ?? want;
+      const want = atLeast(Math.max(dayBounds.dayStart, anchorStart - taskDuration));
+      startMin = resolveDropStart(flexOccupied, want, taskDuration, bounds) ?? want;
     } else {
       const hint = windowStart || findNextAvailableTime(taskDuration);
       const [hh, hm] = hint.slice(0, 5).split(':').map(Number);
       // A task with no placement hint at all shouldn't be auto-parked in a
       // slot that has already passed when viewing today.
-      const hintMinutes = windowStart
+      const hintMinutes = atLeast(windowStart
         ? hh * 60 + hm
-        : (isPSTToday(selectedDay) ? Math.max(hh * 60 + hm, nowMinutes) : hh * 60 + hm);
-      const placedStart = resolveDropStart(flexOccupied, hintMinutes, taskDuration, dayBounds);
+        : (isPSTToday(selectedDay) ? Math.max(hh * 60 + hm, nowMinutes) : hh * 60 + hm));
+      const placedStart = resolveDropStart(flexOccupied, hintMinutes, taskDuration, bounds);
       // No free gap fits (day is full): still keep the task inside the waking
       // day — overlapping visibly (the conflict banner flags it) beats
       // silently parking it after bedtime.
