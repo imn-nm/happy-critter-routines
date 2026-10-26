@@ -74,7 +74,11 @@ static struct {
     bool classic;               /* the game being played is a classic one (classic.c draws it) */
     bool buddy;                 /* My pet is showing */
     bool standalone;            /* opened by a long tap on the pet, not from Playtime */
-    int editor_page;            /* My pet: 0 My buddy, 1 Dress up */
+    int editor_page;            /* My pet: EP_BUDDY .. EP_NECK */
+    lv_obj_t *editor;           /* My pet's choices, arrows, dots and note */
+    lv_obj_t *card;             /* the younger child's start card: the game's picture to tap */
+    int card_game;              /* which circle it starts, or -1 */
+    char choice_text[32];       /* what is chosen on the page ("Party hat", "Nothing on") */
     play_character_cb_t on_character;
     header_t head;
     char left_text[32];
@@ -157,12 +161,26 @@ static void set_header(const char *icon, const char *title)
     (void)icon;
     if (title) snprintf(head_title, sizeof head_title, "%s", title);
     if (!pl.head.root) return;
-    /* My pet: its page's name and where the other page is (no play time: it isn't a game) */
+    /* My pet (Figma "Playtime · My buddy"): the page's name and what is chosen on it (no play time:
+     * it isn't a game); the younger child's has no clock */
+    bool young = ui_picture();
+    pl.head.low = young && pl.buddy;   /* the younger child's My pet: the title at y 54 */
     if (pl.buddy) {
-        header_set(&pl.head, ui_clock(), head_title, HEADER_TEXT, PILL_CALM, NULL,
-                   pl.editor_page ? "Swipe back to My buddy" : "Swipe to dress up");
+        header_set_sky(&pl.head, NULL);
+        header_set_big(&pl.head, false);
+        header_set(&pl.head, young ? NULL : ui_clock(), head_title, HEADER_TEXT, PILL_CALM, NULL, pl.choice_text);
         return;
     }
+    /* the younger child's menu: the Sky alone; its start card: the Sky and the game's name, Big (Figma
+     * Younger · Playtime · Games, Games · Bath time); in a game, as the older child's */
+    if (young && !pl.in_game) {
+        header_set_sky(&pl.head, ui_sky());
+        header_set_big(&pl.head, pl.card_game >= 0);
+        header_set(&pl.head, NULL, pl.card_game >= 0 ? head_title : NULL, HEADER_NONE, PILL_DONE, NULL, NULL);
+        return;
+    }
+    header_set_sky(&pl.head, NULL);
+    header_set_big(&pl.head, false);
     /* a classic game (Figma "13 · Classic games"): the clock, its name, the play time left; Maze
      * Munch fills the screen, so no name; Roll home's maze fills the display, so the clock alone (the
      * rim still shows the play time) */
@@ -192,106 +210,48 @@ static lv_obj_t *shade(lv_obj_t *parent, int32_t y, int32_t h, bool down)
     return o;
 }
 
-/* Figma: 84 x 44 pills for the dress-up categories and the bath steps; the current one has a
- * lime outline. */
-static lv_obj_t *step_pill(lv_obj_t *parent, const char *text, bool on, bool sunken, int32_t x)
+/* ---------------------------------------------------------------- my pet */
+/* My pet (a long tap on the pet, any time; Figma "Playtime · My buddy", 1469:9698, and its Colour, Hat,
+ * Face and Neck pages): one pattern for every page. The header names the page and what is chosen on
+ * it; under it a row of Choices (72 circles, 16 apart, centred; the chosen one with a lime ring;
+ * "Nothing" a dashed empty one); the pet in its room trying the choice on; big arrows at the sides
+ * and five dots at the foot turn the pages (so does a swipe); "Press when done" and the cue at the
+ * button, which puts it away. A row with more than four choices scrolls sideways. */
+enum { EP_BUDDY, EP_COLOUR, EP_HAT, EP_FACE, EP_NECK, EP_COUNT };
+static const char *const EP_TITLE[EP_COUNT] = { "My buddy", "Colour", "Hat", "Face", "Neck" };
+#define CHOICE_D 72
+#define CHOICE_GAP 16
+#define CHOICES_Y 126
+
+/* the words for what is chosen ("Party hat"; the fur's colour "Cream") */
+static const char *const ACC_NAME[PET_ACC_COUNT] = {
+    [PET_ACC_HAT] = "Party hat", [PET_ACC_STRAW] = "Sun hat", [PET_ACC_CAP] = "Cap", [PET_ACC_CROWN] = "Crown",
+    [PET_ACC_BOW] = "Bow", [PET_ACC_BEANIE] = "Beanie", [PET_ACC_TIARA] = "Tiara", [PET_ACC_WIZARD] = "Wizard hat",
+    [PET_ACC_SPECS] = "Glasses", [PET_ACC_HEARTS] = "Heart glasses", [PET_ACC_SHADES] = "Sunglasses",
+    [PET_ACC_SCARF] = "Scarf", [PET_ACC_BOWTIE] = "Bow tie", [PET_ACC_MEDAL] = "Medal", [PET_ACC_CAPE] = "Cape",
+};
+static const char *colour_name(int ch, int col)
 {
-    lv_obj_t *c = ui_row(parent, 0);
-    lv_obj_set_size(c, 84, 44);
-    lv_obj_set_pos(c, x, 0);
-    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    (void)sunken;
-    /* MyToki 2 Tab: on a night pill; the current one has a lime outline and lime words */
-    ui_style_card(c, C_RAISED, LV_RADIUS_CIRCLE, C_ACTION, on ? LV_OPA_COVER : 0);
-    if (on) lv_obj_set_style_border_width(c, 2, 0);
-    ui_label(c, F_LABEL, on ? C_ACTION : C_TEXT_MUTED, text);
-    return c;
+    static const char *const OWN[PET_CHAR_COUNT] = { "Cream", "Silver", "Orange" };   /* each one's own colour */
+    return col == 0 && ch < PET_CHAR_COUNT ? OWN[ch] : pet_chars[ch].colours[col].name;
 }
 
-/* ---------------------------------------------------------------- game controls */
+static void editor_page(int page);
+
 static void on_item(lv_event_t *e)
 {
-    int acc = (int)(intptr_t)lv_event_get_user_data(e);
-    if (dressup_wear(acc) && pl.on_outfit) pl.on_outfit();
-    if (pl.buddy_pet) pet_react(pl.buddy_pet, PET_CLIP_WAVE);   /* My pet: he shows it off */
-    pl.sig[0] = 0; /* redraw the items: one is now worn */
-}
-
-static void on_slot(lv_event_t *e)
-{
-    pl.slot = (int)(intptr_t)lv_event_get_user_data(e);
-    pl.sig[0] = 0;
-}
-
-/* Figma "Playtime · Dress up": Head / Face / Neck at y 334, the items in 52 x 48 tiles at y 388 */
-static void dressup_controls(void)
-{
-    int o[3];
+    int acc = (int)(intptr_t)lv_event_get_user_data(e), o[3];
     pet_get_outfit(&o[0], &o[1], &o[2]);
-    char sig[64];
-    snprintf(sig, sizeof sig, "du%d|%d,%d,%d", pl.slot, o[0], o[1], o[2]);
-    if (!strcmp(sig, pl.sig)) return;
-    strcpy(pl.sig, sig);
-    lv_obj_clean(pl.bottom);
-    static const char *const SLOTS[3] = { "Head", "Face", "Neck" };
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *c = step_pill(pl.bottom, SLOTS[i], i == pl.slot, true, 99 + i * 92);
-        lv_obj_set_y(c, 0);
-        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(c, on_slot, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    int slot = pl.editor_page - EP_HAT;
+    if (acc < 0) {   /* Nothing: take off what this page's slot has on (wearing it again takes it off) */
+        if (o[slot] < 0) return;
+        acc = o[slot];
+    } else if (o[slot] == acc) {
+        return;      /* already on */
     }
-    lv_obj_t *items = ui_box(pl.bottom);
-    lv_obj_set_size(items, 244, 48);
-    lv_obj_set_pos(items, 111, 54);
-    lv_obj_set_flex_flow(items, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(items, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(items, 12, 0);
-    lv_obj_add_flag(items, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_scroll_dir(items, LV_DIR_HOR);
-    lv_obj_set_scrollbar_mode(items, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_t *worn_item = NULL;
-    for (int a = 0; a < PET_ACC_COUNT; a++) {
-        if (pet_acc_slot[a] != pl.slot) continue;
-        bool worn = o[pl.slot] == a;
-        lv_obj_t *b = ui_box(items);
-        lv_obj_set_size(b, 52, 48);
-        if (worn) {
-            lv_obj_set_style_radius(b, 15, 0);
-            lv_obj_set_style_border_width(b, 2, 0);
-            lv_obj_set_style_border_color(b, COL(C_LIME), 0);
-            lv_obj_set_style_border_opa(b, LV_OPA_COVER, 0);
-            worn_item = b;
-        } else {
-            ui_style_card(b, C_GLASS, 15, C_LINE, LV_OPA_COVER);
-        }
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_add_event_cb(b, on_item, LV_EVENT_CLICKED, (void *)(intptr_t)a);
-        lv_obj_t *ic = ui_icon(b, ACC_ICON[a], 24, worn ? C_LIME : C_BONE);
-        lv_obj_center(ic);
-    }
-    if (worn_item) lv_obj_scroll_to_view(worn_item, LV_ANIM_OFF);
-}
-
-/* ---------------------------------------------------------------- my buddy */
-static lv_obj_t *pick_tile(lv_obj_t *parent, int32_t x, int32_t y, bool on)
-{
-    lv_obj_t *b = ui_box(parent);
-    lv_obj_set_size(b, 52, 48);
-    lv_obj_set_pos(b, x, y);
-    if (on) {
-        lv_obj_set_style_radius(b, 15, 0);
-        lv_obj_set_style_border_width(b, 2, 0);
-        lv_obj_set_style_border_color(b, COL(C_LIME), 0);
-        lv_obj_set_style_border_opa(b, LV_OPA_COVER, 0);
-    } else {
-        ui_style_card(b, C_GLASS, 15, C_LINE, LV_OPA_COVER);
-    }
-    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(b, COL(C_LINE), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
-    return b;
+    if (dressup_wear(acc) && pl.on_outfit) pl.on_outfit();
+    if (pl.buddy_pet) pet_react(pl.buddy_pet, PET_CLIP_WAVE);   /* he shows it off */
+    pl.sig[0] = 0;   /* the choices again: another is chosen now */
 }
 
 static void buddy_changed(int ch, int col)
@@ -320,37 +280,124 @@ static void on_buddy_colour(lv_event_t *e)
     buddy_changed(ch, col);
 }
 
-/* The characters in a row (each one's face), then the chosen one's four colours (its fur). */
-static void buddy_controls(void)
+/* Figma "Choice": a 72 circle; Selected = a 3 px lime ring; Nothing = bg/raised with a dashed line/hill
+ * ring and nothing in it; the others bg/chip. */
+static lv_obj_t *choice(lv_obj_t *row, bool on, bool nothing, lv_event_cb_t cb, intptr_t arg)
 {
-    int ch, col;
+    lv_obj_t *b = ui_box(row);
+    lv_obj_set_size(b, CHOICE_D, CHOICE_D);
+    ui_style_card(b, nothing ? C_RAISED : C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
+    if (on) {
+        lv_obj_set_style_border_width(b, 3, 0);
+        lv_obj_set_style_border_color(b, COL(C_ACTION), 0);
+        lv_obj_set_style_border_opa(b, LV_OPA_COVER, 0);
+    } else if (nothing) {
+        lv_obj_t *d = dotted_outline_create(b, C_HILL_LINE, 999);
+        lv_obj_add_flag(d, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_set_size(d, CHOICE_D, CHOICE_D);
+    }
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(b, COL(C_HILL_LINE), LV_STATE_PRESSED);
+    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)arg);
+    return b;
+}
+
+static void on_page_arrow(lv_event_t *e)
+{
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    editor_page((pl.editor_page + dir + EP_COUNT) % EP_COUNT);
+    hal_play(HAL_SOUND_TICK);
+}
+
+/* The page's choices, the arrows, the dots and the note, built again when a choice changes. */
+static void editor_controls(void)
+{
+    int ch, col, o[3];
     pet_get_character(&ch, &col);
-    char sig[32];
-    snprintf(sig, sizeof sig, "buddy%d,%d", ch, col);
-    if (!strcmp(sig, pl.sig)) return;
+    pet_get_outfit(&o[0], &o[1], &o[2]);
+    char sig[48];
+    snprintf(sig, sizeof sig, "ep%d|%d,%d|%d,%d,%d", pl.editor_page, ch, col, o[0], o[1], o[2]);
+    if (!strcmp(sig, pl.sig) || !pl.editor) return;
     strcpy(pl.sig, sig);
-    lv_obj_clean(pl.bottom);
-    const int32_t x0 = (SCREEN_W - (PET_CHAR_COUNT * 52 + (PET_CHAR_COUNT - 1) * 12)) / 2;
-    for (int i = 0; i < PET_CHAR_COUNT; i++) {
-        lv_obj_t *b = pick_tile(pl.bottom, x0 + i * 64, 0, i == ch);
-        lv_obj_add_event_cb(b, on_buddy_char, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        /* each one's head in a round frame, like a small portrait */
-        lv_obj_t *face = pet_face_create_round(b, i, i == ch ? col : 0, 40, COL(C_HILL_LINE));
-        lv_obj_center(face);
-        lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_clean(pl.editor);
+    int page = pl.editor_page, n = 0;
+    lv_obj_t *row = ui_box(pl.editor);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, CHOICE_GAP, 0);
+    lv_obj_t *chosen = NULL;
+    if (page == EP_BUDDY) {
+        for (int i = 0; i < PET_CHAR_COUNT; i++, n++) {
+            lv_obj_t *b = choice(row, i == ch, false, on_buddy_char, i);
+            lv_obj_t *face = pet_face_create_round(b, i, i == ch ? col : 0, 56, COL(C_CHIP));
+            lv_obj_center(face);
+            lv_obj_add_flag(face, LV_OBJ_FLAG_EVENT_BUBBLE);
+            if (i == ch) chosen = b;
+        }
+        snprintf(pl.choice_text, sizeof pl.choice_text, "%s the %s", pet_chars[ch].name, pet_chars[ch].id);
+    } else if (page == EP_COLOUR) {
+        for (int i = 0; i < PET_COLOUR_COUNT; i++, n++) {
+            lv_obj_t *b = choice(row, i == col, false, on_buddy_colour, i);
+            lv_obj_t *dot = ui_box(b);
+            lv_obj_set_size(dot, 48, 48);
+            lv_obj_center(dot);
+            ui_style_card(dot, pet_chars[ch].colours[i].swatch, LV_RADIUS_CIRCLE, 0, 0);
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_EVENT_BUBBLE);
+            if (i == col) chosen = b;
+        }
+        snprintf(pl.choice_text, sizeof pl.choice_text, "%s", colour_name(ch, col));
+    } else {
+        int slot = page - EP_HAT, worn = o[slot];
+        chosen = choice(row, worn < 0, true, on_item, -1);
+        n++;
+        for (int a = 0; a < PET_ACC_COUNT; a++) {
+            if (pet_acc_slot[a] != slot) continue;
+            lv_obj_t *b = choice(row, worn == a, false, on_item, a);
+            lv_obj_t *ic = ui_icon(b, ACC_ICON[a], 36, C_TEXT);
+            lv_obj_center(ic);
+            lv_obj_add_flag(ic, LV_OBJ_FLAG_EVENT_BUBBLE);
+            if (worn == a) chosen = b;
+            n++;
+        }
+        snprintf(pl.choice_text, sizeof pl.choice_text, "%s", worn >= 0 ? ACC_NAME[worn] : "Nothing on");
     }
-    const int32_t x1 = (SCREEN_W - (PET_COLOUR_COUNT * 52 + (PET_COLOUR_COUNT - 1) * 12)) / 2;
-    for (int i = 0; i < PET_COLOUR_COUNT; i++) {
-        lv_obj_t *b = pick_tile(pl.bottom, x1 + i * 64, 54, i == col);
-        lv_obj_add_event_cb(b, on_buddy_colour, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        lv_obj_t *dot = ui_box(b);
-        lv_obj_set_size(dot, 26, 26);
-        lv_obj_center(dot);
-        lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(dot, lv_color_hex(pet_chars[ch].colours[i].swatch), 0);
-        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-        lv_obj_add_flag(dot, LV_OBJ_FLAG_EVENT_BUBBLE);
+    /* four fit across (336); more scroll sideways, the chosen one in view */
+    int32_t w = n * CHOICE_D + (n - 1) * CHOICE_GAP, vw = w < 336 ? w : 336;
+    lv_obj_set_size(row, vw, CHOICE_D + 6);
+    lv_obj_set_pos(row, CENTER - vw / 2, CHOICES_Y - 3);
+    lv_obj_set_style_pad_ver(row, 3, 0);
+    if (w > vw) {
+        lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scroll_dir(row, LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(row, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        if (chosen) { lv_obj_update_layout(row); lv_obj_scroll_to_view(chosen, LV_ANIM_OFF); }
     }
+    /* the arrows (Figma "Nav button · Big" with the go arrow), round from the last page to the first */
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *nb = side_button_create(pl.editor, i == 0, "go");
+        side_button_set_big(nb, true, "go");
+        lv_obj_t *ic = lv_obj_get_child(nb, 0);
+        if (i == 0) { lv_image_set_pivot(ic, 18, 18); lv_image_set_rotation(ic, 1800); }
+        lv_obj_add_event_cb(nb, on_page_arrow, LV_EVENT_CLICKED, (void *)(intptr_t)(i == 0 ? -1 : 1));
+    }
+    /* five dots at y 440: the page's lime and long */
+    lv_obj_t *dots = ui_row(pl.editor, 6);
+    for (int i = 0; i < EP_COUNT; i++) {
+        lv_obj_t *d = ui_box(dots);
+        lv_obj_set_size(d, i == page ? 14 : 6, 6);
+        ui_style_card(d, i == page ? C_ACTION : C_HILL_LINE, 3, 0, 0);
+    }
+    lv_obj_update_layout(dots);
+    lv_obj_set_pos(dots, CENTER - lv_obj_get_width(dots) / 2, 440);
+    /* "Press when done" (Figma Note · Button) at y 384, and the cue at the button */
+    lime_card_t c;
+    lime_card_create(pl.editor, &c, 0);
+    lime_card_set(&c, "backpack", "Press when done", CARD_END_BUTTON);
+    lv_obj_update_layout(c.root);
+    lv_obj_align(c.root, LV_ALIGN_TOP_MID, 0, 384);
+    cue_set(cue_create(pl.editor), 0, false);
+    set_header(NULL, EP_TITLE[page]);
 }
 
 static void buddy_close(void)
@@ -358,25 +405,15 @@ static void buddy_close(void)
     if (!pl.buddy) return;
     pl.buddy = false;
     if (pl.buddy_pet) { lv_obj_delete(pl.buddy_pet); pl.buddy_pet = NULL; }
-}
-
-/* ---------------------------------------------------------------- my pet */
-/* My pet (a long tap on the pet, any time): two pages, My buddy (which character and colour) and
- * Dress up (head, face, neck), with the pet in its room trying each choice on at once. */
-static void editor_controls(void)
-{
-    if (pl.editor_page) dressup_controls();
-    else buddy_controls();
+    if (pl.editor) { lv_obj_delete(pl.editor); pl.editor = NULL; }
 }
 
 static void editor_page(int page)
 {
     pl.editor_page = page;
-    pl.slot = 0;
     pl.sig[0] = 0;
     editor_controls();
-    fx_spring_children(pl.bottom, 30);
-    set_header(NULL, page ? "Dress up" : "My buddy");
+    if (pl.editor) fx_spring(lv_obj_get_child(pl.editor, 0), 0);   /* the new page's choices spring in */
 }
 
 static void editor_open(int page)
@@ -394,11 +431,15 @@ static void editor_open(int page)
         pet_set_look(pl.buddy_pet, &bl);
         lv_obj_move_to_index(pl.buddy_pet, 0);
         pet_set_mood(pl.buddy_pet, PET_MOOD_HAPPY);
+        pet_force_clip(pl.buddy_pet, PET_CLIP_WAVE);   /* Figma: he faces the child, waving */
     }
     ui_show(pl.shade_top, true);
-    ui_show(pl.shade_low, true);
-    ui_show(pl.bottom, true);
-    fx_rise(pl.bottom, 18, 80);
+    ui_show(pl.shade_low, false);
+    ui_show(pl.bottom, false);
+    if (!pl.editor) {
+        pl.editor = ui_box(pl.root);
+        lv_obj_set_size(pl.editor, SCREEN_W, SCREEN_H);
+    }
     editor_page(page);
     hal_play(HAL_SOUND_TICK);
 }
@@ -452,7 +493,7 @@ static void bath_controls(const game_ui_t *ui)
 static void game_controls(void)
 {
     game_id_t g = game_current();
-    if (g == GAME_DRESSUP) { dressup_controls(); return; }
+    if (g == GAME_DRESSUP) return;   /* dressing up is My pet's now */
     game_ui_t ui;
     game_ui(&ui);
     if (g == GAME_BATH) { bath_controls(&ui); return; }
@@ -517,9 +558,61 @@ static void game_shown(const char *title)
     hal_play(HAL_SOUND_TICK);
 }
 
+static void start_game(int i);
+static void on_card(lv_event_t *e) { (void)e; if (pl.card_game >= 0) start_game(pl.card_game); }
+
+/* The younger child's start card (Figma Younger · Games · Bath time): the Sky, the game's name, its
+ * picture in a 132 circle with a lime ring to tap, and what comes next on the hill. */
+static void show_card(int i)
+{
+    pl.card_game = i;
+    ui_show(pl.menu, false);
+    if (!pl.card) {
+        pl.card = ui_box(pl.root);
+        lv_obj_set_size(pl.card, SCREEN_W, SCREEN_H);
+        lv_obj_t *c = ui_box(pl.card);
+        lv_obj_set_size(c, 132, 132);
+        lv_obj_set_pos(c, CENTER - 66, CENTER - 66);
+        ui_style_card(c, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_set_style_border_width(c, 4, 0);
+        lv_obj_set_style_border_color(c, COL(C_ACTION), 0);
+        lv_obj_set_style_border_opa(c, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(c, COL(C_CHIP), LV_STATE_PRESSED);
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, on_card, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *ic = ui_icon(c, "game-bath", 64, C_TEXT);
+        lv_obj_center(ic);
+        hill_t hl;
+        hill_create(pl.card, &hl, NULL);
+        if (pl.next[0]) hill_set_next(&hl, pl.next_icon, pl.next, "");
+        lv_obj_move_to_index(pl.card, lv_obj_get_index(pl.head.root));   /* under the header */
+    }
+    lv_obj_t *c = lv_obj_get_child(pl.card, 0);
+    const char *icon = GAME_CIRCLES[i].classic ? CLASSIC[GAME_CIRCLES[i].id].icon : MENU[GAME_CIRCLES[i].id].icon;
+    ui_icon_px(lv_obj_get_child(c, 0), icon, 64);
+    lv_obj_center(lv_obj_get_child(c, 0));
+    ui_show(pl.card, true);
+    ui_show(pl.timer, false);
+    char t[40];
+    if (GAME_CIRCLES[i].classic) snprintf(t, sizeof t, "%s", CLASSIC[GAME_CIRCLES[i].id].title);
+    else named(t, sizeof t, MENU[GAME_CIRCLES[i].id].title);
+    set_header(NULL, t);
+    fx_spring(c, 0);
+    hal_play(HAL_SOUND_TICK);
+}
+
 static void on_game_circle(lv_event_t *e)
 {
     int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (ui_picture()) { show_card(i); return; }
+    start_game(i);
+}
+
+static void start_game(int i)
+{
+    pl.card_game = -1;
+    if (pl.card) ui_show(pl.card, false);
+    ui_show(pl.timer, true);
     if (GAME_CIRCLES[i].classic) {
         classic_id_t g = (classic_id_t)GAME_CIRCLES[i].id;
         pl.classic = true;
@@ -538,6 +631,28 @@ static void on_game_circle(lv_event_t *e)
 
 /* A game's circle: the raised disc with a hairline rim, the game's picture in lime and, under it
  * inside the circle, its short name in small type (picture view: a bigger picture alone). */
+/* The younger child's menu (Figma Younger · Playtime · Games): the four easy games two by two, a 132
+ * chip circle with the game's picture (64) and its name under it. */
+static void game_circle_young(int i)
+{
+    int32_t x = i % 2 ? 245 : 89, y = i / 2 ? 261 : 88;
+    lv_obj_t *c = ui_box(pl.menu);
+    lv_obj_set_size(c, 132, 132);
+    lv_obj_set_pos(c, x, y);
+    ui_style_card(c, C_CHIP, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_bg_color(c, COL(C_HILL_LINE), LV_STATE_PRESSED);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(c, on_game_circle, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    const char *icon = GAME_CIRCLES[i].classic ? CLASSIC[GAME_CIRCLES[i].id].icon : MENU[GAME_CIRCLES[i].id].icon;
+    lv_obj_t *ic = ui_icon(c, icon, 64, C_TEXT);
+    lv_obj_center(ic);
+    lv_obj_add_flag(ic, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_t *l = ui_label(pl.menu, &font_pop600_20, C_TEXT_MUTED, GAME_CIRCLES[i].name);
+    lv_obj_set_width(l, 132);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(l, x, y + 138);
+}
+
 static void game_circle(int i, bool picture)
 {
     int row = 0, k = i;
@@ -564,9 +679,20 @@ static void game_circle(int i, bool picture)
     lv_obj_add_flag(l, LV_OBJ_FLAG_EVENT_BUBBLE);
 }
 
+/* The round button under the games (Figma "Nav button · Big", 61 with a lime ring): back to the wheel. */
+static void on_back_to_wheel(lv_event_t *e)
+{
+    (void)e;
+    play_close();
+    mytoki_show_wheel();
+}
+
 static void open_menu(void)
 {
     buddy_close();
+    pl.card_game = -1;
+    if (pl.card) ui_show(pl.card, false);
+    if (pl.timer) ui_show(pl.timer, true);
     classic_stop();
     pl.in_game = false;
     pl.classic = false;
@@ -599,10 +725,11 @@ static bool on_swipe(lv_obj_t *owner, int dir, lv_point_t start, void *user, boo
     if (dir == SWIPE_UP && !pl.in_game && !pl.see_you && !pl.buddy) return false;   /* a flick up isn't a way out */
     if (pl.in_game && !pl.see_you) return false;   /* a game is left only by the button */
     if (!commit) return true;
+    if (pl.card_game >= 0 && dir == SWIPE_RIGHT) { open_menu(); return true; }   /* the start card: back to the games */
     /* My pet: left for Dress up, right back to My buddy; right from My buddy leaves it */
     if (pl.buddy && !pl.see_you) {
-        if (dir == SWIPE_LEFT) { if (!pl.editor_page) { editor_page(1); hal_play(HAL_SOUND_TICK); } return true; }
-        if (dir == SWIPE_RIGHT && pl.editor_page) { editor_page(0); hal_play(HAL_SOUND_TICK); return true; }
+        if (dir == SWIPE_LEFT) { if (pl.editor_page < EP_COUNT - 1) { editor_page(pl.editor_page + 1); hal_play(HAL_SOUND_TICK); } return true; }
+        if (dir == SWIPE_RIGHT && pl.editor_page) { editor_page(pl.editor_page - 1); hal_play(HAL_SOUND_TICK); return true; }
         if (!pl.standalone) { open_menu(); return true; }
         close_sliding(dir);
         return true;
@@ -616,6 +743,7 @@ void play_button(void)
 {
     if (!pl.root) return;
     if (pl.see_you || pl.standalone) { play_close(); return; }   /* My pet: the button is done */
+    if (pl.card_game >= 0) { start_game(pl.card_game); return; }   /* the start card: the button plays it */
     if (!pl.in_game) return;
     open_menu();   /* the way out of a game: back to the menu */
     hal_play(HAL_SOUND_TICK);
@@ -637,7 +765,8 @@ static void see_you_later(void)
     pl.see_you = true;
     seeyou_at = lv_tick_get();
     lv_obj_clean(pl.root);
-    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.timer = pl.bar_fill = NULL;
+    pl.canvas = pl.bottom = pl.menu = pl.menu_pet = pl.shade_top = pl.shade_low = pl.timer = pl.bar_fill = pl.editor = pl.card = NULL;
+    pl.card_game = -1;
     pl.buddy_pet = NULL;
     pl.buddy = false;
     pl.head.root = NULL;
@@ -656,7 +785,7 @@ static void see_you_later(void)
     scrim_create(pl.root);
     hill_t hl;
     hill_create(pl.root, &hl, NULL);
-    if (pl.next[0]) hill_set_next(&hl, pl.next_icon, pl.next, pl.next_time);
+    if (pl.next[0]) hill_set_next(&hl, pl.next_icon, pl.next, ui_picture() ? "" : pl.next_time);
     lime_card_t c;
     lime_card_create(pl.root, &c, 0);
     lime_card_set(&c, "clock", "Time to get ready", CARD_END_NONE);
@@ -664,7 +793,8 @@ static void see_you_later(void)
     lv_obj_align(c.root, LV_ALIGN_TOP_MID, 0, 322);
     header_t h;
     header_create(pl.root, &h);
-    header_set(&h, ui_clock(), "See you later!", HEADER_TEXT, PILL_CALM, NULL, "Play again next free time");
+    if (ui_picture()) { header_set_sky(&h, ui_sky()); header_set_big(&h, true); }   /* the younger child's: the Sky, Big */
+    header_set(&h, ui_picture() ? NULL : ui_clock(), "See you later!", HEADER_TEXT, PILL_CALM, NULL, "Play again next free time");
     lv_obj_set_style_max_width(h.text, 300, 0);   /* one line: it would break as "free / time" at 272 */
     hal_play(HAL_SOUND_SOON);
     fx_rise(c.root, 14, 120);
@@ -706,8 +836,10 @@ void play_set_time_left(int32_t s)
     if (!pl.root || pl.see_you || pl.standalone) return;   /* My pet has no play time */
     pl.left = s;
     if (s <= 0) { see_you_later(); return; }
-    if (s >= 3600) snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d:%02d free time left", (int)(s / 3600), (int)(s / 60 % 60), (int)(s % 60));
-    else snprintf(pl.left_text, sizeof pl.left_text, "%d:%02d free time left", (int)(s / 60), (int)(s % 60));
+    /* Figma Playtime · Games: "19 min to play" */
+    int m = (int)((s + 59) / 60);
+    if (m >= 60) snprintf(pl.left_text, sizeof pl.left_text, m % 60 ? "%d hr %d min to play" : "%d hr to play", m / 60, m % 60);
+    else snprintf(pl.left_text, sizeof pl.left_text, "%d min to play", m);
     set_header(NULL, NULL);
     /* the rim: what's left of the play time in mint, the whole of it amber under 10 minutes */
     if (s > pl.total) pl.total = s;
@@ -778,7 +910,23 @@ void play_open(int32_t seconds_left, const char *next_title, const char *next_ic
     pl.menu = ui_box(pl.root);
     lv_obj_set_size(pl.menu, SCREEN_W, SCREEN_H);
     bool picture = ui_picture();
-    for (int i = 0; i < GAME_CIRCLE_COUNT; i++) game_circle(i, picture);
+    pl.card_game = -1;
+    if (picture) for (int i = 0; i < 4; i++) game_circle_young(i);   /* Bath, Carrots, Bubbles, Roll home */
+    else for (int i = 0; i < GAME_CIRCLE_COUNT; i++) game_circle(i, picture);
+    if (!picture) {   /* the younger child's menu has the four games alone */
+        lv_obj_t *wb = ui_box(pl.menu);
+        lv_obj_set_size(wb, 61, 61);
+        lv_obj_set_pos(wb, CENTER - 31, 402);
+        ui_style_card(wb, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_set_style_border_width(wb, 3, 0);
+        lv_obj_set_style_border_color(wb, COL(C_ACTION), 0);
+        lv_obj_set_style_border_opa(wb, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(wb, COL(C_CHIP), LV_STATE_PRESSED);
+        lv_obj_add_flag(wb, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(wb, 8);
+        lv_obj_add_event_cb(wb, on_back_to_wheel, LV_EVENT_CLICKED, NULL);
+        lv_obj_center(ui_icon(wb, "retry", 36, C_ACTION));
+    }
 
     /* the header: the clock, the game's name, the play time left in a mint pill */
     header_create(pl.root, &pl.head);

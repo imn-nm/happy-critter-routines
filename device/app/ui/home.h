@@ -11,22 +11,30 @@
 #include "../pet/pet.h"
 
 /* MID_STEPS: a checklist that turns like a wheel instead of the room (Figma Going out · Get ready,
- * and every task with steps: Morning · Get dressed, the bedtime routine) */
-typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE, MID_STEPS } home_mid_t;
+ * and every task with steps: Morning · Get dressed, the bedtime routine).
+ * MID_STEP: the younger child's one step at a time, in a lime circle in the middle (Figma Younger ·
+ * Morning · Get dressed): the button ticks it and the next one takes its place.
+ * MID_COUNTDOWN: the last two minutes of a task, "1:46 left" big in the middle (Figma Task · Under 2
+ * min left) */
+typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE, MID_STEPS, MID_STEP, MID_COUNTDOWN } home_mid_t;
 #define HOME_STEPS_MAX 10
 /* BOTTOM_GAMES: the outline Games button that opens Playtime (Figma Free time · Spin) */
 typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS, BOTTOM_GAMES } home_bottom_t;
 typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;   /* MyToki 2: every note sits at y 322 */
 typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;
-/* MyToki 2 Graphic: Full = the room fills the screen; Small = the 298 circle (under 10 min left);
- * Empty = no room, a faint circle (running late); None = nothing behind (the wheel, lists). */
-typedef enum { GRAPHIC_FULL, GRAPHIC_SMALL, GRAPHIC_EMPTY, GRAPHIC_NONE } home_graphic_t;
+/* MyToki 2 Graphic: Full = the room fills the screen; Small = the 298 circle (no screen uses it now);
+ * Faded = the room at 30% with Biscuit solid on it (under 10 min left, the morning's snooze);
+ * Inset = the younger child's room in a 438 circle, so the timer ring sits on black; Empty = no
+ * room, a faint circle; None = nothing behind (the wheel, lists). */
+typedef enum { GRAPHIC_FULL, GRAPHIC_SMALL, GRAPHIC_EMPTY, GRAPHIC_NONE, GRAPHIC_FADED, GRAPHIC_INSET } home_graphic_t;
 
 typedef struct {
     /* header */
     bool clock;                 /* the night clock: the big digits take the header (docked) */
     char clock_text[8];
     char clock_line[12];        /* the small clock above the title ("3:18pm"); "" = none */
+    char sky[20];               /* the younger child's chip over the title: "sun", "moon", a task's icon; "" = none */
+    char countdown[8];          /* MID_COUNTDOWN: "1:46" */
     char icon[20];
     uint32_t icon_color;
     char title[48];
@@ -76,6 +84,7 @@ typedef struct {
     uint16_t steps_ticked;      /* MID_STEPS: bit i = step i is checked (in any order) */
     char step_prev[56], step_next[56];
     char step_text[HOME_STEPS_MAX][56];   /* MID_STEPS: every step, in order */
+    char step_icon[HOME_STEPS_MAX][20];   /* MID_STEP: each step's picture */
     /* bottom: the hill */
     home_bottom_t bottom;
     char next_icon[20], next_title[44], next_time[8];
@@ -85,9 +94,9 @@ typedef struct {
     char star_icon[20];
     uint8_t star_goal, star_count;
     int16_t star_prize;
-    /* picture view (under 7) */
+    /* picture view: the younger child (4-5, Figma "Younger child") */
     bool picture;
-    bool title_big;
+    bool title_big;             /* Header "Title size=Big" */
     bool speaker;
     bool big_play;
     /* chrome */

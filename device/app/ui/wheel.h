@@ -14,6 +14,9 @@ void wheel_set_options(lv_obj_t *wheel, const char options[][20], int n);
 /* Back to "Spin" (a new free-time window). */
 void wheel_reset(lv_obj_t *wheel);
 int wheel_result(lv_obj_t *wheel);
+/* The younger child's wheel (Figma "Wheel · Pictures"): the pictures alone (34), the go arrow in the
+ * hub, and Spin again as its picture alone. */
+void wheel_set_pictures(lv_obj_t *wheel, bool pictures);
 /* The icon and colour the wheel uses for an option ("Lego" -> brick, lavender). */
 const char *wheel_icon_for(const char *option);
 uint32_t wheel_color(int index);

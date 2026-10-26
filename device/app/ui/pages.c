@@ -47,10 +47,20 @@ const char *reward_icon(const char *icon)
 #define SHOP_W_TEXT 200
 #define SHOP_Y_PILL 27       /* the price pill's top */
 #define SHOP_X_END 418       /* where the price pill stops */
+/* The younger child's shop (Figma Younger · Rewards · Shop): the title alone, five big stars to spend
+ * (36, 46 apart, at y 68), the awning higher (its rod at y 108), and taller shelves 110 apart from y
+ * 154: the picture (71) in a black circle (91), the name, the price as small star pips (24), and a 61
+ * lime circle with a star to ask (lavender with a clock once asked; none while there aren't enough). */
+#define PIC_AWN_Y 108
+#define PIC_TOP 146
+#define PIC_ROW 110
+#define PIC_FOCUS (154 + 106 / 2)
+#define PIC_PLANK 92
 
 static struct {
     page_cb_t on_tap;
-    lv_obj_t *page, *wall, *awning, *empty;
+    lv_obj_t *page, *wall, *awning, *empty, *pips, *fade_top;
+    bool pic;                /* laid out for the younger child */
     wheel_list_t wl;
     header_t head;
     char sig[256];
@@ -148,8 +158,11 @@ void rewards_page_create(lv_obj_t *page, page_cb_t cb)
     rw.wl.style = shelf_style;
     rw.awning = drawn_box(page, SHOP_AWN_Y, AWN_ROD + AWN_BAND + AWN_SCALLOP / 2 + 4, awning_draw);
     shop_fade(page, 51, 354, 360, 112, 79, 199, false);   /* clear at 31 %, black from 78 % */
-    shop_fade(page, 31, 0, 400, 182, 145, 237, true);     /* black to 57 %, clear by 93 % */
+    rw.fade_top = shop_fade(page, 31, 0, 400, 182, 145, 237, true);     /* black to 57 %, clear by 93 % */
     header_create(page, &rw.head);
+    rw.pips = star_pips_create(page, 36, 46);
+    lv_obj_set_pos(rw.pips, CENTER - (4 * 46 + 36) / 2, 68);
+    ui_show(rw.pips, false);
     page_dots_create(page, 0);
     rw.empty = note_create(page, 230);
     ui_set_text(rw.empty, "No rewards yet.\nA grown-up can add some.");
@@ -182,13 +195,15 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     bool enough = stars >= rd->cost, can = open && enough;
     lv_obj_t *ic = ui_icon(row, reward_icon(rd->icon), SHOP_ICON, C_TEXT);
     lv_obj_set_pos(ic, SHOP_X_ICON, SHOP_Y_ICON);
-    /* the price pill at the right end: the star and the number, or Asked */
+    /* the price pill at the right end: the star and the number, or Asked; none while there aren't
+     * enough stars (Figma Shelf · Need more: "14 more stars to go" says it) */
     pill_t pl;
     pill_create(row, &pl);
     char cost[8];
     snprintf(cost, sizeof cost, "%d", rd->cost);
     if (rd->state == REWARD_WAITING) pill_set(&pl, PILL_SYSTEM, "clock", "Asked");
     else pill_set(&pl, can ? PILL_ACTION : PILL_CALM, "star-line", cost);
+    ui_show(pl.root, rd->state == REWARD_WAITING || can);
     if (can) {
         lv_obj_add_flag(pl.root, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(pl.root, 10);
@@ -196,8 +211,8 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
         lv_obj_add_event_cb(pl.root, on_ask_tap, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
     }
     lv_obj_update_layout(pl.root);
-    int32_t end_x = SHOP_X_END - lv_obj_get_width(pl.root);
-    lv_obj_set_pos(pl.root, end_x, SHOP_Y_PILL);
+    int32_t end_x = lv_obj_has_flag(pl.root, LV_OBJ_FLAG_HIDDEN) ? SHOP_X_END : SHOP_X_END - lv_obj_get_width(pl.root);
+    lv_obj_set_pos(pl.root, end_x, SHOP_Y_PILL + (38 - lv_obj_get_height(pl.root)) / 2);
     if (just) fx_pop(pl.root, 0);
     /* the name (Item, two lines when it must), and under it how many more stars when there aren't
      * enough yet (Fine 16): a 200 x 92 column, its words centred */
@@ -205,9 +220,9 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     lv_obj_set_size(words, SHOP_W_TEXT, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(words, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(words, 2, 0);
-    lv_obj_t *name = ui_label(words, F_ITEM, C_TEXT, rd->title);
+    lv_obj_t *name = ui_label(words, &font_pop600_24, C_TEXT, rd->title);   /* Figma Shelf: Poppins SemiBold 24 */
     int32_t room = end_x - 8 - SHOP_X_TEXT < SHOP_W_TEXT ? end_x - 8 - SHOP_X_TEXT : SHOP_W_TEXT;
-    ui_label_fit(name, F_ITEM, F_ITEM, room, 2);
+    ui_label_fit(name, &font_pop600_24, F_ITEM, room, 2);
     lv_obj_set_width(name, room);
     if (open && !enough) {
         char more[24];
@@ -222,9 +237,75 @@ static void shelf(const day_reward_t *rd, int idx, int stars, bool just)
     lv_obj_set_pos(words, SHOP_X_TEXT, wy < 0 ? 0 : wy);
 }
 
+/* A younger child's shelf: the picture in its circle, the name and the price as pips (lit for the stars
+ * they have towards it), the round button at the end. A price over five shows as five pips that
+ * fill in step. */
+static void shelf_pic(const day_reward_t *rd, int idx, int stars, bool just)
+{
+    lv_obj_t *slot = wheel_list_add(&rw.wl);
+    lv_obj_t *row = ui_box(slot);
+    lv_obj_set_size(row, SCREEN_W, 106);
+    lv_obj_set_pos(row, 0, (PIC_ROW - 106) / 2);
+    plank(row, PIC_PLANK + 14, 6, C_SCREEN, 150);
+    plank(row, PIC_PLANK, 2, C_HILL_LINE, LV_OPA_COVER);
+    plank(row, PIC_PLANK + 2, 10, C_RAISED, LV_OPA_COVER);
+    plank(row, PIC_PLANK + 12, 2, C_HILL, LV_OPA_COVER);
+    bool open = rd->state == REWARD_NONE || rd->state == REWARD_DENIED, asked = rd->state == REWARD_WAITING;
+    bool can = open && stars >= rd->cost;
+    uint32_t fg = asked ? C_NEXT_TASK : C_TEXT;   /* Figma: an asked treat in iris */
+    lv_obj_t *disc = ui_box(row);
+    lv_obj_set_size(disc, 91, 91);
+    lv_obj_set_pos(disc, 34, 0);
+    ui_style_card(disc, 0x040605, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_t *ic = ui_icon(disc, reward_icon(rd->icon), 72, fg);
+    ui_icon_px(ic, reward_icon(rd->icon), 71);
+    lv_obj_center(ic);
+    lv_obj_t *name = ui_label(row, &font_pop600_24, fg, rd->title);
+    ui_label_fit(name, &font_pop600_24, F_ITEM, 238, 1);   /* one line over the pips */
+    lv_obj_set_width(name, 238);
+    lv_obj_set_pos(name, 131, 26 + (lv_font_get_line_height(&font_pop600_24) - lv_font_get_line_height(lv_obj_get_style_text_font(name, 0))) / 2);
+    int cost = rd->cost > 0 ? rd->cost : 1, have = stars < cost ? stars : cost;
+    int shown = cost < 5 ? cost : 5, lit = cost <= 5 ? have : (have * 5) / cost;
+    lv_obj_t *pips = star_pips_create(row, 24, 27);
+    star_pips_set(pips, shown, asked ? shown : lit);
+    lv_obj_set_pos(pips, 131, 64);
+    if (asked || can) {
+        lv_obj_t *b = ui_box(row);
+        lv_obj_set_size(b, 61, 61);
+        lv_obj_set_pos(b, 370, 28);
+        ui_style_card(b, asked ? C_SYSTEM : C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_center(ui_icon(b, asked ? "clock" : "star-line", 28, C_ON_COLOR));
+        if (can) {
+            lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(b, 10);
+            lv_obj_set_style_bg_color(b, COL(C_TEXT), LV_STATE_PRESSED);
+            lv_obj_add_event_cb(b, on_ask_tap, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
+        }
+        if (just) fx_pop(b, 0);
+    }
+}
+
+/* The shop laid out for the age: the younger child's has the stars counted and the bigger shelves. */
+static void shop_layout(bool pic)
+{
+    if (rw.built && pic == rw.pic) return;
+    rw.pic = pic;
+    lv_obj_set_y(rw.awning, pic ? PIC_AWN_Y : SHOP_AWN_Y);
+    lv_obj_set_y(rw.wall, (pic ? PIC_AWN_Y : SHOP_AWN_Y) + 2);
+    lv_obj_set_height(rw.wall, pic ? 344 : SHOP_WALL_H);
+    lv_obj_set_y(rw.fade_top, pic ? PIC_AWN_Y - SHOP_AWN_Y : 0);   /* the fade rides up with the awning */
+    int32_t top = pic ? PIC_TOP : SHOP_TOP;
+    lv_obj_set_y(rw.wl.list, top);
+    lv_obj_set_height(rw.wl.list, SCREEN_H - top);
+    rw.wl.row_h = pic ? PIC_ROW : SHOP_ROW;
+    wheel_list_set_focus(&rw.wl, (pic ? PIC_FOCUS : SHOP_FOCUS) - top);
+    ui_show(rw.pips, pic);
+    rw.sig[0] = 0;
+}
+
 void rewards_page_render(const day_plan_t *p, int stars, bool picture)
 {
-    (void)picture;
+    shop_layout(picture);
     char sig[256];
     int n = snprintf(sig, sizeof sig, "%d|%s|", stars, ui_clock());
     for (int i = 0; i < p->nrewards && n < (int)sizeof sig - 8; i++) n += snprintf(sig + n, sizeof sig - n, "%s%d,", p->rewards[i].id, p->rewards[i].state);
@@ -236,13 +317,19 @@ void rewards_page_render(const day_plan_t *p, int stars, bool picture)
     strcpy(rw.sig, sig);
     char s[24];
     snprintf(s, sizeof s, "%d to spend", stars);
-    header_set(&rw.head, ui_clock(), "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* the clock, as on Home and Chores */
+    if (picture) {   /* the title, and the stars counted under it */
+        header_set(&rw.head, NULL, "Rewards", HEADER_NONE, PILL_STAR, NULL, NULL);
+        star_pips_set(rw.pips, 5, stars < 5 ? stars : 5);
+    } else {
+        header_set(&rw.head, ui_clock(), "Rewards", HEADER_PILL, PILL_STAR, "star-line", s);   /* the clock, as on Home and Chores */
+    }
     if (same) return;
     int keep = rw.built ? wheel_list_current(&rw.wl) : 0, shown = 0;
     wheel_list_clear(&rw.wl);
     for (int i = 0; i < p->nrewards; i++) {
         if (p->rewards[i].state == REWARD_APPROVED) continue;   /* given: it has left the shop (a no stays) */
-        shelf(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
+        if (picture) shelf_pic(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
+        else shelf(&p->rewards[i], i, stars, !strcmp(p->rewards[i].id, rw.just));
         shown++;
     }
     rw.just[0] = 0;
@@ -264,12 +351,13 @@ void rewards_page_parallax(float t)
 }
 
 /* ================================================================ chores */
-/* Figma "My day · Chores": the header with how many are done, then equal rows from y 130, the ones
- * to do first and the finished ones after; more scroll up. Tap a chore to tick it. */
+/* Figma "My day · Chores" (1460:9008): the header with how many are done, then the List rows: the
+ * finished ones above, the first to do on the line (y 216..295; the younger child's at 185..281), the
+ * rest below; more scroll up. Tap a chore to tick it. */
 #define CH_TOP 67            /* the list reaches up behind the header; rows scroll under it */
-#define CH_FADE_Y 67         /* the fade behind the header: clear by y 135, the first row's top */
-#define CH_FOCUS 171         /* rows 82 apart, the first 6 px under the pill as in Figma */
-#define CH_ROW 82
+#define CH_FADE_Y 67         /* the fade behind the header */
+#define CH_FOCUS 256
+#define CH_PIC_FOCUS 233
 
 static struct {
     page_cb_t on_done;
@@ -321,22 +409,14 @@ static lv_obj_t *chore_slot(int idx)
  * isn't on the page. */
 static bool tick_in_place(int idx, bool picture)
 {
+    (void)picture;
     lv_obj_t *slot = chore_slot(idx);
     if (!slot || !lv_obj_get_child_count(slot)) return false;
-    lv_obj_t *card = lv_obj_get_child(slot, 0);
-    uint32_t n = lv_obj_get_child_count(card);
-    if (n < 3) return false;
-    lv_obj_t *ic = lv_obj_get_child(card, 0), *body = lv_obj_get_child(card, 1), *chk = lv_obj_get_child(card, (int32_t)n - 1);
+    lv_obj_t *card = lv_obj_get_child(slot, 0), *chk = list_row_box(card);
+    if (!chk) return false;
     lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_event_cb(card, on_chore);
-    card_recolor(card, C_SYSTEM, C_RAISED, 360);
-    lv_obj_set_style_bg_color(card, COL(C_RAISED), LV_STATE_PRESSED);
-    ui_set_color(ic, C_TEXT);
-    lv_obj_t *name = lv_obj_get_child(body, 0);
-    if (name) ui_set_color(name, C_TEXT_MUTED);
-    lv_obj_t *when = picture ? NULL : lv_obj_get_child(body, 1);
-    if (when) { ui_set_text(when, "Done!"); ui_set_color(when, C_DONE); }
-    checkbox_tick(chk);
+    list_row_mark_done(card);
     lv_obj_update_layout(ch.wl.list);
     lv_area_t a, pg;
     lv_obj_get_coords(chk, &a);
@@ -355,23 +435,14 @@ static void fmt_hour(char *buf, size_t n, int minutes)
     else snprintf(buf, n, "%d %s", h12, ui_ampm(minutes));
 }
 
-/* Like Today's schedule: the row on the line is full size; one away is an Edge row (90 %, 70 %), two
- * away a little smaller again (84 %, 55 %), and further ones fade out. Each row fades as one. */
-static void chore_style(lv_obj_t *card, float d)
-{
-    float ad = fabsf(d), k = fminf(ad, 1.0f), k2 = fminf(fmaxf(0.0f, ad - 1.0f), 1.0f), far = fmaxf(0.0f, ad - 2.0f);
-    ui_row_scale(card, (int32_t)lroundf(256 * (1.0f - 0.10f * k - 0.06f * k2)), true);
-    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - 0.3f * k - 0.15f * k2) * fmaxf(0.0f, 1.0f - far / 0.6f)));
-}
-
 void chores_page_create(lv_obj_t *page, page_cb_t cb)
 {
     memset(&ch, 0, sizeof ch);
     ch.on_done = cb;
     ch.just = -1;
     ch.page = page;
-    wheel_list_create(page, &ch.wl, 0, CH_TOP, SCREEN_W, SCREEN_H - CH_TOP, CH_FOCUS - CH_TOP, CH_ROW);
-    ch.wl.style = chore_style;
+    wheel_list_create(page, &ch.wl, 0, CH_TOP, SCREEN_W, SCREEN_H - CH_TOP, CH_FOCUS - CH_TOP, LROW_STEP);
+    ch.wl.style = list_row_style;
     list_fade_create(page, CH_FADE_Y);
     header_create(page, &ch.head);
     page_dots_create(page, 2);
@@ -387,51 +458,28 @@ static bool chore_now(const day_chore_t *c, int now_min)
     return now_min >= a && now_min <= b;
 }
 
-/* Figma "Chore row": 360 x 72, r 24: the icon, the name, when (or "Done!"), and a ring to tap;
- * lavender to do, a night card with a mint tick when done (a tap on it unchecks it). */
+/* A chore's row (List rows, widgets.h): lavender to do with when it's due, a night card with "Done!"
+ * and a ticked box when done (a tap on it unchecks it); the younger child's has the name alone. */
 static void chore_card(const day_chore_t *c, int idx, bool picture)
 {
     lv_obj_t *slot = wheel_list_add(&ch.wl);
     lv_obj_set_user_data(slot, (void *)(intptr_t)(idx + 1));   /* its key, for the flip */
-    lv_obj_t *card = ui_row(slot, 14);
-    lv_obj_set_size(card, 360, 72);
-    lv_obj_center(card);
-    lv_obj_set_style_pad_hor(card, 16, 0);
     bool done = c->done;
-    ui_style_card(card, done ? C_RAISED : C_SYSTEM, LV_RADIUS_CIRCLE, 0, 0);   /* Figma "Chore row": fully round */
-    uint32_t fg = done ? C_TEXT_MUTED : C_ON_COLOR;
-    /* Figma "MyToki 2 / Chore row" (1073:4636): a 36 px icon slot; to do the icon fills it (navy),
-     * done it is 26 px in the middle (cream) */
-    lv_obj_t *ic = ui_icon(card, c->icon[0] ? c->icon : "sparkles", 36, done ? C_TEXT : C_ON_COLOR);
-    lv_obj_set_size(ic, 36, 36);
-    lv_image_set_inner_align(ic, LV_IMAGE_ALIGN_CENTER);
-    lv_image_set_pivot(ic, 18, 18);
-    if (done) lv_image_set_scale(ic, 256 * 26 / 36);
-    lv_obj_t *body = ui_box(card);
-    lv_obj_set_size(body, 10, LV_SIZE_CONTENT);
-    lv_obj_set_flex_grow(body, 1);
-    lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
-    lv_obj_t *name = ui_label(body, F_ITEM, fg, c->title);
-    lv_obj_set_width(name, lv_pct(100));
-    ui_label_fit(name, F_ITEM, F_LABEL, 360 - 2 * 16 - 36 - 48 - 2 * 14, 2);   /* the row less its padding, icon, ring and gaps */
-    if (!picture) {
-        char when[40];
-        if (done) snprintf(when, sizeof when, "Done!");
-        else if (c->from < 0 && c->to < 0) snprintf(when, sizeof when, "Anytime");
-        else {
-            char a[12], b[12];
-            if (c->from >= 0) fmt_hour(a, sizeof a, c->from);
-            if (c->to >= 0) fmt_hour(b, sizeof b, c->to);
-            if (c->from >= 0 && c->to >= 0) snprintf(when, sizeof when, "%s to %s", a, b);
-            else if (c->from >= 0) snprintf(when, sizeof when, "From %s", a);
-            else snprintf(when, sizeof when, "By %s", b);
-        }
-        lv_obj_t *w = ui_label(body, F_DETAIL, done ? C_DONE : C_ON_COLOR, when);
-        lv_label_set_long_mode(w, LV_LABEL_LONG_DOT);
-        lv_obj_set_size(w, lv_pct(100), lv_font_get_line_height(F_DETAIL));
+    char when[40];
+    if (done) snprintf(when, sizeof when, "Done!");
+    else if (c->from < 0 && c->to < 0) snprintf(when, sizeof when, "Anytime");
+    else {
+        char a[12], b[12];
+        if (c->from >= 0) fmt_hour(a, sizeof a, c->from);
+        if (c->to >= 0) fmt_hour(b, sizeof b, c->to);
+        if (c->from >= 0 && c->to >= 0) snprintf(when, sizeof when, "%s to %s", a, b);
+        else if (c->from >= 0) snprintf(when, sizeof when, "From %s", a);
+        else snprintf(when, sizeof when, "By %s", b);
     }
+    const char *icon = c->icon[0] ? c->icon : "sparkles";
+    lv_obj_t *card = list_row_create(slot, done ? LROW_CHORE_DONE : LROW_CHORE, picture, picture ? picture_icon(icon, c->title) : icon,
+                                     c->title, when, LROW_END_CHECK, done);
     /* a tap checks it, or unchecks one done by mistake */
-    checkbox_create(card, 48, done);
     lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_color(card, COL(done ? C_CHIP : C_TEXT), LV_STATE_PRESSED);
     lv_obj_add_event_cb(card, on_chore, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
@@ -462,14 +510,23 @@ void chores_page_render(const day_plan_t *p, int now_min, bool picture)
     for (int i = 0; i < p->nchores; i++) if (chore_now(&p->chores[i], now_min)) order[shown++] = i;
     sort_plan = p;
     qsort(order, (size_t)shown, sizeof(int), cmp_due);
-    /* the ones to do by when they're due, then the finished ones */
+    /* the finished ones above (Figma Chores · One done), then the ones to do by when they're due,
+     * the first of them on the line */
     int sorted[DAY_MAX_CHORES], k = 0, focus = 0;
-    for (int i = 0; i < shown; i++) if (!p->chores[order[i]].done) sorted[k++] = order[i];
     for (int i = 0; i < shown; i++) if (p->chores[order[i]].done) { sorted[k++] = order[i]; done++; }
+    focus = done < shown ? done : shown - 1;
+    for (int i = 0; i < shown; i++) if (!p->chores[order[i]].done) sorted[k++] = order[i];
 
     char s[24];
     snprintf(s, sizeof s, "%d of %d done", done, shown);
-    header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "listchecks", s);   /* the same icon as Home's Chores button */
+    /* the house, as on Home's Chores button; the younger child's page has the title alone */
+    if (picture) header_set(&ch.head, NULL, "Chores", HEADER_NONE, PILL_DONE, NULL, NULL);
+    else header_set(&ch.head, ui_clock(), "Chores", HEADER_PILL, PILL_DONE, "house", s);
+    if ((ch.wl.focus_y != (picture ? CH_PIC_FOCUS : CH_FOCUS) - CH_TOP) || ch.wl.row_h != (picture ? LROW_PIC_STEP : LROW_STEP)) {
+        ch.wl.row_h = picture ? LROW_PIC_STEP : LROW_STEP;
+        wheel_list_set_focus(&ch.wl, (picture ? CH_PIC_FOCUS : CH_FOCUS) - CH_TOP);
+        rows_same = false;
+    }
     if (!rows_same) {
         if (ch.just >= 0 && !p->chores[ch.just].done) ch.flip = true;   /* unchecked: it slides back up among the ones to do */
         if (ch.just >= 0 && p->chores[ch.just].done && tick_in_place(ch.just, picture)) {

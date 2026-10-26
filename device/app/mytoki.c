@@ -823,10 +823,11 @@ static void on_sched_chore(int i)
     schedule_refresh(app.plan, &app.now, app.now_s / 60);
 }
 
+/* The stars to spend: all of them. One asked for stays counted until a grown-up says yes (Figma
+ * Rewards · Shop · Asked: "26 to spend" with a treat asked); the yes takes them. */
 static int available_stars(void)
 {
     int s = app.plan->child.stars;
-    for (int i = 0; i < app.plan->nrewards; i++) if (app.plan->rewards[i].state == REWARD_WAITING) s -= app.plan->rewards[i].cost;
     return s < 0 ? 0 : s;
 }
 
@@ -874,6 +875,7 @@ static void on_home(home_event_t ev, int arg)
     case HOME_TAP_NEXT: schedule_open(app.plan, &app.now, app.now_s / 60, app.plan->child.picture, on_sched_chore); break;
     case HOME_TAP_CARD:
         if (app.state == ST_EVENT && app.now.nstill) others_open(app.plan, &app.now, app.now_s, on_other_done);
+        else if (app.state == ST_EVENT) go_page(2, true);   /* "2 chores left today": the chores */
         else if (app.state == ST_TASK && app.focus >= 0 && steps_all(app.focus)) {   /* "All done!" tapped: the list again, to uncheck one */
             app.steps_peek = app.focus;
             app.steps_peek_until = now_ms() + STEPS_PEEK_MS;
@@ -884,7 +886,7 @@ static void on_home(home_event_t ev, int arg)
     case HOME_TAP_WHEEL: app.free_pet_view = false; break;
     case HOME_HOLD_PET: mytoki_open_pet(); break;
     case HOME_TAP_PET: {
-        if ((app.state == ST_FREE && app.now.free_remaining - GET_READY_S > 0) || app.state == ST_FREE_DAY) { mytoki_open_playtime(); break; }
+        if ((app.state == ST_FREE && app.now.free_remaining - GET_READY_S > 0) || app.state == ST_FREE_DAY || app.state == ST_REST) { mytoki_open_playtime(); break; }
         static const char *const HI[] = { "Hi!", "We\xE2\x80\x99ve got this!", "Happy to see you!", "What\xE2\x80\x99s next?" };
         if (app.state == ST_ALARM || app.state == ST_SNOOZE) { say(NULL, "I\xE2\x80\x99m up! Are you?", 2500); break; }
         if (app.state == ST_SLEEPY || app.state == ST_DAY_OVER || app.state == ST_BEDTIME) say(NULL, "Zzz\xE2\x80\xA6", 2500);
@@ -1033,10 +1035,11 @@ static void alarm_pill(home_view_t *v)
     v->below = BELOW_TIME;
     v->pill_tone = PILL_NIGHT;
     snprintf(v->status_icon, sizeof v->status_icon, "%s", alarm ? "alarm" : "sun");
-    if (p->child.picture) snprintf(v->status, sizeof v->status, "%s", w);
-    else snprintf(v->status, sizeof v->status, alarm ? "Alarm set for %s" : "Wake up at %s", w);
+    snprintf(v->status, sizeof v->status, alarm ? "Alarm set for %s" : "Wake up at %s", w);
 }
 
+/* Figma "Wind down · Night clock (docked)": the big time, "Charging · 52%" under it, Biscuit asleep
+ * and the alarm's pill at the foot. */
 static void night_clock(home_view_t *v)
 {
     const int now_m = app.now_s / 60;
@@ -1047,8 +1050,8 @@ static void night_clock(home_view_t *v)
     v->mood = PET_MOOD_SLEEP;
     v->pet_dim = 128;
     v->sides = v->dots = false;
-    v->bottom = BOTTOM_NOTE;
-    snprintf(v->note, sizeof v->note, "Charging - %d%%", hal_battery());
+    v->bottom = BOTTOM_NONE;
+    snprintf(v->note, sizeof v->note, "Charging \xC2\xB7 %d%%", hal_battery());
 }
 
 static void next_from(home_view_t *v, int first)
@@ -1086,36 +1089,87 @@ static bool night_stars(home_view_t *v)
     return false;
 }
 
-/* Picture view (under 7): icon-first. Clock times instead of "min left", the countdown as the
- * free-time title, just the name at bedtime, and a speaker that reads the task out. */
-static void picture_view(home_view_t *v)
+/* A step's picture for the younger child (steps have none of their own): from its words, else the
+ * task's own icon. */
+static const char *step_picture(const char *text, const char *task_icon)
+{
+    static const struct { const char *w, *icon; } W[] = {
+        { "teeth", "toothbrush" }, { "brush", "toothbrush" }, { "toilet", "toilet" }, { "potty", "toilet" },
+        { "wash", "soap" }, { "hand", "soap" }, { "face", "soap" }, { "bath", "bath" }, { "shower", "shower" },
+        { "shoe", "shoes" }, { "cleat", "shoes" }, { "boot", "shoes" }, { "sock", "shirt" }, { "pant", "shirt" },
+        { "shirt", "shirt" }, { "dress", "shirt" }, { "pajama", "shirt" }, { "pyjama", "shirt" }, { "clothes", "shirt" },
+        { "coat", "shirt" }, { "jacket", "shirt" }, { "bag", "backpack" }, { "backpack", "backpack" },
+        { "lunch", "sandwich" }, { "snack", "apple" }, { "water", "water" }, { "bottle", "water" }, { "book", "book" },
+        { "read", "book" }, { "story", "book" }, { "bed", "bed" }, { "ball", "ball" }, { "breakfast", "meal" },
+        { "eat", "meal" }, { "toy", "brick" }, { "tidy", "sparkles" }, { "hair", "sparkles" }, { "light", "moon" },
+    };
+    char k[64];
+    lower(k, sizeof k, text);
+    for (size_t i = 0; i < sizeof W / sizeof W[0]; i++) if (word(k, W[i].w, true)) return W[i].icon;
+    return task_icon && *task_icon ? task_icon : "check";
+}
+
+/* The younger child (4-5; Figma "Younger child" in 1460:9008): the same screens and words, leaning on
+ * pictures. The Sky (the sun, or the moon at night) instead of the clock, Big titles, no pills or
+ * times (the ring shows the time), the room in its circle wherever the timer runs, one step at a
+ * time in a lime circle, Biscuit's words said out loud, the game pad for Games. The night screens a
+ * grown-up reads (asleep, woken in the night, docked) keep the clock and the alarm's pill. */
+static void younger_view(home_view_t *v)
 {
     const day_plan_t *p = app.plan;
     const logic_now_t *n = &app.now;
     v->picture = true;
     const day_task_t *t = app.focus >= 0 ? &p->tasks[app.focus] : NULL;
-    char a[8], b[8];
-    switch (app.state) {
-    case ST_TASK:
-    case ST_EVENT:
-        if (!n->overdue) {
-            ui_fmt_time(a, sizeof a, t->event && app.state == ST_EVENT ? t->event_start : n->start[app.focus]);
-            ui_fmt_time(b, sizeof b, t->end);
-            snprintf(v->status, sizeof v->status, "%s \xE2\x80\x93 %s%s", a, b, ui_ampm(t->end));
+    if (v->clock || app.state == ST_DAY_OVER || (app.state == ST_SLEEPY && n->wake - app.now_s / 60 > 60)) return;
+    snprintf(v->sky, sizeof v->sky, "%s", ui_sky());
+    v->clock_line[0] = 0;
+    v->title_big = true;
+    v->late_chip = false;
+    if (v->below == BELOW_TIME || v->below == BELOW_STATUS || v->below == BELOW_FREE) { v->status[0] = 0; v->below = BELOW_TEXT; }
+    /* the room in its 438 circle wherever the timer runs (the snooze keeps its faded bedroom) */
+    if (v->timer_show && (v->graphic == GRAPHIC_FULL || v->graphic == GRAPHIC_FADED) && app.state != ST_SNOOZE) v->graphic = GRAPHIC_INSET;
+    switch (v->mid) {
+    case MID_STEPS:
+        /* one step at a time: the first not ticked, in the circle; no Next under it (Figma Younger ·
+         * Get dressed) */
+        v->mid = MID_STEP;
+        v->title_big = false;
+        v->sky[0] = 0;
+        v->bottom = BOTTOM_NONE;
+        v->dots = v->sides = false;
+        for (int i = 0; i < v->steps_total && i < HOME_STEPS_MAX; i++)
+            snprintf(v->step_icon[i], sizeof v->step_icon[i], "%s", step_picture(v->step_text[i], t ? t->icon : ""));
+        break;
+    case MID_COUNTDOWN:
+        /* the last two minutes: no numbers, Biscuit says so */
+        v->mid = MID_PET;
+        v->graphic = GRAPHIC_INSET;
+        snprintf(v->say, sizeof v->say, "Almost done!");
+        break;
+    case MID_OVERDUE: {
+        /* Figma Younger · Task · Running late: the amber ring, the task's own picture in the Sky, the
+         * worm eating the play it's taking (two big dots, the play in an amber circle) */
+        v->timer_tone = TIMER_HURRY;
+        v->timer_pulse = false;
+        if (t && t->icon[0]) snprintf(v->sky, sizeof v->sky, "%s", t->icon);
+        const reserve_t *r = &n->reserve;
+        if (r->free_reserve || app.state == ST_WAIT_START) {
+            snprintf(v->overdue_text, sizeof v->overdue_text, "Playtime is going away");
+            snprintf(v->worm_icon, sizeof v->worm_icon, "%s", p->nwheel ? wheel_icon_for(p->wheel[0]) : "kite");
+        } else if (r->reserve_task >= 0) {
+            snprintf(v->overdue_text, sizeof v->overdue_text, "Less time for %s", p->tasks[r->reserve_task].title);
+        } else {
+            snprintf(v->overdue_text, sizeof v->overdue_text, "Almost done?");
         }
-        v->speaker = true;
         break;
-    case ST_FREE:
-        break;   /* the same screen for both ages (Circle rule 7) */
-    case ST_BEDTIME:
-    case ST_DAY_OVER:
-        snprintf(v->title, sizeof v->title, "%s", p->child.name);   /* the alarm pill stays: its icon and time */
-        if (v->bottom == BOTTOM_NOTE) v->bottom = BOTTOM_NONE;
-        break;
+    }
     default:
         break;
     }
-    v->say[0] = 0;
+    /* free time with Biscuit: the game pad instead of Next (not while he says a grown-up's free time) */
+    bool gift = !strncmp(app.say_key, "free:", 5) && (int32_t)(now_ms() - app.say_until) < 0;
+    if (app.state == ST_FREE && v->tap_ring && !gift) v->bottom = BOTTOM_GAMES;
+    if (v->mid == MID_WHEEL) v->sides = true;
 }
 
 /* 0..1000 of the timer still lit */
@@ -1127,13 +1181,13 @@ static int16_t share_left(int32_t left, int32_t total)
 }
 
 /* MyToki 2's rule (Figma Task · 10 min or more / Under 10 min): with 10 minutes or more left the room
- * fills the screen and the timer shows what's left in mint; under 10 the room shrinks into the
- * circle, the whole timer and the pill turn amber. `calm` is the pill's tone with time to spare. */
+ * fills the screen and the timer shows what's left in mint; under 10 the room fades to 30% behind
+ * Biscuit, the whole timer and the pill turn amber. `calm` is the pill's tone with time to spare. */
 static void timed(home_view_t *v, int mins_left, int32_t rem, int32_t total, pill_tone_t calm)
 {
     v->timer_show = true;
     if (mins_left < 10) {
-        v->graphic = GRAPHIC_SMALL;
+        v->graphic = GRAPHIC_FADED;
         v->timer_tone = TIMER_HURRY;
         v->timer_left = 1000;
         v->pill_tone = PILL_HURRY;
@@ -1186,8 +1240,9 @@ static void build_view(home_view_t *v)
     switch (app.state) {
     case ST_TASK: {
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
-        /* the Wake Up row says good morning: "Wake Up" with its minutes read as time to get out of bed */
-        snprintf(v->title, sizeof v->title, "%s", t->system == SYS_WAKE ? "Good morning!" : t->title);
+        /* the Wake Up row: "Wake up" with its minutes read as time to get out of bed (the alarm says
+         * good morning) */
+        snprintf(v->title, sizeof v->title, "%s", t->system == SYS_WAKE ? "Wake up" : t->title);
         pet_activity_t act = activity_for(t);
         char k[48];
         lower(k, sizeof k, t->title);
@@ -1233,6 +1288,14 @@ static void build_view(home_view_t *v)
             }
             timed(v, left, rem, total, PILL_CALM);
             if (left < 10) v->sides = false;
+            /* the last two minutes (Figma Task · Under 2 min left): "1:46 left" in the middle, no room
+             * and no pill; the timer stays amber */
+            if (rem < 120 && rem >= 0 && !t->nsteps) {
+                v->mid = MID_COUNTDOWN;
+                snprintf(v->countdown, sizeof v->countdown, "%d:%02d", (int)(rem / 60), (int)(rem % 60));
+                v->below = BELOW_TEXT;
+                v->status[0] = 0;
+            }
         }
         if (n->overdue) v->sides = false;
         bool peek = app.steps_peek == app.focus && (int32_t)(now_ms() - app.steps_peek_until) < 0;
@@ -1249,9 +1312,11 @@ static void build_view(home_view_t *v)
              * finishes it (user, 2026-10-21; the day waits for Done). Other tasks move on by themselves
              * (auto_next). A tap on the note brings the list back to uncheck one. */
             button_note(v, "check", "All done!");
+            v->cue = true;
         }
         if (t->nsteps && steps_all(app.focus)) v->cue = true;   /* the button at 1 o'clock lights up */
         next_from(v, -1);
+        if (n->overdue) { v->bottom = BOTTOM_NONE; v->dots = false; }   /* Figma Task · Running late: the sentence takes the foot */
         /* Figma: his greeting at wake-up and dinner only, as the task starts */
         /* (after the alarm, "You're up! Let's go!" was the greeting) */
         bool greets = (t->system == SYS_WAKE ? !app.alarm_ack : strstr(k, "wake") || strstr(k, "morning"))
@@ -1287,7 +1352,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "%s", t->icon);
         snprintf(v->title, sizeof v->title, "%s", t->title);
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%s \xC2\xB7 waiting", hr_min(len, sizeof len, t->end - t->start));
+        snprintf(v->status, sizeof v->status, "Takes %s", hr_min(len, sizeof len, t->end - t->start));   /* Figma Task · Press to start */
         snprintf(v->status_icon, sizeof v->status_icon, "clock");
         v->timer_show = true;
         v->timer_tone = TIMER_PLENTY;
@@ -1353,7 +1418,10 @@ static void build_view(home_view_t *v)
         int32_t total = (t->end - t->event_start) * 60, rem = t->end * 60 - app.now_s;
         timed(v, left, rem, total, PILL_CALM);
         v->activity = activity_for(t);
-        if (n->nstill) v->chores_left = (int8_t)(n->nstill > 99 ? 99 : n->nstill);   /* the note opens Other things to finish */
+        /* Figma Going out · At the event: "2 chores left today" (a tap goes to them) */
+        int left_today = 0;
+        for (int i = 0; i < p->nchores; i++) if (!p->chores[i].done && (p->chores[i].to < 0 || p->chores[i].to > now_m)) left_today++;
+        if (left_today) v->chores_left = (int8_t)(left_today > 99 ? 99 : left_today);
         next_from(v, -1);
         break;
     }
@@ -1372,16 +1440,15 @@ static void build_view(home_view_t *v)
         if (!can_play) {
             /* the last five minutes (Figma Free time · Last 5 minutes, 1080:5604): his room fills
              * the screen again but faded to 30%, he stays solid, the timer and pill amber */
-            v->graphic = GRAPHIC_FULL;
-            v->room_fade = 179;
+            v->graphic = GRAPHIC_FADED;
             v->mood = PET_MOOD_EXCITED;
             v->force_clip = PET_CLIP_CURIOUS;
             (void)nx;
         } else if (total > WHEEL_MIN_S && !app.free_pet_view) {
-            /* Figma Free time · Spin (1080:5388): the title and the time pill over the wheel (no
-             * clock), Games under it */
+            /* Figma Free time · Spin: the clock and the time pill over the wheel (no title), Games
+             * under it */
             quiet = true;
-            v->clock_line[0] = 0;
+            v->title[0] = 0;
             v->mid = MID_WHEEL;
             v->bottom = BOTTOM_GAMES;
             v->dots = false;
@@ -1411,6 +1478,7 @@ static void build_view(home_view_t *v)
     case ST_ALARM: {
         snprintf(v->icon, sizeof v->icon, "sun");
         snprintf(v->title, sizeof v->title, "Good morning!");
+        v->title_big = true;   /* Figma Morning · Alarm: Big, the pill at the foot */
         v->below = BELOW_TIME;
         fmt_clock(v->status, sizeof v->status, n->wake);
         snprintf(v->status_icon, sizeof v->status_icon, "alarm");
@@ -1425,10 +1493,13 @@ static void build_view(home_view_t *v)
         if (left < 0) left = 0;
         snprintf(v->icon, sizeof v->icon, "cloudmoon");
         snprintf(v->title, sizeof v->title, "5 more minutes");
+        v->title_big = true;
+        /* Figma Morning · Snooze: a calm pill at the foot with when it rings again ("7:05") */
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "%d:%02d left", (int)(left / 60), (int)(left % 60));
-        snprintf(v->status_icon, sizeof v->status_icon, "timer");
+        ui_fmt_time(v->status, sizeof v->status, app.snooze_until / 60);
+        snprintf(v->status_icon, sizeof v->status_icon, "alarm");
         timed(v, (int)(left / 60), left, SNOOZE_S, PILL_CALM);
+        v->pill_tone = PILL_CALM;
         v->mood = PET_MOOD_EXCITED;
         v->wake = true;
         v->sides = v->dots = false;
@@ -1437,10 +1508,7 @@ static void build_view(home_view_t *v)
     case ST_IM_UP:
         snprintf(v->icon, sizeof v->icon, "sun");
         snprintf(v->title, sizeof v->title, "You\xE2\x80\x99re up!");
-        v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "Let\xE2\x80\x99s go!");
-        snprintf(v->status_icon, sizeof v->status_icon, "check");
-        v->pill_tone = PILL_DONE;
+        v->title_big = true;   /* Figma Morning · You're up!: Big, nothing under it */
         v->force_clip = PET_CLIP_CELEBRATE;
         next_from(v, -1);
         break;
@@ -1450,7 +1518,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "backpack");
         snprintf(v->title, sizeof v->title, "Off to school!");
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "See you at %s", e);
+        snprintf(v->status, sizeof v->status, "Back at %s", e);
         snprintf(v->status_icon, sizeof v->status_icon, "house");
         v->force_clip = PET_CLIP_WAVE;
         say("school-off", "Bye! Have a great day!", 600000);
@@ -1484,7 +1552,7 @@ static void build_view(home_view_t *v)
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Bedtime soon");
         v->below = BELOW_TIME;
-        snprintf(v->status, sizeof v->status, "Starts in %s", hr_min(len, sizeof len, mins));
+        snprintf(v->status, sizeof v->status, "%s", hr_min(len, sizeof len, mins));   /* before a thing: minutes only */
         snprintf(v->status_icon, sizeof v->status_icon, "timer");
         timed(v, mins, left, BED_SOON_S, PILL_CALM);
         v->mood = PET_MOOD_DROWSY;
@@ -1498,7 +1566,8 @@ static void build_view(home_view_t *v)
         if (hal_docked()) { night_clock(v); break; }   /* on its dock: the night clock, from Goodnight on */
         snprintf(v->icon, sizeof v->icon, "moon");
         snprintf(v->title, sizeof v->title, "Goodnight, %s!", p->child.name);
-        alarm_pill(v);   /* the alarm for the morning (user, 2026-10-22) */
+        v->title_big = true;
+        alarm_pill(v);   /* the alarm for the morning (user, 2026-10-22), at the foot */
         v->mood = PET_MOOD_SLEEP;
         v->pet_dim = over ? 90 : 0;
         if (!over) snprintf(v->say, sizeof v->say, "See you tomorrow!");
@@ -1509,15 +1578,11 @@ static void build_view(home_view_t *v)
         if (hal_docked()) { night_clock(v); break; }
         int to_wake = n->wake - now_m;
         alarm_pill(v);
-        if (to_wake > 60) {
-            /* picked up in the night (Figma Wind down · Woke in the night) */
-            snprintf(v->icon, sizeof v->icon, "cloudmoon");
-            snprintf(v->title, sizeof v->title, "Still night");
-            v->pet_dim = 90;
-        } else {
-            snprintf(v->icon, sizeof v->icon, "moon");
-            snprintf(v->title, sizeof v->title, "Still sleepy time");
-        }
+        /* "Still night" (Figma Morning · Still sleepy time, Wind down · Woke in the night), Big */
+        snprintf(v->icon, sizeof v->icon, to_wake > 60 ? "cloudmoon" : "moon");
+        snprintf(v->title, sizeof v->title, "Still night");
+        v->title_big = true;
+        if (to_wake > 60) v->pet_dim = 90;   /* picked up in the night */
         v->mood = PET_MOOD_SLEEP;
         v->sides = v->dots = false;
         break;
@@ -1527,22 +1592,22 @@ static void build_view(home_view_t *v)
     case ST_REST: {
         bool rest = app.state == ST_REST, all = app.state == ST_ALL_DONE;
         snprintf(v->icon, sizeof v->icon, rest ? "house" : all ? "party" : "sun");
-        snprintf(v->title, sizeof v->title, rest ? "Cozy rest day" : all ? "All done for today!" : "A free day!");
+        snprintf(v->title, sizeof v->title, rest ? "Cozy rest day" : all ? "All done!" : "A free day!");
         snprintf(v->status, sizeof v->status, rest ? "No plans today" : all ? "Nice work" : "Nothing planned today");
+        v->title_big = true;
         v->mood = all ? PET_MOOD_EXCITED : PET_MOOD_HAPPY;
         v->activity = rest ? PET_ACT_READING : all ? PET_ACT_NONE : PET_ACT_OUTSIDE;
         if (all) v->force_clip = PET_CLIP_CELEBRATE;
-        /* Figma Quiet days: his words beside him; a free day is a tap away from Playtime */
-        if (rest) snprintf(v->say, sizeof v->say, "Take it easy today");
-        else if (all) snprintf(v->say, sizeof v->say, "You did it, %s!", p->child.name);
-        else { snprintf(v->say, sizeof v->say, "Tap me to play!"); v->tap_ring = app.state == ST_FREE_DAY; }
+        /* Figma Quiet days: all done, his words beside him; a free or rest day has Games under him */
+        if (all) snprintf(v->say, sizeof v->say, "You did it, %s!", p->child.name);
+        else v->bottom = BOTTOM_GAMES;
         break;
     }
     default:
         break;
     }
-    if (p->child.picture) picture_view(v);
-    if (!p->child.picture && app.say[0] && app.state != ST_DONE && !v->say[0] && (int32_t)(now_ms() - app.say_until) < 0) snprintf(v->say, sizeof v->say, "%s", app.say);
+    if (app.say[0] && app.state != ST_DONE && !v->say[0] && (int32_t)(now_ms() - app.say_until) < 0) snprintf(v->say, sizeof v->say, "%s", app.say);
+    if (p->child.picture) younger_view(v);
 }
 
 /* ================================================================ the clock */
@@ -1596,7 +1661,11 @@ static void free_time_gift(void)
         if (now_m < app.plan->free[i].start || now_m >= app.plan->free[i].end || !strcmp(id, app.gift_seen)) continue;
         snprintf(app.gift_seen, sizeof app.gift_seen, "%s", id);
         char line[48], key[48], len[24];
-        snprintf(line, sizeof line, "Free Time! %s", hr_min(len, sizeof len, app.plan->free[i].end - app.plan->free[i].start));
+        /* Figma Free time · Given by a grown-up: "15 more minutes!" (the younger child: "More play time!") */
+        int mins = app.plan->free[i].end - app.plan->free[i].start;
+        if (app.plan->child.picture) snprintf(line, sizeof line, "More play time!");
+        else if (mins < 60) snprintf(line, sizeof line, "%d more minutes!", mins);
+        else snprintf(line, sizeof line, "%s more!", hr_min(len, sizeof len, mins));
         snprintf(key, sizeof key, "free:%.40s", id);
         screen_wake();
         if (schedule_is_open()) overlays_close_all();
@@ -1692,6 +1761,9 @@ static void tick(lv_timer_t *timer)
     snprintf(app.today, sizeof app.today, "%04d-%02d-%02d", app.t.year, app.t.month, app.t.day);
     app.now_s = app.t.hour * 3600 + app.t.minute * 60 + app.t.second;
     ui_set_clock(app.now_s / 60);
+    /* the younger child's Sky: the moon from 7 pm and through the night, the sun by day */
+    bool night = app.t.hour >= 19 || app.state == ST_SLEEPY || app.state == ST_BED_SOON || app.state == ST_BEDTIME || app.state == ST_DAY_OVER;
+    ui_set_sky(night ? "moon" : "sun");
     if (app.now_s / 60 != app.shift_min) { app.shift_min = app.now_s / 60; pixel_shift(false); }
 
     if (app.hello_until && (int32_t)(now_ms() - app.hello_until) >= 0) {
@@ -1926,9 +1998,14 @@ void mytoki_start(void)
     go_page(1, false);
 
     {
-        /* Figma Connection · Loading: "Hello, Amira!" once Biscuit has met her */
+        /* Figma Connection · Loading: "Hello, Amira!" once Biscuit has met her, with the clock (and the
+         * younger child's Sky) as on every screen: which age is kept from the last day */
         char known[40], hello[56] = "";
         if (hal_store_get("name", known, sizeof known) && known[0]) snprintf(hello, sizeof hello, "Hello, %s!", known);
+        if (hal_store_get("picture", known, sizeof known)) ui_set_picture(known[0] == '1');
+        hal_time_now(&app.t);
+        if (app.t.year >= 2024) ui_set_clock(app.t.hour * 60 + app.t.minute);
+        ui_set_sky(app.t.hour >= 19 || app.t.hour < 6 ? "moon" : "sun");
         system_show(SYS_SCREEN_LOADING, hello[0] ? hello : NULL, NULL);
     }
     app.tick_timer = lv_timer_create(tick, TICK_MS, NULL);
@@ -2007,6 +2084,8 @@ static void take_day(const char *json, size_t len, bool cached)
     snprintf(p->child.pet, sizeof p->child.pet, "%s", pet_chars[ch].name);
     home_set_wheel((const char (*)[20])p->wheel, p->nwheel);
     hal_store_set("name", p->child.name);
+    hal_store_set("picture", p->child.picture ? "1" : "0");
+    ui_set_picture(p->child.picture);
     if (system_showing() == SYS_SCREEN_PAIRING) {
         /* paired: Biscuit learns the child's name, then the day loads */
         char hello[48];
@@ -2017,7 +2096,6 @@ static void take_day(const char *json, size_t len, bool cached)
         hal_play(HAL_SOUND_CHIME);
     } else if (system_showing() != SYS_SCREEN_NONE) system_show(SYS_SCREEN_NONE, NULL, NULL);
     if (first) { app.last_state = ST_NONE; app.fresh = true; }
-    ui_set_picture(p->child.picture);
     if (!cached) alarm_test_check(p, now_s);
     check_news(p);
     tick(NULL);
@@ -2370,8 +2448,8 @@ void mytoki_open_pet(void)
 void mytoki_open_playtime(void)
 {
     if (play_is_open()) return;
-    if (app.state != ST_FREE && app.state != ST_FREE_DAY) return;
-    int32_t left = app.state == ST_FREE_DAY ? 3600 : app.now.free_remaining - GET_READY_S;   /* a free day: an hour at a time */
+    if (app.state != ST_FREE && app.state != ST_FREE_DAY && app.state != ST_REST) return;
+    int32_t left = app.state != ST_FREE ? 3600 : app.now.free_remaining - GET_READY_S;   /* a free or rest day: an hour at a time */
     if (left <= 0) return;
     const day_task_t *nx = app.now.nupcoming ? &app.plan->tasks[app.now.upcoming[0]] : NULL;
     char at[8] = "";

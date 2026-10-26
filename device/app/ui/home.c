@@ -19,26 +19,38 @@ static const char *const WORM[] = {
     "..#....#....#..........",
 };
 
-/* MyToki 2 (Figma "Graphic"): the room fills the 466 screen, or sits in the 298 circle at (84, 84). */
+/* MyToki 2 (Figma "Graphic"): the room fills the 466 screen, or sits in the 298 circle at (84, 84);
+ * the younger child's Inset keeps the room's size but shows it in a 438 circle at (14, 14). */
 #define FULL_D SCREEN_W
 #define SMALL_D 298
 #define SMALL_XY 84
-#define NOTE_Y 311
+#define INSET_D 438
+#define INSET_XY 14
+#define NOTE_Y 311            /* Figma "Note · Plain" (At the event); the button's notes ("All done!") at 319 */
+#define NOTE_BUTTON_Y 319
+/* the younger one step at a time (Figma "Picture row", Kind=Step, Size=Center): a 272 lime circle
+ * concentric with the screen, the step's picture (105) and its name (Poppins SemiBold 24) in navy */
+#define STEP_D 272
+#define STEP_ICON 105
 /* the Get ready checklist: rows 59 apart round the centre line */
 #define STEPS_Y 100
 #define STEPS_H 268
 #define STEPS_ROW 92          /* row centres 145, 238, 330 (Figma Going out · Get ready, 1093:8088) */
 #define STEPS_FOCUS 238
-#define TAP_D 412             /* where the stars twinkle when Biscuit can be tapped: just inside the timer (223 out, 9 wide) */
+#define TAP_D 412             /* where the stars twinkle when Biscuit can be tapped: just inside the timer (227 out, 6 wide) */
 #define TAP_CY CENTER
 
 static struct {
     home_cb_t cb;
     lv_obj_t *page, *pet, *faint, *wheel, *scrim, *timer;
+    lv_obj_t *count, *count_left;            /* MID_COUNTDOWN */
+    lv_obj_t *step, *step_icon, *step_name;  /* MID_STEP */
+    int step_shown;
+    char step_sig[64];
     lv_obj_t *overdue, *overdue_text, *worm;
     lv_obj_t *tap_stars;
     lv_obj_t *left, *right;
-    lv_obj_t *bigclock;
+    lv_obj_t *bigclock, *charging;
     pill_t bigclock_pill;
     header_t hdr;
     hill_t hill;
@@ -51,7 +63,7 @@ static struct {
     lime_card_t card;
     bubble_t bubble;
     uint8_t worm_eaten;
-    float worm_x, worm_phase;
+    float worm_phase;
     lv_obj_t *worm_ring, *worm_icon;
     char worm_icon_name[20];
     lv_timer_t *worm_timer;
@@ -88,78 +100,92 @@ static void on_hill(hill_tap_t tap)
     }
 }
 
-/* The worm row (Figma "Free time eaten"): the worm, five mint dots of free time, and a mint ring at
- * the end holding what it's eating (the kite for free time, or the task it is taking time from).
- * It crawls: its humps ripple from tail to head, the head bobs as it munches, the dot in front of it
- * shrinks with each bite, and it slides forward a dot at a time as the time goes. */
-#define WORM_CELL 3.8f
+/* The worm row (Figma "Free time eaten", 1523:15161). Older: the worm (23 x 10 cells of 5.04 px), six
+ * dots of free time (mint, dark once eaten, from the left) and an empty mint ring at the end, a 284 x
+ * 60 row at (91, 222). Younger: a bigger worm (6.52 px cells), two big dots of play time left (chip,
+ * gone once eaten) and the play it is eating towards in an amber circle, a 378 x 78 row at (44, 199).
+ * It crawls in place: its humps ripple from tail to head and the head bobs as it munches; the dot in
+ * front of it shrinks with each bite. */
 #define WORM_COLS 23
-#define DOT_STEP 14
-#define DOTS_X 98          /* the first dot, from the row's left */
-#define RING_D 46
-#define ROW_W 230
-#define ROW_H 50
 #define WORM_PERIOD_MS 1400
-
-static float worm_x(int eaten) { return (float)(eaten * DOT_STEP); }
+typedef struct {
+    float cell;                 /* a cell of the worm */
+    int16_t worm_y;             /* its top in the row */
+    int8_t ndots;
+    float dot_d, dot_x0, dot_step;   /* the dots: size, the first one's middle, apart */
+    int16_t ring_d, ring_x;     /* the ring (older) or the activity circle (younger) */
+    int16_t row_x, row_y, row_w, row_h;
+    bool young;
+} worm_geo_t;
+static const worm_geo_t WORM_OLD = { 5.04f, 0, 6, 9, 128, 17.4f, 58, 226, 91, 222, 284, 60, false };
+static const worm_geo_t WORM_YOUNG = { 6.52f, 6, 2, 42, 193, 64, 78, 300, 44, 199, 378, 78, true };
+static const worm_geo_t *worm_geo = &WORM_OLD;
 
 static void worm_draw(lv_event_t *e)
 {
+    const worm_geo_t *g = worm_geo;
     lv_obj_t *obj = lv_event_get_target(e);
     lv_layer_t *layer = lv_event_get_layer(e);
     lv_area_t c;
     lv_obj_get_coords(obj, &c);
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
-    const float ph = h.worm_phase * 6.2831853f;
-    const float wx = c.x1 + h.worm_x;
-    const float wy = c.y1 + (ROW_H - 10 * WORM_CELL) / 2.0f + 2;
+    const float ph = h.worm_phase * 6.2831853f, cell = g->cell;
+    const float wx = (float)c.x1, wy = c.y1 + (float)g->worm_y;
     d.bg_color = COL(C_LATE);
     for (int i = 0; i < WORM_COLS; i++) {
         /* the body (columns 0..14) ripples in a wave from the tail; the head bobs */
-        float dy = i < 15 ? -2.6f * fmaxf(0.0f, sinf(ph - i * 0.42f)) : 1.4f * sinf(ph * 2.0f);
+        float dy = (i < 15 ? -2.6f * fmaxf(0.0f, sinf(ph - i * 0.42f)) : 1.4f * sinf(ph * 2.0f)) * cell / 3.8f;
         for (int j = 0; j < 10; j++) {
             if (WORM[j][i] != '#') continue;
-            float x0 = wx + i * WORM_CELL, y0 = wy + j * WORM_CELL + dy;
-            lv_area_t a = { (int32_t)x0, (int32_t)y0, (int32_t)(x0 + WORM_CELL) - 1, (int32_t)(y0 + WORM_CELL) - 1 };
+            float x0 = wx + i * cell, y0 = wy + j * cell + dy;
+            lv_area_t a = { (int32_t)x0, (int32_t)y0, (int32_t)(x0 + cell) - 1, (int32_t)(y0 + cell) - 1 };
             if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
         }
     }
-    /* the dots it hasn't reached; the one at its mouth shrinks bite by bite */
+    /* the dots: the eaten ones dark (older) or gone (younger); the next one shrinks bite by bite */
     d.radius = LV_RADIUS_CIRCLE;
-    const float mouth = h.worm_x + WORM_COLS * WORM_CELL;
-    for (int k = 0; k < 5; k++) {
-        float cx = DOTS_X + k * DOT_STEP + 3.5f;
-        if (k < h.worm_eaten || cx < mouth - 2) continue;   /* eaten, or under its head */
-        float r = 3.5f;
-        if (cx < mouth + DOT_STEP) r *= 0.55f + 0.45f * (0.5f + 0.5f * cosf(ph * 2.0f));
-        d.bg_color = COL(C_DONE);
-        lv_area_t a = { (int32_t)(c.x1 + cx - r), (int32_t)(c.y1 + ROW_H / 2 - r), (int32_t)(c.x1 + cx + r), (int32_t)(c.y1 + ROW_H / 2 + r) };
+    int eaten = (h.worm_eaten * g->ndots + 4) / 5;
+    for (int k = 0; k < g->ndots; k++) {
+        float cx = g->dot_x0 + k * g->dot_step, r = g->dot_d / 2;
+        if (k < eaten && g->young) continue;
+        if (k == eaten) r *= 0.75f + 0.25f * (0.5f + 0.5f * cosf(ph * 2.0f));
+        d.bg_color = COL(k < eaten || g->young ? C_CHIP : C_DONE);
+        lv_area_t a = { (int32_t)lroundf(c.x1 + cx - r), (int32_t)lroundf(c.y1 + g->row_h / 2.0f - r),
+                        (int32_t)lroundf(c.x1 + cx + r) - 1, (int32_t)lroundf(c.y1 + g->row_h / 2.0f + r) - 1 };
         if (ui_in_strip(layer, a.x1, a.y1, a.x2, a.y2)) lv_draw_rect(layer, &d, &a);
     }
 }
 
-/* Every 40 ms while the worm shows: the crawl, and the slide to where it has eaten up to. */
+/* Every 40 ms while the worm shows: the crawl. */
 static void worm_tick(lv_timer_t *t)
 {
     (void)t;
     if (!h.worm || lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN)) return;
     h.worm_phase += 40.0f / WORM_PERIOD_MS;
     if (h.worm_phase >= 1.0f) h.worm_phase -= 1.0f;
-    float to = worm_x(h.worm_eaten);
-    h.worm_x += (to - h.worm_x) * 0.08f;
-    if (fabsf(to - h.worm_x) < 0.2f) h.worm_x = to;
     lv_obj_invalidate(h.worm);
 }
 
-/* The message and the worm row as one block, centred in the screen with a steady gap. */
-static void worm_layout(void)
+/* The row and the sentence where the age's Figma has them: older, the row at y 222 and the sentence
+ * (Poppins Medium 24) low at y 368; younger, the row at 199 and "Playtime is going away" (Montserrat
+ * Bold 32) at 341. */
+static void worm_layout(bool young)
 {
-    lv_obj_update_layout(h.overdue_text);
-    int32_t th = lv_obj_get_height(h.overdue_text), gap = 30;
-    int32_t top = CENTER - (th + gap + ROW_H) / 2 - 8;
-    lv_obj_set_y(h.overdue_text, top);
-    lv_obj_set_y(h.worm, top + th + gap);
+    const worm_geo_t *g = worm_geo = young ? &WORM_YOUNG : &WORM_OLD;
+    lv_obj_set_pos(h.worm, g->row_x, g->row_y);
+    lv_obj_set_size(h.worm, g->row_w, g->row_h);
+    lv_obj_set_size(h.worm_ring, g->ring_d, g->ring_d);
+    lv_obj_set_pos(h.worm_ring, g->ring_x, (g->row_h - g->ring_d) / 2 + (young ? 0 : 1));
+    if (young) ui_style_card(h.worm_ring, C_STAR, LV_RADIUS_CIRCLE, 0, 0);
+    else lv_obj_set_style_bg_opa(h.worm_ring, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(h.worm_ring, young ? 0 : 2, 0);
+    ui_show(h.worm_icon, young);
+    const lv_font_t *f = young ? &font_mon700_32 : &font_pop500_24;
+    lv_obj_set_style_text_font(h.overdue_text, f, 0);
+    lv_obj_set_style_text_line_space(h.overdue_text, young ? 0 : -2, 0);   /* Figma: 40 and 30 px lines */
+    lv_obj_set_width(h.overdue_text, young ? 378 : 290);
+    lv_obj_align(h.overdue_text, LV_ALIGN_TOP_MID, 0, young ? 341 : 366);
 }
 
 static void ring_opa(void *obj, int32_t v) { lv_obj_set_style_opa(obj, (lv_opa_t)v, 0); }
@@ -243,7 +269,7 @@ static void steps_style(lv_obj_t *card, float d)
     if (lv_obj_get_width(card) != w) {
         lv_obj_set_width(card, w);
         lv_obj_t *l = lv_obj_get_child(card, 1);
-        const lv_font_t *f = near < 0.5f ? F_PILL : F_DETAIL;   /* the words switch half way out */
+        const lv_font_t *f = near < 0.5f ? &font_pop600_24 : F_DETAIL;   /* the words switch half way out */
         if (lv_obj_get_style_text_font(l, 0) != f) {
             lv_obj_set_style_text_font(l, f, 0);
             lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(f) - 2, 0);   /* two lines at most */
@@ -255,6 +281,7 @@ static void steps_style(lv_obj_t *card, float d)
 /* a tap on any step checks or unchecks it, in any order; sent once the click is over */
 static void step_tapped(void *i) { if (h.cb) h.cb(HOME_TAP_STEP, (int)(intptr_t)i); }
 static void on_step(lv_event_t *e) { lv_async_call(step_tapped, lv_event_get_user_data(e)); }
+static void on_step_one(lv_event_t *e) { (void)e; if (h.step_shown >= 0) lv_async_call(step_tapped, (void *)(intptr_t)h.step_shown); }   /* (-2: all ticked) */
 
 /* Figma "Step": 348 wide, 16 / 24 padding, gap 16: the number ("2.", Detail 20 in cream) on a 35 px
  * amber disc, the step (Pill 24, up to two lines of 30), the Checkbox (48). 80 high with one line. */
@@ -279,10 +306,10 @@ static void steps_build(const home_view_t *v)
         lv_obj_set_size(disc, 35, 35);
         ui_style_card(disc, C_HURRY, LV_RADIUS_CIRCLE, 0, 0);
         lv_obj_center(ui_label(disc, F_DETAIL, C_TEXT, num));
-        lv_obj_t *l = ui_label(row, F_PILL, C_ON_COLOR, v->step_text[i]);
+        lv_obj_t *l = ui_label(row, &font_pop600_24, C_ON_COLOR, v->step_text[i]);
         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_line_space(l, -2, 0);                       /* 30 px lines, as Figma's 125% */
-        lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(F_PILL) - 2, 0);   /* two lines at most */
+        lv_obj_set_style_text_line_space(l, -1, 0);                       /* 30 px lines, as Figma's 125% */
+        lv_obj_set_style_max_height(l, 2 * lv_font_get_line_height(&font_pop600_24) - 1, 0);   /* two lines at most */
         lv_obj_set_flex_grow(l, 1);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, on_step, LV_EVENT_CLICKED, (void *)(intptr_t)i);
@@ -367,24 +394,20 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     h.overdue = ui_box(page);
     lv_obj_set_size(h.overdue, SCREEN_W, SCREEN_H);
     h.overdue_text = ui_label(h.overdue, F_MESSAGE, C_TEXT, "");
-    lv_obj_set_width(h.overdue_text, 290);
     lv_obj_set_style_text_align(h.overdue_text, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(h.overdue_text, LV_ALIGN_TOP_MID, 0, 178);
+    lv_label_set_long_mode(h.overdue_text, LV_LABEL_LONG_WRAP);
     h.worm = ui_box(h.overdue);
-    lv_obj_set_size(h.worm, ROW_W, ROW_H);
-    lv_obj_set_pos(h.worm, CENTER - ROW_W / 2, 252);
     lv_obj_add_event_cb(h.worm, worm_draw, LV_EVENT_DRAW_MAIN, NULL);
-    /* the ring at the end: what it's eating */
+    /* at the end: the empty mint ring (older), or the amber circle with what it's eating (younger) */
     h.worm_ring = ui_box(h.worm);
-    lv_obj_set_size(h.worm_ring, RING_D, RING_D);
-    lv_obj_set_pos(h.worm_ring, ROW_W - RING_D, (ROW_H - RING_D) / 2);
     lv_obj_set_style_radius(h.worm_ring, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(h.worm_ring, 2, 0);
     lv_obj_set_style_border_color(h.worm_ring, COL(C_DONE), 0);
     lv_obj_set_style_border_opa(h.worm_ring, LV_OPA_COVER, 0);
-    h.worm_icon = ui_icon(h.worm_ring, "kite", 24, C_DONE);
+    h.worm_icon = ui_icon(h.worm_ring, "kite", 54, C_ON_COLOR);
+    ui_icon_px(h.worm_icon, "kite", 54);
     lv_obj_center(h.worm_icon);
     snprintf(h.worm_icon_name, sizeof h.worm_icon_name, "kite");
+    worm_layout(false);
     h.worm_timer = lv_timer_create(worm_tick, 40, NULL);
     lv_timer_pause(h.worm_timer);   /* until it's running late */
 
@@ -395,6 +418,38 @@ void home_create(lv_obj_t *page, home_cb_t cb)
      * the header and its pill instead of showing through them */
     h.steps_fade = top_fade_create(page, 86, 152);
     h.graphic = (home_graphic_t)-1;
+
+    /* the younger child's step: one lime circle in the middle; a tap ticks it, like the button */
+    h.step = ui_box(page);
+    lv_obj_set_size(h.step, STEP_D, STEP_D);
+    lv_obj_set_pos(h.step, CENTER - STEP_D / 2, CENTER - STEP_D / 2);
+    ui_style_card(h.step, C_ACTION, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_bg_color(h.step, COL(C_TEXT), LV_STATE_PRESSED);
+    lv_obj_add_flag(h.step, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(h.step, on_step_one, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_transform_pivot_x(h.step, STEP_D / 2, 0);
+    lv_obj_set_style_transform_pivot_y(h.step, STEP_D / 2, 0);
+    h.step_icon = ui_icon(h.step, "shirt", STEP_ICON, C_ON_COLOR);
+    ui_icon_px(h.step_icon, "shirt", STEP_ICON);
+    lv_obj_align(h.step_icon, LV_ALIGN_TOP_MID, 0, 210 - (CENTER - STEP_D / 2) - STEP_ICON / 2);   /* its middle at y 210 */
+    h.step_name = ui_label(h.step, &font_pop600_24, C_ON_COLOR, "");
+    lv_obj_set_width(h.step_name, 236);
+    lv_obj_set_style_text_align(h.step_name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(h.step_name, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_line_space(h.step_name, -1, 0);   /* Figma: 30 px lines */
+    lv_obj_align(h.step_name, LV_ALIGN_TOP_MID, 0, 278 - (CENTER - STEP_D / 2));
+    ui_show(h.step, false);
+    h.step_shown = -1;
+
+    /* the last two minutes: "1:46" (Montserrat SemiBold 96, amber) and "left" (Poppins Medium 32) */
+    h.count = ui_label(page, &font_mon600_96, C_HURRY, "");
+    lv_obj_set_width(h.count, 300);
+    lv_obj_set_style_text_align(h.count, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(h.count, LV_ALIGN_TOP_MID, 0, 178);
+    h.count_left = ui_label(page, &font_pop500_32, C_TEXT_MUTED, "left");
+    lv_obj_align(h.count_left, LV_ALIGN_TOP_MID, 0, 261);
+    ui_show(h.count, false);
+    ui_show(h.count_left, false);
 
     h.scrim = scrim_create(page);
     h.timer = timer_create(page);
@@ -426,18 +481,23 @@ void home_create(lv_obj_t *page, home_cb_t cb)
 
     h.left = side_button_create(page, true, "star-line");
     lv_obj_add_event_cb(h.left, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_REWARDS);
-    h.right = side_button_create(page, false, "listchecks");   /* the same icon as the Chores pill */
+    h.right = side_button_create(page, false, "house");   /* Figma: the house means Chores (its pill has it too) */
     lv_obj_add_event_cb(h.right, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_CHORES);
 
     header_create(page, &h.hdr);
     lv_obj_add_flag(h.hdr.root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(h.hdr.root, fire, LV_EVENT_CLICKED, (void *)(intptr_t)HOME_TAP_SPEAKER);
 
-    /* the night clock on the dock: Big number 52 at y 30, the wake-up pill under it */
+    /* the night clock on the dock (Figma "Night clock"): Big number 52 at y 30, "Charging · 52%" under
+     * it, the alarm's pill low on the screen (y 365) */
     h.bigclock = ui_label(page, F_CLOCK, C_CLOCK, "");
     lv_obj_set_width(h.bigclock, 300);
     lv_obj_set_style_text_align(h.bigclock, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(h.bigclock, LV_ALIGN_TOP_MID, 0, 30);
+    h.charging = ui_label(page, F_BODY_P, C_TEXT_MUTED, "");
+    lv_obj_set_width(h.charging, 300);
+    lv_obj_set_style_text_align(h.charging, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(h.charging, LV_ALIGN_TOP_MID, 0, 91);
     pill_create(page, &h.bigclock_pill);
 }
 
@@ -464,38 +524,84 @@ static void room_resized(void)
     lv_anim_start(&a);
 }
 
+static bool graphic_room(home_graphic_t g) { return g == GRAPHIC_FULL || g == GRAPHIC_SMALL || g == GRAPHIC_FADED || g == GRAPHIC_INSET; }
+
 static void set_graphic(home_graphic_t g)
 {
-    bool room = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
+    bool room = graphic_room(g);
     ui_reveal(h.pet, room, 0);
     ui_reveal(h.faint, g == GRAPHIC_EMPTY, 0);
-    ui_reveal(h.scrim, g == GRAPHIC_FULL, 0);
+    ui_reveal(h.scrim, room && g != GRAPHIC_SMALL, 0);
     if (room && g != h.graphic) {
-        int32_t d = g == GRAPHIC_FULL ? FULL_D : SMALL_D, xy = g == GRAPHIC_FULL ? 0 : SMALL_XY;
-        pet_set_size(h.pet, d);
-        lv_obj_set_pos(h.pet, xy, xy);
-        if (h.graphic != (home_graphic_t)-1) room_resized();   /* the room settles into its new size */
+        int32_t d = g == GRAPHIC_SMALL ? SMALL_D : g == GRAPHIC_INSET ? INSET_D : FULL_D;
+        int32_t xy = g == GRAPHIC_SMALL ? SMALL_XY : g == GRAPHIC_INSET ? INSET_XY : 0;
+        bool small = g == GRAPHIC_SMALL || h.graphic == GRAPHIC_SMALL;
+        if (lv_obj_get_width(h.pet) != d) {
+            pet_set_size(h.pet, d);
+            lv_obj_set_pos(h.pet, xy, xy);
+            if (small && h.graphic != (home_graphic_t)-1) room_resized();   /* the room settles into its new size */
+        }
     }
     if (room) h.graphic = g;
+}
+
+/* The younger child's step: the first one not ticked, in the circle. A step ticked: the next one
+ * springs into its place. */
+static void step_one_update(const home_view_t *v)
+{
+    int n = LV_MIN(v->steps_total, HOME_STEPS_MAX);
+    uint16_t ticked = v->steps_ticked & (uint16_t)((1u << n) - 1);
+    int at = -1;
+    for (int i = 0; i < n; i++) if (!(ticked & (1u << i))) { at = i; break; }
+    char sig[64];
+    snprintf(sig, sizeof sig, "%d:%.40s", n, v->step_text[0]);
+    bool fresh = strcmp(sig, h.step_sig) != 0;
+    if (at < 0) {
+        /* the last one ticked: the circle turns mint with a tick for the moment before the room
+         * comes back */
+        if (h.step_shown == -2) return;
+        h.step_shown = -2;
+        snprintf(h.step_sig, sizeof h.step_sig, "%s", sig);
+        lv_obj_set_style_bg_color(h.step, COL(C_DONE), 0);
+        ui_icon_px(h.step_icon, "check", STEP_ICON);
+        lv_image_set_rotation(h.step_icon, 0);
+        ui_set_text(h.step_name, "All done!");
+        fx_ripple_from(h.step, STEP_D / 2, STEP_D / 2 + 60, C_DONE);
+        fx_pop(h.step, 0);
+        return;
+    }
+    if (!fresh && at == h.step_shown) return;
+    bool moved_on = !fresh && h.step_shown != -1;
+    snprintf(h.step_sig, sizeof h.step_sig, "%s", sig);
+    h.step_shown = at;
+    lv_obj_set_style_bg_color(h.step, COL(C_ACTION), 0);
+    ui_icon_px(h.step_icon, v->step_icon[at][0] ? v->step_icon[at] : "check", STEP_ICON);
+    lv_image_set_rotation(h.step_icon, strcmp(v->step_icon[at], "toothbrush") ? 0 : -450);   /* Figma's toothbrush stands on a slant */
+    ui_set_text(h.step_name, v->step_text[at]);
+    if (moved_on) {
+        fx_ripple_from(h.step, STEP_D / 2, STEP_D / 2 + 60, C_DONE);
+        fx_pop(h.step, 0);
+    }
 }
 
 void home_render(const home_view_t *v)
 {
     /* ---- the graphic ---- */
     home_graphic_t g = v->graphic;
-    if (v->mid == MID_OVERDUE) g = GRAPHIC_EMPTY;
-    else if (v->mid == MID_WHEEL || v->mid == MID_NONE || v->mid == MID_STEPS) g = GRAPHIC_NONE;
+    if (v->mid == MID_OVERDUE) g = GRAPHIC_NONE;   /* Figma Task · Running late: no room, no circle */
+    else if (v->mid == MID_WHEEL || v->mid == MID_NONE || v->mid == MID_STEPS || v->mid == MID_STEP || v->mid == MID_COUNTDOWN) g = GRAPHIC_NONE;
     set_graphic(g);
-    bool pet_on = g == GRAPHIC_FULL || g == GRAPHIC_SMALL;
+    bool pet_on = graphic_room(g);
     pet_set_paused(h.pet, !pet_on);
     if (pet_on) {
-        if (h.pet_dim != v->pet_dim || h.room_fade != v->room_fade) {
+        uint8_t fade = g == GRAPHIC_FADED ? 179 : v->room_fade;   /* Faded: the room at 30%, he stays solid */
+        if (h.pet_dim != v->pet_dim || h.room_fade != fade) {
             pet_look_t look = pet_default_look(lv_obj_get_width(h.pet));
             look.dim = v->pet_dim;
-            look.room_fade = v->room_fade;
+            look.room_fade = fade;
             pet_set_look(h.pet, &look);
             h.pet_dim = v->pet_dim;
-            h.room_fade = v->room_fade;
+            h.room_fade = fade;
         }
         pet_set_mood(h.pet, v->mood);
         pet_set_activity(h.pet, v->activity);
@@ -503,10 +609,17 @@ void home_render(const home_view_t *v)
         if (v->wake) pet_wake_up(h.pet);
     }
     ui_reveal(h.wheel, v->mid == MID_WHEEL, 16);
+    wheel_set_pictures(h.wheel, v->picture);
     ui_reveal(h.steps.list, v->mid == MID_STEPS, 16);
     ui_reveal(h.steps_fade, v->mid == MID_STEPS, 0);
     if (v->mid == MID_STEPS) steps_update(v);
     else h.steps_sig[0] = 0;
+    ui_reveal(h.step, v->mid == MID_STEP, 0);
+    if (v->mid == MID_STEP) step_one_update(v);
+    else { h.step_sig[0] = 0; h.step_shown = -1; }
+    ui_reveal(h.count, v->mid == MID_COUNTDOWN, 0);
+    ui_reveal(h.count_left, v->mid == MID_COUNTDOWN, 0);
+    if (v->mid == MID_COUNTDOWN) ui_set_text(h.count, v->countdown);
     bool showing = !lv_obj_has_flag(h.overdue, LV_OBJ_FLAG_HIDDEN);
     if (v->mid != MID_OVERDUE && v->mood == PET_MOOD_SLEEP) ui_hide_now(h.overdue);   /* bedtime: no ghost of the late card */
     else ui_reveal(h.overdue, v->mid == MID_OVERDUE, 12);
@@ -514,17 +627,15 @@ void home_render(const home_view_t *v)
     worm_run();
     if (v->mid == MID_OVERDUE) {
         ui_set_text(h.overdue_text, v->overdue_text);
-        worm_layout();
+        worm_layout(v->picture);
         const char *icon = v->worm_icon[0] ? v->worm_icon : "kite";
         if (strcmp(icon, h.worm_icon_name)) {
             snprintf(h.worm_icon_name, sizeof h.worm_icon_name, "%s", icon);
-            ui_icon_set(h.worm_icon, icon, 24);
+            ui_icon_px(h.worm_icon, icon, 54);
             lv_obj_center(h.worm_icon);
         }
-        if (h.worm_eaten != v->worm_eaten) {
-            h.worm_eaten = v->worm_eaten;
-            if (!showing) h.worm_x = worm_x(h.worm_eaten);   /* coming on: start where it is, no slide */
-        }
+        if (h.worm_eaten != v->worm_eaten) { h.worm_eaten = v->worm_eaten; lv_obj_invalidate(h.worm); }
+        (void)showing;
     }
     ui_show(h.tap_stars, pet_on && v->tap_ring);
     stars_twinkle(pet_on && v->tap_ring);
@@ -540,20 +651,26 @@ void home_render(const home_view_t *v)
 
     /* ---- the header ---- */
     ui_reveal(h.hdr.root, !v->clock, -8);
+    if (v->clock) ui_show(h.hdr.foot.root, false);
     ui_reveal(h.bigclock, v->clock, -8);
     ui_reveal(h.bigclock_pill.root, v->clock && v->status[0], -8);
+    ui_reveal(h.charging, v->clock && v->note[0], -8);
     if (v->clock) {
         ui_set_text(h.bigclock, v->clock_text);
+        ui_set_text(h.charging, v->note);
         pill_set(&h.bigclock_pill, PILL_NIGHT, v->status_icon, v->status);
         lv_obj_update_layout(h.bigclock_pill.root);
-        lv_obj_align(h.bigclock_pill.root, LV_ALIGN_TOP_MID, 0, 100);
+        lv_obj_align(h.bigclock_pill.root, LV_ALIGN_TOP_MID, 0, 365 + (38 - lv_obj_get_height(h.bigclock_pill.root)) / 2);
     } else {
         header_below_t below = v->late_chip ? HEADER_PILL
                              : (v->below == BELOW_TIME || v->below == BELOW_STATUS || v->below == BELOW_FREE) ? HEADER_PILL
                              : v->status[0] ? HEADER_TEXT : HEADER_NONE;
         pill_tone_t tone = v->late_chip ? PILL_LATE : v->pill_tone;
         const char *text = v->late_chip ? "Late" : v->status;
-        h.hdr.tight = v->mid == MID_WHEEL;   /* free time's wheel: the title at the top, the pill clear of it */
+        h.hdr.tight = v->mid == MID_WHEEL && v->title[0];   /* free time's wheel: the title at the top, the pill clear of it */
+        h.hdr.low = v->mid == MID_STEP;                     /* the younger one-step screens: the title down at y 54 */
+        header_set_big(&h.hdr, v->title_big);
+        header_set_sky(&h.hdr, v->sky);
         header_set(&h.hdr, v->clock_line, v->title, below, tone, v->late_chip ? NULL : v->status_icon, text);
         if (strcmp(h.title_sig, v->title)) { snprintf(h.title_sig, sizeof h.title_sig, "%s", v->title); fx_slide(h.hdr.root, 10, 0); }   /* a new screen */
     }
@@ -566,12 +683,12 @@ void home_render(const home_view_t *v)
         if (v->card != CARDPOS_NONE) {
             lime_card_set(&h.card, v->card_icon[0] ? v->card_icon : NULL, v->card_text, v->card_end);
         } else {
-            char n[24];
-            snprintf(n, sizeof n, "%d to finish", v->chores_left);
+            char n[32];
+            snprintf(n, sizeof n, "%d chore%s left today", v->chores_left, v->chores_left == 1 ? "" : "s");   /* Figma Going out · At the event */
             lime_card_set(&h.card, "listchecks", n, CARD_END_NONE);
         }
         lv_obj_update_layout(h.card.root);
-        lv_obj_align(h.card.root, LV_ALIGN_TOP_MID, 0, NOTE_Y);
+        lv_obj_align(h.card.root, LV_ALIGN_TOP_MID, 0, v->card != CARDPOS_NONE && v->card_end == CARD_END_BUTTON ? NOTE_BUTTON_Y : NOTE_Y);
     }
 
     /* ---- Biscuit's words: beside his head, under whatever the header shows ---- */
@@ -582,16 +699,18 @@ void home_render(const home_view_t *v)
             lv_obj_update_layout(h.hdr.root);
             below = lv_obj_get_y(h.hdr.root) + lv_obj_get_height(h.hdr.root);
         }
+        bubble_set_speaker(&h.bubble, v->picture);   /* the younger child's: said out loud */
         bubble_say_pet(&h.bubble, say, below, v->sides ? 206 : SCREEN_H);
     } else bubble_hide(&h.bubble);
 
     /* ---- the hill ---- */
     h.bottom = v->bottom;
     switch (v->bottom) {
-    case BOTTOM_GAMES:   /* the free-time wheel (Figma Free time · Spin): one Games button, no curve, no dots */
-        hill_set_button(&h.hill, NULL, "Games");
+    case BOTTOM_GAMES:   /* the free-time wheel (Figma Free time · Spin): one Games button, no curve; the younger child's is the round game pad */
+        if (v->picture) hill_set_round(&h.hill, "game");
+        else hill_set_button(&h.hill, NULL, "Games");
         break;
-    case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->next_time); break;
+    case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->picture ? "" : v->next_time); break;   /* younger: no times */
     case BOTTOM_NOTE: hill_set_text(&h.hill, v->note); break;
     case BOTTOM_PLAY:
     case BOTTOM_WHEEL: hill_set_switch(&h.hill, v->bottom == BOTTOM_PLAY); break;
@@ -599,7 +718,9 @@ void home_render(const home_view_t *v)
     }
     hill_set_dots(&h.hill, v->dots ? 1 : -1);
 
-    /* ---- the side buttons ---- */
+    /* ---- the side buttons (the younger child's are bigger) ---- */
+    side_button_set_big(h.left, v->picture, "star-line");
+    side_button_set_big(h.right, v->picture, "house");
     ui_reveal(h.left, v->sides, 0);
     ui_reveal(h.right, v->sides && !v->rewards_only, 0);
 }

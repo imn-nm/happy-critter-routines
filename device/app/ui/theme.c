@@ -92,6 +92,19 @@ void ui_icon_set(lv_obj_t *img, const char *name, int size)
     if (d && lv_image_get_src(img) != d) lv_image_set_src(img, d);
 }
 
+void ui_icon_px(lv_obj_t *img, const char *name, int px)
+{
+    const lv_image_dsc_t *d = icon_find(name, px);
+    if (!d) return;
+    if (lv_image_get_src(img) != d) lv_image_set_src(img, d);
+    int32_t w = (int32_t)d->header.w;
+    lv_obj_set_size(img, px, px);
+    lv_image_set_inner_align(img, LV_IMAGE_ALIGN_CENTER);
+    lv_image_set_pivot(img, w / 2, w / 2);
+    uint32_t scale = (uint32_t)(256 * px / (w ? w : px));
+    if (lv_image_get_scale(img) != scale) lv_image_set_scale(img, scale);
+}
+
 void ui_show(lv_obj_t *obj, bool show)
 {
     if (!obj) return;

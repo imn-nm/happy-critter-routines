@@ -36,17 +36,17 @@
 #define C_ON_COLOR  0x20294A  /* text/on-color: words on lime, amber, coral, lavender, cream */
 #define C_TRACK     0x181E36  /* timer/track: the unlit dashes */
 #define C_PLENTY    0x65CDAA  /* timer/plenty: 10 min or more left */
-#define C_HURRY     0xFAB047  /* timer/hurry: under 10 min */
+#define C_HURRY     0xFFCD4D  /* timer/hurry: under 10 min */
 #define C_LATE_RING 0xFF5C5F  /* timer/late: running over */
 #define C_NIGHT     0x879BFF  /* timer/night, status/night */
 #define C_ACTION    0xDCEF70  /* role/action: anything you tap to do something, nav icons */
 #define C_SYSTEM    0xA89AF0  /* role/system: the device telling you something */
 #define C_PET       0xF9F5E1  /* role/pet: Biscuit's bubble */
 #define C_DONE      0x65CDAA  /* status/done: done, free time */
-#define C_STAR      0xFAB047  /* status/star: stars */
+#define C_STAR      0xFFCD4D  /* status/star: stars */
 #define C_LATE      0xFF8F91  /* status/late: the Late pill */
 #define C_PINK      0xEAB5DE  /* decor/pink */
-#define C_CARROT    0xF7945A  /* decor/carrot */
+#define C_CARROT    0xFF813D  /* decor/carrot */
 
 /* the names the screens grew up with, now on the MyToki 2 tokens */
 #define C_INK       C_SCREEN
@@ -123,6 +123,9 @@ void ui_set_color(lv_obj_t *obj, uint32_t color);
 /* A line icon (tools/icons.mjs) tinted with `color`. */
 lv_obj_t *ui_icon(lv_obj_t *parent, const char *name, int size, uint32_t color);
 void ui_icon_set(lv_obj_t *icon, const char *name, int size);
+/* The icon drawn `px` across whatever sizes are made of it: the nearest one, scaled to fit (the
+ * younger child's big pictures). The object is px x px. */
+void ui_icon_px(lv_obj_t *icon, const char *name, int px);
 void ui_show(lv_obj_t *obj, bool show);
 /* A filled rounded rectangle. */
 void ui_style_card(lv_obj_t *obj, uint32_t bg, int32_t radius, uint32_t border, lv_opa_t border_opa);

@@ -36,7 +36,7 @@ static inline void ui_row_fade(lv_obj_t *row, lv_opa_t opa)
 }
 
 /* ---- MyToki 2 Timer: the dashed arc round the rim, open at the bottom (80 px dashes, 14 px gaps,
- * 9 px wide, round ends, 223 px out). Lit dashes are the time left, from the bottom-left end. ---- */
+ * 9 px wide, round ends, 227 px out). Lit dashes are the time left, from the bottom-left end. ---- */
 typedef enum { TIMER_PLENTY, TIMER_HURRY, TIMER_LATE, TIMER_NIGHT } timer_tone_t;
 lv_obj_t *timer_create(lv_obj_t *parent);
 /* left: 0..1000 of the arc lit. pulse: running over, the lit dashes breathe. */
@@ -50,21 +50,31 @@ void pill_set(pill_t *p, pill_tone_t tone, const char *icon, const char *text);
 
 /* ---- Header: the clock, the title, then a Pill or a quiet line; 340 wide, centred at y 18 ---- */
 typedef enum { HEADER_NONE, HEADER_PILL, HEADER_TEXT } header_below_t;
-/* tight: the title right at the top and the pill close under it, clear of free time's wheel */
-typedef struct { lv_obj_t *root, *clock, *title, *text; pill_t pill; bool tight; } header_t;
+/* tight: the title right at the top and the pill close under it, clear of free time's wheel.
+ * big: Figma Header "Title size=Big" (the screens with no task: night, waking, quiet days, hellos):
+ * the title in Montserrat Bold 40, 312 wide, the clock 24 over it, a cream line under it, and its
+ * pill down at the foot of the screen (y 385).
+ * sky: the younger child's chip over the title instead of the clock (Figma "Sky": the sun by day,
+ * the moon at night, or the task's own icon), set with header_set_sky. */
+typedef struct { lv_obj_t *root, *clock, *title, *text, *sky, *sky_icon; pill_t pill, foot; bool tight, big, low; char sky_name[20]; } header_t;
 void header_create(lv_obj_t *parent, header_t *h);
 /* clock or title NULL/"" = hidden. */
 void header_set(header_t *h, const char *clock, const char *title, header_below_t below,
                 pill_tone_t tone, const char *icon, const char *text);
+/* Regular (false) or Big (true); takes effect on the next header_set. */
+void header_set_big(header_t *h, bool big);
+/* The younger child's Sky chip: "sun", "moon" or a task's icon; NULL or "" = none. */
+void header_set_sky(header_t *h, const char *icon);
 
 /* ---- Hill: the dark curve at the bottom (y 368) with what comes next, one button, a quiet line or
  * the Spin / Play switch, and the carousel's page dots ---- */
-typedef enum { HILL_EMPTY, HILL_NEXT, HILL_BUTTON, HILL_TEXT, HILL_SWITCH, HILL_NEXT_BUTTON } hill_kind_t;
+typedef enum { HILL_EMPTY, HILL_NEXT, HILL_BUTTON, HILL_TEXT, HILL_SWITCH, HILL_NEXT_BUTTON, HILL_ROUND } hill_kind_t;
 typedef struct {
     lv_obj_t *root, *curve, *col;
     lv_obj_t *next, *next_time, *next_icon, *next_task;
     lv_obj_t *line, *line_time, *line_icon, *line_task;   /* Next on one line, over a button */
     lv_obj_t *button, *button_icon, *button_label;
+    lv_obj_t *round, *round_icon;   /* the younger child's round picture button (Games: the game pad) */
     lv_obj_t *text;
     lv_obj_t *sw, *sw_spin, *sw_play;
     lv_obj_t *dots;
@@ -77,6 +87,9 @@ typedef void (*hill_cb_t)(hill_tap_t tap);
 void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb);
 void hill_set_next(hill_t *h, const char *icon, const char *title, const char *time);
 void hill_set_button(hill_t *h, const char *icon, const char *label);
+/* The younger child's: a 72 round button with a lime ring and a picture, on the curve (taps as the
+ * button). */
+void hill_set_round(hill_t *h, const char *icon);
 /* The curve, what comes next on one line (a tap opens the day), and a small button under it. */
 void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label);
 void hill_set_text(hill_t *h, const char *text);
@@ -117,6 +130,10 @@ const char *ui_clock(void);
 /* Picture view (younger kids). Set when the day loads. */
 void ui_set_picture(bool picture);
 bool ui_picture(void);
+/* The younger child's Sky chip for now: "sun" by day, "moon" from 7 pm and before wake-up. Kept up
+ * to date by the controller; the overlays and pages read it. */
+void ui_set_sky(const char *icon);
+const char *ui_sky(void);
 void ring_set_scale(lv_obj_t *ring, int32_t permille);
 void ring_set_wave(lv_obj_t *ring, bool wave, int8_t drift);
 
@@ -128,6 +145,8 @@ void cue_set(lv_obj_t *cue, uint8_t ring, bool dark);
 
 /* ---- Side nav: Rewards (left) and Chores (right), 54 px at (24, 206) and (388, 206) ---- */
 lv_obj_t *side_button_create(lv_obj_t *parent, bool left, const char *icon);
+/* The younger child's 72 px buttons (Figma "Side nav · Big"), or back to 54. */
+void side_button_set_big(lv_obj_t *b, bool big, const char *icon);
 
 /* ---- the carousel's page dots (0 Rewards, 1 Home, 2 Chores), centred at y 446 ---- */
 lv_obj_t *page_dots_create(lv_obj_t *parent, int page);
@@ -157,7 +176,7 @@ void lime_card_set_color(lime_card_t *c, uint32_t bg);
 void lime_card_wrap(lime_card_t *c, int32_t max_text);
 
 /* ---- Speech: Biscuit's own words, a cream bubble with its tail pointing down-left at him ---- */
-typedef struct { lv_obj_t *root, *label, *tail; bool top; } bubble_t;
+typedef struct { lv_obj_t *root, *label, *tail, *speaker; bool top; } bubble_t;
 void bubble_create(lv_obj_t *parent, bubble_t *b);
 /* x, y: the bubble's top left (kept inside the round screen). */
 void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y);
@@ -168,6 +187,15 @@ void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y);
 void bubble_say_pet(bubble_t *b, const char *text, int32_t below, int32_t avoid_y);
 void bubble_say_top(bubble_t *b, const char *text, int32_t y);
 void bubble_hide(bubble_t *b);
+/* The younger child's bubbles start with a speaker: it's said out loud. */
+void bubble_set_speaker(bubble_t *b, bool on);
+
+/* ---- Star pips (Figma "Star pip", "Stars to spend"): the younger child's stars, counted not
+ * numbered: up to five filled stars in a row, amber for the ones they have, grey for the ones to
+ * earn. `d` the size (36 big, 24 small), `step` from one to the next. ---- */
+lv_obj_t *star_pips_create(lv_obj_t *parent, int32_t d, int32_t step);
+/* `shown` pips (0..5), the first `lit` of them amber. */
+void star_pips_set(lv_obj_t *row, int shown, int lit);
 
 /* ---- the old pill names, on the MyToki 2 Pill (the tone is read from the colour) ---- */
 typedef pill_t time_pill_t;
@@ -212,6 +240,34 @@ lv_obj_t *checkbox_create(lv_obj_t *parent, int32_t d, bool checked);
 void checkbox_tick(lv_obj_t *box);
 /* A ticked box clears again (a step unchecked): back to the empty ring at once. */
 void checkbox_untick(lv_obj_t *box);
+
+/* ---- List rows (Figma "Schedule row" and "Chore row", as the side-by-side screens have them): on
+ * the focus line (Center) 416 x 79, fully round, 24 px in: the icon (48), 14 px, the name (Poppins
+ * SemiBold 24) over the detail (Detail 20), then a Checkbox (52) or "Now" 16 px from the end. A row
+ * away (Edge) is 392 x 74 at 70 %, its icon 44 and Checkbox 48. Done: muted words, ticked. Now: a
+ * lime outline, the detail and "Now" in lime. Free time: a mint dashed outline, all mint. Chore:
+ * lavender with navy words. The younger child's rows (Figma "Picture row") are bigger pictures and
+ * the name alone: Center 400 x 96 with a 72 picture, Edge 328 x 80 with a 38 one at 60 %. ---- */
+typedef enum { LROW_DONE, LROW_NOW, LROW_NEXT, LROW_FREE, LROW_CHORE, LROW_CHORE_DONE } lrow_kind_t;
+typedef enum { LROW_END_NONE, LROW_END_CHECK, LROW_END_NOW, LROW_END_TICK } lrow_end_t;   /* TICK: the younger child's mint tick on a task done */
+/* A row in a wheel slot; `picture`: the younger child's. Sized by list_row_style. */
+lv_obj_t *list_row_create(lv_obj_t *slot, lrow_kind_t kind, bool picture, const char *icon, const char *title,
+                          const char *detail, lrow_end_t end, bool checked);
+/* For wheel_list_t.style: d is how many rows the row is from the line. */
+void list_row_style(lv_obj_t *card, float d);
+/* The row's Checkbox, or NULL. */
+lv_obj_t *list_row_box(lv_obj_t *card);
+/* A chore's row ticked where it is: lavender drifts to a night card, the picture and name go quiet,
+ * "Done!" in mint, the box ticks. */
+void list_row_mark_done(lv_obj_t *card);
+/* The younger child's picture for a task or chore: the house means Chores on their screens, so a room
+ * to tidy is the sofa and a desk the pencil (Figma Younger · My day). */
+const char *picture_icon(const char *icon, const char *title);
+#define LROW_GAP 12            /* every list's rows: 12 px apart */
+#define LROW_STEP 91           /* Center to Edge: 79 / 2 + 12 + 74 / 2, rounded up; Edge to Edge 86 */
+#define LROW_PULL 5            /* rows further out: pulled in this much a row */
+#define LROW_PIC_STEP 100      /* younger: 96 / 2 + 12 + 80 / 2 */
+#define LROW_PIC_PULL 8        /* 80 + 12 = 92 */
 
 /* ---- motion shared by every move on the Circle ---- */
 /* ui_path_out: quick off the mark, a soft landing (a cubic ease-out, snappier than LVGL's).

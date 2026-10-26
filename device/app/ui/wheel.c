@@ -30,9 +30,10 @@ typedef struct {
     int result;           /* -1 = not spun yet */
     bool spinning;
     wheel_result_cb_t cb;
-    lv_obj_t *hub, *hub_label;
+    lv_obj_t *hub, *hub_label, *hub_go;
+    bool pictures;        /* the younger child's: no words */
     /* the result card */
-    lv_obj_t *card, *card_icon, *card_name, *card_line, *again;
+    lv_obj_t *card, *card_icon, *card_name, *card_line, *again, *again_pic;
     uint32_t flash_until;   /* the bulbs all blink after a spin */
 } wheel_t;
 
@@ -146,15 +147,23 @@ static void wheel_draw(lv_event_t *e)
         ln.p2.y = cy - SLICE_R * cosf(sa);
         lv_draw_line(layer, &ln);
     }
-    /* the icon and word on each slice, upright */
+    /* the icon and word on each slice, upright (the younger child's: a bigger picture alone) */
     for (int i = 0; i < w->n; i++) {
         float ma = (i * slice + w->angle) * PI_F / 180;
-        float ix = cx + ICON_R * sinf(ma), iy = cy - ICON_R * cosf(ma) - 13;
         lv_draw_image_dsc_t im;
         lv_draw_image_dsc_init(&im);
-        im.src = icon_find(wheel_icon_for(w->opt[i]), 24);
         im.recolor = COL(wheel_color(i));
         im.recolor_opa = LV_OPA_COVER;
+        if (w->pictures) {
+            float ix = cx + ICON_R * sinf(ma), iy = cy - ICON_R * cosf(ma);
+            im.src = icon_find(wheel_icon_for(w->opt[i]), 36);
+            int32_t s = im.src ? (int32_t)((const lv_image_dsc_t *)im.src)->header.w : 36;
+            lv_area_t ia = { (int32_t)ix - s / 2, (int32_t)iy - s / 2, (int32_t)ix - s / 2 + s - 1, (int32_t)iy - s / 2 + s - 1 };
+            lv_draw_image(layer, &im, &ia);
+            continue;
+        }
+        float ix = cx + ICON_R * sinf(ma), iy = cy - ICON_R * cosf(ma) - 13;
+        im.src = icon_find(wheel_icon_for(w->opt[i]), 24);
         lv_area_t ia = { (int32_t)ix - 12, (int32_t)iy - 12, (int32_t)ix + 11, (int32_t)iy + 11 };
         lv_draw_image(layer, &im, &ia);
         float lx = cx + LABEL_R * sinf(ma), ly = cy - LABEL_R * cosf(ma) + 14;
@@ -198,6 +207,10 @@ static void show_result(wheel_t *w)
     bool decided = w->result >= 0 && !w->spinning;
     ui_show(w->hub, !decided);
     ui_show(w->card, decided);
+    ui_show(w->hub_label, !w->pictures);
+    ui_show(w->hub_go, w->pictures);
+    ui_show(w->again, !w->pictures);
+    ui_show(w->again_pic, w->pictures);
     if (!decided) return;
     const char *opt = w->opt[w->result];
     ui_icon_set(w->card_icon, wheel_icon_for(opt), 48);
@@ -304,6 +317,9 @@ lv_obj_t *wheel_create(lv_obj_t *parent, wheel_result_cb_t cb)
     lv_obj_add_event_cb(w->hub, on_hub, LV_EVENT_CLICKED, obj);
     w->hub_label = ui_label(w->hub, F_BUTTON, C_NAVY, "Spin");
     lv_obj_center(w->hub_label);
+    w->hub_go = ui_icon(w->hub, "go", 36, C_NAVY);
+    ui_icon_px(w->hub_go, "go", 34);
+    lv_obj_center(w->hub_go);
 
     /* the result (Figma "Free time · Spin result"): the faint circle, the activity's icon in its
      * colour, its name (Display 32), the invitation, and Spin again as lime words */
@@ -328,8 +344,29 @@ lv_obj_t *wheel_create(lv_obj_t *parent, wheel_result_cb_t cb)
     w->again = button_create(w->card, BTN_TERTIARY, false, "retry", "Spin again");
     lv_obj_align(w->again, LV_ALIGN_TOP_MID, 0, 188);
     lv_obj_add_event_cb(w->again, on_again, LV_EVENT_CLICKED, obj);
+    /* the younger child's Spin again: the arrows alone, 54 px, in a 102 x 74 target (Figma at y 260) */
+    w->again_pic = ui_box(w->card);
+    lv_obj_set_size(w->again_pic, 102, 74);
+    lv_obj_align(w->again_pic, LV_ALIGN_TOP_MID, 0, 260 - 84);
+    lv_obj_set_style_radius(w->again_pic, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(w->again_pic, COL(C_RAISED), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(w->again_pic, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_add_flag(w->again_pic, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(w->again_pic, on_again, LV_EVENT_CLICKED, obj);
+    lv_obj_t *ai = ui_icon(w->again_pic, "retry", 48, C_ACTION);
+    ui_icon_px(ai, "retry", 54);
+    lv_obj_center(ai);
     show_result(w);
     return obj;
+}
+
+void wheel_set_pictures(lv_obj_t *obj, bool pictures)
+{
+    wheel_t *w = lv_obj_get_user_data(obj);
+    if (w->pictures == pictures) return;
+    w->pictures = pictures;
+    show_result(w);
+    lv_obj_invalidate(obj);
 }
 
 void wheel_set_options(lv_obj_t *obj, const char options[][20], int n)

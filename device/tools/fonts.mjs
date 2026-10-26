@@ -28,10 +28,12 @@ const FONTS = [
   // Poppins Body 22, Pill 24, Detail/Speech 20, the header's clock 18 (Medium), Item 24, the picture view's row now 32
   // and Label 20 (SemiBold), Button 22;
   // the Next block in Space Grotesk: Next label 22 (Medium), Next time 22 and Next task 24 (Bold).
-  ['Montserrat-700.ttf', 'mon700', [26, 32], TEXT],
-  ['Montserrat-600.ttf', 'mon600', [52], DIGITS],
+  // The side-by-side screens (Figma 1460:9008): Header Big's title in Montserrat Bold 40; the Countdown's
+  // number in Montserrat SemiBold 96 (digits) and its "left" in Poppins Medium 32.
+  ['Montserrat-700.ttf', 'mon700', [26, 32, 40], TEXT],
+  ['Montserrat-600.ttf', 'mon600', [52, 96], DIGITS],
   ['Montserrat-500.ttf', 'mon500', [21], TEXT],
-  ['Poppins-500.ttf', 'pop500', [16, 18, 20, 22, 24], TEXT],
+  ['Poppins-500.ttf', 'pop500', [16, 18, 20, 22, 24, 32], TEXT],
   ['Poppins-600.ttf', 'pop600', [20, 22, 24, 32], TEXT],
   ['Poppins-700.ttf', 'pop700', [22, 24, 30], TEXT],
   ['SpaceGrotesk-500.ttf', 'sg500', [22], TEXT],

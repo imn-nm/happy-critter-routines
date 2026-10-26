@@ -3,6 +3,7 @@
 #include "fx.h"
 #include "../pet/pet.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,11 +15,15 @@ void ui_set_clock(int minutes) { ui_fmt_clock(clock_now, sizeof clock_now, minut
 const char *ui_clock(void) { return clock_now; }
 void ui_set_picture(bool picture) { picture_mode = picture; }
 bool ui_picture(void) { return picture_mode; }
+static char sky_now[12] = "sun";
+void ui_set_sky(const char *icon) { snprintf(sky_now, sizeof sky_now, "%s", icon && *icon ? icon : "sun"); }
+const char *ui_sky(void) { return sky_now; }
 
 static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_event_get_target(e))); }
 
 /* ================================================================ MyToki 2 Timer */
-/* Figma "Timer": a ring of segments 223 px out from the centre, from 7:30 round the top to 4:30
+/* Figma "Timer": a ring of segments 227 px out from the centre (the 474 instance at -4, -4, out to
+ * the bezel, since 2026-10-26), from 7:30 round the top to 4:30
  * (270 degrees, open at the bottom where the hill is), 6 px wide with round ends. As Figma lays the
  * 80/14 dashes out evenly: twelve steps of 22.5 degrees, a segment centred on the top, 14 px
  * between segments, and a half segment at each end (13 pieces). The track is timer/track; the
@@ -27,7 +32,7 @@ static void free_user_data(lv_event_t *e) { lv_free(lv_obj_get_user_data(lv_even
  * shared out over the
  * segments alone (not the gaps, the half ones count half), so one segment changes smoothly along
  * its length before the next one starts. */
-#define TIMER_R 223.0f
+#define TIMER_R 227.0f
 #define TIMER_W 6
 #define TIMER_A0 135.0f
 #define TIMER_SPAN 270.0f
@@ -298,56 +303,135 @@ lv_obj_t *status_pill_create(lv_obj_t *parent, const char *icon, const char *tex
 }
 
 /* ================================================================ Header */
-/* Figma "MyToki 2 / Header" (1070:4496): a 340 wide column at y 23: the clock (Clock 22), the title
- * (Title 30, Poppins Bold, wrapping at 256) tucked 4 px up under it, then 6 px down a Pill or a quiet
- * line (Body 22, muted, wrapping at 272). */
+/* Figma "MyToki 2 / Header" (1070:4496), as the side-by-side screens have it (1460:9008):
+ * Regular: a 340 wide column whose words start at y 31: the clock (Poppins Medium 18), the title
+ * (Title 30, Poppins Bold, wrapping at 256) right under it, then a Pill (its middle at y 114) or a
+ * cream line (Body 22, wrapping at 272). The clock alone (Free time · Spin) sits at y 23 with the pill
+ * 30 under it.
+ * Big: 312 wide from x 77: the clock (Poppins Medium 24), the title in Montserrat Bold 40 on 40 px
+ * lines, a cream line 8 px under it, or the pill down at the foot of the screen (y 385).
+ * The younger child's headers have the Sky chip (52, at y 24) instead of the clock, the title under it
+ * at y 84 (78 when it takes two lines); with neither (the one-step screens) the title is at y 54.
+ * The y below are where LVGL's label boxes go: Figma's text boxes are shorter than the fonts' lines,
+ * so each is placed to put the words' baseline where Figma's is. */
 #define HEADER_Y 23
 #define HEADER_TIGHT_Y 16      /* a tight header (no clock): the title's glyphs start about y 24 */
+#define HEADER_BIG_X 77
+#define HEADER_BIG_W 312
+#define HEADER_FOOT_Y 385      /* Big's pill, at the foot of the screen */
+#define SKY_D 52
+#define SKY_Y 24
+static const lv_font_t *const F_BIG_TITLE = &font_mon700_40;
+static const lv_font_t *const F_BIG_CLOCK = &font_pop500_24;
+
 void header_create(lv_obj_t *parent, header_t *h)
 {
     h->root = ui_box(parent);
-    h->tight = false;
+    h->tight = h->big = h->low = false;
+    h->sky_name[0] = 0;
     lv_obj_set_size(h->root, 340, LV_SIZE_CONTENT);
     lv_obj_set_pos(h->root, 63, HEADER_Y);
     lv_obj_set_flex_flow(h->root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(h->root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(h->root, 0, 0);
+    /* Figma "Sky": a bg/raised disc with the sun, the moon or the task's icon (32) in it */
+    h->sky = ui_box(h->root);
+    lv_obj_set_size(h->sky, SKY_D, SKY_D);
+    ui_style_card(h->sky, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+    h->sky_icon = ui_icon(h->sky, "sun", 32, C_STAR);
+    lv_obj_center(h->sky_icon);
+    ui_show(h->sky, false);
     h->clock = ui_label(h->root, F_HEADER_CLOCK, C_CLOCK, "");
     h->title = ui_label(h->root, F_TITLE, C_TEXT, "");
     lv_obj_set_style_max_width(h->title, 256, 0);
     lv_obj_set_style_text_align(h->title, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(h->title, LV_LABEL_LONG_WRAP);
     pill_create(h->root, &h->pill);
-    lv_obj_set_style_pad_ver(h->pill.root, 3, 0);    /* 38 high, like Figma's 4 px around a 30 px line */
-    lv_obj_set_style_margin_top(h->pill.root, 6, 0);
-    h->text = ui_label(h->root, F_BODY_P, C_TEXT_MUTED, "");
-    lv_obj_set_style_margin_top(h->text, 6, 0);
+    lv_obj_set_style_pad_ver(h->pill.root, 3, 0);
+    lv_obj_set_style_margin_top(h->pill.root, 10, 0);
+    h->text = ui_label(h->root, F_BODY_P, C_TEXT, "");
+    lv_obj_set_style_margin_top(h->text, 7, 0);
     lv_obj_set_style_max_width(h->text, 272, 0);
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
+    /* Big's pill, down at the foot of the screen (beside the column, not in it) */
+    pill_create(parent, &h->foot);
+    lv_obj_set_style_pad_ver(h->foot.root, 3, 0);
+    ui_show(h->foot.root, false);
 }
+
+void header_set_big(header_t *h, bool big) { h->big = big; }
+
+void header_set_sky(header_t *h, const char *icon)
+{
+    const char *name = icon ? icon : "";
+    if (!strcmp(name, h->sky_name)) return;
+    snprintf(h->sky_name, sizeof h->sky_name, "%s", name);
+    ui_show(h->sky, *name != 0);
+    if (!*name) return;
+    /* the moon iris; the sun, or a task's own icon (running late), amber */
+    uint32_t col = !strcmp(name, "moon") ? C_NIGHT : C_STAR;
+    ui_icon_set(h->sky_icon, name, 32);
+    ui_set_color(h->sky_icon, col);
+    lv_obj_center(h->sky_icon);
+}
+
+static void set_margin(lv_obj_t *o, int32_t m) { if (lv_obj_get_style_margin_top(o, 0) != m) lv_obj_set_style_margin_top(o, m, 0); }
 
 void header_set(header_t *h, const char *clock, const char *title, header_below_t below,
                 pill_tone_t tone, const char *icon, const char *text)
 {
-    bool c = clock && *clock, t = title && *title;
+    bool s = h->sky_name[0] != 0, c = clock && *clock && !s, t = title && *title, big = h->big;
     ui_show(h->clock, c);
     if (c) ui_set_text(h->clock, clock);
     ui_show(h->title, t);
+    /* the size first, then the words, so the lines are counted in the right font */
+    const lv_font_t *tf = big ? F_BIG_TITLE : F_TITLE;
+    if (lv_obj_get_style_text_font(h->title, 0) != tf) {
+        lv_obj_set_style_text_font(h->title, tf, 0);
+        lv_obj_set_style_text_font(h->clock, big ? F_BIG_CLOCK : F_HEADER_CLOCK, 0);
+        lv_obj_set_style_max_width(h->title, big ? HEADER_BIG_W : 256, 0);
+        lv_obj_set_style_text_line_space(h->title, big ? 40 - lv_font_get_line_height(F_BIG_TITLE) : 0, 0);   /* Figma: 40 px lines */
+        lv_obj_set_width(h->root, big ? HEADER_BIG_W : 340);
+        lv_obj_set_x(h->root, big ? HEADER_BIG_X : 63);
+    }
     if (t) ui_set_text(h->title, title);
-    /* the title's text box starts 20 px under the clock's (Figma: 18 px clock on a 24 px line, -4 gap:
-     * the title at y 43); with no title the pill sits right under the clock, clear of the wheel's
-     * pointer at y 90 */
-    int32_t title_gap = c ? 20 - lv_font_get_line_height(F_HEADER_CLOCK) : 0;
-    if (lv_obj_get_style_margin_top(h->title, 0) != title_gap) lv_obj_set_style_margin_top(h->title, title_gap, 0);
-    /* the pill alone (Figma Free time · Spin: clock and title hidden) sits 30 down, at y 53 */
-    int32_t pill_gap = !c && !t ? 30 : c && !t ? 0 : h->tight ? 2 : 6;
-    if (lv_obj_get_style_margin_top(h->pill.root, 0) != pill_gap) lv_obj_set_style_margin_top(h->pill.root, pill_gap, 0);
-    int32_t y = h->tight ? HEADER_TIGHT_Y : HEADER_Y;
+    bool two = false;
+    if (t && big && s) { lv_obj_update_layout(h->title); two = lv_obj_get_height(h->title) > lv_font_get_line_height(F_BIG_TITLE); }
+    int32_t y, title_gap = 0, pill_gap, text_gap;
+    if (s) {
+        /* the Sky at y 24, the title's text box at 84 (78 with two lines) */
+        y = SKY_Y;
+        title_gap = (two ? 72 : 78) - (SKY_Y + SKY_D);
+    } else if (big) {
+        y = c ? 22 : 49;                                           /* the clock's text at 27, the title's at 55 */
+        title_gap = c ? 49 - (22 + lv_font_get_line_height(F_BIG_CLOCK)) : 0;
+    } else if (h->tight) {
+        y = HEADER_TIGHT_Y;
+    } else if (c && !t) {
+        y = 24;                                                    /* the clock alone (Free time · Spin) */
+    } else {
+        y = c ? 32 : h->low ? 53 : 30;                             /* the clock's text at 31; a title alone at 31 (`low`: 54, the younger one-step screens) */
+        title_gap = c ? 50 - (32 + lv_font_get_line_height(F_HEADER_CLOCK)) : 0;
+    }
+    set_margin(h->title, title_gap);
+    pill_gap = big ? 0 : !c && !t ? 30 : c && !t ? 56 - (24 + lv_font_get_line_height(F_HEADER_CLOCK)) : h->tight ? 2 : 10;
+    text_gap = big ? 5 : 7;
+    set_margin(h->pill.root, pill_gap);
+    set_margin(h->text, text_gap);
     if (lv_obj_get_y(h->root) != y) lv_obj_set_y(h->root, y);
-    ui_show(h->pill.root, below == HEADER_PILL && text && *text);
+    /* Big's pill stands at the foot of the screen, out of the column */
+    bool pill = below == HEADER_PILL && text && *text, foot = big && pill;
+    ui_show(h->pill.root, pill && !foot);
+    ui_show(h->foot.root, foot);
     ui_show(h->text, below == HEADER_TEXT && text && *text);
-    if (below == HEADER_PILL && text && *text) pill_set(&h->pill, tone, icon, text);
+    if (pill) pill_set(foot ? &h->foot : &h->pill, tone, icon, text);
     if (below == HEADER_TEXT && text && *text) ui_set_text(h->text, text);
+    lv_obj_set_style_max_width(h->text, big ? HEADER_BIG_W : 272, 0);
+    if (foot) {
+        lv_obj_update_layout(h->foot.root);
+        lv_obj_set_pos(h->foot.root, CENTER - lv_obj_get_width(h->foot.root) / 2,
+                       HEADER_FOOT_Y + (38 - lv_obj_get_height(h->foot.root)) / 2);   /* Figma's 38 high pill, ours a little shorter: the same middle */
+    }
 }
 
 /* ================================================================ Hill */
@@ -438,7 +522,7 @@ lv_obj_t *page_dots_create(lv_obj_t *parent, int page)
     lv_obj_t *box = dots_build(parent);
     page_dots_set(box, page);
     lv_obj_update_layout(box);
-    lv_obj_set_pos(box, CENTER - lv_obj_get_width(box) / 2, 446);
+    lv_obj_set_pos(box, CENTER - lv_obj_get_width(box) / 2, 429);   /* Figma Rewards and Chores: 9 px under the band's top */
     return box;
 }
 
@@ -499,6 +583,19 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
     h->button_icon = lv_obj_get_child(h->button, 0);
     h->button_label = lv_obj_get_child(h->button, 1);
     tap_target(h->button, cb, HILL_TAP_BUTTON);
+    /* Round: the younger child's 72 picture button with a 3 px lime ring, its middle at y 403 */
+    h->round = ui_box(h->root);
+    lv_obj_set_size(h->round, 72, 72);
+    lv_obj_add_flag(h->round, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_set_pos(h->round, CENTER - 36, 404 - HILL_Y - 36);
+    ui_style_card(h->round, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+    lv_obj_set_style_border_width(h->round, 3, 0);
+    lv_obj_set_style_border_color(h->round, COL(C_ACTION), 0);
+    lv_obj_set_style_border_opa(h->round, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(h->round, COL(C_CHIP), LV_STATE_PRESSED);
+    h->round_icon = ui_icon(h->round, "game", 36, C_ACTION);
+    lv_obj_center(h->round_icon);
+    tap_target(h->round, cb, HILL_TAP_BUTTON);
     /* Text: a cream line in Body 22, no curve */
     h->text = ui_label(h->col, F_BODY_P, C_TEXT, "");
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
@@ -526,8 +623,9 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     ui_show(h->button, kind == HILL_BUTTON || kind == HILL_NEXT_BUTTON);
     ui_show(h->text, kind == HILL_TEXT);
     ui_show(h->sw, kind == HILL_SWITCH);
-    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON);
-    static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6 };
+    ui_show(h->round, kind == HILL_ROUND);
+    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON || kind == HILL_ROUND);
+    static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6, 0 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
     lv_obj_set_style_pad_row(h->col, kind == HILL_NEXT_BUTTON ? 4 : 8, 0);
     /* under the Next line (the wheel's Games) the button is a slim pill, so the wheel above stays
@@ -537,7 +635,8 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     lv_obj_set_style_pad_hor(h->button, slim ? 18 : 24, 0);
     lv_obj_set_style_text_font(h->button_label, slim ? F_LABEL : F_BUTTON, 0);
     if (fresh) {   /* what the hill says now rises into place */
-        lv_obj_t *shown = kind == HILL_NEXT ? h->next : kind == HILL_BUTTON ? h->button : kind == HILL_TEXT ? h->text : kind == HILL_SWITCH ? h->sw : NULL;
+        lv_obj_t *shown = kind == HILL_NEXT ? h->next : kind == HILL_BUTTON ? h->button : kind == HILL_TEXT ? h->text : kind == HILL_SWITCH ? h->sw
+                        : kind == HILL_ROUND ? h->round : NULL;
         if (shown) fx_rise(shown, 14, 60);
     }
     if (kind == HILL_NEXT) lv_obj_add_flag(h->root, LV_OBJ_FLAG_CLICKABLE);
@@ -559,6 +658,13 @@ void hill_set_button(hill_t *h, const char *icon, const char *label)
     ui_show(h->button_icon, icon && *icon);
     if (icon && *icon) ui_icon_set(h->button_icon, icon, 22);
     ui_set_text(h->button_label, label);
+}
+
+void hill_set_round(hill_t *h, const char *icon)
+{
+    hill_kind(h, HILL_ROUND);
+    ui_icon_set(h->round_icon, icon && *icon ? icon : "game", 36);
+    lv_obj_center(h->round_icon);
 }
 
 void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label)
@@ -808,12 +914,12 @@ void ring_set(lv_obj_t *ring, const ring_style_t *s)
 
 /* ================================================================ button cue (Playtime) */
 /* the cue's state lives in its user data: the ring (0..100) in the low byte, dark in bit 8. Its
- * box is just the arc at 1 o'clock (r 222-228, 293-307 degrees, round ends), so its breathing
+ * box is just the arc at 1 o'clock (r 224-230, on the timer's line, 293-307 degrees, round ends), so its breathing
  * redraws that corner and not the whole screen. */
-#define CUE_X 312
-#define CUE_Y 16
-#define CUE_W 66
-#define CUE_H 46
+#define CUE_X 310
+#define CUE_Y 12
+#define CUE_W 72
+#define CUE_H 52
 void cue_set(lv_obj_t *cue, uint8_t ring, bool dark)
 {
     intptr_t v = (intptr_t)ring | (dark ? 0x100 : 0);
@@ -836,8 +942,8 @@ static void cue_draw(lv_event_t *e)
     a.center.x = c.x1 + CENTER - CUE_X;
     a.center.y = c.y1 + CENTER - CUE_Y;
     a.rounded = 1;
-    a.radius = 228;
-    a.width = TIMER_W;
+    a.radius = 232;          /* Figma "Button cue": 9 px wide on the timer's line (227) */
+    a.width = 9;
     a.start_angle = 293;
     a.end_angle = 307;
     a.color = COL(cue_dark ? C_CHIP : C_ACTION);
@@ -864,7 +970,8 @@ lv_obj_t *cue_create(lv_obj_t *parent)
 }
 
 /* ================================================================ Side nav */
-/* Figma "Nav button": 54 px, bg/raised, a 26 px lime icon. */
+/* Figma "Nav button": 54 px, bg/raised, a 26 px lime icon. The younger child's "Nav button · Big":
+ * 72 px at (24, 197) and (370, 197), a 36 px icon. */
 lv_obj_t *side_button_create(lv_obj_t *parent, bool left, const char *icon)
 {
     lv_obj_t *b = ui_box(parent);
@@ -876,7 +983,20 @@ lv_obj_t *side_button_create(lv_obj_t *parent, bool left, const char *icon)
     lv_obj_set_ext_click_area(b, 8);
     lv_obj_t *i = ui_icon(b, icon, 26, C_ACTION);
     lv_obj_center(i);
+    lv_obj_set_user_data(b, (void *)(intptr_t)(left ? 1 : 0));
     return b;
+}
+
+void side_button_set_big(lv_obj_t *b, bool big, const char *icon)
+{
+    int32_t d = big ? 72 : 54;
+    if (lv_obj_get_width(b) == d) return;
+    bool left = (intptr_t)lv_obj_get_user_data(b) != 0;
+    lv_obj_set_size(b, d, d);
+    lv_obj_set_pos(b, left ? 24 : SCREEN_W - 24 - d, big ? 197 : 206);
+    lv_obj_t *i = lv_obj_get_child(b, 0);
+    ui_icon_set(i, icon, big ? 36 : 26);
+    lv_obj_center(i);
 }
 
 /* ================================================================ Note */
@@ -1047,11 +1167,16 @@ void bubble_create(lv_obj_t *parent, bubble_t *b)
     ui_style_card(b->root, C_PET, 20, 0, 0);
     lv_obj_set_style_pad_hor(b->root, 16, 0);
     lv_obj_set_style_pad_ver(b->root, 8, 0);
+    b->speaker = ui_icon(b->root, "volume", 20, C_ON_COLOR);
+    lv_obj_set_style_margin_right(b->speaker, 8, 0);
+    ui_show(b->speaker, false);
     b->label = ui_label(b->root, F_SPEECH, C_ON_COLOR, "");
     lv_obj_set_style_max_width(b->label, 160, 0);
     lv_label_set_long_mode(b->label, LV_LABEL_LONG_WRAP);
     bubble_hide(b);
 }
+
+void bubble_set_speaker(bubble_t *b, bool on) { ui_show(b->speaker, on); }
 
 /* How far from the middle the round screen reaches at row y, 6 px in from the rim. */
 static int32_t screen_half(int32_t y)
@@ -1080,21 +1205,18 @@ void bubble_say(bubble_t *b, const char *text, int32_t x, int32_t y)
     if (fresh && !lv_anim_get(b->root, NULL)) { fx_slide(b->root, 8, 0); fx_slide(b->tail, 8, 0); }
 }
 
-/* Beside Biscuit's head, to the right (his ears end about x 250 in the full room), and under
- * whatever the header shows: `below` is the lowest y the header reaches. */
-#define BUBBLE_X 292
-#define SIDE_X 388   /* the right side button's left edge */
+/* Figma "Speech" beside Biscuit's head: from x 246, its tail's tip at y 206; lower when the header
+ * reaches further down (20 px under `below`, the lowest y it reaches). It may cover the top of the
+ * side button, as in Figma. */
+#define BUBBLE_X 246
 void bubble_say_pet(bubble_t *b, const char *text, int32_t below, int32_t avoid_y)
 {
-    int32_t y = below + 12;
-    if (y < 120) y = 120;
+    (void)avoid_y;
     ui_set_text(b->label, text);
     lv_obj_update_layout(b->root);
-    int32_t w = lv_obj_get_width(b->root), hh = lv_obj_get_height(b->root);
-    /* low enough to meet the side button: keep left of it */
-    int32_t x = BUBBLE_X;
-    if (y + hh > avoid_y - 4 && x + w > SIDE_X - 8) x = SIDE_X - 8 - w;
-    bubble_say(b, text, x, y);
+    int32_t y = 206 - 12 - lv_obj_get_height(b->root);
+    if (y < below + 20) y = below + 20;
+    bubble_say(b, text, BUBBLE_X, y);
 }
 
 void bubble_say_top(bubble_t *b, const char *text, int32_t y)
@@ -1116,6 +1238,29 @@ void bubble_hide(bubble_t *b)
 {
     ui_reveal(b->root, false, b->top ? -8 : 8);
     ui_reveal(b->tail, false, b->top ? -8 : 8);
+}
+
+/* ================================================================ Star pips */
+lv_obj_t *star_pips_create(lv_obj_t *parent, int32_t d, int32_t step)
+{
+    lv_obj_t *row = ui_box(parent);
+    lv_obj_set_size(row, 4 * step + d, d);
+    for (int i = 0; i < 5; i++) {   /* the star a little inside its square, as Figma draws it */
+        int32_t sd = d * 5 / 6;
+        lv_obj_t *s = ui_icon(row, "star-fill", sd, C_HILL_LINE);
+        ui_icon_px(s, "star-fill", sd);
+        lv_obj_set_pos(s, i * step + (d - sd) / 2, (d - sd) / 2);
+    }
+    return row;
+}
+
+void star_pips_set(lv_obj_t *row, int shown, int lit)
+{
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t *s = lv_obj_get_child(row, i);
+        ui_show(s, i < shown);
+        ui_set_color(s, i < lit ? C_STAR : C_HILL_LINE);
+    }
 }
 
 /* ================================================================ Button */
@@ -1254,6 +1399,189 @@ lv_obj_t *note_create(lv_obj_t *parent, int32_t y)
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
     return l;
+}
+
+/* ================================================================ List rows */
+/* The row's parts carry what they are in their user data; the row's user data has its kind, its
+ * end, and whether it's the younger child's (bits). list_row_style sets size and places the parts
+ * for where the row is on the wheel. */
+enum { LPART_ICON = 1, LPART_TITLE, LPART_DETAIL, LPART_END, LPART_NOW, LPART_DASH };
+#define LROW_F_PIC 0x100
+#define LROW_F_BORDER 0x200
+
+static const lv_font_t *const F_ROW = &font_pop600_24;
+
+lv_obj_t *list_row_create(lv_obj_t *slot, lrow_kind_t kind, bool picture, const char *icon, const char *title,
+                          const char *detail, lrow_end_t end, bool checked)
+{
+    lv_obj_t *card = ui_box(slot);
+    lv_obj_set_size(card, 1, 1);
+    lv_obj_center(card);
+    uint32_t bg = C_RAISED, fg = C_TEXT, sub = C_TEXT_MUTED, icf = C_TEXT;
+    bool border = false;
+    switch (kind) {
+    case LROW_DONE: fg = sub = icf = C_TEXT_MUTED; break;
+    case LROW_NOW: sub = C_ACTION; border = true; break;
+    case LROW_NEXT: break;
+    case LROW_FREE: fg = sub = icf = C_DONE; border = true; break;
+    case LROW_CHORE: bg = C_SYSTEM; fg = sub = icf = C_ON_COLOR; break;
+    case LROW_CHORE_DONE: fg = icf = C_TEXT_MUTED; sub = C_DONE; break;
+    }
+    if (picture && kind == LROW_DONE) fg = icf = C_TEXT_MUTED;
+    ui_style_card(card, bg, LV_RADIUS_CIRCLE, 0, 0);
+    if (kind == LROW_NOW) {
+        lv_obj_set_style_border_width(card, picture ? 3 : 2, 0);
+        lv_obj_set_style_border_color(card, COL(C_ACTION), 0);
+        lv_obj_set_style_border_opa(card, LV_OPA_COVER, 0);
+    } else if (kind == LROW_FREE) {
+        /* a clear 2 px border keeps the parts where Now's outline puts them; the dashes go over it */
+        lv_obj_set_style_border_width(card, 2, 0);
+        lv_obj_set_style_border_opa(card, LV_OPA_TRANSP, 0);
+        lv_obj_t *o = dotted_outline_create(card, C_DONE, 999);
+        lv_obj_add_flag(o, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_add_flag(o, LV_OBJ_FLAG_USER_1);   /* the outline: its user data is its own */
+    }
+    lv_obj_t *ic = ui_icon(card, icon && *icon ? icon : "star-line", picture ? 72 : 48, icf);
+    lv_image_set_inner_align(ic, LV_IMAGE_ALIGN_CENTER);
+    lv_obj_set_user_data(ic, (void *)(intptr_t)LPART_ICON);
+    lv_obj_t *tt = ui_label(card, picture ? &font_pop600_20 : F_ROW, fg, title);
+    lv_label_set_long_mode(tt, LV_LABEL_LONG_DOT);
+    lv_obj_set_user_data(tt, (void *)(intptr_t)LPART_TITLE);
+    if (picture && kind == LROW_DONE) {   /* Figma Picture row · Done: the picture at 50 %, the name at 60 % */
+        lv_obj_set_style_image_opa(ic, LV_OPA_50, 0);
+        lv_obj_set_style_text_opa(tt, LV_OPA_60, 0);
+    }
+    if (!picture && detail) {
+        lv_obj_t *dt = ui_label(card, F_DETAIL, sub, detail);
+        lv_label_set_long_mode(dt, LV_LABEL_LONG_DOT);
+        lv_obj_set_height(dt, lv_font_get_line_height(F_DETAIL));
+        lv_obj_set_user_data(dt, (void *)(intptr_t)LPART_DETAIL);
+    }
+    if (end == LROW_END_CHECK) {
+        lv_obj_t *box = checkbox_create(card, 52, checked);
+        lv_obj_set_user_data(box, (void *)(intptr_t)LPART_END);
+    } else if (end == LROW_END_NOW && !picture) {
+        lv_obj_t *now = ui_label(card, F_LABEL, C_ACTION, "Now");
+        lv_obj_set_user_data(now, (void *)(intptr_t)LPART_NOW);
+    } else if (end == LROW_END_TICK) {
+        /* a 32 mint disc with a navy tick */
+        lv_obj_t *t = ui_box(card);
+        lv_obj_set_size(t, 32, 32);
+        ui_style_card(t, C_DONE, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_center(ui_icon(t, "check", 20, C_ON_COLOR));
+        lv_obj_set_user_data(t, (void *)(intptr_t)LPART_NOW);
+    }
+    lv_obj_set_user_data(card, (void *)(intptr_t)(kind | (end << 4) | (picture ? LROW_F_PIC : 0) | (border ? LROW_F_BORDER : 0)));
+    return card;
+}
+
+lv_obj_t *list_row_box(lv_obj_t *card)
+{
+    uint32_t n = lv_obj_get_child_count(card);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(card, (int32_t)i);
+        if (!lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1) && (intptr_t)lv_obj_get_user_data(c) == LPART_END) return c;
+    }
+    return NULL;
+}
+
+void list_row_mark_done(lv_obj_t *card)
+{
+    card_recolor(card, C_SYSTEM, C_RAISED, 360);
+    lv_obj_set_style_bg_color(card, COL(C_RAISED), LV_STATE_PRESSED);
+    uint32_t n = lv_obj_get_child_count(card);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(card, (int32_t)i);
+        if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1)) continue;
+        switch ((int)(intptr_t)lv_obj_get_user_data(c)) {
+        case LPART_ICON: case LPART_TITLE: ui_set_color(c, C_TEXT_MUTED); break;
+        case LPART_DETAIL: ui_set_text(c, "Done!"); ui_set_color(c, C_DONE); break;
+        case LPART_END: checkbox_tick(c); break;
+        }
+    }
+}
+
+const char *picture_icon(const char *icon, const char *title)
+{
+    if (!icon || (strcmp(icon, "clean") && strcmp(icon, "house") && strcmp(icon, "home"))) return icon;
+    char t[48];
+    size_t i = 0;
+    for (; title && title[i] && i < sizeof t - 1; i++) t[i] = (char)((title[i] >= 'A' && title[i] <= 'Z') ? title[i] + 32 : title[i]);
+    t[i] = 0;
+    return strstr(t, "desk") ? "pencil" : "sofa";
+}
+
+/* A checkbox drawn at d px whatever it was made at (its ring, fill and tick follow). */
+static void box_size(lv_obj_t *box, int32_t d)
+{
+    if (lv_obj_get_width(box) == d) return;
+    lv_obj_set_size(box, d, d);
+    lv_obj_t *fill = lv_obj_get_child(box, 0), *tick = lv_obj_get_child(box, 1);
+    if (fill) { lv_obj_set_size(fill, d, d); lv_obj_center(fill); }
+    if (tick) lv_obj_center(tick);
+}
+
+void list_row_style(lv_obj_t *card, float d)
+{
+    float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 2.0f);
+    intptr_t f = (intptr_t)lv_obj_get_user_data(card);
+    bool pic = f & LROW_F_PIC;
+    int32_t b = lv_obj_get_style_border_width(card, 0);
+    /* Center to Edge */
+    int32_t w = pic ? (int32_t)lroundf(400 - 72 * k) : (int32_t)lroundf(416 - 24 * k);
+    int32_t hc = pic ? (int32_t)lroundf(96 - 16 * k) : (int32_t)lroundf(79 - 5 * k);
+    int32_t pull = pic ? LROW_PIC_PULL : LROW_PULL;
+    int32_t ty = (int32_t)lroundf((d > 0 ? -1 : 1) * pull * fmaxf(0.0f, ad - 1.0f));
+    if (lv_obj_get_style_translate_y(card, 0) != ty) lv_obj_set_style_translate_y(card, ty, 0);
+    if (lv_obj_get_width(card) != w || lv_obj_get_height(card) != hc + 2 * b) {
+        lv_obj_set_size(card, w, hc + 2 * b);
+        int32_t cw = w - 2 * b;                                   /* the inside width */
+        int32_t in = pic ? (int32_t)lroundf(20 - 2 * k) : 24;      /* to the icon, inside the outline */
+        int32_t isz = pic ? (int32_t)lroundf(72 - 34 * k) : (int32_t)lroundf(48 - 4 * k);
+        int32_t box = pic ? (int32_t)lroundf(48 - 24 * k) : (int32_t)lroundf(52 - 4 * k);
+        int32_t tx = in + isz + (pic ? (int32_t)lroundf(16 - 2 * k) : 14);
+        int32_t rpad = pic ? (int32_t)lroundf(16 + 8 * k) : 16;
+        int32_t end_x = cw - rpad - box;
+        bool has_end = ((f >> 4) & 0xF) != LROW_END_NONE;
+        uint32_t n = lv_obj_get_child_count(card);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(card, (int32_t)i);
+            if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1)) { lv_obj_set_pos(c, -b, -b); lv_obj_set_size(c, w, hc + 2 * b); continue; }   /* the dashed outline */
+            switch ((int)(intptr_t)lv_obj_get_user_data(c)) {
+            case LPART_ICON: {
+                lv_obj_set_size(c, isz, isz);
+                lv_obj_set_pos(c, in, (hc - isz) / 2);
+                const lv_image_dsc_t *src = lv_image_get_src(c);
+                int32_t sw = src ? (int32_t)src->header.w : isz;
+                lv_image_set_pivot(c, sw / 2, sw / 2);
+                lv_image_set_scale(c, (uint32_t)(256 * isz / (sw ? sw : isz)));
+                break;
+            }
+            case LPART_TITLE: {
+                int32_t tw = (has_end ? end_x - 14 : cw - in) - tx;
+                lv_obj_set_width(c, tw);
+                lv_obj_update_layout(c);
+                int32_t lh = lv_obj_get_height(c);
+                lv_obj_set_pos(c, tx, pic ? (hc - lh) / 2 : (int32_t)lroundf(10 - 2 * k));
+                break;
+            }
+            case LPART_DETAIL:
+                lv_obj_set_width(c, (has_end ? end_x - 14 : cw - in) - tx);
+                lv_obj_set_pos(c, tx, (int32_t)lroundf(40 - 2 * k));
+                break;
+            case LPART_END:
+                box_size(c, box);
+                lv_obj_set_pos(c, end_x, (hc - box) / 2);
+                break;
+            case LPART_NOW:
+                lv_obj_set_pos(c, cw - rpad - lv_obj_get_width(c), (hc - lv_obj_get_height(c)) / 2);
+                break;
+            }
+        }
+    }
+    /* the row fades as one: 70 % (younger 60 %) a row away, then out */
+    float edge = pic ? 0.4f : 0.3f;
+    ui_row_fade(card, (lv_opa_t)(255 * (1.0f - edge * k) * fmaxf(0.0f, 1.0f - far / 0.6f)));
 }
 
 /* ================================================================ Checkbox */
