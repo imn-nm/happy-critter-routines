@@ -9,7 +9,7 @@
 #define MAX_OWNERS 8
 #define TAP_SLOP 24        /* px: a finger that travelled further was a drag, not a tap */
 
-typedef struct { lv_obj_t *owner; swipe_cb_t cb; void *user; } entry_t;
+typedef struct { lv_obj_t *owner; swipe_cb_t cb; void *user; bool keeps_top; } entry_t;
 
 static entry_t owners[MAX_OWNERS];
 static swipe_cb_t base;
@@ -35,8 +35,14 @@ static void forget(lv_event_t *e)
 void swipe_add(lv_obj_t *owner, swipe_cb_t cb, void *user)
 {
     if (find(owner) >= 0 || nowners == MAX_OWNERS) return;
-    owners[nowners++] = (entry_t){ owner, cb, user };
+    owners[nowners++] = (entry_t){ owner, cb, user, false };
     lv_obj_add_event_cb(owner, forget, LV_EVENT_DELETE, NULL);
+}
+
+void swipe_keep_top(lv_obj_t *owner)
+{
+    int i = find(owner);
+    if (i >= 0) owners[i].keeps_top = true;
 }
 
 typedef struct { int dir; lv_point_t start; lv_obj_t *owner; } pending_t;
@@ -97,14 +103,16 @@ static void on_indev(lv_event_t *e)
         start_ms = lv_tick_get();
         swallow = false;
         scrolled = false;
-        pulling = pull && start.y <= SWIPE_PULL_EDGE;
+        lv_obj_t *top = topmost();
+        int k = top ? find(top) : -1;
+        pulling = pull && start.y <= SWIPE_PULL_EDGE && !(k >= 0 && owners[k].keeps_top);
         pulled = false;
         if (pulling) {
             if (!pull_timer) pull_timer = lv_timer_create(pull_follow, 16, indev);
             lv_timer_set_user_data(pull_timer, indev);
             lv_timer_resume(pull_timer);
         }
-        dragging = drag && !topmost() && !pulling;
+        dragging = drag && !top && !pulling;
     } else if (code == LV_EVENT_PRESSING) {
         if (lv_indev_get_scroll_obj(indev)) scrolled = true;
         if (!dragging) return;

@@ -42,3 +42,6 @@ lv_point_t swipe_start(void);
 #define SWIPE_PULL_EDGE 64   /* the clock and the top of the title: a quick flick is first seen a little below where it began */
 typedef void (*swipe_pull_cb_t)(int32_t dy, bool end);
 void swipe_set_pull(swipe_pull_cb_t cb);
+/* While `owner` (already given swipes) is the topmost screen, the top edge is its own: a sheet that
+ * is pulled down to put it away (the schedule) gets the press, and the controls wait. */
+void swipe_keep_top(lv_obj_t *owner);

@@ -259,6 +259,10 @@ typedef enum { LROW_END_NONE, LROW_END_CHECK, LROW_END_NOW, LROW_END_TICK } lrow
 /* A row in a wheel slot; `picture`: the younger child's. Sized by list_row_style. */
 lv_obj_t *list_row_create(lv_obj_t *slot, lrow_kind_t kind, bool picture, const char *icon, const char *title,
                           const char *detail, lrow_end_t end, bool checked);
+/* The younger child's My day: narrower rows (Center 352, Edge 296), so the picture and the name sit
+ * nearer the middle, and the names bigger (Poppins SemiBold 28, over two lines when they must; 24
+ * when a word wouldn't fit a row away). Right after list_row_create. */
+void list_row_set_day(lv_obj_t *card);
 /* For wheel_list_t.style: d is how many rows the row is from the line. */
 void list_row_style(lv_obj_t *card, float d);
 /* The row's Checkbox, or NULL. */
@@ -277,9 +281,12 @@ const char *picture_icon(const char *icon, const char *title);
 
 /* ---- motion shared by every move on the Circle ---- */
 /* ui_path_out: quick off the mark, a soft landing (a cubic ease-out, snappier than LVGL's).
- * ui_path_settle: lands a touch past the mark and settles back (about 3 %): rows, ticks, pills. */
+ * ui_path_settle: lands a touch past the mark and settles back (about 3 %): rows, ticks, pills.
+ * ui_path_in_out: a gentle start and a soft landing (quadratic): a whole screen pushed in, which the
+ * board draws in only a few frames. */
 int32_t ui_path_out(const lv_anim_t *a);
 int32_t ui_path_settle(const lv_anim_t *a);
+int32_t ui_path_in_out(const lv_anim_t *a);
 /* ui_path_spring: a damped spring, two small bounces (pops, things that arrive with weight). */
 int32_t ui_path_spring(const lv_anim_t *a);
 /* ui_show with motion: coming on, it fades in and rises `dy` px and settles; going off, it fades

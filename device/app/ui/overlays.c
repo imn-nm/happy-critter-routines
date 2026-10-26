@@ -399,6 +399,7 @@ static void sched_row(lv_obj_t *slot, const srow_t *r)
     bool just = r->state == ROW_CHORE_DONE && r->chore == sc.just;
     bool checked = (r->state == ROW_DONE || r->state == ROW_CHORE_DONE) && !just;
     lv_obj_t *card = list_row_create(slot, kind, sc.picture, icon, task, detail, end, checked);
+    if (sc.picture) list_row_set_day(card);   /* narrower, the names bigger */
     if (just) row_just_done(card, list_row_box(card));
     if (r->chore >= 0 || r->state == ROW_NOW || !sc.picture) { row_tappable(card, r); return; }
     /* the younger child's other rows: a tap reads the name out */
@@ -447,8 +448,9 @@ static void sched_touch(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_point_t pt;
     lv_indev_get_point(lv_indev_active(), &pt);
-    /* the top edge itself pulls the controls down (swipe_set_pull); under it, the sheet */
-    if (code == LV_EVENT_PRESSED) { sc.press_y = pt.y; sc.sheet_drag = pt.y < SCHED_TOP && pt.y > SWIPE_PULL_EDGE; return; }
+    /* the whole band over the list, the very top edge too: the controls wait until the sheet is away
+     * (swipe_keep_top) */
+    if (code == LV_EVENT_PRESSED) { sc.press_y = pt.y; sc.sheet_drag = pt.y < SCHED_TOP; return; }
     if (code == LV_EVENT_PRESSING) {
         if (sc.sheet_drag && sched) { int32_t dy = pt.y - sc.press_y; lv_obj_set_y(sched, dy > 0 ? dy : 0); backdrop_follow(dy > 0 ? dy : 0); }
         return;
@@ -478,6 +480,7 @@ void schedule_open(const day_plan_t *p, const logic_now_t *n, int now_min, bool 
 {
     lv_obj_t *o = open_overlay(&sched, false);
     swipe_add(o, sched_swipe, NULL);
+    swipe_keep_top(o);   /* a pull from the top edge brings the sheet down, not the controls */
     lv_obj_add_event_cb(o, sched_touch, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(o, sched_deleted, LV_EVENT_DELETE, NULL);
     memset(&sc, 0, sizeof sc);

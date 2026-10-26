@@ -260,15 +260,23 @@ static void shelf_pic(const day_reward_t *rd, int idx, int stars, bool just)
     lv_obj_t *ic = ui_icon(disc, reward_icon(rd->icon), 72, fg);
     ui_icon_px(ic, reward_icon(rd->icon), 71);
     lv_obj_center(ic);
+    /* the name on one line over the pips, or over two (smaller) when it must, the two together
+     * centred on the circle */
     lv_obj_t *name = ui_label(row, &font_pop600_24, fg, rd->title);
-    ui_label_fit(name, &font_pop600_24, F_ITEM, 238, 1);   /* one line over the pips */
+    int lines = ui_label_fit(name, &font_pop600_24, F_ITEM, 238, 2);
     lv_obj_set_width(name, 238);
-    lv_obj_set_pos(name, 131, 26 + (lv_font_get_line_height(&font_pop600_24) - lv_font_get_line_height(lv_obj_get_style_text_font(name, 0))) / 2);
+    int32_t name_y = 26 + (lv_font_get_line_height(&font_pop600_24) - lv_font_get_line_height(lv_obj_get_style_text_font(name, 0))) / 2, pips_y = 64;
+    if (lines > 1) {
+        int32_t nh = lines * (lv_font_get_line_height(F_ITEM) + UI_FIT_SPACE) - UI_FIT_SPACE;   /* as ui_label_fit sets it */
+        name_y = (91 - (nh + 4 + 24)) / 2;
+        pips_y = name_y + nh + 4;
+    }
+    lv_obj_set_pos(name, 131, name_y);
     int cost = rd->cost > 0 ? rd->cost : 1, have = stars < cost ? stars : cost;
     int shown = cost < 5 ? cost : 5, lit = cost <= 5 ? have : (have * 5) / cost;
     lv_obj_t *pips = star_pips_create(row, 24, 27);
     star_pips_set(pips, shown, asked ? shown : lit);
-    lv_obj_set_pos(pips, 131, 64);
+    lv_obj_set_pos(pips, 131, pips_y);
     if (asked || can) {
         lv_obj_t *b = ui_box(row);
         lv_obj_set_size(b, 61, 61);

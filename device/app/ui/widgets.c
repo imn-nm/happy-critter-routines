@@ -636,7 +636,7 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     ui_show(h->text, kind == HILL_TEXT);
     ui_show(h->sw, kind == HILL_SWITCH);
     ui_show(h->round, kind == HILL_ROUND);
-    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON || kind == HILL_ROUND);
+    ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON);   /* the round game pad stands on the room */
     static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6, 0 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
     lv_obj_set_style_pad_row(h->col, kind == HILL_NEXT_BUTTON ? 4 : 8, 0);
@@ -1420,6 +1420,9 @@ lv_obj_t *note_create(lv_obj_t *parent, int32_t y)
 enum { LPART_ICON = 1, LPART_TITLE, LPART_DETAIL, LPART_END, LPART_NOW, LPART_DASH };
 #define LROW_F_PIC 0x100
 #define LROW_F_BORDER 0x200
+#define LROW_F_DAY 0x400
+#define LROW_DAY_W 352      /* the younger child's My day: Center */
+#define LROW_DAY_EDGE 296   /* and Edge */
 
 static const lv_font_t *const F_ROW = &font_pop600_24;
 
@@ -1487,6 +1490,41 @@ lv_obj_t *list_row_create(lv_obj_t *slot, lrow_kind_t kind, bool picture, const 
     return card;
 }
 
+/* The widest word of `t` in `font`. */
+static int32_t widest_word(const char *t, const lv_font_t *font)
+{
+    int32_t best = 0;
+    while (*t) {
+        char w[48];
+        size_t n = 0;
+        while (*t == ' ') t++;
+        while (*t && *t != ' ') { if (n < sizeof w - 1) w[n++] = *t; t++; }
+        w[n] = 0;
+        if (!n) break;
+        lv_point_t sz;
+        lv_text_get_size(&sz, w, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x > best) best = sz.x;
+    }
+    return best;
+}
+
+void list_row_set_day(lv_obj_t *card)
+{
+    intptr_t f = (intptr_t)lv_obj_get_user_data(card) | LROW_F_DAY;
+    lv_obj_set_user_data(card, (void *)f);
+    /* the name's room a row away, where it is narrowest (as list_row_style lays it out) */
+    int32_t b = lv_obj_get_style_border_width(card, 0), cw = LROW_DAY_EDGE - 2 * b, tx = 18 + 38 + 14;
+    int32_t room = (((f >> 4) & 0xF) != LROW_END_NONE ? cw - 24 - 24 - 14 : cw - 18) - tx;
+    uint32_t n = lv_obj_get_child_count(card);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(card, (int32_t)i);
+        if (lv_obj_has_flag(c, LV_OBJ_FLAG_USER_1) || (intptr_t)lv_obj_get_user_data(c) != LPART_TITLE) continue;
+        const lv_font_t *font = widest_word(lv_label_get_text(c), &font_pop600_28) <= room ? &font_pop600_28 : &font_pop600_24;
+        lv_obj_set_style_text_font(c, font, 0);
+        lv_obj_set_style_text_line_space(c, UI_FIT_SPACE, 0);
+    }
+}
+
 lv_obj_t *list_row_box(lv_obj_t *card)
 {
     uint32_t n = lv_obj_get_child_count(card);
@@ -1537,10 +1575,11 @@ void list_row_style(lv_obj_t *card, float d)
 {
     float ad = fabsf(d), k = fminf(ad, 1.0f), far = fmaxf(0.0f, ad - 2.0f);
     intptr_t f = (intptr_t)lv_obj_get_user_data(card);
-    bool pic = f & LROW_F_PIC;
+    bool pic = f & LROW_F_PIC, day = f & LROW_F_DAY;
     int32_t b = lv_obj_get_style_border_width(card, 0);
     /* Center to Edge */
-    int32_t w = pic ? (int32_t)lroundf(400 - 72 * k) : (int32_t)lroundf(416 - 24 * k);
+    int32_t w = day ? (int32_t)lroundf(LROW_DAY_W - (LROW_DAY_W - LROW_DAY_EDGE) * k)
+              : pic ? (int32_t)lroundf(400 - 72 * k) : (int32_t)lroundf(416 - 24 * k);
     int32_t hc = pic ? (int32_t)lroundf(96 - 16 * k) : (int32_t)lroundf(79 - 5 * k);
     int32_t pull = pic ? LROW_PIC_PULL : LROW_PULL;
     int32_t ty = (int32_t)lroundf((d > 0 ? -1 : 1) * pull * fmaxf(0.0f, ad - 1.0f));
@@ -1572,8 +1611,14 @@ void list_row_style(lv_obj_t *card, float d)
             case LPART_TITLE: {
                 int32_t tw = (has_end ? end_x - 14 : cw - in) - tx;
                 lv_obj_set_width(c, tw);
+                if (day) lv_obj_set_height(c, LV_SIZE_CONTENT);
                 lv_obj_update_layout(c);
                 int32_t lh = lv_obj_get_height(c);
+                if (day) {   /* two lines at most */
+                    const lv_font_t *font = lv_obj_get_style_text_font(c, 0);
+                    int32_t two = 2 * lv_font_get_line_height(font) + UI_FIT_SPACE;
+                    if (lh > two) lv_obj_set_height(c, lh = two);
+                }
                 lv_obj_set_pos(c, tx, pic ? (hc - lh) / 2 : (int32_t)lroundf(10 - 2 * k));
                 break;
             }
@@ -1646,6 +1691,12 @@ int32_t ui_path_settle(const lv_anim_t *a)
     const float c1 = 0.9f, c3 = c1 + 1.0f;   /* easeOutBack, softened: peaks 3 % past the mark */
     float u = path_t(a) - 1.0f;
     return path_mix(a, 1.0f + c3 * u * u * u + c1 * u * u);
+}
+
+int32_t ui_path_in_out(const lv_anim_t *a)
+{
+    float t = path_t(a), u = 2.0f - 2.0f * t;
+    return path_mix(a, t < 0.5f ? 2.0f * t * t : 1.0f - u * u / 2.0f);
 }
 
 int32_t ui_path_spring(const lv_anim_t *a)
@@ -2041,10 +2092,32 @@ static void run_anim(lv_obj_t *o, lv_anim_exec_xcb_t exec, int32_t v0, int32_t v
     lv_anim_start(&a);
 }
 
+/* A screen pushed in waits off to the right for the frame that first draws it before it slides:
+ * building it (Playtime's stage, its games) and drawing it take a while on the board, and a slide
+ * timed from before that is first seen half way in. */
+static lv_obj_t *push_waiting;
+static lv_timer_t *push_timer;
+static void push_drawn(lv_event_t *e);
+
+static void push_go(void)
+{
+    lv_display_t *d = lv_display_get_default();
+    if (d) lv_display_remove_event_cb_with_user_data(d, push_drawn, NULL);
+    if (push_timer) { lv_timer_delete(push_timer); push_timer = NULL; }
+    lv_obj_t *o = push_waiting;
+    push_waiting = NULL;
+    if (o) run_anim(o, anim_x, SCREEN_W, 0, 360, ui_path_in_out, NULL);
+}
+
+static void push_drawn(lv_event_t *e) { (void)e; push_go(); }
+static void push_late(lv_timer_t *t) { (void)t; push_timer = NULL; push_go(); }   /* no frame came (the screen asleep) */
+static void push_deleted(lv_event_t *e) { if (lv_event_get_target(e) == push_waiting) push_waiting = NULL; }
+
 static bool leaving(lv_obj_t *o)
 {
     if (lv_obj_has_flag(o, LV_OBJ_FLAG_USER_1)) return true;
     lv_obj_add_flag(o, LV_OBJ_FLAG_USER_1);
+    if (o == push_waiting) push_waiting = NULL;
     lv_anim_delete(o, anim_x);
     lv_anim_delete(o, anim_opa);
     lv_anim_delete(o, anim_ty);
@@ -2054,8 +2127,14 @@ static bool leaving(lv_obj_t *o)
 void overlay_enter_push(lv_obj_t *o)
 {
     if (!o) return;
+    if (push_waiting) push_go();   /* one already waiting goes now */
     lv_obj_set_x(o, SCREEN_W);
-    run_anim(o, anim_x, SCREEN_W, 0, 340, ui_path_out, NULL);
+    push_waiting = o;
+    lv_obj_add_event_cb(o, push_deleted, LV_EVENT_DELETE, NULL);
+    lv_display_t *d = lv_display_get_default();
+    if (d) lv_display_add_event_cb(d, push_drawn, LV_EVENT_REFR_READY, NULL);
+    push_timer = lv_timer_create(push_late, 300, NULL);
+    lv_timer_set_repeat_count(push_timer, 1);
 }
 
 static void rise_done(lv_anim_t *a)
