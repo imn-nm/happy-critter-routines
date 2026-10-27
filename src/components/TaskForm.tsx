@@ -454,10 +454,10 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       // A must-finish task never gives up its own time.
       latePolicy: 'keep',
       // On by default with Must finish (the full time runs from when the
-      // child really begins), and it goes with it.
+      // child really begins), and it goes with it, unless the parent set it.
       needsStart: on
         ? (needsStartTouched ? formData.needsStart : true)
-        : (ownStartTap ? formData.needsStart : false),
+        : (ownStartTap || needsStartTouched ? formData.needsStart : false),
     });
   // "Keep at least" must be shorter than the task itself; a 5-minute task
   // has nothing to shorten to, so it simply gives up its time.
@@ -1071,9 +1071,9 @@ const TaskForm = ({ task, onSave, onCancel, onDelete, isEdit = false, currentDat
       onCheckedChange={(on) => { setNeedsStartTouched(true); setFormData({ ...formData, needsStart: on }); }}
     />
   );
-  // The Start tap sits under Must press Done, shown only while it's on (or
-  // when an older task already waits for one).
-  const showStartTap = !isFun && !isEvent && !isWants && (mustFinish || formData.needsStart);
+  // The Start tap sits under Must press Done, for any Needs to (user,
+  // 2026-10-26: it hid until Must press Done was on, so it couldn't be found).
+  const showStartTap = !isFun && !isEvent && !isWants;
 
   // === The summary: the form itself. It starts with blanks to fill in;
   // every lime part opens its own small picker. ===
