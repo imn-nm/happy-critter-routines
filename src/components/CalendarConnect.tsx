@@ -32,8 +32,8 @@ const CalendarConnect = () => {
             Connected as <span className="text-focus-lavender">{status?.google_email ?? 'Google'}</span>
           </p>
           <p className="text-12 text-focus-muted">
-            Holidays and day notes are pushed to a calendar this app owns. Your other Google
-            calendars are untouched.
+            Your appointments, the kids' events, holidays and day notes go to a calendar this
+            app owns. Your other Google calendars are untouched.
           </p>
           {lastSync && (lastSync.ok ? (
             <p className="text-12 text-focus-muted">

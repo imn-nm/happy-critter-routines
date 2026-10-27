@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useHousehold } from '@/hooks/useHousehold';
 import { toast } from 'sonner';
 import { calendarErrorMessage, recordCalendarSync } from '@/utils/calendarSyncStatus';
+import { scheduleCalendarAutoSync } from '@/utils/calendarAutoSync';
 
 const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 
@@ -102,6 +103,9 @@ export const useGoogleCalendar = () => {
           if (error) throw error;
           qc.invalidateQueries({ queryKey: ['google_calendar_status'] });
           toast.success('Google Calendar connected');
+          // Push now: whatever was added while the old sign-in had expired
+          // goes up straight away, not at the next edit.
+          scheduleCalendarAutoSync(pendingHouseholdId);
         } catch (e: any) {
           toast.error(e?.message ?? 'Failed to connect calendar');
         }
