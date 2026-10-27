@@ -125,6 +125,12 @@ export const useGoogleCalendar = () => {
     },
     onSuccess: (data: any) => {
       if (household) recordCalendarSync(household.id, true);
+      if (data?.more && household) {
+        // It ran short of time: the rest go up on their own.
+        scheduleCalendarAutoSync(household.id);
+        toast.success(`Synced ${data?.synced ?? 0} events. The rest follow in a moment.`);
+        return;
+      }
       toast.success(`Synced ${data?.synced ?? 0} events to Google Calendar`);
     },
     onError: async (e: unknown) => {

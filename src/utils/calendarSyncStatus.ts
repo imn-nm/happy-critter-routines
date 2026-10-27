@@ -52,6 +52,8 @@ export const calendarErrorMessage = async (e: unknown): Promise<string> => {
   }
   if (/invalid_grant|refresh failed|unauthor|expired|revoked/i.test(message)) {
     message = 'Google stopped letting us update this calendar. Reconnect to fix it.';
+  } else if (/rateLimitExceeded|rate limit/i.test(message)) {
+    message = 'Google asked us to slow down. Try Sync Now again in a minute.';
   }
   return message;
 };

@@ -22,8 +22,13 @@ export const scheduleCalendarAutoSync = (householdId?: string | null) => {
     // .catch() alone never saw a failed sync.
     supabase.functions
       .invoke('google-calendar-sync', { body: { household_id: householdId } })
-      .then(async ({ error }) => {
-        if (!error) return recordCalendarSync(householdId, true);
+      .then(async ({ data, error }) => {
+        if (!error) {
+          recordCalendarSync(householdId, true);
+          // It ran short of time with events still to send: carry on.
+          if (data?.more) scheduleCalendarAutoSync(householdId);
+          return;
+        }
         const message = await calendarErrorMessage(error);
         if (!/not connected/i.test(message)) recordCalendarSync(householdId, false, message);
       })

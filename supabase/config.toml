@@ -4,3 +4,8 @@ project_id = "xbtgkklhdhgwxtzbcvgd"
 # not a signed-in user's JWT.
 [functions.mytoki-device]
 verify_jwt = false
+
+# Called by a signed-in parent. Said out loud: a redeploy keeps whatever the
+# function had, and it was once deployed without the check by mistake.
+[functions.google-calendar-sync]
+verify_jwt = true

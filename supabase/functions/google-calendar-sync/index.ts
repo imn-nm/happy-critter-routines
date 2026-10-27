@@ -8,12 +8,18 @@
 // Strategy:
 //   * Pull current holidays + day_notes + parent_events + event tasks for
 //     every child in the household.
-//   * For each connected parent: refresh their token, upsert events on their
-//     calendar (per-parent event-id mappings), delete events whose source is gone.
+//   * For each connected parent: refresh their token, write the events that
+//     changed since the last sync on their calendar (per-parent event-id
+//     mappings, each with a fingerprint of what was sent), delete events whose
+//     source is gone.
 //   * One parent's stale token doesn't block the other's sync.
+//   * Google refuses a burst of writes, so they're paced and retried
+//     (_shared/google.ts). A sync that runs short of time stops between
+//     writes and answers `more: true`; the next one carries on from there.
 
 import {
   addOneDay,
+  type CalendarEventInput,
   corsHeaders,
   deleteEvent,
   refreshAccessToken,
@@ -49,8 +55,21 @@ interface ParentEventRow {
 // so timed appointments sync as Pacific wall-clock times.
 const APP_TIME_ZONE = 'America/Los_Angeles';
 
+// Edge functions are stopped at 150 s; stop writing well before that (a
+// retried write can wait up to ~30 s).
+const TIME_BUDGET_MS = 100_000;
+
+/** One event a parent's calendar should hold, keyed by its source row. */
+interface Wanted {
+  table: string;
+  id: string;
+  input: CalendarEventInput;
+  fingerprint: string;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  const deadline = Date.now() + TIME_BUDGET_MS;
 
   try {
     const { household_id } = await req.json();
@@ -103,20 +122,23 @@ Deno.serve(async (req) => {
     // A failed read must not look like "every event was deleted".
     if (tErr) throw tErr;
     const childEvents = await childEventEntries((eventTasks ?? []) as EventTaskRow[], childNames, APP_TIME_ZONE);
+    const wanted = await wantedEvents({
+      holidays: (holidays ?? []) as HolidayRow[],
+      notes: (notes ?? []) as DayNoteRow[],
+      events: (events ?? []) as ParentEventRow[],
+      childEvents,
+      childNames,
+    });
 
     let callerSynced = 0;
+    let more = false;
     const errors: string[] = [];
 
     for (const conn of conns) {
       try {
-        const synced = await syncConnection(admin, household_id, conn, {
-          holidays: (holidays ?? []) as HolidayRow[],
-          notes: (notes ?? []) as DayNoteRow[],
-          events: (events ?? []) as ParentEventRow[],
-          childEvents,
-          childNames,
-        });
-        if (conn.user_id === userId) callerSynced = synced;
+        const result = await syncConnection(admin, household_id, conn, wanted, deadline);
+        if (conn.user_id === userId) callerSynced = result.synced;
+        more ||= result.more;
       } catch (e) {
         const msg = String((e as any)?.message ?? e);
         console.error(`sync failed for user ${conn.user_id}:`, msg);
@@ -127,7 +149,7 @@ Deno.serve(async (req) => {
     }
 
     if (errors.length) return json({ error: errors[0] }, 400);
-    return json({ synced: callerSynced });
+    return json({ synced: callerSynced, more });
   } catch (e) {
     // Log server-side too — the client's generic "non-2xx" error hides the
     // real cause (e.g. Google refusing a stale refresh token) otherwise.
@@ -136,23 +158,98 @@ Deno.serve(async (req) => {
   }
 });
 
-async function syncConnection(
-  admin: any,
-  household_id: string,
-  conn: any,
-  sources: {
-    holidays: HolidayRow[];
-    notes: DayNoteRow[];
-    events: ParentEventRow[];
-    childEvents: CalendarEntry[];
-    childNames: Map<string, string>;
-  },
-): Promise<number> {
+/** Every event the calendars should hold, each with a fingerprint of what's sent. */
+async function wantedEvents(sources: {
+  holidays: HolidayRow[];
+  notes: DayNoteRow[];
+  events: ParentEventRow[];
+  childEvents: CalendarEntry[];
+  childNames: Map<string, string>;
+}): Promise<Wanted[]> {
   // "Milo · Dentist" — tag every event with whose child it belongs to.
   const tagged = (childId: string, title: string) => {
     const name = sources.childNames.get(childId);
     return name ? `${name} · ${title}` : title;
   };
+  const list: Omit<Wanted, 'fingerprint'>[] = [];
+
+  for (const h of sources.holidays) {
+    list.push({ table: 'holidays', id: h.id, input: {
+      summary: tagged(h.child_id, h.name),
+      description: h.description ?? undefined,
+      startDate: h.date,
+      endDate: addOneDay(h.end_date ?? h.date),
+    } });
+  }
+
+  for (const n of sources.notes) {
+    list.push({ table: 'day_notes', id: n.id, input: {
+      summary: tagged(n.child_id, n.text.split('\n')[0].slice(0, 200) || 'Note'),
+      description: n.text,
+      startDate: n.date,
+      endDate: addOneDay(n.date),
+    } });
+  }
+
+  for (const p of sources.events) {
+    // Timed appointments sync as 1-hour events at the app's Pacific
+    // wall-clock time; untimed ones sync as all-day events.
+    const timed = p.time
+      ? (() => {
+          const hhmm = p.time!.slice(0, 5);
+          const [h, m] = hhmm.split(':').map(Number);
+          const endMinutes = h * 60 + m + 60;
+          const endH = Math.floor(endMinutes / 60);
+          // Clamp at midnight rather than spilling into an invalid 24:xx time.
+          const end = endH >= 24
+            ? '23:59'
+            : `${String(endH).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+          return {
+            startDateTime: `${p.date}T${hhmm}:00`,
+            endDateTime: `${p.date}T${end}:00`,
+            timeZone: APP_TIME_ZONE,
+          };
+        })()
+      : {};
+    list.push({ table: 'parent_events', id: p.id, input: {
+      summary: tagged(p.child_id, p.title),
+      description: p.notes ?? undefined,
+      startDate: p.date,
+      endDate: addOneDay(p.date),
+      ...timed,
+    } });
+  }
+
+  // Children's events: timed, and weekly when they repeat.
+  for (const e of sources.childEvents) {
+    list.push({ table: 'tasks', id: e.key, input: {
+      summary: e.summary,
+      // Empty rather than left out: Google keeps a field a PATCH leaves out.
+      description: e.description ?? '',
+      startDate: e.date,
+      endDate: addOneDay(e.date),
+      startDateTime: `${e.date}T${e.start}:00`,
+      endDateTime: `${e.date}T${e.end}:00`,
+      timeZone: APP_TIME_ZONE,
+      recurrence: e.recurrence,
+    } });
+  }
+
+  return Promise.all(list.map(async w => ({ ...w, fingerprint: await fingerprintOf(w.input) })));
+}
+
+async function fingerprintOf(input: CalendarEventInput): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(JSON.stringify(input))));
+  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function syncConnection(
+  admin: any,
+  household_id: string,
+  conn: any,
+  wanted: Wanted[],
+  deadline: number,
+): Promise<{ synced: number; more: boolean }> {
   const userId = conn.user_id as string;
 
   // Ensure this parent's access token is fresh.
@@ -175,138 +272,52 @@ async function syncConnection(
 
   const calendarId = conn.calendar_id as string;
 
-  // This parent's existing event mappings.
-  const { data: mappings } = await admin
+  // This parent's existing event mappings. A failed read must not look like
+  // "nothing synced yet", which would add every event a second time.
+  const { data: mappings, error: mErr } = await admin
     .from('google_calendar_events')
     .select('*')
     .match({ household_id, user_id: userId });
+  if (mErr) throw mErr;
 
-  type Key = string;
-  const keyFor = (table: string, id: string): Key => `${table}:${id}`;
-  const existingByKey = new Map<Key, { google_event_id: string }>();
+  const keyFor = (table: string, id: string) => `${table}:${id}`;
+  const existingByKey = new Map<string, { google_event_id: string; fingerprint: string | null }>();
   for (const m of mappings ?? []) {
     existingByKey.set(keyFor(m.source_table, m.source_id), {
       google_event_id: m.google_event_id,
+      fingerprint: m.fingerprint ?? null,
     });
   }
 
-  const seen = new Set<Key>();
   let synced = 0;
-
-  for (const h of sources.holidays) {
-    const key = keyFor('holidays', h.id);
-    seen.add(key);
-    const existing = existingByKey.get(key);
-    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, {
-      summary: tagged(h.child_id, h.name),
-      description: h.description ?? undefined,
-      startDate: h.date,
-      endDate: addOneDay(h.end_date ?? h.date),
-    });
-    await admin.from('google_calendar_events').upsert({
+  for (const w of wanted) {
+    const existing = existingByKey.get(keyFor(w.table, w.id));
+    // Sent exactly like this before: nothing to write.
+    if (existing?.fingerprint === w.fingerprint) {
+      synced++;
+      continue;
+    }
+    if (Date.now() > deadline) return { synced, more: true };
+    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, w.input);
+    // Saved as it goes, so a sync that stops part way carries on from here.
+    const { error } = await admin.from('google_calendar_events').upsert({
       household_id,
       user_id: userId,
-      source_table: 'holidays',
-      source_id: h.id,
+      source_table: w.table,
+      source_id: w.id,
       google_event_id: ev.id,
+      fingerprint: w.fingerprint,
       last_synced_at: new Date().toISOString(),
     });
-    synced++;
-  }
-
-  for (const n of sources.notes) {
-    const key = keyFor('day_notes', n.id);
-    seen.add(key);
-    const existing = existingByKey.get(key);
-    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, {
-      summary: tagged(n.child_id, n.text.split('\n')[0].slice(0, 200) || 'Note'),
-      description: n.text,
-      startDate: n.date,
-      endDate: addOneDay(n.date),
-    });
-    await admin.from('google_calendar_events').upsert({
-      household_id,
-      user_id: userId,
-      source_table: 'day_notes',
-      source_id: n.id,
-      google_event_id: ev.id,
-      last_synced_at: new Date().toISOString(),
-    });
-    synced++;
-  }
-
-  for (const p of sources.events) {
-    const key = keyFor('parent_events', p.id);
-    seen.add(key);
-    const existing = existingByKey.get(key);
-    // Timed appointments sync as 1-hour events at the app's Pacific
-    // wall-clock time; untimed ones sync as all-day events.
-    const timed = p.time
-      ? (() => {
-          const hhmm = p.time!.slice(0, 5);
-          const [h, m] = hhmm.split(':').map(Number);
-          const endMinutes = h * 60 + m + 60;
-          const endH = Math.floor(endMinutes / 60);
-          // Clamp at midnight rather than spilling into an invalid 24:xx time.
-          const end = endH >= 24
-            ? '23:59'
-            : `${String(endH).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
-          return {
-            startDateTime: `${p.date}T${hhmm}:00`,
-            endDateTime: `${p.date}T${end}:00`,
-            timeZone: APP_TIME_ZONE,
-          };
-        })()
-      : {};
-    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, {
-      summary: tagged(p.child_id, p.title),
-      description: p.notes ?? undefined,
-      startDate: p.date,
-      endDate: addOneDay(p.date),
-      ...timed,
-    });
-    await admin.from('google_calendar_events').upsert({
-      household_id,
-      user_id: userId,
-      source_table: 'parent_events',
-      source_id: p.id,
-      google_event_id: ev.id,
-      last_synced_at: new Date().toISOString(),
-    });
-    synced++;
-  }
-
-  // Children's events: timed, and weekly when they repeat.
-  for (const e of sources.childEvents) {
-    const key = keyFor('tasks', e.key);
-    seen.add(key);
-    const existing = existingByKey.get(key);
-    const ev = await upsertEvent(accessToken, calendarId, existing?.google_event_id ?? null, {
-      summary: e.summary,
-      // Empty rather than left out: Google keeps a field a PATCH leaves out.
-      description: e.description ?? '',
-      startDate: e.date,
-      endDate: addOneDay(e.date),
-      startDateTime: `${e.date}T${e.start}:00`,
-      endDateTime: `${e.date}T${e.end}:00`,
-      timeZone: APP_TIME_ZONE,
-      recurrence: e.recurrence,
-    });
-    await admin.from('google_calendar_events').upsert({
-      household_id,
-      user_id: userId,
-      source_table: 'tasks',
-      source_id: e.key,
-      google_event_id: ev.id,
-      last_synced_at: new Date().toISOString(),
-    });
+    if (error) throw error;
     synced++;
   }
 
   // Delete events whose source row has been removed.
+  const wantedKeys = new Set(wanted.map(w => keyFor(w.table, w.id)));
   for (const m of mappings ?? []) {
-    const key = keyFor(m.source_table, m.source_id);
-    if (seen.has(key)) continue;
+    if (wantedKeys.has(keyFor(m.source_table, m.source_id))) continue;
+    if (Date.now() > deadline) return { synced, more: true };
     try {
       await deleteEvent(accessToken, calendarId, m.google_event_id);
     } catch (_) { /* ignore */ }
@@ -321,7 +332,7 @@ async function syncConnection(
       });
   }
 
-  return synced;
+  return { synced, more: false };
 }
 
 function json(body: unknown, status = 200) {

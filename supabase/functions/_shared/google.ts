@@ -77,6 +77,31 @@ export async function createAppCalendar(
   return r.json();
 }
 
+// Google answers a burst of writes to one calendar with 403
+// rateLimitExceeded (or 429) and asks callers to slow down: writes are spaced
+// out, and a refused one waits and tries again, twice as long each time.
+const WRITE_GAP_MS = 400;
+let nextWriteAt = 0;
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+async function rateLimited(r: Response): Promise<boolean> {
+  if (r.status === 429) return true;
+  if (r.status !== 403) return false;
+  return /rateLimitExceeded|userRateLimitExceeded/.test(await r.clone().text());
+}
+
+async function calendarWrite(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const wait = nextWriteAt - Date.now();
+    if (wait > 0) await sleep(wait);
+    nextWriteAt = Date.now() + WRITE_GAP_MS;
+    const r = await fetch(url, init);
+    if (attempt >= 5 || !(await rateLimited(r))) return r;
+    await r.body?.cancel();
+    await sleep(1000 * 2 ** attempt + Math.random() * 500);
+  }
+}
+
 export interface CalendarEventInput {
   summary: string;
   description?: string;
@@ -115,7 +140,7 @@ export async function upsertEvent(
   };
 
   if (eventId) {
-    const r = await fetch(
+    const r = await calendarWrite(
       `${CAL_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
       {
         method: 'PATCH',
@@ -133,7 +158,7 @@ export async function upsertEvent(
     }
   }
 
-  const r = await fetch(
+  const r = await calendarWrite(
     `${CAL_API}/calendars/${encodeURIComponent(calendarId)}/events`,
     {
       method: 'POST',
@@ -153,7 +178,7 @@ export async function deleteEvent(
   calendarId: string,
   eventId: string,
 ): Promise<void> {
-  const r = await fetch(
+  const r = await calendarWrite(
     `${CAL_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
     {
       method: 'DELETE',
