@@ -32,6 +32,8 @@ static const char *const WORM[] = {
  * concentric with the screen, the step's picture (105) and its name (Poppins SemiBold 24) in navy */
 #define STEP_D 272
 #define STEP_ICON 105
+#define STEP_EDGE_D 154       /* the steps before and after, at the sides */
+#define STEP_EDGE_FG 0x13192C /* navy at 60 % */
 /* the Get ready checklist: rows 59 apart round the centre line */
 #define STEPS_Y 100
 #define STEPS_H 268
@@ -45,8 +47,12 @@ static struct {
     lv_obj_t *page, *pet, *faint, *wheel, *scrim, *timer;
     lv_obj_t *count, *count_left;            /* MID_COUNTDOWN */
     lv_obj_t *step, *step_icon, *step_name;  /* MID_STEP */
-    int step_shown;
+    lv_obj_t *step_box;                      /* its ring to tick */
+    lv_obj_t *step_edge[2], *step_edge_icon[2], *step_edge_name[2];   /* the step before (left) and after (right) */
+    int step_shown, step_back_to;
     char step_sig[64];
+    lv_timer_t *step_hold;                   /* the ring ticked: the next step waits a moment */
+    struct { char icon[20], text[56]; } step_pend[3];   /* the left, the middle, the right ("": none; the middle: All done!) */
     lv_obj_t *overdue, *overdue_text, *worm;
     lv_obj_t *tap_stars;
     lv_obj_t *left, *right;
@@ -281,7 +287,10 @@ static void steps_style(lv_obj_t *card, float d)
 /* a tap on any step checks or unchecks it, in any order; sent once the click is over */
 static void step_tapped(void *i) { if (h.cb) h.cb(HOME_TAP_STEP, (int)(intptr_t)i); }
 static void on_step(lv_event_t *e) { lv_async_call(step_tapped, lv_event_get_user_data(e)); }
-static void on_step_one(lv_event_t *e) { (void)e; if (h.step_shown >= 0) lv_async_call(step_tapped, (void *)(intptr_t)h.step_shown); }   /* (-2: all ticked) */
+/* (-2: all ticked; while a tick is showing, a second tap is a double tap, not the next step) */
+static void on_step_one(lv_event_t *e) { (void)e; if (h.step_shown >= 0 && !h.step_hold) lv_async_call(step_tapped, (void *)(intptr_t)h.step_shown); }
+/* the step before, at the left: a tap unticks it and it comes back to the middle (ticked by mistake) */
+static void on_step_back(lv_event_t *e) { (void)e; if (h.step_back_to >= 0 && !h.step_hold) lv_async_call(step_tapped, (void *)(intptr_t)h.step_back_to); }
 
 /* Figma "Step": 348 wide, 16 / 24 padding, gap 16: the number ("2.", Detail 20 in cream) on a 35 px
  * amber disc, the step (Pill 24, up to two lines of 30), the Checkbox (48). 80 high with one line. */
@@ -419,6 +428,32 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     h.steps_fade = top_fade_create(page, 86, 152);
     h.graphic = (home_graphic_t)-1;
 
+    /* the steps either side of it, under it (Figma 1471:13333): the one before at the left in mint,
+     * the one after at the right in lime, 154 circles at 60 % (drawn as the colours mixed with black,
+     * so no layer is needed) with the picture (60) and the name in two lines of Poppins SemiBold 20 */
+    static const uint32_t EDGE_BG[2] = { 0x3D7B66, 0x848F43 };
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *e = ui_box(page);
+        lv_obj_set_size(e, STEP_EDGE_D, STEP_EDGE_D);
+        lv_obj_set_pos(e, i ? 298 : 15, CENTER - STEP_EDGE_D / 2);
+        ui_style_card(e, EDGE_BG[i], LV_RADIUS_CIRCLE, 0, 0);
+        h.step_edge_icon[i] = ui_icon(e, "shirt", 60, STEP_EDGE_FG);
+        ui_icon_px(h.step_edge_icon[i], "shirt", 60);
+        lv_obj_set_pos(h.step_edge_icon[i], 49, 22);
+        h.step_edge_name[i] = ui_label(e, &font_pop600_20, STEP_EDGE_FG, "");
+        lv_obj_set_size(h.step_edge_name[i], 118, 2 * lv_font_get_line_height(&font_pop600_20));
+        lv_obj_set_style_text_align(h.step_edge_name[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(h.step_edge_name[i], LV_LABEL_LONG_DOT);
+        lv_obj_set_pos(h.step_edge_name[i], 20, 82);
+        ui_show(e, false);
+        h.step_edge[i] = e;
+    }
+    /* the one before is the way back: a tap unticks it */
+    lv_obj_add_flag(h.step_edge[0], LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(h.step_edge[0], COL(C_DONE), LV_STATE_PRESSED);
+    lv_obj_add_event_cb(h.step_edge[0], on_step_back, LV_EVENT_CLICKED, NULL);
+    h.step_back_to = -1;
+
     /* the younger child's step: one lime circle in the middle; a tap ticks it, like the button */
     h.step = ui_box(page);
     lv_obj_set_size(h.step, STEP_D, STEP_D);
@@ -429,15 +464,18 @@ void home_create(lv_obj_t *page, home_cb_t cb)
     lv_obj_add_event_cb(h.step, on_step_one, LV_EVENT_CLICKED, NULL);
     lv_obj_set_style_transform_pivot_x(h.step, STEP_D / 2, 0);
     lv_obj_set_style_transform_pivot_y(h.step, STEP_D / 2, 0);
+    /* Figma Step, Center (1471:13333): the picture (105) at y 21, the name (Poppins SemiBold 24, one
+     * line at y 142, or two smaller ones just above the ring), the Checkbox (Large, 64) at y 188 */
     h.step_icon = ui_icon(h.step, "shirt", STEP_ICON, C_ON_COLOR);
     ui_icon_px(h.step_icon, "shirt", STEP_ICON);
-    lv_obj_align(h.step_icon, LV_ALIGN_TOP_MID, 0, 210 - (CENTER - STEP_D / 2) - STEP_ICON / 2);   /* its middle at y 210 */
+    lv_obj_align(h.step_icon, LV_ALIGN_TOP_MID, 0, 21);
     h.step_name = ui_label(h.step, &font_pop600_24, C_ON_COLOR, "");
     lv_obj_set_width(h.step_name, 236);
     lv_obj_set_style_text_align(h.step_name, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(h.step_name, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_line_space(h.step_name, -1, 0);   /* Figma: 30 px lines */
-    lv_obj_align(h.step_name, LV_ALIGN_TOP_MID, 0, 278 - (CENTER - STEP_D / 2));
+    lv_obj_align(h.step_name, LV_ALIGN_TOP_MID, 0, 142);
+    /* the empty ring: a tap, or the button, ticks it in front of the child before the next step comes */
+    h.step_box = checkbox_create(h.step, 64, false);
+    lv_obj_align(h.step_box, LV_ALIGN_TOP_MID, 0, 188);
     ui_show(h.step, false);
     h.step_shown = -1;
 
@@ -545,43 +583,84 @@ static void set_graphic(home_graphic_t g)
     if (room) h.graphic = g;
 }
 
-/* The younger child's step: the first one not ticked, in the circle. A step ticked: the next one
- * springs into its place. */
+/* a step's picture, the toothbrush on Figma's slant */
+static void step_picture_set(lv_obj_t *img, const char *icon, int px)
+{
+    ui_icon_px(img, icon && *icon ? icon : "check", px);
+    lv_image_set_rotation(img, icon && !strcmp(icon, "toothbrush") ? -450 : 0);
+}
+
+/* What the three hold: in the middle a step (lime, its picture and name over the empty ring) or "All
+ * done!" (mint, a tick, no ring); at the sides the step before and the one after, or nothing.
+ * `pop`: the middle springs into place. */
+static void step_show_pending(bool pop)
+{
+    bool all = !h.step_pend[1].text[0];
+    lv_obj_set_style_bg_color(h.step, COL(all ? C_DONE : C_ACTION), 0);
+    step_picture_set(h.step_icon, all ? "check" : h.step_pend[1].icon, STEP_ICON);
+    ui_set_text(h.step_name, all ? "All done!" : h.step_pend[1].text);
+    /* one line of 24 at y 142, or two of 20 ending just above the ring */
+    int lines = ui_label_fit(h.step_name, &font_pop600_24, F_ITEM, 236, 2);
+    int32_t name_h = lines * (lv_font_get_line_height(F_ITEM) + UI_FIT_SPACE) - UI_FIT_SPACE;
+    lv_obj_align(h.step_name, LV_ALIGN_TOP_MID, 0, lines > 1 ? 188 - 6 - name_h : 142);
+    checkbox_untick(h.step_box);
+    ui_show(h.step_box, !all);
+    for (int i = 0; i < 2; i++) {
+        const char *text = h.step_pend[i ? 2 : 0].text;
+        ui_show(h.step_edge[i], text[0] != 0);
+        if (!text[0]) continue;
+        step_picture_set(h.step_edge_icon[i], h.step_pend[i ? 2 : 0].icon, 60);
+        lv_obj_set_pos(h.step_edge_icon[i], 49, 22);
+        ui_set_text(h.step_edge_name[i], text);
+    }
+    if (pop) {
+        fx_ripple_from(h.step, STEP_D / 2, STEP_D / 2 + 60, C_DONE);
+        fx_pop(h.step, 0);
+    }
+}
+
+static void step_hold_over(lv_timer_t *t) { (void)t; h.step_hold = NULL; step_show_pending(true); }
+
+/* The younger child's step: the first one not ticked, in the middle, the one before it at the left
+ * and the one after at the right. A step ticked (a tap or the button): its ring ticks, and a moment
+ * later they all move along (the last: "All done!"). The one at the left tapped: it is unticked and
+ * comes straight back to the middle. */
+#define STEP_HOLD_MS 650
 static void step_one_update(const home_view_t *v)
 {
     int n = LV_MIN(v->steps_total, HOME_STEPS_MAX);
     uint16_t ticked = v->steps_ticked & (uint16_t)((1u << n) - 1);
     int at = -1;
     for (int i = 0; i < n; i++) if (!(ticked & (1u << i))) { at = i; break; }
+    /* back to the last one ticked before this one (all ticked: the last of them) */
+    h.step_back_to = -1;
+    for (int i = (at < 0 ? n : at) - 1; i >= 0; i--) if (ticked & (1u << i)) { h.step_back_to = i; break; }
     char sig[64];
     snprintf(sig, sizeof sig, "%d:%.40s", n, v->step_text[0]);
     bool fresh = strcmp(sig, h.step_sig) != 0;
-    if (at < 0) {
-        /* the last one ticked: the circle turns mint with a tick for the moment before the room
-         * comes back */
-        if (h.step_shown == -2) return;
-        h.step_shown = -2;
-        snprintf(h.step_sig, sizeof h.step_sig, "%s", sig);
-        lv_obj_set_style_bg_color(h.step, COL(C_DONE), 0);
-        ui_icon_px(h.step_icon, "check", STEP_ICON);
-        lv_image_set_rotation(h.step_icon, 0);
-        ui_set_text(h.step_name, "All done!");
-        fx_ripple_from(h.step, STEP_D / 2, STEP_D / 2 + 60, C_DONE);
-        fx_pop(h.step, 0);
+    int was = h.step_shown;
+    if (!fresh && at == was) return;
+    if (at < 0 && was == -2 && !fresh) return;
+    snprintf(h.step_sig, sizeof h.step_sig, "%s", sig);
+    h.step_shown = at < 0 ? -2 : at;
+    /* the one after: the next not ticked past this one */
+    int after = -1;
+    for (int i = at + 1; at >= 0 && i < n; i++) if (!(ticked & (1u << i))) { after = i; break; }
+    const int slot[3] = { h.step_back_to, at, after };
+    for (int k = 0; k < 3; k++) {
+        snprintf(h.step_pend[k].icon, sizeof h.step_pend[k].icon, "%s", slot[k] < 0 ? "" : v->step_icon[slot[k]]);
+        snprintf(h.step_pend[k].text, sizeof h.step_pend[k].text, "%s", slot[k] < 0 ? "" : v->step_text[slot[k]]);
+    }
+    if (h.step_hold) { lv_timer_delete(h.step_hold); h.step_hold = NULL; }
+    bool forward = !fresh && was >= 0 && (at < 0 || at > was);
+    if (forward) {
+        /* ticked: the ring ticks on the step that was done, then the next one comes */
+        checkbox_tick(h.step_box);
+        h.step_hold = lv_timer_create(step_hold_over, STEP_HOLD_MS, NULL);
+        lv_timer_set_repeat_count(h.step_hold, 1);
         return;
     }
-    if (!fresh && at == h.step_shown) return;
-    bool moved_on = !fresh && h.step_shown != -1;
-    snprintf(h.step_sig, sizeof h.step_sig, "%s", sig);
-    h.step_shown = at;
-    lv_obj_set_style_bg_color(h.step, COL(C_ACTION), 0);
-    ui_icon_px(h.step_icon, v->step_icon[at][0] ? v->step_icon[at] : "check", STEP_ICON);
-    lv_image_set_rotation(h.step_icon, strcmp(v->step_icon[at], "toothbrush") ? 0 : -450);   /* Figma's toothbrush stands on a slant */
-    ui_set_text(h.step_name, v->step_text[at]);
-    if (moved_on) {
-        fx_ripple_from(h.step, STEP_D / 2, STEP_D / 2 + 60, C_DONE);
-        fx_pop(h.step, 0);
-    }
+    step_show_pending(!fresh && was != -1);
 }
 
 void home_render(const home_view_t *v)
@@ -616,7 +695,12 @@ void home_render(const home_view_t *v)
     else h.steps_sig[0] = 0;
     ui_reveal(h.step, v->mid == MID_STEP, 0);
     if (v->mid == MID_STEP) step_one_update(v);
-    else { h.step_sig[0] = 0; h.step_shown = -1; }
+    else {
+        h.step_sig[0] = 0;
+        h.step_shown = h.step_back_to = -1;
+        if (h.step_hold) { lv_timer_delete(h.step_hold); h.step_hold = NULL; }
+    }
+    if (v->mid != MID_STEP) for (int i = 0; i < 2; i++) ui_show(h.step_edge[i], false);
     ui_reveal(h.count, v->mid == MID_COUNTDOWN, 0);
     ui_reveal(h.count_left, v->mid == MID_COUNTDOWN, 0);
     if (v->mid == MID_COUNTDOWN) ui_set_text(h.count, v->countdown);
