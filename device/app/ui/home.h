@@ -18,8 +18,9 @@
  * min left) */
 typedef enum { MID_PET, MID_WHEEL, MID_OVERDUE, MID_NONE, MID_STEPS, MID_STEP, MID_COUNTDOWN } home_mid_t;
 #define HOME_STEPS_MAX 10
-/* BOTTOM_GAMES: the outline Games button that opens Playtime (Figma Free time · Spin) */
-typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS, BOTTOM_GAMES } home_bottom_t;
+/* BOTTOM_GAMES: the outline Games button that opens Playtime (Figma Free time · Spin); BOTTOM_SPIN:
+ * what comes next over a small Spin button, back to the free-time wheel (Biscuit's room) */
+typedef enum { BOTTOM_NONE, BOTTOM_NEXT, BOTTOM_PLAY, BOTTOM_WHEEL, BOTTOM_NOTE, BOTTOM_STARS, BOTTOM_GAMES, BOTTOM_SPIN } home_bottom_t;
 typedef enum { CARDPOS_NONE, CARDPOS_TOP, CARDPOS_LOW, CARDPOS_BOTTOM, CARDPOS_MID } home_cardpos_t;   /* MyToki 2: every note sits at y 322 */
 typedef enum { BELOW_TEXT, BELOW_TIME, BELOW_STATUS, BELOW_FREE } home_below_t;
 /* MyToki 2 Graphic: Full = the room fills the screen; Small = the 298 circle (no screen uses it now);
@@ -72,6 +73,7 @@ typedef struct {
     int8_t chores_left;         /* at an event: a note "N to finish" that opens the list */
     bool wake;                  /* the alarm: he sits up and stretches, the room at dawn */
     bool tap_ring;              /* Biscuit can be tapped to play: stars twinkle about him */
+    bool spin;                  /* the free-time wheel can be had from here (the younger child's: a round button by Games) */
     char say[48];               /* his bubble, "" for none */
     char say_top[48];           /* (old) the same bubble */
     /* note */

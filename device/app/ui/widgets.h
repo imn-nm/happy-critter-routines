@@ -80,6 +80,7 @@ typedef struct {
     lv_obj_t *line, *line_time, *line_icon, *line_task;   /* Next on one line, over a button */
     lv_obj_t *button, *button_icon, *button_label;
     lv_obj_t *round, *round_icon;   /* the younger child's round picture button (Games: the game pad) */
+    lv_obj_t *spin, *spin_icon;     /* and the wheel beside it (taps as Spin) */
     lv_obj_t *text;
     lv_obj_t *sw, *sw_spin, *sw_play;
     lv_obj_t *dots;
@@ -93,10 +94,11 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb);
 void hill_set_next(hill_t *h, const char *icon, const char *title, const char *time);
 void hill_set_button(hill_t *h, const char *icon, const char *label);
 /* The younger child's: a 72 round button with a lime ring and a picture, on the curve (taps as the
- * button). */
-void hill_set_round(hill_t *h, const char *icon);
-/* The curve, what comes next on one line (a tap opens the day), and a small button under it. */
-void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label);
+ * button); with `spin`, the wheel's round button beside it at the left (taps as Spin). */
+void hill_set_round(hill_t *h, const char *icon, bool spin);
+/* The curve, what comes next on one line (a tap opens the day), and a small button under it (its
+ * icon optional). */
+void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *button_icon, const char *label);
 void hill_set_text(hill_t *h, const char *text);
 void hill_set_switch(hill_t *h, bool play);
 void hill_set_empty(hill_t *h);

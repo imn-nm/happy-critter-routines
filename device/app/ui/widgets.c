@@ -595,19 +595,24 @@ void hill_create(lv_obj_t *parent, hill_t *h, hill_cb_t cb)
     h->button_icon = lv_obj_get_child(h->button, 0);
     h->button_label = lv_obj_get_child(h->button, 1);
     tap_target(h->button, cb, HILL_TAP_BUTTON);
-    /* Round: the younger child's 72 picture button with a 3 px lime ring, its middle at y 403 */
-    h->round = ui_box(h->root);
-    lv_obj_set_size(h->round, 72, 72);
-    lv_obj_add_flag(h->round, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_set_pos(h->round, CENTER - 36, 404 - HILL_Y - 36);
-    ui_style_card(h->round, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
-    lv_obj_set_style_border_width(h->round, 3, 0);
-    lv_obj_set_style_border_color(h->round, COL(C_ACTION), 0);
-    lv_obj_set_style_border_opa(h->round, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(h->round, COL(C_CHIP), LV_STATE_PRESSED);
-    h->round_icon = ui_icon(h->round, "game", 36, C_ACTION);
-    lv_obj_center(h->round_icon);
-    tap_target(h->round, cb, HILL_TAP_BUTTON);
+    /* Round: the younger child's 72 picture button with a 3 px lime ring, its middle at y 403; the
+     * wheel's the same beside it */
+    for (int k = 0; k < 2; k++) {
+        lv_obj_t *r = ui_box(h->root);
+        lv_obj_set_size(r, 72, 72);
+        lv_obj_add_flag(r, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_set_pos(r, CENTER - 36, 404 - HILL_Y - 36);
+        ui_style_card(r, C_RAISED, LV_RADIUS_CIRCLE, 0, 0);
+        lv_obj_set_style_border_width(r, 3, 0);
+        lv_obj_set_style_border_color(r, COL(C_ACTION), 0);
+        lv_obj_set_style_border_opa(r, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(r, COL(C_CHIP), LV_STATE_PRESSED);
+        lv_obj_t *i = ui_icon(r, k ? "wheel" : "game", 36, C_ACTION);
+        lv_obj_center(i);
+        tap_target(r, cb, k ? HILL_TAP_SPIN : HILL_TAP_BUTTON);
+        if (k) { h->spin = r; h->spin_icon = i; }
+        else { h->round = r; h->round_icon = i; }
+    }
     /* Text: a cream line in Body 22, no curve */
     h->text = ui_label(h->col, F_BODY_P, C_TEXT, "");
     lv_obj_set_style_text_align(h->text, LV_TEXT_ALIGN_CENTER, 0);
@@ -636,6 +641,7 @@ static void hill_kind(hill_t *h, hill_kind_t kind)
     ui_show(h->text, kind == HILL_TEXT);
     ui_show(h->sw, kind == HILL_SWITCH);
     ui_show(h->round, kind == HILL_ROUND);
+    if (kind != HILL_ROUND) ui_show(h->spin, false);
     ui_show(h->curve, kind == HILL_NEXT || kind == HILL_SWITCH || kind == HILL_NEXT_BUTTON);   /* the round game pad stands on the room */
     static const int32_t PAD[] = { 0, 9, 14, 24, 23, 6, 0 };
     lv_obj_set_style_pad_top(h->col, PAD[kind], 0);
@@ -672,21 +678,27 @@ void hill_set_button(hill_t *h, const char *icon, const char *label)
     ui_set_text(h->button_label, label);
 }
 
-void hill_set_round(hill_t *h, const char *icon)
+void hill_set_round(hill_t *h, const char *icon, bool spin)
 {
     hill_kind(h, HILL_ROUND);
     ui_icon_set(h->round_icon, icon && *icon ? icon : "game", 36);
     lv_obj_center(h->round_icon);
+    /* the two 20 apart about the middle: the wheel at the left, the games at the right */
+    lv_obj_set_x(h->round, spin ? CENTER + 10 : CENTER - 36);
+    lv_obj_set_x(h->spin, CENTER - 10 - 72);
+    if (spin && lv_obj_has_flag(h->spin, LV_OBJ_FLAG_HIDDEN)) fx_rise(h->spin, 14, 60);
+    ui_show(h->spin, spin);
 }
 
-void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *label)
+void hill_set_next_button(hill_t *h, const char *icon, const char *title, const char *time, const char *button_icon, const char *label)
 {
     hill_kind(h, HILL_NEXT_BUTTON);
     ui_icon_set(h->line_icon, icon && *icon ? icon : "star-line", 18);
     ui_set_text(h->line_task, title);
     ui_set_text(h->line_time, time ? time : "");
     ui_show(h->line_time, time && *time);
-    ui_show(h->button_icon, false);
+    ui_show(h->button_icon, button_icon && *button_icon);
+    if (button_icon && *button_icon) ui_icon_set(h->button_icon, button_icon, 18);
     ui_set_text(h->button_label, label);
 }
 

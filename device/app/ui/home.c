@@ -102,7 +102,7 @@ static void on_hill(hill_tap_t tap)
     case HILL_TAP_NEXT: h.cb(HOME_TAP_NEXT, 0); break;
     case HILL_TAP_SPIN: h.cb(HOME_TAP_WHEEL, 0); break;
     case HILL_TAP_PLAY: h.cb(HOME_TAP_PLAY, 0); break;
-    case HILL_TAP_BUTTON: h.cb(h.bottom == BOTTOM_GAMES ? HOME_TAP_PLAYTIME : HOME_TAP_CARD, 0); break;
+    case HILL_TAP_BUTTON: h.cb(h.bottom == BOTTOM_GAMES ? HOME_TAP_PLAYTIME : h.bottom == BOTTOM_SPIN ? HOME_TAP_WHEEL : HOME_TAP_CARD, 0); break;
     }
 }
 
@@ -792,8 +792,12 @@ void home_render(const home_view_t *v)
     h.bottom = v->bottom;
     switch (v->bottom) {
     case BOTTOM_GAMES:   /* the free-time wheel (Figma Free time · Spin): one Games button, no curve; the younger child's is the round game pad */
-        if (v->picture) hill_set_round(&h.hill, "game");
+        if (v->picture) hill_set_round(&h.hill, "game", v->spin);   /* in Biscuit's room, the wheel beside it */
         else hill_set_button(&h.hill, NULL, "Games");
+        break;
+    case BOTTOM_SPIN:   /* Biscuit's room in free time: what's next, and back to the wheel */
+        if (v->next_title[0]) hill_set_next_button(&h.hill, v->next_icon, v->next_title, v->next_time, "wheel", "Spin");
+        else hill_set_button(&h.hill, "wheel", "Spin");
         break;
     case BOTTOM_NEXT: hill_set_next(&h.hill, v->next_icon, v->next_title, v->picture ? "" : v->next_time); break;   /* younger: no times */
     case BOTTOM_NOTE: hill_set_text(&h.hill, v->note); break;

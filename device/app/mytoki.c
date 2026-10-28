@@ -883,7 +883,7 @@ static void on_home(home_event_t ev, int arg)
         }
         break;
     case HOME_TAP_PLAY: app.free_pet_view = true; break;
-    case HOME_TAP_WHEEL: app.free_pet_view = false; break;
+    case HOME_TAP_WHEEL: app.free_pet_view = false; app.pet_view_at = 0; break;
     case HOME_HOLD_PET: mytoki_open_pet(); break;
     case HOME_TAP_PET: {
         if ((app.state == ST_FREE && app.now.free_remaining - GET_READY_S > 0) || app.state == ST_FREE_DAY || app.state == ST_REST) { mytoki_open_playtime(); break; }
@@ -1460,6 +1460,12 @@ static void build_view(home_view_t *v)
             bool gift = !strncmp(app.say_key, "free:", 5) && (int32_t)(now_ms() - app.say_until) < 0;
             snprintf(v->say, sizeof v->say, "%s", gift ? app.say : "Tap to play!");
             v->tap_ring = can_play;   /* the lime ring pulses round him: a tap opens the games */
+            /* and back to the wheel when there's time for it (after a spin, or the button brought
+             * him home): Next over a small Spin button; the younger child's, a round wheel by Games */
+            if (total > WHEEL_MIN_S) {
+                v->spin = true;
+                if (!p->child.picture) v->bottom = BOTTOM_SPIN;
+            }
         }
         if (nx && logic_can_pull(p, n->upcoming[0], app.now_s) && v->card == CARDPOS_NONE && !quiet && can_play) {
             snprintf(buf, sizeof buf, "Press to start %s", nx->title);
